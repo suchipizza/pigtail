@@ -34,6 +34,11 @@ Infrastructure and data sources:
 **Most important for you to know now:** under the EEA/Swiss Consumer Terms that cover Pro/Max plans, you agree not to use the services "for any commercial or business purposes", and zero data retention isn't offered on those plans. If the lawyer confirms this applies to pigtail, the default product backend must become `api` (LQ-1, LQ-2; ADR-023).
 **Blocks:** publishing anything (M9: findings, D2 public mode, v1 tag). Also: subscription-mode LLM coding of person-level text at scale (LQ-1/2), account-level spread graphs (LQ-8), and the Wayback, V2EX, Discord and HN connectors for commercial operators (LQ-15/18/21/6). **Does not block** collection under the documented safeguards.
 **Default if unanswered by 2026-10-09:** release stays blocked and the interim defaults in ADR-022 stay in force. Everything else continues.
+## H1/H2 follow-ups — added 2026-09-25 (small, but they unblock the pilot)
+- [ ] **Model training off:** confirm here (just tick it) that model training is turned off in your Claude account's privacy settings. Without this, pilot coding can't run on your subscription (ADR-029.4) and waits for an API key.
+- [ ] **Privacy notice details (CB-12):** the controller name and a contact address for `docs/compliance/privacy-notice.md`. Please don't write a personal e-mail here (public repo). A role address or "via GitHub issues on the repo" works. Other person-level sources (Hacker News, Bluesky) stay off until the notice is published (ADR-022).
+- **Default if unanswered by 2026-10-09:** the pilot waits; the person-level sources stay off; everything else continues.
+
 ## H3 — Human calibration coding (optional, ~3–4 h)  [not yet raised]
 ## H4 — Publish aggregate findings / D2 public mode / tag v1.0  [not yet raised]
 ## H5 — External actions / owner launch profiles  [not yet raised]
