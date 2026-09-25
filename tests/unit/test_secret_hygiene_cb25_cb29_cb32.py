@@ -14,11 +14,12 @@ from pigtail.scheduler.alerts import parse_smtp_url
 from tests.conftest import TEST_KEY
 
 REPO = Path(__file__).resolve().parents[2]
+# Synthetic values only; they exist to prove repr() masks secrets.
 SECRETS = {
-    "PSEUDONYM_KEY": "pk-synthetic-secret-value-0001",
+    "PSEUDONYM_KEY": "pk-synthetic-secret-value-0001",  # gitleaks:allow
     "DATABASE_URL": "postgresql://pigtail:dbpw-synthetic-0002@localhost:5432/pigtail",
-    "S3_ACCESS_KEY": "s3-access-synthetic-0003",
-    "S3_SECRET_KEY": "s3-secret-synthetic-0004",
+    "S3_ACCESS_KEY": "s3-access-synthetic-0003",  # gitleaks:allow
+    "S3_SECRET_KEY": "s3-secret-synthetic-0004",  # gitleaks:allow
 }
 
 
