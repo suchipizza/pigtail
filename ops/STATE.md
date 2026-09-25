@@ -8,8 +8,8 @@ updated: 2026-09-25
 |---|---|---|---|
 | A capture | M1 | core built (schemas, snapshots, connector base, GH Archive scan). **Detection at risk: GH Archive star coverage ≈ 0.7% (ADR-028)**; re-plan M1-T18 | H1 (host, GITHUB_TOKEN); ADR-022 holds |
 | B research | M2 | literature review + source matrix **verified (PASS)**; M2-T3 fake-star reproduction pending | M1 GH Archive pipeline |
-| C methodology | M3 | outcome spec + compliance pack written; H2 raised; verifier review pending | — |
-| C methodology | M4 | ready (codebook v0 next) | — |
+| C methodology | M3 | **accepted** (verifier PASS round 4, 2026-09-25) | — |
+| C methodology | M4 | codebook v0.1.0, pre-registrations, candidate cards done; pilot blocked | ADR-022 controls + HN connector; M1-T18; H1 (training off or API key) |
 | D engine | M0 | **accepted** (verifier PASS 2026-09-25) | — |
 | D engine | M5, M8 | not started | G1 / G2 |
 | E analysis | M6, M7 | not started | M5 |

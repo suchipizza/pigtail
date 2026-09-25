@@ -52,6 +52,7 @@ Feature-specific:
 - [ ] [CB-21] Operator guide: controller duties
 
 ## Next
+- [ ] [M5-T1] Coding prompts must include the codebook P1 instruction (ignore personal characteristics); verifier checks it — codebook §12, DPIA R9
 - [ ] [M2-T3] Fake-star method: select, reproduce on a sample, document validation — R3.3 — M2-T1
 - [x] [M2-T4] Verifier spot-check — round 1 FAIL, round 2 PASS @191c44d (2026-09-25)
 - [ ] [M2-T5] Minor source-matrix follow-ups: Algolia earliest-item wording, cite yc-oss README, add #312 notes (Events API cache; merged-PR events) — verifier round 2 optional
