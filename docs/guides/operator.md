@@ -39,10 +39,25 @@ scheduler (`pigtail scheduler run`) is one small process that:
 |---|---|---|---|
 | `hn_ranks` | `capture hn-ranks --once` | 5 min | project-level, on by default (ADR-031.1) |
 | `gharchive_scan` | `capture scan --start <midnight −2 d> --end <now −2 h>` | 1 h | complete days already scanned are skipped; catches up after ≤ 2 days of downtime (ADR-028: limited value, cheap) |
+| `gharchive_backfill` | `capture backfill-gharchive --days 7` | 1 h | M1-T19: retries missing GH Archive hours that are due (see below); one query when nothing is due |
 | `retention_purge` | `retention purge` | 1 d | CB-01, CB-04, CB-05, CB-18 |
 | `deletion_sync` | `privacy deletion-sync` | 1 d | CB-02; needs `PSEUDONYM_KEY` |
 | `purge_raw` | `capture purge-raw` | 1 d | CB-04 |
 | `hn_mentions` | `capture mentions --repo … --since <opened −14 d>` per live case opened in the last 48 h | 3 h | person-level: **skipped and logged** unless `PIGTAIL_ENABLE_HN=1` *and* `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` (ADR-022) |
+
+**Missing GH Archive hours (M1-T19).** When an hourly dump can't be read at scan time (404: not
+published yet; 5xx/429 after the connector's retries; a network error; or a dump that fails to
+decompress, whose bytes are then deleted at once), the hour is stored as `missing` with its
+reason, attempt count and next retry time (1 h, 2 h, 4 h, … capped at 24 h). Missing hours count
+as *unknown* in the baseline, never as zero. `gharchive_backfill` retries the due ones up to
+`--days` back (1–30, default 7; `--max-hours` downloads per run, default 48), re-aggregates each
+UTC day in which an hour came back, and re-runs detection for the following 47 hours. Older
+missing hours are reported as `expired` and stay unknown. By hand:
+```bash
+uv run pigtail capture backfill-gharchive --days 7
+```
+The JSON output lists `due`, `tried`, `recovered`, `still_missing` (by reason), `not_due`,
+`expired`, `days_rescanned` and `cases_opened`.
 
 A job whose connector is disabled (`PIGTAIL_CONNECTOR_<NAME>_ENABLED=false`) is skipped, not
 failed: its run record has `counts.skipped = 1` and the reason in `config.skipped`. Set
@@ -225,6 +240,18 @@ settings. `capture scan` logs the same encryption warning when it starts. Two it
 `MANUAL` because no client can see them: Postgres volume encryption and, with
 `SNAPSHOT_BACKEND=local`, the snapshot directory's disk encryption.
 
+It also reports which sources are switched on (M1-T23):
+- `adr022_person_sources`: `OK` while `PIGTAIL_ADR022_PERSON_SOURCES_OK` is unset (person-level
+  sources held); `WARN` when it is `1`, as a reminder that only you can confirm every ADR-022
+  precondition (for example the published notice, CB-12);
+- `hn_sources`: the rank poller and the person-level HN connectors (`hn_firebase`,
+  `hn_algolia`). `WARN` if the rank poller is off (rank history can't be backfilled); `FAIL` if a
+  person-level connector is on without the ADR-022 flag (it would refuse to start);
+- `github_events`: per-repo GitHub events. `FAIL` if on without the ADR-022 flag, `WARN` if on
+  without `GITHUB_TOKEN`; otherwise it shows the retention (`GITHUB_EVENTS_RETENTION_DAYS`).
+
+Flag values and tokens are never printed.
+
 ### Encryption at rest (CB-03)
 Required before production capture (ADR-022).
 - **Snapshot bucket.**
@@ -282,7 +309,9 @@ Capture jobs register every upstream item whose content sits in a person-level s
    whole page goes) and moves all evidence with those hashes to `deletion_state =
    deleted_upstream` (hash, URL, fetch time and terms basis stay);
 2. deletes its parsed person-level rows (`hn_mention`) and the LLM cache rows derived from the
-   evidence;
+   evidence, and clears the title and url of front-page stories stored by the rank poller
+   (`hn_story`; M1-T23). The rank history and the story's repo link stay, so front-page minutes
+   remain computable; a later poll never refills a cleared title;
 3. writes tombstones (reason `deleted_upstream`) to `deletion_log`.
 
 It also re-applies deletions to evidence captured after an item was found gone (a stale search
@@ -302,7 +331,21 @@ will plug into the same job before it may be enabled.
   uv run pigtail capture hn-ranks --once                          # one poll
   uv run pigtail capture hn-ranks --loop --interval-minutes 5     # long-running (systemd service)
   ```
-  The interval can't be under 1 minute (TM-04). Ranks 1–30 are the front page.
+  The interval can't be under 1 minute (TM-04). Ranks 1–30 are the front page. Every stored
+  story is registered for deletion sync (no author is stored), so stories deleted upstream lose
+  their title and url (M1-T23).
+- **Front-page minutes** (M1-T22, `att.hn_frontpage_minutes`), read-only (no writes, no run
+  record; the database session is read-only):
+  ```bash
+  uv run pigtail report hn-frontpage --repo owner/name [--since 2026-09-20T00] [--until …]
+  ```
+  Stories are matched by their URL (`github.com/owner/name`). Each poll's ranks count until the
+  next poll; a gap between polls longer than 2 × the interval (`--interval-minutes`, default 5;
+  `--gap-factor`, default 2) is not counted and is listed under `gaps` / `uncovered_minutes` (per
+  story: the gaps that began while it was on the front page). Time before the first poll is
+  `before_polling_minutes`. `quality` is `verified` when the window is fully covered, `estimated`
+  (a lower bound) when not, and `unknown` (`minutes: null`) when nothing in the window was
+  polled. Opted-out repos are refused.
 - **Mention capture** (`hn_algolia`, `hn_firebase`): person-level (usernames are pseudonymized,
   comment text stays in private snapshots). **Disabled by default** (`PIGTAIL_ENABLE_HN=0`).
   Setting `PIGTAIL_ENABLE_HN=1` fails with an error unless `PIGTAIL_ADR022_PERSON_SOURCES_OK=1`
@@ -373,10 +416,16 @@ repos with an open case, to confirm the bot filter. It is off by default. To tur
 every ADR-022 precondition (see "Hacker News sources" above; ADR-036), then set
 `PIGTAIL_ENABLE_GITHUB_EVENTS=1` and `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` and change
 `enabled = true` on `gh_repo_events`. Actors are pseudonymized at ingest; raw event pages are
-deleted right after parsing; the pseudonymous rows are kept at most 30 days
-(`GITHUB_EVENTS_RETENTION_DAYS`, default 16, maximum 30; ADR-038) and deleted by `pigtail retention purge`;
-only daily aggregates stay (CB-22, CB-23). pigtail never builds or exports a list of a repo's
+deleted right after parsing (a page that fails to parse is deleted at once too, CB-23b, and
+counted as `repo_events.parse_failed` in the run record); the pseudonymous rows are kept at most
+30 days (`GITHUB_EVENTS_RETENTION_DAYS`, default 16, maximum 30; ADR-038) and deleted by
+`pigtail retention purge`; only daily aggregates stay (CB-22, CB-23). pigtail never builds or exports a list of a repo's
 stargazers.
+
+**Search pages (CB-24).** Search result pages embed owner objects, so they are snapshotted as
+person-level and their raw bytes are deleted right after parsing (hash and URL kept, tombstone in
+`deletion_log`). Only repo ids, names, counts, dates and the owner *type* (User/Organization) are
+kept.
 
 **Day boundaries.** Star-history days are GitHub's own day labels, which are not UTC days
 (probably US Pacific; to be confirmed around the DST change on 2026-11-01). Stored rows carry a
@@ -396,7 +445,7 @@ uv run pigtail capture github detect-v1                                    # nee
 ```bash
 uv run pigtail privacy optout add --platform github --handle -       # reads the handle from stdin
 uv run pigtail privacy optout add --platform github --repo-id 123456 # a project owner opts out
-uv run pigtail privacy optout add --platform github --repo owner/name
+uv run pigtail privacy optout add --platform github --repo owner/name   # also if not in the DB
 uv run pigtail privacy optout list
 uv run pigtail privacy optout remove --platform github --handle -
 uv run pigtail privacy optout purge     # re-apply the whole list, e.g. after a backup restore
@@ -407,13 +456,20 @@ uv run pigtail privacy optout purge     # re-apply the whole list, e.g. after a 
   out) reads the handle from stdin and keeps it out of your shell history.
 - **Ingest:** `capture scan` loads the list, and connectors drop matching records before
   aggregation (counted as `<source>.suppressed` in the run record). Opted-out repos are dropped
-  by repo id.
+  by repo id and, for HN data, the watch list and the Show HN screen, also by normalized
+  `owner/name` (M1-T23), so an opt-out reaches repos pigtail doesn't track yet. The name is
+  stored only as a hash (`rn_…`); `optout list` never shows it.
+- **`--repo owner/name`:** if the repo is in the database, it is opted out by id *and* name. If
+  not, it is opted out by name only; when it later enters the database, `optout purge` also adds
+  its id.
 - **Existing data:** `add` purges at once unless you pass `--no-purge`.
   - For a person, this drops the raw snapshots that contain their records (whole snapshots;
     replay re-downloads them and drops the person at ingest), person-level rows, and LLM cache
     rows derived from those snapshots or mentioning the pseudonym.
   - For a repo, it deletes the repo's hourly aggregates, cases, linked evidence (raw bytes
-    first) and the `repos` row.
+    first) and the `repos` row. By name it also deletes HN mention rows and their snapshots,
+    clears the title, url and repo link of rank-poller stories (the rank history keeps only the
+    item id), clears Show HN screen links and deactivates the watch-list entry (`opted_out`).
   - Opt-outs are logged in the request log as `objection`.
 
 ### Data-subject requests (CB-08)
@@ -442,11 +498,13 @@ uv run pigtail privacy requests                                       # request 
   Archive retention that is up to about 720 hourly dumps, so expect minutes to hours.
 
 ### Log hygiene (CB-18)
-`pigtail capture scan`, `capture hn-ranks`, `capture mentions`, the scheduler (`pigtail scheduler
-run`) and **every job the scheduler starts** install `pigtail.logsafe.RedactingFilter` (scheduled
-jobs run through `python -m pigtail.scheduler.child`, which installs it before any job code runs;
-the scheduler scrubs captured job output again). Other commands run by hand don't yet (CB-18
-follow-up). The filter replaces
-handles, e-mails, profile URLs and DIDs with placeholders and truncates long payloads. `runs.error`
-goes through the same scrubber. When you add a service, call `pigtail.logsafe.configure_logging()`
-or `install()` on its handlers.
+**Every `pigtail` command** installs `pigtail.logsafe.RedactingFilter` on the root log handlers
+before it runs (CB-18b, in `pigtail.cli.main`), whether you run it by hand or the scheduler starts
+it (scheduled jobs run through `python -m pigtail.scheduler.child`, which installs it before any
+job code runs; the scheduler scrubs captured job output again). Python warnings go through the
+same filter, and the traceback of an uncaught error is scrubbed before it reaches stderr. The
+filter replaces handles, e-mails, profile URLs and DIDs with placeholders and truncates long
+payloads. Pages that fail to parse are counted in run records by source and exception type only
+(`<source>.parse_failed.<Type>`), never with their content. `runs.error` goes through the same
+scrubber. When you add a service, call `pigtail.logsafe.configure_logging()` or `install()` on
+its handlers.

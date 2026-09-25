@@ -82,6 +82,16 @@ PSEUDONYM_KEY=… uv run pigtail capture scan --start 2026-09-20T00 --end 2026-0
   `tests/github_fake.py` (httpx `MockTransport`): no network and no real token in tests.
   `repo_event_actor` may only be read in aggregate (`tests/unit/test_github_privacy_m1t24.py`
   enforces this); never add a function, command or API path that lists a repo's stargazers.
+- **Drop at parse (CB-23b, CB-24).** Person-level pages that are only parsed for project-level
+  fields (HN rank items, GitHub search pages, per-repo events) are dropped with
+  `pigtail.privacy.deletion.drop_after_parse` right after parsing. A page that fails to parse is
+  dropped at once with `drop_unparseable` (catch `PARSE_ERRORS`); connectors that parse inside a
+  fetch method call `Connector.parse_failed(f, e)`, which hands the page to the
+  `parse_failure_sink` the capture job set (`unparseable_sink(...)`) and returns `ParseFailed`.
+  Record failures as counts only (`<source>.parse_failed.<Type>`), never the exception message.
+- **Repo opt-outs by name (M1-T23).** Besides `<host>:<id>`, the refusal list holds
+  `repo_name_key(owner/name)` hashes; check `Suppressions.name_suppressed(full_name)` wherever a
+  repo is known only by name (HN stories, mentions, watch-list nominations).
 - Tests marked `db` / `s3` use the compose services and skip if they are unreachable
   (`PIGTAIL_REQUIRE_DB=1` makes them fail instead; CI sets it).
 

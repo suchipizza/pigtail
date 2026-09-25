@@ -13,6 +13,8 @@ CB-22). M5 tables (actors, edges, posts) must register here too.
 
 from __future__ import annotations
 
+import logging
+import zlib
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
@@ -21,11 +23,30 @@ from psycopg import sql
 
 if TYPE_CHECKING:
     from pigtail.capture.db import CaptureDB
+    from pigtail.capture.runs import RunRecorder
     from pigtail.capture.snapshots import SnapshotStore
+
+logger = logging.getLogger("pigtail.privacy.deletion")
+
+# What a failed parse of raw JSON / gzip bytes raises (json, int(), dict access, gzip, zlib).
+PARSE_ERRORS: tuple[type[BaseException], ...] = (
+    ValueError,
+    KeyError,
+    TypeError,
+    AttributeError,
+    EOFError,
+    OSError,
+    zlib.error,
+)
 
 Reason = Literal["retention", "erasure", "objection", "deleted_upstream"]
 Action = Literal[
-    "raw_dropped", "rows_deleted", "cache_purged", "evidence_deleted", "error_text_cleared"
+    "raw_dropped",
+    "rows_deleted",
+    "cache_purged",
+    "evidence_deleted",
+    "error_text_cleared",
+    "fields_cleared",  # e.g. hn_story title/url of a story deleted upstream (M1-T23)
 ]
 
 
@@ -184,6 +205,58 @@ def drop_after_parse(
     store.delete(content_hash)
     log.write("raw_dropped", "snapshot", rows=1, content_hash=content_hash, evidence_id=evidence_id)
     return True
+
+
+def drop_unparseable(
+    db: CaptureDB,
+    store: SnapshotStore,
+    evidence_id: str,
+    content_hash: str,
+    log: DeletionLog,
+    *,
+    source: str,
+    error: BaseException,
+    run: RunRecorder | None = None,
+) -> bool:
+    """CB-23b: a person-level page that fails to parse (malformed JSON, truncated gzip, ...) is
+    useless as evidence, so its raw bytes are dropped at once instead of waiting for the
+    retention purge (hash and URL kept, evidence `raw_dropped`, tombstone in `deletion_log`).
+
+    The failure goes to the run record as counts only (`<source>.parse_failed` and
+    `<source>.parse_failed.<ExceptionType>`); the exception message is never recorded or logged,
+    since it can quote the content. Returns True if bytes were deleted.
+    """
+    kind = type(error).__name__
+    if run is not None:
+        run.incr(f"{source}.parse_failed")
+        run.incr(f"{source}.parse_failed.{kind}")
+    logger.warning(
+        "%s: unparseable snapshot for evidence %s dropped (%s)", source, evidence_id, kind
+    )
+    return drop_after_parse(db, store, evidence_id, content_hash, log)
+
+
+def unparseable_sink(
+    db: CaptureDB,
+    store: SnapshotStore,
+    log: DeletionLog,
+    *,
+    run: RunRecorder | None = None,
+) -> Any:
+    """A `Connector.parse_failure_sink` for capture jobs (CB-23b): person-level snapshots that
+    fail to parse are dropped at once (`drop_unparseable`); project-level ones are only counted
+    (they hold no personal data and help debugging)."""
+
+    def sink(f: Any, error: BaseException) -> None:
+        ev = f.evidence
+        if str(ev.retention_class).startswith("person_level"):
+            drop_unparseable(
+                db, store, ev.id, f.content_hash, log, source=ev.source, error=error, run=run
+            )
+        elif run is not None:
+            run.incr(f"{ev.source}.parse_failed")
+
+    return sink
 
 
 def mark_deleted_upstream(

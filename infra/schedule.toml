@@ -33,6 +33,17 @@ lag = "2h"
 catchup_days = 2
 retry_base = "5m"
 
+# Retry missing GH Archive hours (M1-T19): 404/5xx/transport errors and undecodable dumps are
+# marked missing at scan time with a backoff (1h, 2h, 4h, ... capped at 24h). This job retries the
+# ones that are due, up to `--days` back, and re-aggregates the days that came back. Cheap when
+# nothing is due (one query).
+[jobs.gharchive_backfill]
+command = ["capture", "backfill-gharchive", "--days", "7"]
+every = "1h"
+timeout = "50m"
+retry_base = "10m"
+requires = ["gharchive"]
+
 # Retention purge (CB-01, CB-04, CB-05, CB-18).
 [jobs.retention_purge]
 command = ["retention", "purge"]

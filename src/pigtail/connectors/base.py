@@ -30,6 +30,11 @@ Every connector gets, from this base class:
   `repo_fields` name an opted-out repo (`<repo_host>:<id>`). Drops are counted on the run
   (`<name>.suppressed`).
 
+**Unparseable pages** (CB-23b): a connector that parses inside a fetch method (HN Algolia pages,
+Firebase items) reports a failed parse through `parse_failed()`, which calls the
+`parse_failure_sink` the capture job set (`pigtail.privacy.deletion.drop_unparseable`: raw bytes
+dropped at once, counts only in the run record) and then raises `ParseFailed`.
+
 `check(url)` is the one network path that stores nothing: deletion sync (R1.5, CB-02) uses it to
 re-check whether an item still exists upstream. It works while the connector is disabled, so
 deletion duties outlive collection.
@@ -118,6 +123,15 @@ class NotFound(FetchError):
     pass
 
 
+class ParseFailed(ConnectorError):
+    """A snapshotted document could not be parsed (CB-23b). Carries no content."""
+
+    def __init__(self, evidence_id: str, kind: str) -> None:
+        super().__init__(f"unparseable document (evidence {evidence_id}, {kind})")
+        self.evidence_id = evidence_id
+        self.kind = kind
+
+
 @dataclass(frozen=True)
 class CostEvent:
     connector: str
@@ -129,6 +143,7 @@ class CostEvent:
 
 
 CostHook = Callable[[CostEvent], None]
+ParseFailureSink = Callable[["Fetched", BaseException], None]
 
 
 class TokenBucket:
@@ -263,6 +278,7 @@ class Connector(ABC):
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         suppression: Suppressions | None = None,
+        parse_failure_sink: ParseFailureSink | None = None,
     ) -> None:
         e = os.environ if env is None else env
         self.enabled = enabled if enabled is not None else self.enabled_from_env(e)
@@ -294,6 +310,7 @@ class Connector(ABC):
         self.sleep = sleep
         self.clock = clock
         self.suppression = suppression or Suppressions()
+        self.parse_failure_sink = parse_failure_sink
 
     @classmethod
     def enabled_from_env(cls, env: Mapping[str, str]) -> bool:
@@ -459,6 +476,15 @@ class Connector(ABC):
         return resp.content
 
     # --- parsing + pseudonymization (M1-T8) -----------------------------------------------
+    def parse_failed(self, f: Fetched, error: BaseException) -> ParseFailed:
+        """CB-23b: hand an unparseable snapshot to `parse_failure_sink` (which drops its raw
+        bytes); without a sink only the count is recorded. Returns the error to raise."""
+        if self.parse_failure_sink is not None:
+            self.parse_failure_sink(f, error)
+        elif self.run is not None:
+            self.run.incr(f"{self.name}.parse_failed")
+        return ParseFailed(f.evidence.id, type(error).__name__)
+
     @abstractmethod
     def _parse(self, data: bytes, meta: SnapshotMeta) -> Iterable[Record]:
         """Turn raw snapshot bytes into records. May contain raw handles; never call directly."""

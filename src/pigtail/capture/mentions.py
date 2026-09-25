@@ -16,7 +16,11 @@
   evidence, `deleted` / `dead` flags, and the snapshot that deletion sync drops for that item only);
 - mentions go to `hn_mention` (pseudonymized author, no comment text; registered in PERSON_TABLES).
 
-A repo on the refusal list (CB-13) raises `RepoSuppressed` before any request.
+A repo on the refusal list (CB-13) raises `RepoSuppressed` before any request, whether it was
+opted out by id or by name (M1-T23: the name also covers repos not yet in `repos`).
+
+A search page or item that fails to parse is dropped at once (CB-23b; the connectors'
+`parse_failure_sink`), and only counted in the run record.
 """
 
 from __future__ import annotations
@@ -29,8 +33,9 @@ from typing import Any
 from pigtail.capture.db import CaptureDB
 from pigtail.capture.repos import RepoLink, link_repo
 from pigtail.capture.runs import RunRecorder
-from pigtail.connectors.base import FetchError, Record
+from pigtail.connectors.base import FetchError, ParseFailed, Record
 from pigtail.connectors.hn import AlgoliaQuery, HNAlgoliaConnector, HNFirebaseConnector
+from pigtail.privacy.deletion import DeletionLog, unparseable_sink
 from pigtail.privacy.deletion_sync import HN_POLICY, track_items
 
 FULL_NAME_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")
@@ -112,9 +117,14 @@ def capture_hn_mentions(
     link = link_repo(db, f"{owner}/{name}")
     if link.repo_id and link.repo_id in algolia.suppression.repos:
         raise RepoSuppressed(f"{link.repo_id} is on the refusal list (CB-13)")
+    if algolia.suppression.name_suppressed(f"{owner}/{name}"):
+        raise RepoSuppressed("the repo is on the refusal list by name (CB-13, M1-T23)")
+    dlog = DeletionLog(db, "retention", run_id=run.id if run else None)
     for c in (algolia, firebase):
         if c is not None and c.evidence_sink is None:
             c.evidence_sink = db.upsert_evidence
+        if c is not None and c.parse_failure_sink is None:
+            c.parse_failure_sink = unparseable_sink(db, c.store, dlog, run=run)
     res = MentionResult(repo=link.full_name, repo_id=link.repo_id, case_id=link.case_id)
     open_case = link.case_id is not None
     found: dict[int, tuple[Record, str, str, datetime]] = {}  # item -> rec, kind, evidence, at
@@ -164,7 +174,7 @@ def _item_snapshot(
 ) -> str | None:
     try:
         f, rec = fb.fetch_item(item_id, case_id=link.case_id, repo_id=link.repo_id)
-    except FetchError:
+    except (FetchError, ParseFailed):
         res.items_failed += 1
         return None
     if rec is None:

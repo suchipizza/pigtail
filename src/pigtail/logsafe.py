@@ -6,12 +6,17 @@ so logs carry no pseudonyms either. Pass a `Pseudonymizer` to keep keyed pseudon
 (useful for correlating one subject across lines; they are still personal data).
 
 `RedactingFilter` applies `scrub()` to the formatted message, the exception text and stack info
-of every record that passes a handler. `configure_logging()` installs it on the root handlers.
+of every record that passes a handler. `configure_logging()` installs it on the root handlers and
+routes `warnings` through logging; `pigtail.cli.main()` calls it for every command (CB-18b), and
+`install_excepthook()` scrubs the traceback of an uncaught exception before it reaches stderr.
 """
 
 from __future__ import annotations
 
 import logging
+import sys
+import traceback
+from types import TracebackType
 
 from pigtail.pseudonymize import Pseudonymizer, scrub_identifiers
 
@@ -80,6 +85,19 @@ def install(
 
 
 def configure_logging(level: int = logging.INFO) -> None:
-    """`logging.basicConfig` plus the CB-18 filter on every root handler."""
+    """`logging.basicConfig` plus the CB-18 filter on every root handler. Idempotent."""
     logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    logging.captureWarnings(True)  # warnings.warn() text goes through the filter too
     install()
+
+
+def _scrubbing_excepthook(
+    exc_type: type[BaseException], exc: BaseException, tb: TracebackType | None
+) -> None:
+    text = "".join(traceback.format_exception(exc_type, exc, tb))
+    sys.stderr.write(scrub(text, MAX_TRACE_CHARS) + "\n")
+
+
+def install_excepthook() -> None:
+    """CB-18b: scrub uncaught-exception tracebacks (they can quote payloads and handles)."""
+    sys.excepthook = _scrubbing_excepthook

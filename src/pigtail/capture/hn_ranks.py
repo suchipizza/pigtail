@@ -13,7 +13,15 @@ Each poll:
 3. maps story URLs to GitHub repos (`github.com/owner/repo`, normalized, lowercase). When the repo
    is in `repos`, the story row and the item evidence get its `repo_id` and newest open `case_id`,
    so case evidence can attach. Repos on the refusal list (CB-13) are not linked and their story
-   metadata is not stored (the rank row keeps only the id).
+   metadata is not stored (the rank row keeps only the id). This holds for repos opted out by
+   id and, since M1-T23, by name (repos that are not in `repos`);
+4. registers each stored story for deletion sync (`track_items`, platform `hn`, no author):
+   when HN reports it deleted, dead or gone, `HNDeletionSource.delete_rows` clears its title and
+   url (M1-T23; rank history and the project-level repo link stay). A story whose title was
+   cleared is never refilled by a later poll.
+
+An item whose JSON fails to parse is counted (`hn_ranks.parse_failed`, no content) and its raw
+bytes are dropped like every other item (CB-23b).
 
 `run_loop()` repeats polls every `interval` seconds (default 5 minutes, never under 60 s: TM-04
 allows at most one `topstories` poll per minute). A failed poll is logged and the loop goes on.
@@ -34,7 +42,8 @@ from pigtail.capture.repos import RepoLink, link_repo
 from pigtail.capture.runs import RunRecorder
 from pigtail.connectors.base import FetchError
 from pigtail.connectors.hn_ranks import HNRanksConnector
-from pigtail.privacy.deletion import DeletionLog, drop_after_parse
+from pigtail.privacy.deletion import PARSE_ERRORS, DeletionLog, drop_after_parse
+from pigtail.privacy.deletion_sync import HN_POLICY, track_items
 from pigtail.privacy.suppression import Suppressions
 
 FRONT_PAGE_RANKS = 30
@@ -51,6 +60,7 @@ class PollResult:
     n_ids: int
     items_fetched: int = 0
     items_failed: int = 0
+    parse_failed: int = 0
     raw_dropped: int = 0
     stories_linked: list[str] = field(default_factory=list)  # repo full names mapped to repos
     stories_suppressed: int = 0
@@ -63,6 +73,7 @@ class PollResult:
             "front_page": min(self.n_ids, FRONT_PAGE_RANKS),
             "items_fetched": self.items_fetched,
             "items_failed": self.items_failed,
+            "parse_failed": self.parse_failed,
             "raw_dropped": self.raw_dropped,
             "stories_linked": self.stories_linked,
             "stories_suppressed": self.stories_suppressed,
@@ -131,8 +142,12 @@ class RankPoller:
             res.items_fetched += 1
             try:
                 rec = self.conn.story_record(f)
-            except ValueError:
+            except PARSE_ERRORS as e:  # CB-23b: counted without content; dropped below
                 res.items_failed += 1
+                res.parse_failed += 1
+                if self.run is not None:
+                    self.run.incr("hn_ranks.parse_failed")
+                    self.run.incr(f"hn_ranks.parse_failed.{type(e).__name__}")
                 return
             if rec is None:
                 return
@@ -143,6 +158,9 @@ class RankPoller:
             )
             link: RepoLink | None = None
             if rec.get("repo_full_name"):
+                if self.suppression.name_suppressed(rec["repo_full_name"]):
+                    res.stories_suppressed += 1  # M1-T23: opted out by name; keep the id only
+                    return
                 link = link_repo(self.db, rec["repo_full_name"])
                 if link.repo_id and link.repo_id in self.suppression.repos:
                     res.stories_suppressed += 1  # CB-13: opted-out project, keep the id only
@@ -154,6 +172,15 @@ class RankPoller:
                         (link.repo_id, link.case_id, f.evidence.id),
                     )
             self._upsert_story(rec, rank, at, f.evidence.id, link)
+            # M1-T23: re-checked by deletion sync, which clears title/url once it is gone
+            track_items(
+                self.db,
+                HN_POLICY,
+                f.evidence.id,
+                [(str(iid), None)],
+                seen_at=at,
+                open_case=bool(link and link.case_id),
+            )
         finally:
             if drop_after_parse(self.db, self.conn.store, f.evidence.id, f.content_hash, dlog):
                 res.raw_dropped += 1
@@ -173,7 +200,9 @@ class RankPoller:
                     %(score)s, %(desc)s, %(deleted)s, %(dead)s, %(repo)s, %(repo_id)s, %(rank)s,
                     %(at)s, %(at)s, %(ev)s)
             ON CONFLICT (item_id) DO UPDATE SET
-                type = EXCLUDED.type, url = EXCLUDED.url, title = EXCLUDED.title,
+                type = EXCLUDED.type,
+                url = CASE WHEN hn_story.content_cleared_at IS NULL THEN EXCLUDED.url END,
+                title = CASE WHEN hn_story.content_cleared_at IS NULL THEN EXCLUDED.title END,
                 created_at = EXCLUDED.created_at, score = EXCLUDED.score,
                 descendants = EXCLUDED.descendants, deleted = EXCLUDED.deleted,
                 dead = EXCLUDED.dead, repo_full_name = EXCLUDED.repo_full_name,

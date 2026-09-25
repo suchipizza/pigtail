@@ -90,8 +90,11 @@ class Watchlist:
         self.db = db
         self.suppression = suppression or Suppressions()
 
-    def _opted_out(self, repo_host_id: int | None) -> bool:
-        return repo_host_id is not None and f"github:{repo_host_id}" in self.suppression.repos
+    def _opted_out(self, repo_host_id: int | None, full_name: str | None = None) -> bool:
+        """Opted out by repo id, or by name (M1-T23: covers repos not in `repos`)."""
+        if repo_host_id is not None and f"github:{repo_host_id}" in self.suppression.repos:
+            return True
+        return self.suppression.name_suppressed(full_name)
 
     def nominate(
         self,
@@ -111,7 +114,7 @@ class Watchlist:
         name = full_name.strip()
         if name.count("/") != 1 or not all(name.split("/")):
             raise ValueError(f"not an owner/name: {full_name!r}")
-        if self._opted_out(repo_host_id):
+        if self._opted_out(repo_host_id, name):
             return "skipped"
         at = at or _now()
         pinned = source in PINNED_SOURCES

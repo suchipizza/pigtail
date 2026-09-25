@@ -16,6 +16,11 @@ discarded: it is never written to the database, the request log, the deletion lo
   (retention-policy.md §5).
 - `purge_repo()`: a project owner's opt-out. Deletes the repo's aggregates, cases and linked
   evidence (raw bytes first), and its `repos` row.
+- `purge_repo_name()` (M1-T23): the same opt-out matched by normalized `owner/name`, which also
+  reaches data about repos not in `repos`: HN mentions (rows and their snapshots), story titles
+  and urls from the rank poller (the rank history keeps only the item id), Show HN screen links
+  and watch-list entries. The refusal list holds only a hash of the name
+  (`suppression.repo_name_key`).
 
 Every request writes a `privacy_requests` row (id, type, platform, dates, outcome, counts; no
 handle and no pseudonym) and runs inside a `RunRecorder`. Deletions write tombstones to
@@ -380,6 +385,41 @@ def erasure(
     return RequestResult(rid, reason, outcome, counts)
 
 
+def _delete_evidence(
+    db: CaptureDB,
+    store: SnapshotStore,
+    evs: Sequence[tuple[str, str]],
+    log: DeletionLog,
+    counts: dict[str, int],
+    llm_store: LLMStore | None,
+) -> None:
+    """Delete evidence rows `(id, content_hash)`: raw bytes first (unless another present
+    record still needs the blob), then the rows, then derived LLM cache rows."""
+    ids = [e[0] for e in evs]
+    for h in sorted({e[1] for e in evs}):
+        row = db.conn.execute(
+            "SELECT count(*) FROM evidence WHERE content_hash = %s AND deletion_state = 'present'"
+            " AND NOT (id = ANY(%s))",
+            (h, ids),
+        ).fetchone()
+        if row and int(row[0]) == 0:
+            store.delete(h)
+            log.write("raw_dropped", "snapshot", rows=1, content_hash=h)
+    if ids:
+        db.conn.execute(
+            "UPDATE gharchive_hours SET evidence_id = NULL WHERE evidence_id = ANY(%s)", (ids,)
+        )
+        db.conn.execute("DELETE FROM evidence WHERE id = ANY(%s)", (ids,))
+        for eid, h in evs:
+            log.write("evidence_deleted", "evidence", rows=1, content_hash=h, evidence_id=eid)
+    counts["evidence_deleted"] = counts.get("evidence_deleted", 0) + len(ids)
+    if llm_store is not None:
+        n = llm_store.purge_for_evidence(ids)
+        counts["llm_cache_rows_deleted"] = counts.get("llm_cache_rows_deleted", 0) + n
+        if n:
+            log.write("cache_purged", "llm_cache", rows=n)
+
+
 def purge_repo(
     db: CaptureDB,
     store: SnapshotStore,
@@ -403,29 +443,7 @@ def purge_repo(
         " OR case_id IN (SELECT id FROM cases WHERE repo_id = %(r)s) ORDER BY id",
         {"r": repo_key},
     ).fetchall()
-    ids = [e[0] for e in evs]
-    for h in sorted({e[1] for e in evs}):
-        row = db.conn.execute(
-            "SELECT count(*) FROM evidence WHERE content_hash = %s AND deletion_state = 'present'"
-            " AND NOT (id = ANY(%s))",
-            (h, ids),
-        ).fetchone()
-        if row and int(row[0]) == 0:
-            store.delete(h)
-            log.write("raw_dropped", "snapshot", rows=1, content_hash=h)
-    if ids:
-        db.conn.execute(
-            "UPDATE gharchive_hours SET evidence_id = NULL WHERE evidence_id = ANY(%s)", (ids,)
-        )
-        db.conn.execute("DELETE FROM evidence WHERE id = ANY(%s)", (ids,))
-        for eid, h in evs:
-            log.write("evidence_deleted", "evidence", rows=1, content_hash=h, evidence_id=eid)
-    counts["evidence_deleted"] = len(ids)
-    if llm_store is not None:
-        n = llm_store.purge_for_evidence(ids)
-        counts["llm_cache_rows_deleted"] = n
-        if n:
-            log.write("cache_purged", "llm_cache", rows=n)
+    _delete_evidence(db, store, evs, log, counts, llm_store)
     n = db.conn.execute("DELETE FROM cases WHERE repo_id = %s", (repo_key,)).rowcount
     counts["cases_deleted"] = n
     if n:
@@ -436,17 +454,117 @@ def purge_repo(
     return counts
 
 
+def names_for_key(db: CaptureDB, name_key: str, host: str = "github") -> list[str]:
+    """Normalized repo names stored anywhere pigtail keeps them whose `repo_name_key` is
+    `name_key` (the refusal list holds only the hash, M1-T23)."""
+    rows = db.conn.execute(
+        """
+        SELECT repo_full_name FROM hn_mention
+        UNION SELECT repo_full_name FROM hn_story WHERE repo_full_name IS NOT NULL
+        UNION SELECT repo_full_name FROM hn_show_screen WHERE repo_full_name IS NOT NULL
+        UNION SELECT lower(full_name) FROM watchlist
+        UNION SELECT lower(full_name) FROM repos WHERE host = %s
+        """,
+        (host,),
+    ).fetchall()
+    out = set()
+    for (n,) in rows:
+        try:
+            if suppression.repo_name_key(n, host) == name_key:
+                out.add(suppression.normalize_repo_name(n))
+        except ValueError:
+            continue
+    return sorted(out)
+
+
+def purge_repo_name(
+    db: CaptureDB,
+    store: SnapshotStore,
+    name_key: str,
+    log: DeletionLog,
+    *,
+    host: str = "github",
+    llm_store: LLMStore | None = None,
+) -> dict[str, int]:
+    """M1-T23: remove what pigtail holds about an opted-out repo matched by name.
+
+    HN mention rows and the snapshots they came from (unless another repo's mention still uses
+    the same snapshot), rank-poller story titles, urls and repo links (the rank history keeps
+    the item id only, as at ingest), Show HN screen links, and watch-list entries (deactivated
+    as `opted_out`). A `repos` row with that name is purged by id too, and its id is added to
+    the refusal list so ingest by id drops it as well.
+    """
+    counts: dict[str, int] = {
+        "names_matched": 0,
+        "mention_rows_deleted": 0,
+        "story_rows_cleared": 0,
+        "show_rows_cleared": 0,
+        "watchlist_deactivated": 0,
+        "evidence_deleted": 0,
+    }
+    for name in names_for_key(db, name_key, host):
+        counts["names_matched"] += 1
+        evs = db.conn.execute(
+            """
+            SELECT DISTINCT e.id, e.content_hash FROM hn_mention m
+            JOIN evidence e ON e.id IN (m.evidence_id, m.item_evidence_id)
+            WHERE m.repo_full_name = %(n)s AND NOT EXISTS (
+                SELECT 1 FROM hn_mention o WHERE o.repo_full_name <> %(n)s
+                  AND e.id IN (o.evidence_id, o.item_evidence_id))
+            ORDER BY 1
+            """,
+            {"n": name},
+        ).fetchall()
+        n = db.conn.execute("DELETE FROM hn_mention WHERE repo_full_name = %s", (name,)).rowcount
+        counts["mention_rows_deleted"] += n
+        if n:
+            log.write("rows_deleted", "hn_mention", rows=n)
+        _delete_evidence(db, store, evs, log, counts, llm_store)
+        n = db.conn.execute(
+            "UPDATE hn_story SET title = NULL, url = NULL, repo_full_name = NULL, repo_id = NULL,"
+            " content_cleared_at = COALESCE(content_cleared_at, now()) WHERE repo_full_name = %s",
+            (name,),
+        ).rowcount
+        counts["story_rows_cleared"] += n
+        if n:
+            log.write("fields_cleared", "hn_story", rows=n)
+        n = db.conn.execute(
+            "UPDATE hn_show_screen SET repo_full_name = NULL WHERE repo_full_name = %s", (name,)
+        ).rowcount
+        counts["show_rows_cleared"] += n
+        if n:
+            log.write("fields_cleared", "hn_show_screen", rows=n)
+        counts["watchlist_deactivated"] += db.conn.execute(
+            "UPDATE watchlist SET active = false, deactivated_at = now(),"
+            " deactivated_reason = 'opted_out' WHERE lower(full_name) = %s"
+            " AND (active OR deactivated_reason IS DISTINCT FROM 'opted_out')",
+            (name,),
+        ).rowcount
+        for (rid,) in db.conn.execute(
+            "SELECT id FROM repos WHERE host = %s AND lower(full_name) = %s", (host, name)
+        ).fetchall():
+            suppression.add(db, "repo", str(rid), platform=host, reason="objection")
+            for k, v in purge_repo(db, store, str(rid), log, llm_store=llm_store).items():
+                counts["repo_" + k] = counts.get("repo_" + k, 0) + v
+    return counts
+
+
 def optout_repo(
     db: CaptureDB,
     store: SnapshotStore,
     *,
     platform: str,
     repo_key: str,
+    full_name: str | None = None,
     llm_store: LLMStore | None = None,
     run: RunRecorder | None = None,
     purge: bool = True,
 ) -> RequestResult:
-    """A project owner's opt-out: refusal-list entry for the repo id, then purge (CB-13)."""
+    """A project owner's opt-out: refusal-list entry for the repo id, then purge (CB-13).
+
+    The repo's name (given, or its `repos.full_name`) is added by hash as well, so HN data about
+    it that is matched by name is suppressed and purged too (M1-T23).
+    """
     rid = new_request_id()
     _log_request(db, rid, "objection", platform, run)
     try:
@@ -454,9 +572,56 @@ def optout_repo(
             db, "repo", repo_key, platform=platform, reason="objection", request_id=rid
         )
         counts: dict[str, int] = {"suppression_added": int(added)}
+        if full_name is None:
+            row = db.conn.execute("SELECT full_name FROM repos WHERE id = %s", (repo_key,))
+            got = row.fetchone()
+            full_name = str(got[0]) if got else None
+        name_key = suppression.repo_name_key(full_name, platform) if full_name else None
+        if name_key is not None:
+            counts["name_suppression_added"] = int(
+                suppression.add(
+                    db, "repo_name", name_key, platform=platform, reason="objection",
+                    request_id=rid,
+                )
+            )  # fmt: skip
         if purge:
             log = DeletionLog(db, "objection", run_id=run.id if run else None, request_id=rid)
             counts |= purge_repo(db, store, repo_key, log, llm_store=llm_store)
+            if name_key is not None:  # HN data matched by name (M1-T23)
+                by_name = purge_repo_name(
+                    db, store, name_key, log, host=platform, llm_store=llm_store
+                )
+                counts |= {f"name_{k}": v for k, v in by_name.items()}
+        _finish_request(db, rid, "completed", counts)
+    except BaseException:
+        _finish_request(db, rid, "failed", {})
+        raise
+    return RequestResult(rid, "objection", "completed", counts)
+
+
+def optout_repo_name(
+    db: CaptureDB,
+    store: SnapshotStore,
+    *,
+    platform: str,
+    full_name: str,
+    llm_store: LLMStore | None = None,
+    run: RunRecorder | None = None,
+    purge: bool = True,
+) -> RequestResult:
+    """M1-T23: opt out a repo that is not in `repos`, by normalized `owner/name` (stored only
+    as `repo_name_key`), then purge what is held about it by name."""
+    name_key = suppression.repo_name_key(full_name, platform)  # ValueError on a bad name
+    rid = new_request_id()
+    _log_request(db, rid, "objection", platform, run)
+    try:
+        added = suppression.add(
+            db, "repo_name", name_key, platform=platform, reason="objection", request_id=rid
+        )
+        counts: dict[str, int] = {"suppression_added": int(added)}
+        if purge:
+            log = DeletionLog(db, "objection", run_id=run.id if run else None, request_id=rid)
+            counts |= purge_repo_name(db, store, name_key, log, host=platform, llm_store=llm_store)
         _finish_request(db, rid, "completed", counts)
     except BaseException:
         _finish_request(db, rid, "failed", {})
@@ -478,9 +643,12 @@ def reapply_refusals(
     totals: dict[str, int] = {}
     by_platform: dict[str, set[str]] = {}
     repos: list[str] = []
+    names: list[tuple[str, str]] = []
     for e in suppression.entries(db):
         if e["kind"] == "pseudonym":
             by_platform.setdefault(e["platform"], set()).add(e["value"])
+        elif e["kind"] == "repo_name":
+            names.append((e["value"], e["platform"]))
         else:
             repos.append(e["value"])
     run_id = run.id if run else None
@@ -499,6 +667,17 @@ def reapply_refusals(
         )
         for k, v in c.items():
             totals[k] = totals.get(k, 0) + v
+    for name_key, host in names:  # M1-T23; may add repo ids, so before the id loop
+        c = purge_repo_name(
+            db,
+            store,
+            name_key,
+            DeletionLog(db, "objection", run_id=run_id),
+            host=host,
+            llm_store=llm_store,
+        )
+        for k, v in c.items():
+            totals["repo_name_" + k] = totals.get("repo_name_" + k, 0) + v
     for key in repos:
         c = purge_repo(
             db, store, key, DeletionLog(db, "objection", run_id=run_id), llm_store=llm_store

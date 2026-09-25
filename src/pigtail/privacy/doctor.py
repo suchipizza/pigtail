@@ -5,12 +5,20 @@ Encryption at rest (CB-03) can be checked from inside pigtail only for the S3 bu
 the host's disk or volume encryption, which a database client cannot see; those checks report
 `manual` and point at docs/guides/operator.md.
 
+Source flags (M1-T23): `adr022_person_sources` (the ADR-022 flag), `hn_sources` (rank poller
+and the person-level HN connectors) and `github_events` (per-repo events, ADR-036/038) report
+what is switched on. A person-level connector switched on without the ADR-022 flag is a `fail`
+(it would raise `PersonSourceHold`); the ADR-022 flag itself is a `warn`, because only the
+operator can confirm its preconditions (e.g. the published notice, CB-12).
+
 Statuses: `ok`, `warn`, `fail`, `manual` (needs an operator check). The command exits 1 on any
 `fail`, and with `--strict` also on `warn`.
 """
 
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlparse
@@ -85,11 +93,120 @@ def _endpoint_check(s: Settings) -> Check:
     return Check("snapshot_transport", "warn", f"S3 endpoint {host!r} is not HTTPS")
 
 
+def _onoff(v: bool) -> str:
+    return "on" if v else "off"
+
+
+def source_flag_checks(s: Settings, env: Mapping[str, str]) -> list[Check]:
+    """M1-T23: HN, GitHub-events and ADR-022 flag states. Never reads or prints secrets."""
+    from pigtail.connectors.base import ADR022_CONTROLS, ADR022_ENV
+    from pigtail.connectors.github import (
+        EVENTS_ENABLE_ENV,
+        TOKEN_ENV,
+        GitHubRepoEventsConnector,
+    )
+    from pigtail.connectors.hn import HN_ENABLE_ENV, HNAlgoliaConnector, HNFirebaseConnector
+    from pigtail.connectors.hn_ranks import HNRanksConnector
+
+    out: list[Check] = []
+    raw = env.get(ADR022_ENV, "").strip()
+    adr022 = raw == "1"
+    if adr022:
+        out.append(
+            Check(
+                "adr022_person_sources",
+                "warn",
+                f"{ADR022_ENV}=1: person-level sources may run. Confirm every ADR-022 "
+                f"precondition is met on this deployment ({', '.join(ADR022_CONTROLS)}; "
+                f"ops/DECISIONS.md ADR-022) ({GUIDE})",
+            )
+        )
+    else:
+        detail = f"{ADR022_ENV} not set: person-level sources are held (ADR-022)"
+        if raw:
+            detail = f"{ADR022_ENV}={raw!r} is not '1': person-level sources are held (ADR-022)"
+        out.append(Check("adr022_person_sources", "ok", detail))
+
+    def flags(*classes: Any) -> dict[str, bool] | str:
+        try:
+            return {c.name: bool(c.enabled_from_env(env)) for c in classes}
+        except ValueError as e:
+            return str(e)
+
+    hn = flags(HNRanksConnector, HNFirebaseConnector, HNAlgoliaConnector)
+    if isinstance(hn, str):
+        out.append(Check("hn_sources", "fail", f"bad HN flag value: {hn}"))
+    else:
+        state = ", ".join(f"{k} {_onoff(v)}" for k, v in hn.items())
+        person_on = hn["hn_firebase"] or hn["hn_algolia"]
+        if person_on and not adr022:
+            out.append(
+                Check(
+                    "hn_sources",
+                    "fail",
+                    f"{state}: person-level HN connectors are on ({HN_ENABLE_ENV}) without "
+                    f"{ADR022_ENV}=1; they will refuse to start (ADR-022, ADR-031.2)",
+                )
+            )
+        elif not hn["hn_ranks"]:
+            out.append(
+                Check(
+                    "hn_sources",
+                    "warn",
+                    f"{state}: the rank poller is off; front-page rank history can't be "
+                    "backfilled (ADR-031.1)",
+                )
+            )
+        else:
+            note = "; mention capture on (person-level)" if person_on else ""
+            out.append(Check("hn_sources", "ok", f"{state}{note}"))
+
+    ev = flags(GitHubRepoEventsConnector)
+    if isinstance(ev, str):
+        out.append(Check("github_events", "fail", f"bad GitHub events flag value: {ev}"))
+    else:
+        on = ev["github_events"]
+        days = s.github_events_retention_days
+        if on and not adr022:
+            out.append(
+                Check(
+                    "github_events",
+                    "fail",
+                    f"github_events on ({EVENTS_ENABLE_ENV}) without {ADR022_ENV}=1; it will "
+                    "refuse to start (ADR-022, ADR-036)",
+                )
+            )
+        elif on and not (env.get(TOKEN_ENV) or "").strip():
+            out.append(
+                Check(
+                    "github_events",
+                    "warn",
+                    f"github_events on but {TOKEN_ENV} is not set: no call is made (TM-02)",
+                )
+            )
+        elif on:
+            out.append(
+                Check(
+                    "github_events",
+                    "ok",
+                    f"github_events on (person-level; star/fork only, raw dropped at parse, "
+                    f"rows kept {days} d; CB-22, CB-23, ADR-038). The scheduler job "
+                    "`gh_repo_events` also needs `enabled = true` in the schedule",
+                )
+            )
+        else:
+            out.append(
+                Check("github_events", "ok", f"github_events off ({EVENTS_ENABLE_ENV} not set)")
+            )
+    return out
+
+
 def run_checks(
     s: Settings,
     *,
     s3_client: S3Client | None = None,
     db_check: bool = True,
+    env: Mapping[str, str] | None = None,
 ) -> list[Check]:
     out: list[Check] = []
 
@@ -147,6 +264,7 @@ def run_checks(
             f"run error text {s.log_retention_days} d; run `pigtail retention purge` daily",
         )
     )
+    out += source_flag_checks(s, os.environ if env is None else env)
     return out
 
 

@@ -153,6 +153,10 @@ class HNDeletionSource(DeletionSource):
 
     Uses `HNFirebaseConnector.check()`: nothing is snapshotted, and it works while HN collection
     is disabled. HN has no stated deletion duty; this is the courtesy sync of retention-policy §4.
+
+    Gone items lose their `hn_mention` rows, and stories seen by the rank poller (`hn_story`) lose
+    their title and url (M1-T23; `content_cleared_at` is set, logged as `fields_cleared`). The
+    rank history and the project-level repo link stay: they record the front page, not the post.
     """
 
     policy: ClassVar[SyncPolicy] = HN_POLICY
@@ -178,7 +182,25 @@ class HNDeletionSource(DeletionSource):
             n = db.conn.execute("DELETE FROM hn_mention WHERE item_id = ANY(%s)", (ids,)).rowcount
         if n:
             log.write("rows_deleted", "hn_mention", rows=n)
-        return n
+        return n + clear_hn_story_content(db, ids, log)
+
+
+def clear_hn_story_content(db: CaptureDB, item_ids: Sequence[int], log: DeletionLog) -> int:
+    """M1-T23: clear title and url of `hn_story` rows deleted upstream. Returns rows changed."""
+    cond = "item_id = ANY(%s) AND content_cleared_at IS NULL"
+    ids = list(item_ids)
+    if log.dry_run:
+        row = db.conn.execute(f"SELECT count(*) FROM hn_story WHERE {cond}", (ids,)).fetchone()
+        n = int(row[0]) if row else 0
+    else:
+        n = db.conn.execute(
+            "UPDATE hn_story SET title = NULL, url = NULL, content_cleared_at = now()"
+            f" WHERE {cond}",
+            (ids,),
+        ).rowcount
+    if n:
+        log.write("fields_cleared", "hn_story", rows=n)
+    return n
 
 
 # --- tracking (called by capture jobs) ----------------------------------------------------------

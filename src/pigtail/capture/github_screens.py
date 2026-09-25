@@ -16,7 +16,10 @@ is a single value, by **time** (halves, down to `min_span`, 1 hour). A slice tha
 more than 1,000 results is paged to 1,000 and counted as `truncated`. `incomplete_results` pages
 are counted. Every hit is nominated with `source = search` (`source_ref = search:new|active`).
 Search pages are snapshotted as person-level (items embed owner objects); only repo id, node id,
-name, counts, dates and the owner *type* are parsed.
+name, counts, dates and the owner *type* are parsed, and each page's raw bytes are dropped right
+after parsing (CB-24, ADR-038: hash and URL kept, evidence `raw_dropped`, tombstone in
+`deletion_log`), as for HN items. A page that fails to parse is dropped the same way and counted
+as `parse_failed` (CB-23b).
 
 **HN screen** (`hn_screen`). GitHub URLs of stories the HN rank poller saw in the last `window`
 (`hn_story.repo_full_name`, ADR-031) are nominated with `source = hn` (`source_ref = hn:<id>`,
@@ -42,11 +45,21 @@ from pigtail.capture.db import CaptureDB
 from pigtail.capture.github_watch import Watchlist
 from pigtail.capture.runs import RunRecorder
 from pigtail.connectors.base import FetchError
-from pigtail.connectors.github import SEARCH_MAX_RESULTS, GitHubConnector, SearchPage
+from pigtail.connectors.github import (
+    SEARCH_MAX_RESULTS,
+    GitHubConnector,
+    SearchPage,
+    parse_search_page,
+)
 from pigtail.connectors.github_budget import BudgetExhausted
 from pigtail.connectors.hn import list_url, parse_id_list
 from pigtail.connectors.hn_ranks import HNRanksConnector
-from pigtail.privacy.deletion import DeletionLog, drop_after_parse
+from pigtail.privacy.deletion import (
+    PARSE_ERRORS,
+    DeletionLog,
+    drop_after_parse,
+    drop_unparseable,
+)
 
 log = logging.getLogger("pigtail.capture.github")
 
@@ -130,6 +143,8 @@ class SweepResult:
     reactivated: int = 0
     skipped: int = 0
     failed_pages: int = 0
+    parse_failed: int = 0
+    raw_dropped: int = 0
     budget_stop: str | None = None
     queries: list[dict[str, Any]] = field(default_factory=list)
 
@@ -155,6 +170,7 @@ class SearchSweeper:
         self.watch = Watchlist(db, conn.suppression)
         if conn.evidence_sink is None:
             conn.evidence_sink = db.upsert_evidence
+        self.dlog = DeletionLog(db, "retention", run_id=run.id if run else None)
 
     def sweep(self, kind: Literal["new", "active", "all"] = "all") -> SweepResult:
         res = SweepResult()
@@ -176,13 +192,27 @@ class SearchSweeper:
 
     def _page(self, sl: SearchSlice, page: int, ref: str, res: SweepResult) -> SearchPage | None:
         try:
-            _, sp = self.conn.search_repositories(sl.query(), page=page, per_page=PER_PAGE)
+            f = self.conn.fetch_search_page(sl.query(), page=page, per_page=PER_PAGE)
         except FetchError as e:
             if e.status == 422 and page > 1:  # past the end of the results
                 return None
             res.failed_pages += 1
             log.warning("search page %d failed: %s", page, e.status)
             return None
+        store, ev = self.conn.store, f.evidence
+        try:
+            sp = parse_search_page(f.data)
+        except PARSE_ERRORS as e:  # CB-23b: useless and person-level, drop it now
+            res.parse_failed += 1
+            src = self.conn.name
+            if drop_unparseable(
+                self.db, store, ev.id, f.content_hash, self.dlog, source=src, error=e, run=self.run
+            ):
+                res.raw_dropped += 1
+            return None
+        # CB-24: only project-level fields (and the owner type) survive parsing; drop the page
+        if drop_after_parse(self.db, store, ev.id, f.content_hash, self.dlog):
+            res.raw_dropped += 1
         res.pages += 1
         res.incomplete_pages += int(sp.incomplete_results)
         for it in sp.items:
@@ -332,6 +362,8 @@ def _show_hn(
             if drop_after_parse(db, hn.store, item.evidence.id, item.content_hash, dlog):
                 res.raw_dropped += 1
         full_name = rec.get("repo_full_name") if rec else None
+        if watch.suppression.name_suppressed(full_name):  # M1-T23: opted out by name
+            full_name = None
         db.conn.execute(
             "INSERT INTO hn_show_screen (item_id, repo_full_name, seen_at, evidence_id)"
             " VALUES (%s, %s, %s, %s) ON CONFLICT (item_id) DO NOTHING",

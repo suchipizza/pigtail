@@ -41,6 +41,7 @@ from pigtail.connectors.base import (
     Record,
     TermsMetadata,
 )
+from pigtail.privacy.deletion import PARSE_ERRORS
 
 FIREBASE_BASE = "https://hacker-news.firebaseio.com/v0"
 ALGOLIA_BASE = "https://hn.algolia.com/api/v1"
@@ -202,7 +203,10 @@ class HNFirebaseConnector(Connector):
         self, item_id: int, *, case_id: str | None = None, repo_id: str | None = None
     ) -> tuple[Fetched, Record | None]:
         f = self.fetch(item_url(item_id), case_id=case_id, repo_id=repo_id)
-        recs = list(self.records(f.data, f.meta))
+        try:
+            recs = list(self.records(f.data, f.meta))
+        except PARSE_ERRORS as e:  # CB-23b: the sink drops the raw bytes at once
+            raise self.parse_failed(f, e) from e
         return f, (recs[0] if recs else None)
 
     def fetch_list(self, kind: StoryList) -> tuple[Fetched, list[int]]:
@@ -338,14 +342,20 @@ class HNAlgoliaConnector(Connector):
         f = self.fetch(
             f"{ALGOLIA_BASE}/search_by_date", params=params, case_id=case_id, repo_id=repo_id
         )
-        body = json.loads(f.data)
-        return SearchPage(
-            fetched=f,
-            records=list(self.records(f.data, f.meta)),
-            nb_hits=int(body.get("nbHits") or 0),
-            nb_pages=int(body.get("nbPages") or 0),
-            page=int(body.get("page") or page),
-        )
+        try:
+            body = json.loads(f.data)
+            return SearchPage(
+                fetched=f,
+                records=list(self.records(f.data, f.meta)),
+                nb_hits=int(body.get("nbHits") or 0),
+                nb_pages=int(body.get("nbPages") or 0),
+                page=int(body.get("page") or page),
+            )
+        except PARSE_ERRORS as e:
+            # CB-23b: the sink drops the raw bytes at once; the window ends here (no records,
+            # no further pages) and the caller sees an empty page.
+            self.parse_failed(f, e)
+            return SearchPage(fetched=f, records=[], nb_hits=0, nb_pages=0, page=page)
 
     def search(
         self,

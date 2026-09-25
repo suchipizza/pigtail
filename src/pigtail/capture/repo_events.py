@@ -18,9 +18,13 @@ marked `overflow` (replan §1.3, §8 M5).
 **Minimisation.** The connector keeps only `WatchEvent` and `ForkEvent` (CB-23), drops bot logins
 before hashing, and pseudonymizes actors (namespace `github`). Each events page's raw bytes are
 dropped right after parsing (`drop_after_parse`: hash and URL kept, evidence `raw_dropped`,
-tombstone in `deletion_log`). Rows go to `repo_event_actor` (person-level, pseudonyms only,
-registered in `PERSON_TABLES` with a 30-day cap; `pigtail retention purge` deletes older rows)
-and to project-level daily aggregates `repo_event_daily_agg`, which outlive them.
+tombstone in `deletion_log`). A page that fails to parse (malformed JSON, wrong shape) is
+dropped the same way at once (CB-23b; `drop_unparseable`), its ETag is forgotten so the next
+poll fetches it again, and the failure is counted in the run record (`repo_events.parse_failed`,
+`github_events.parse_failed.<ExceptionType>`), never its content. Rows go to
+`repo_event_actor` (person-level, pseudonyms only, registered in `PERSON_TABLES` with a 30-day
+cap; `pigtail retention purge` deletes older rows) and to project-level daily aggregates
+`repo_event_daily_agg`, which outlive them.
 
 **Never a stargazer list.** `repo_event_actor` is read only through the aggregate queries in
 this module (counts per hour/day, `min`/`bool_or`), and only to fill a case's `bot_filter` block
@@ -44,7 +48,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -57,7 +61,12 @@ from pigtail.capture.runs import RunRecorder
 from pigtail.connectors.base import Fetched, FetchError, NotFound
 from pigtail.connectors.github import GitHubRepoEventsConnector, events_url, full_url
 from pigtail.connectors.github_budget import BudgetExhausted
-from pigtail.privacy.deletion import DeletionLog, drop_after_parse
+from pigtail.privacy.deletion import (
+    PARSE_ERRORS,
+    DeletionLog,
+    drop_after_parse,
+    drop_unparseable,
+)
 
 log = logging.getLogger("pigtail.capture.repo_events")
 
@@ -96,6 +105,7 @@ class PollStats:
     events_new: int = 0
     overflow: int = 0
     raw_dropped: int = 0
+    parse_failed: int = 0
     not_found: int = 0
     failed: int = 0
     cases_updated: int = 0
@@ -237,10 +247,15 @@ class RepoEventsPoller:
             if c.fetched is None:  # 304: nothing new on this page
                 status = 304 if page == 1 else status
                 break
-            n, oldest, page_newest = page_bounds(c.fetched.data)
+            got = self._ingest(t, c.fetched, st)
+            if got is None:  # unparseable page: dropped (CB-23b); refetch it next poll
+                prev = self.conn.cache.get(c.url)
+                if prev is not None:
+                    self.conn.cache.put(replace(prev, etag=None))
+                break
+            n, oldest, page_newest, k, nw, ds = got
             if page_newest and (newest is None or page_newest > newest):
                 newest = page_newest
-            k, nw, ds = self._ingest(t, c.fetched)
             kept += k
             new += nw
             days |= ds
@@ -272,16 +287,34 @@ class RepoEventsPoller:
         if status != 304:
             st.cases_updated += self.apply_bot_filter(t.repo_host_id, now)
 
-    def _ingest(self, t: Target, f: Fetched) -> tuple[int, int, set[date]]:
-        """Parse one page (pseudonymized, Watch/Fork only), store rows, drop the raw bytes."""
+    def _ingest(
+        self, t: Target, f: Fetched, st: PollStats
+    ) -> tuple[int, datetime | None, datetime | None, int, int, set[date]] | None:
+        """Parse one page (pseudonymized, Watch/Fork only), drop the raw bytes, store rows.
+
+        Returns (events on the page, oldest, newest, kept, new, days), or None if the page could
+        not be parsed: its raw bytes are then dropped at once (CB-23b).
+        """
+        store = self.conn.store
         try:
+            n, oldest, newest = page_bounds(f.data)
             recs = list(self.conn.records(f.data, f.meta))
-        finally:
-            dropped = drop_after_parse(
-                self.db, self.conn.store, f.evidence.id, f.content_hash, self.dlog
-            )
-            if dropped and self.run is not None:
-                self.run.incr("repo_events.raw_dropped")
+        except PARSE_ERRORS as e:
+            st.parse_failed += 1
+            if drop_unparseable(
+                self.db,
+                store,
+                f.evidence.id,
+                f.content_hash,
+                self.dlog,
+                source=self.conn.name,
+                error=e,
+                run=self.run,
+            ):
+                st.raw_dropped += 1
+            return None
+        if drop_after_parse(self.db, store, f.evidence.id, f.content_hash, self.dlog):
+            st.raw_dropped += 1
         at = f.meta.fetched_at
         rows = []
         days: set[date] = set()
@@ -302,7 +335,7 @@ class RepoEventsPoller:
                     row,
                 )
                 new += cur.rowcount
-        return len(rows), new, days
+        return n, oldest, newest, len(rows), new, days
 
     def _update_daily(self, repo_host_id: int, days: set[date]) -> None:
         self.db.conn.execute(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from pydantic import BaseModel
@@ -18,8 +18,9 @@ PENDING_STAGES = {
     "extract": "M5",
     "analyze": "M5",
     "plan": "M8",
-    "report": "M5",
 }
+# `pigtail report` has its first subcommand (hn-frontpage, M1-T22); the rest is still M5.
+REPORT_MILESTONE = "M5"
 
 
 class SmokeOutput(BaseModel):
@@ -159,6 +160,58 @@ def cmd_capture_scan(args: argparse.Namespace) -> int:
         "raw_snapshots_purged": purged,
     }
     print(json.dumps(out, indent=2))
+    return 0
+
+
+def cmd_capture_backfill_gharchive(args: argparse.Namespace) -> int:
+    """M1-T19: retry missing GH Archive hours (with backoff) up to --days back."""
+    from pigtail.capture.db import CaptureDB
+    from pigtail.capture.gharchive_backfill import BackfillConfig, backfill_missing
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.capture.snapshots import build_store
+    from pigtail.capture.velocity import VelocityConfig, VelocityScanner, scan_config_dict
+    from pigtail.config import Settings
+    from pigtail.connectors.gharchive import GHArchiveConnector
+    from pigtail.db.migrate import migrate
+    from pigtail.privacy import suppression
+    from pigtail.pseudonymize import Pseudonymizer
+
+    s = Settings.from_env()
+    if not s.database_url:
+        print("DATABASE_URL is not set", file=sys.stderr)
+        return 2
+    if not s.pseudonym_key:
+        print("PSEUDONYM_KEY is not set (>= 16 chars; PRD §10)", file=sys.stderr)
+        return 2
+    try:
+        bcfg = BackfillConfig(max_days=args.days, max_hours=args.max_hours)
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    migrate(s.database_url)
+    cfg = VelocityConfig(min_stars_48h=args.min_stars, sigma=args.sigma)
+    db = CaptureDB.connect(s.database_url)
+    config = scan_config_dict(
+        cfg,
+        backfill_days=bcfg.max_days,
+        max_hours=bcfg.max_hours,
+        snapshot_backend=s.snapshot_backend,
+    )
+    try:
+        with RunRecorder("capture.backfill_gharchive", config, sink=db.upsert_run) as run:
+            conn = GHArchiveConnector(
+                store=build_store(s),
+                pseudonymizer=Pseudonymizer(s.pseudonym_key),
+                run=run,
+                evidence_sink=db.upsert_evidence,
+                suppression=suppression.load(db),
+            )
+            res = backfill_missing(
+                VelocityScanner(connector=conn, db=db, cfg=cfg, run=run), cfg=bcfg
+            )
+    finally:
+        db.close()
+    print(json.dumps({"run_id": run.id, **res.to_dict()}, indent=2))
     return 0
 
 
@@ -327,6 +380,53 @@ def cmd_capture_mentions(args: argparse.Namespace) -> int:
     finally:
         db.close()
     print(json.dumps({"run_id": run.id, **res.to_dict()}, indent=2))
+    return 0
+
+
+def cmd_report_hn_frontpage(args: argparse.Namespace) -> int:
+    """M1-T22: HN front-page minutes for a repo from the rank history (read-only)."""
+    import psycopg
+
+    from pigtail.capture.db import CaptureDB
+    from pigtail.capture.hn_frontpage import FrontpageConfig, repo_frontpage_minutes
+    from pigtail.privacy import suppression
+
+    s, rc = _capture_env()
+    if rc is not None:
+        return rc
+    try:
+        name = suppression.normalize_repo_name(args.repo)
+        cfg = FrontpageConfig(
+            interval=timedelta(minutes=args.interval_minutes),
+            max_rank=args.max_rank,
+            gap_factor=args.gap_factor,
+        )
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    try:  # read-only at the server: this command never writes (no migration, no run record)
+        conn = psycopg.connect(
+            s.database_url, autocommit=True, options="-c default_transaction_read_only=on"
+        )
+    except psycopg.Error as e:
+        print(f"database unreachable: {type(e).__name__}", file=sys.stderr)
+        return 2
+    db = CaptureDB(conn)
+    try:
+        refused = suppression.load(db)
+        row = db.conn.execute(
+            "SELECT id FROM repos WHERE host = 'github' AND lower(full_name) = %s", (name,)
+        ).fetchone()
+        if refused.name_suppressed(name) or (row and str(row[0]) in refused.repos):
+            print("the repo is on the refusal list (CB-13)", file=sys.stderr)
+            return 2
+        rep = repo_frontpage_minutes(db, name, since=args.since, until=args.until, cfg=cfg)
+    except psycopg.errors.UndefinedTable:
+        print("database not migrated (pigtail db migrate)", file=sys.stderr)
+        return 2
+    finally:
+        db.close()
+    print(json.dumps(rep.to_dict(), indent=2))
     return 0
 
 
@@ -500,17 +600,25 @@ def cmd_deletion_sync(args: argparse.Namespace, ctx: _Ctx) -> int:
 
 
 def _repo_key(ctx: _Ctx, args: argparse.Namespace) -> str | None:
+    """`<host>:<id>` for `--repo-id`, or for a `--repo owner/name` that is in `repos`."""
     if args.repo_id is not None:
         return f"{args.platform}:{args.repo_id}"
     if args.repo:
         row = ctx.db.conn.execute(
             "SELECT id FROM repos WHERE host = %s AND lower(full_name) = lower(%s)",
-            (args.platform, args.repo),
+            (args.platform, _repo_name(args)),
         ).fetchone()
-        if row is None:
-            raise _UsageError(f"repo {args.repo!r} is not in the database; use --repo-id")
-        return str(row[0])
+        return str(row[0]) if row else None
     return None
+
+
+def _repo_name(args: argparse.Namespace) -> str:
+    from pigtail.privacy.suppression import normalize_repo_name
+
+    try:
+        return normalize_repo_name(args.repo)
+    except ValueError as e:
+        raise _UsageError(str(e)) from e
 
 
 @_privacy
@@ -521,7 +629,10 @@ def cmd_optout_add(args: argparse.Namespace, ctx: _Ctx) -> int:
 
     assert ctx.pz is not None
     key = _repo_key(ctx, args)
-    config = {"platform": args.platform, "kind": "repo" if key else "pseudonym"}
+    name = _repo_name(args) if args.repo else None
+    kind = "repo" if key else "repo_name" if name else "pseudonym"
+    # the run config never holds the repo name: it may contain a personal account name
+    config = {"platform": args.platform, "kind": kind}
     with RunRecorder("privacy.optout", config, sink=ctx.db.upsert_run) as run:
         if key is not None:
             res = requests.optout_repo(
@@ -529,6 +640,17 @@ def cmd_optout_add(args: argparse.Namespace, ctx: _Ctx) -> int:
                 ctx.store,
                 platform=args.platform,
                 repo_key=key,
+                full_name=name,
+                llm_store=ctx.llm_store,
+                run=run,
+                purge=not args.no_purge,
+            )
+        elif name is not None:  # M1-T23: not in `repos` yet; matched by name from now on
+            res = requests.optout_repo_name(
+                ctx.db,
+                ctx.store,
+                platform=args.platform,
+                full_name=name,
                 llm_store=ctx.llm_store,
                 run=run,
                 purge=not args.no_purge,
@@ -555,8 +677,13 @@ def cmd_optout_remove(args: argparse.Namespace, ctx: _Ctx) -> int:
 
     assert ctx.pz is not None
     key = _repo_key(ctx, args)
-    if key is not None:
-        ok = suppression.remove(ctx.db, "repo", key)
+    if key is not None or args.repo:
+        ok = False
+        if key is not None:
+            ok = suppression.remove(ctx.db, "repo", key)
+        if args.repo:
+            nk = suppression.repo_name_key(_repo_name(args), args.platform)
+            ok = suppression.remove(ctx.db, "repo_name", nk) or ok
     else:
         p = suppression.subject_pseudonym(ctx.pz, args.platform, _read_handle(args.handle))
         ok = suppression.remove(ctx.db, "pseudonym", p)
@@ -646,7 +773,10 @@ def _add_subject_args(p: argparse.ArgumentParser, repos: bool) -> None:
     if repos:
         g = p.add_mutually_exclusive_group()
         g.add_argument("--repo-id", type=int, help="numeric repo id of an opted-out project")
-        g.add_argument("--repo", help="owner/name of an opted-out project already in the DB")
+        g.add_argument(
+            "--repo",
+            help="owner/name of an opted-out project (also if not in the DB yet: matched by name)",
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -675,6 +805,14 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--sigma", type=float, default=3.0, help="z threshold vs 30-day baseline")
     scan.add_argument("--force", action="store_true", help="re-aggregate already scanned hours")
     scan.set_defaults(func=cmd_capture_scan)
+    bf = cap_sub.add_parser(
+        "backfill-gharchive", help="retry missing GH Archive hours with backoff (M1-T19)"
+    )
+    bf.add_argument("--days", type=int, default=7, help="retry hours up to N days back (1-30)")
+    bf.add_argument("--max-hours", type=int, default=48, help="downloads per run")
+    bf.add_argument("--min-stars", type=int, default=100, help="48 h star threshold")
+    bf.add_argument("--sigma", type=float, default=3.0, help="z threshold vs 30-day baseline")
+    bf.set_defaults(func=cmd_capture_backfill_gharchive)
     purge = cap_sub.add_parser("purge-raw", help="drop raw GH Archive dumps past retention")
     purge.add_argument("--retention-days", type=int, help="default GHARCHIVE_RAW_RETENTION_DAYS")
     purge.set_defaults(func=cmd_capture_purge_raw)
@@ -716,9 +854,9 @@ def build_parser() -> argparse.ArgumentParser:
     orm = opt_sub.add_parser("remove", help="remove a person or repo from the list")
     _add_subject_args(orm, repos=True)
     orm.set_defaults(func=cmd_optout_remove)
-    opt_sub.add_parser("list", help="list entries (pseudonyms and repo ids only)").set_defaults(
-        func=cmd_optout_list, _need_key=False
-    )
+    opt_sub.add_parser(
+        "list", help="list entries (pseudonyms, repo ids, repo name hashes)"
+    ).set_defaults(func=cmd_optout_list, _need_key=False)
     opt_sub.add_parser("purge", help="re-apply the whole list to existing data").set_defaults(
         func=cmd_optout_purge
     )
@@ -750,6 +888,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_ui_parser(sub)  # `pigtail ui hash-password|serve` (M1-T12, D1 preview)
 
+    rep = sub.add_parser("report", help="reports (hn-frontpage: M1-T22; the rest: M5)")
+    rep.set_defaults(func=lambda _a: _pending("report", REPORT_MILESTONE))
+    rep_sub = rep.add_subparsers(dest="report_command")
+    hfp = rep_sub.add_parser(
+        "hn-frontpage", help="HN front-page minutes for a repo (rank <= 30; read-only)"
+    )
+    hfp.add_argument("--repo", required=True, help="owner/name (matched by story URL)")
+    hfp.add_argument("--since", type=_parse_hour, help="window start, UTC (default: first poll)")
+    hfp.add_argument("--until", type=_parse_hour, help="window end, UTC (default: now)")
+    hfp.add_argument("--interval-minutes", type=float, default=5.0, help="poller interval")
+    hfp.add_argument("--max-rank", type=int, default=30, help="front page = ranks 1..N")
+    hfp.add_argument("--gap-factor", type=float, default=2.0, help="gap > factor x interval")
+    hfp.set_defaults(func=cmd_report_hn_frontpage)
+
     for stage, milestone in PENDING_STAGES.items():
         sp = sub.add_parser(stage, help=f"(not yet implemented; {milestone})")
         sp.set_defaults(func=lambda _a, s=stage, m=milestone: _pending(s, m))
@@ -762,6 +914,12 @@ def _pending(stage: str, milestone: str) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from pigtail.logsafe import configure_logging, install_excepthook
+
+    # CB-18b: every command, run by hand or by the scheduler, logs through RedactingFilter, and
+    # an uncaught exception's traceback is scrubbed before it reaches stderr.
+    configure_logging()
+    install_excepthook()
     args = build_parser().parse_args(argv)
     rc: int = args.func(args)
     return rc

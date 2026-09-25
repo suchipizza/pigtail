@@ -354,13 +354,14 @@ def test_cb13_optout_repo_purges_project_rows(capture_db, tmp_path):
     res = requests.optout_repo(
         db, store, platform="github", repo_key="github:1000009", llm_store=llm
     )
-    assert res.counts == {
+    assert {
         "suppression_added": 1,
         "hourly_rows_deleted": 1,
         "evidence_deleted": 1,
         "cases_deleted": 1,
         "llm_cache_rows_deleted": 1,
-    }
+    }.items() <= res.counts.items()
+    assert res.counts["name_suppression_added"] == 1  # M1-T23: the repo's name, as a hash
     assert not store.exists(ev.content_hash)
     assert db.conn.execute("SELECT count(*) FROM repos").fetchone() == (0,)
     assert db.conn.execute("SELECT count(*) FROM repo_hourly_activity").fetchone() == (1,)
@@ -401,6 +402,11 @@ def test_cb08_cb13_cli_optout_and_requests(ingested, pg_url, tmp_path, monkeypat
     log = json.loads(capsys.readouterr().out)
     assert [r["type"] for r in log] == ["objection", "access"]
     assert "user000" not in json.dumps(log)
-    assert main(["privacy", "optout", "add", "--platform", "github", "--repo", "no/such"]) == 2
+    # M1-T23: a repo not in the database is opted out by name (stored as a hash only)
+    assert main(["privacy", "optout", "add", "--platform", "github", "--repo", "no/such"]) == 0
+    assert json.loads(capsys.readouterr().out)["suppression_added"] == 1
+    assert main(["privacy", "optout", "list"]) == 0
+    assert "no/such" not in capsys.readouterr().out
+    assert main(["privacy", "optout", "add", "--platform", "github", "--repo", "not a repo"]) == 2
     monkeypatch.delenv("PSEUDONYM_KEY")
     assert main(["privacy", "request", "erasure", "--platform", "github", "--handle", "x"]) == 2

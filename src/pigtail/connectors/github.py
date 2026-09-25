@@ -65,6 +65,7 @@ from pigtail.connectors.base import (
     parse_retry_after,
 )
 from pigtail.connectors.github_budget import Budget, Resource
+from pigtail.privacy.deletion import PARSE_ERRORS
 
 API = "https://api.github.com"
 GRAPHQL_URL = f"{API}/graphql"
@@ -493,6 +494,8 @@ def parse_star_history(data: bytes) -> list[StarWeek]:
 
 
 def parse_search_page(data: bytes) -> SearchPage:
+    """Project-level fields of a search page. From each item's `owner` object only `type`
+    (`User` | `Organization`) is read; the login, avatar and profile URLs are never kept."""
     doc = json.loads(data)
     items: list[SearchRepo] = []
     for it in doc.get("items") or []:
@@ -575,19 +578,33 @@ class GitHubConnector(GitHubAPI):
                 continue
             return GraphQLResult(f, data, errors, cost, remaining, limit, reset_at)
 
-    def search_repositories(
+    def fetch_search_page(
         self, q: str, *, page: int = 1, per_page: int = 100, sort: str = "stars"
-    ) -> tuple[Fetched, SearchPage]:
-        """One page of `GET /search/repositories` (search bucket). Snapshots are kept as
-        `person_level_24m` because result items embed owner objects."""
+    ) -> Fetched:
+        """One page of `GET /search/repositories` (search bucket), snapshotted, not parsed.
+
+        Snapshots are classed `person_level_24m` because result items embed owner objects
+        (ADR-037.8). Callers parse with `parse_search_page()` (which keeps only the owner *type*)
+        and then drop the raw bytes (`drop_after_parse`; CB-24, ADR-038)."""
         if not 1 <= per_page <= 100 or page < 1 or page * per_page > SEARCH_MAX_RESULTS:
             raise ValueError("search paging is capped at 1,000 results (100 per page)")
-        f = self.fetch(
+        return self.fetch(
             f"{API}/search/repositories",
             params={"q": q, "sort": sort, "order": "desc", "per_page": per_page, "page": page},
             retention_class="person_level_24m",
         )
-        return f, parse_search_page(f.data)
+
+    def search_repositories(
+        self, q: str, *, page: int = 1, per_page: int = 100, sort: str = "stars"
+    ) -> tuple[Fetched, SearchPage]:
+        """`fetch_search_page()` + `parse_search_page()`. A parse failure goes to
+        `parse_failed()` (CB-23b) and raises `ParseFailed`. The caller still owns dropping the
+        raw bytes of a parsed page (`SearchSweeper` does, CB-24)."""
+        f = self.fetch_search_page(q, page=page, per_page=per_page, sort=sort)
+        try:
+            return f, parse_search_page(f.data)
+        except PARSE_ERRORS as e:
+            raise self.parse_failed(f, e) from e
 
     def star_history(
         self,

@@ -267,3 +267,12 @@ How to reverse: Raise the default (≤ 30) with a documented purpose; add a GitH
 4. **μ_h = μ_d / 24** when a daily baseline is used at hourly precision.
 5. **Sealed second holdout.** The 30% held-out set is split deterministically into H-eval (20% of all cases: the forecasting test and M6 analyses after the freeze) and H-sealed (10%: never classed or inspected until a post-freeze threshold change needs a held-out re-run; used once and labelled). After that single use, further changes can only be evaluated prospectively on new cases. Without this, "held-out re-runs" after the freeze would be on data already seen.
 How to reverse: 1–4 through a codebook or spec version bump; 5 only before the calibration pre-registration is committed.
+
+## ADR-040 — Capture follow-ups: backfill, front-page minutes, opt-outs by name, raw drops (2026-09-25)
+1. **GH Archive backfill (M1-T19).** A missing hour (404, 5xx/429 after retries, network error, or a dump that won't decompress) is retried with backoff (1 h, 2 h, 4 h … capped at 24 h), within a 7-day window. Days that come back are re-aggregated and detection re-runs for the following 47 hours.
+2. **Front-page minutes (M1-T22).** Minutes at rank ≤ 30 are counted between polls. A gap longer than 2× the poll interval isn't counted and is reported as uncovered; the tail after the last poll counts only if it's within 2× the interval. Results are tagged `verified`, `estimated` (lower bound) or `unknown`. Stories are matched by URL only; title matching (outcome-model A2) isn't built yet.
+3. **HN rank-poller stories are tracked by deletion sync.** A story deleted upstream has its title and URL cleared (`deletion_log` action `fields_cleared`), while the rank history stays.
+4. **Opt-out by repo name** for repos not yet in `repos`. The implementation stores an **unkeyed** SHA-256 of the name. Repo names are public and enumerable, so that hash is reversible by dictionary and reveals which repos opted out. **It must become a keyed hash (HMAC with `PSEUDONYM_KEY`) before production (CB-13b).** GH Archive ingest still filters by repo id only, so the id is added once the repo enters `repos`.
+5. **Raw drops.** GitHub search pages are dropped at parse (CB-24). Person-level pages that fail to parse are dropped immediately, and only counts go into the run record (CB-23b).
+6. **Every CLI command installs the redacting log filter** (CB-18b) and logs at INFO level to stderr.
+How to reverse: Per item, through an ADR.

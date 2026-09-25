@@ -4,8 +4,12 @@ Pipeline (`VelocityScanner.scan(start, end)`, hours are UTC, `end` exclusive):
 
 1. The range is split into **chunks** = UTC day ∩ [start, end). For each hour of a chunk the
    hourly dump is fetched through `GHArchiveConnector` (snapshotted before parsing), or re-read
-   from the snapshot store if that hour was scanned before (no network). A 404 marks the hour
-   `missing`.
+   from the snapshot store if that hour was scanned before (no network). A 404, a 5xx/429 after
+   the connector's retries, or a transport error marks the hour `missing` with its reason
+   (`not_found`, `server_error`, `transport_error`), and so does a dump that fails to decompress
+   (`unparseable`; its raw bytes are dropped at once, CB-23b). Each missing hour records its
+   attempts and `next_retry_at` (exponential backoff from `retry_base`, capped at `retry_cap`);
+   `pigtail.capture.gharchive_backfill` retries them (M1-T19).
 2. Records (already pseudonymized, bots flagged by login - see `pigtail.capture.botfilter`) are
    aggregated per repo per hour. Per-actor features for the lockstep filter are kept in memory,
    keyed by pseudonym, for the chunk only; they are never persisted.
@@ -71,8 +75,9 @@ from pigtail.capture.models import (
 )
 from pigtail.capture.runs import RunRecorder
 from pigtail.capture.snapshots import SnapshotMeta, SnapshotNotFound
-from pigtail.connectors.base import NotFound, Record
+from pigtail.connectors.base import Fetched, FetchError, NotFound, Record
 from pigtail.connectors.gharchive import GHArchiveConnector, hour_url
+from pigtail.privacy.deletion import PARSE_ERRORS, DeletionLog, drop_unparseable
 
 log = logging.getLogger(__name__)
 
@@ -180,6 +185,22 @@ class WindowAggregator:
             cell.forks_raw += 1
             if rec.get("is_bot") or actor is None:
                 cell.forks_bot += 1
+
+    def merge(self, other: WindowAggregator) -> None:
+        """Add another aggregator's counts (used to add one fully parsed hour at a time, so a
+        dump that fails half-way leaves no partial counts behind)."""
+        for key, cell in other.cells.items():
+            mine = self.cells.get(key)
+            if mine is None:
+                self.cells[key] = cell
+                continue
+            mine.stars_raw += cell.stars_raw
+            mine.stars_bot += cell.stars_bot
+            mine.forks_raw += cell.forks_raw
+            mine.forks_bot += cell.forks_bot
+            mine.stargazers |= cell.stargazers
+        self.other_activity |= other.other_activity
+        self.events += other.events
 
     def rows(self) -> list[HourlyRow]:
         cfg, out = self.cfg, []
@@ -340,6 +361,28 @@ class PostgresStarSeries:
 
 
 # --- scanner ---------------------------------------------------------------------------------
+MissingReason = str  # not_found | server_error | transport_error | unparseable
+
+
+@dataclass(frozen=True)
+class Missing:
+    """Why an hour could not be ingested (M1-T19). No content, only the reason and status."""
+
+    reason: MissingReason
+    http_status: int | None = None
+
+
+@dataclass(frozen=True)
+class HourRow:
+    hour: datetime
+    status: str  # ok | missing
+    content_hash: str | None
+    evidence_id: str | None
+    events: int
+    attempted: bool  # a download was tried for this hour in this run
+    missing: Missing | None = None
+
+
 @dataclass
 class ScanResult:
     hours_ok: int = 0
@@ -360,6 +403,8 @@ class VelocityScanner:
         series: StarSeriesSource | None = None,
         confirmer: CandidateConfirmer | None = None,
         run: RunRecorder | None = None,
+        retry_base: timedelta = timedelta(hours=1),
+        retry_cap: timedelta = timedelta(hours=24),
     ) -> None:
         self.connector = connector
         self.db = db
@@ -367,6 +412,10 @@ class VelocityScanner:
         self.series = series or PostgresStarSeries(db)
         self.confirmer = confirmer
         self.run = run
+        self.retry_base = retry_base
+        self.retry_cap = retry_cap
+        # hours already downloaded by a caller (the backfill probe), used instead of a new fetch
+        self.prefetched: dict[datetime, Fetched] = {}
 
     def _incr(self, key: str, n: int | float = 1) -> None:
         if self.run is not None:
@@ -404,8 +453,45 @@ class VelocityScanner:
         h: str | None = row[0] if row else None
         return h
 
-    def _records(self, hour: datetime) -> tuple[str, str | None, Iterator[Record]] | None:
-        """(content_hash, evidence_id or None if reused, records) or None if the hour is missing.
+    def fetch_hour(self, hour: datetime) -> Fetched | Missing:
+        """Download (and snapshot) one hourly dump, or say why it is missing (M1-T19)."""
+        try:
+            return self.connector.fetch(hour_url(hour))
+        except NotFound:
+            return Missing("not_found", 404)
+        except FetchError as e:
+            if e.status is None:
+                return Missing("transport_error", None)
+            if e.status >= 500 or e.status == 429:
+                return Missing("server_error", e.status)
+            raise
+
+    def next_retry(self, attempts: int, now: datetime) -> datetime:
+        """Backoff after `attempts` failed downloads: base x 2^(attempts-1), capped."""
+        step = self.retry_base * (1 << max(0, attempts - 1))
+        return now + min(step, self.retry_cap)
+
+    def record_missing_attempt(self, hour: datetime, m: Missing) -> None:
+        """A retry of a missing hour failed again: count it and push `next_retry_at` back."""
+        now = self.connector.clock()
+        row = self.db.conn.execute(
+            "SELECT attempts FROM gharchive_hours WHERE hour = %s AND status = 'missing'", (hour,)
+        ).fetchone()
+        if row is None:
+            return
+        attempts = int(row[0]) + 1
+        self.db.conn.execute(
+            "UPDATE gharchive_hours SET attempts = %s, last_attempt_at = %s, missing_reason = %s,"
+            " http_status = %s, next_retry_at = %s, run_id = %s WHERE hour = %s",
+            (attempts, now, m.reason, m.http_status, self.next_retry(attempts, now),
+             self._run_id, hour),
+        )  # fmt: skip
+
+    def _records(
+        self, hour: datetime
+    ) -> tuple[str, str | None, Iterator[Record], SnapshotMeta | None] | Missing:
+        """(content_hash, evidence_id or None if reused, records, meta if freshly fetched), or
+        `Missing`.
 
         A previously scanned hour is re-read from the snapshot store; if its raw bytes were
         dropped by retention (CB-04) it is re-downloaded and must match the recorded hash.
@@ -421,12 +507,16 @@ class VelocityScanner:
                 meta = store.meta(known)
             except SnapshotNotFound:
                 meta = _meta_for(self.connector, hour)
-            return known, None, self.connector.records(data, meta)
-        try:
-            f = self.connector.fetch(hour_url(hour))
-        except NotFound:
-            return None
-        return f.content_hash, f.evidence.id, self.connector.records(f.data, f.meta)
+            return known, None, self.connector.records(data, meta), None
+        got = self.prefetched.pop(hour, None) or self.fetch_hour(hour)
+        if isinstance(got, Missing):
+            return got
+        return (
+            got.content_hash,
+            got.evidence.id,
+            self.connector.records(got.data, got.meta),
+            got.meta,
+        )
 
     def _process_chunk(self, cs: datetime, ce: datetime, force: bool, res: ScanResult) -> None:
         hours = hours_between(cs, ce)
@@ -436,21 +526,39 @@ class VelocityScanner:
             self._incr("hours_skipped", len(hours))
             return
         agg = WindowAggregator(self.cfg)
-        hour_rows: list[tuple[datetime, str, str | None, str | None, int]] = []
+        hour_rows: list[HourRow] = []
         for h in hours:
             t0 = time.perf_counter()
             got = self._records(h)
-            if got is None:
-                log.warning("GH Archive hour %s missing (404)", h)
-                hour_rows.append((h, "missing", None, None, 0))
+            if not isinstance(got, Missing):
+                content_hash, ev_id, recs, fresh_meta = got
+                hour_agg = WindowAggregator(self.cfg)
+                try:
+                    for rec in recs:
+                        hour_agg.add(h, rec)
+                except PARSE_ERRORS as e:
+                    if fresh_meta is None or ev_id is None:
+                        raise  # a stored hour that parsed before: not a download problem
+                    drop_unparseable(
+                        self.db,
+                        self.connector.store,
+                        ev_id,
+                        content_hash,
+                        DeletionLog(self.db, "retention", run_id=self._run_id),
+                        source=self.connector.name,
+                        error=e,
+                        run=self.run,
+                    )
+                    got = Missing("unparseable", 200)
+            if isinstance(got, Missing):
+                log.warning("GH Archive hour %s missing (%s)", h, got.reason)
+                hour_rows.append(HourRow(h, "missing", None, None, 0, True, got))
                 res.hours_missing += 1
                 self._incr("hours_missing")
+                self._incr(f"hours_missing.{got.reason}")
                 continue
-            content_hash, ev_id, recs = got
-            before = agg.events
-            for rec in recs:
-                agg.add(h, rec)
-            n = agg.events - before
+            agg.merge(hour_agg)
+            n = hour_agg.events
             dt = time.perf_counter() - t0
             res.seconds_per_hour.append(dt)
             log.info("hour %s: %d events in %.1fs", h, n, dt)
@@ -459,7 +567,7 @@ class VelocityScanner:
                     "SELECT evidence_id FROM gharchive_hours WHERE hour = %s", (h,)
                 ).fetchone()
                 ev_id = row[0] if row else None
-            hour_rows.append((h, "ok", content_hash, ev_id, n))
+            hour_rows.append(HourRow(h, "ok", content_hash, ev_id, n, fresh_meta is not None))
             res.hours_ok += 1
             res.events += n
             self._incr("hours_ok")
@@ -473,11 +581,19 @@ class VelocityScanner:
         cs: datetime,
         ce: datetime,
         hours: list[datetime],
-        hour_rows: list[tuple[datetime, str, str | None, str | None, int]],
+        hour_rows: list[HourRow],
         rows: list[HourlyRow],
     ) -> None:
         conn = self.db.conn
         window = Range(cs, ce, "[)")
+        now = self.connector.clock()
+        prev = {
+            r[0]: (r[1], int(r[2]))
+            for r in conn.execute(
+                "SELECT hour, status, attempts FROM gharchive_hours WHERE hour = ANY(%s)",
+                (hours,),
+            )
+        }
         with conn.transaction():
             conn.execute("DELETE FROM repo_hourly_activity WHERE hour = ANY(%s)", (hours,))
             with conn.cursor().copy(
@@ -500,21 +616,38 @@ class VelocityScanner:
                             r.lockstep_flag,
                         )
                     )
-            for h, status, content_hash, ev_id, n in hour_rows:
+            for hr in hour_rows:
+                was_status, was_attempts = prev.get(hr.hour, (None, 0))
+                attempts = was_attempts + 1 if hr.attempted and was_status == "missing" else 1
+                if not hr.attempted and was_status is not None:
+                    attempts = was_attempts
+                m = hr.missing
                 conn.execute(
                     """
                     INSERT INTO gharchive_hours (hour, status, content_hash, evidence_id, events,
-                        filter_window, bot_filter_version, run_id, scanned_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, now())
+                        filter_window, bot_filter_version, run_id, scanned_at, missing_reason,
+                        http_status, attempts, last_attempt_at, next_retry_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, now(), %s, %s, %s, %s, %s)
                     ON CONFLICT (hour) DO UPDATE SET status = EXCLUDED.status,
                         content_hash = EXCLUDED.content_hash,
                         evidence_id = COALESCE(EXCLUDED.evidence_id, gharchive_hours.evidence_id),
                         events = EXCLUDED.events, filter_window = EXCLUDED.filter_window,
                         bot_filter_version = EXCLUDED.bot_filter_version,
-                        run_id = EXCLUDED.run_id, scanned_at = now()
+                        run_id = EXCLUDED.run_id, scanned_at = now(),
+                        missing_reason = EXCLUDED.missing_reason,
+                        http_status = EXCLUDED.http_status, attempts = EXCLUDED.attempts,
+                        last_attempt_at = COALESCE(EXCLUDED.last_attempt_at,
+                                                   gharchive_hours.last_attempt_at),
+                        next_retry_at = EXCLUDED.next_retry_at
                     """,
-                    (h, status, content_hash, ev_id, n, window, BOT_FILTER_VERSION, self._run_id),
-                )
+                    (
+                        hr.hour, hr.status, hr.content_hash, hr.evidence_id, hr.events, window,
+                        BOT_FILTER_VERSION, self._run_id,
+                        m.reason if m else None, m.http_status if m else None, attempts,
+                        now if hr.attempted else None,
+                        self.next_retry(attempts, now) if m else None,
+                    ),
+                )  # fmt: skip
 
     # --- detection ---
     def detect(self, hour: datetime) -> list[Case]:
