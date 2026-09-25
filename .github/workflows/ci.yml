@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0
       - name: Private-data scan (snapshots, raw records, handles, secrets)
         run: python3 scripts/private_data_scan.py
-      - name: Secret scan (gitleaks, full history)
+      - name: Secret scan (gitleaks, pushed commit range)
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

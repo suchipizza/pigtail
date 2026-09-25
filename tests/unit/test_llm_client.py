@@ -16,7 +16,14 @@ def test_r15_4_structured_output_validated_and_provenance(prompt):
     r = c.complete(prompt, "hello", Echo, job="j")
     assert r.output == Echo(value=1, label="a")
     assert r.backend == "subscription" and r.prompt_version == "1" and not r.cached
-    assert set(r.provenance()) == {"backend", "model", "prompt_id", "prompt_version", "input_hash"}
+    assert set(r.provenance()) == {
+        "backend",
+        "model",
+        "prompt_id",
+        "prompt_version",
+        "prompt_fingerprint",
+        "input_hash",
+    }
 
 
 def test_r15_4_schema_sent_is_closed(prompt):
@@ -97,3 +104,21 @@ def test_prd10_identifiers_stripped_before_model_call(prompt):
     sent = fake.calls[0]["prompt"]
     assert "someuser" not in sent and "someone@example.com" not in sent
     assert "[email]" in sent and "@p_" in sent
+
+
+def test_r15_5_paused_backend_still_serves_cache(prompt):
+    c = make_client([{"value": 1, "label": "a"}])
+    c.complete(prompt, "x", Echo, job="j")
+    c.store.pause("subscription", datetime.now(UTC) + timedelta(hours=1), "test")
+    assert c.complete(prompt, "x", Echo, job="j").cached
+    with pytest.raises(QueuePaused):
+        c.complete(prompt, "other", Echo, job="j")
+
+
+def test_prompt_edit_without_version_bump_misses_cache(prompt):
+    c = make_client([{"value": 1, "label": "a"}, {"value": 2, "label": "b"}])
+    c.complete(prompt, "x", Echo, job="j")
+    edited = type(prompt)(
+        id=prompt.id, version=prompt.version, system="changed", template=prompt.template
+    )
+    assert c.complete(edited, "x", Echo, job="j").output.value == 2

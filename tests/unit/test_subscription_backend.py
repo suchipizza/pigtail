@@ -28,7 +28,14 @@ OK = {
 
 
 def test_r15_2_api_key_stripped_from_subprocess_env():
-    env = subprocess_env({"ANTHROPIC_API_KEY": "x", "ANTHROPIC_AUTH_TOKEN": "y", "PATH": "/bin"})
+    env = subprocess_env(
+        {
+            "ANTHROPIC_API_KEY": "x",
+            "ANTHROPIC_AUTH_TOKEN": "y",
+            "CLAUDE_CODE_USE_BEDROCK": "1",
+            "PATH": "/bin",
+        }
+    )
     assert env == {"PATH": "/bin"}
 
 

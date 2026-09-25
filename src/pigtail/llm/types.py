@@ -34,7 +34,9 @@ class BackendResponse:
     model: str
     input_tokens: int = 0
     output_tokens: int = 0
-    cost_usd: float = 0.0  # api: estimated from list prices; subscription: CLI-reported equivalent
+    # api: estimated from list prices. subscription: the CLI-reported list-price *equivalent*;
+    # not money spent (usage is covered by the plan).
+    cost_usd: float = 0.0
     raw_meta: dict[str, Any] = field(default_factory=dict)
 
 
@@ -45,6 +47,7 @@ class LLMResult[T: BaseModel]:
     model: str
     prompt_id: str
     prompt_version: str
+    prompt_fingerprint: str
     input_hash: str
     cached: bool
     created_at: datetime
@@ -56,6 +59,7 @@ class LLMResult[T: BaseModel]:
             "model": self.model,
             "prompt_id": self.prompt_id,
             "prompt_version": self.prompt_version,
+            "prompt_fingerprint": self.prompt_fingerprint,
             "input_hash": self.input_hash,
         }
 

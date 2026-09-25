@@ -2,9 +2,10 @@
 
 Every call:
 1. picks the backend (`LLM_BACKEND`, or a per-job override),
-2. refuses to run while that backend is paused after a limit hit,
-3. strips direct identifiers from the input before it leaves the process (PRD §10),
-4. serves from the cache keyed on (prompt id+version, input hash, schema, model, backend),
+2. strips direct identifiers from the input before it leaves the process (PRD §10),
+3. serves from the cache keyed on (prompt id+version, input hash, schema, model, backend),
+4. refuses new model calls while that backend is paused after a limit hit (cache hits
+   still served),
 5. validates the output against the pydantic schema (one retry on invalid output),
 6. records usage in the ledger and returns the output with its provenance record.
 """
@@ -68,7 +69,9 @@ class LLMClient:
     def cache_key(
         backend: str, model: str, prompt: PromptSpec, schema_h: str, input_hash: str
     ) -> str:
-        return "|".join((prompt.id, prompt.version, input_hash, schema_h, model, backend))
+        return "|".join(
+            (prompt.id, prompt.version, prompt.fingerprint, input_hash, schema_h, model, backend)
+        )
 
     def complete[T: BaseModel](
         self,
@@ -82,10 +85,6 @@ class LLMClient:
     ) -> LLMResult[T]:
         backend = self.backend_for(job)
         model = model or self.model
-        paused = self.store.paused_until(backend.name)
-        if paused is not None:
-            raise QueuePaused(backend.name, paused)
-
         safe_input = self.redact(input_text)
         input_hash = sha256_text(safe_input)
         key = self.cache_key(backend.name, model, prompt, schema_hash(schema), input_hash)
@@ -116,6 +115,10 @@ class LLMClient:
                 input_hash,
                 cached=True,
             )
+
+        paused = self.store.paused_until(backend.name)
+        if paused is not None:
+            raise QueuePaused(backend.name, paused)
 
         json_schema = schema_of(schema)
         rendered = prompt.render(safe_input)
@@ -156,6 +159,7 @@ class LLMClient:
             model=model,
             prompt_id=prompt.id,
             prompt_version=prompt.version,
+            prompt_fingerprint=prompt.fingerprint,
             input_hash=input_hash,
             cached=cached,
             created_at=datetime.now(UTC),

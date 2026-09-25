@@ -17,7 +17,8 @@ LIMIT_SLEEP_SECONDS="${LIMIT_SLEEP_SECONDS:-1800}"   # wait time after a usage-l
 mkdir -p ops/sessions   # session logs are gitignored (they may echo data); summaries go to ops/RUNLOG.md
 
 if [[ "$AGENT_BACKEND" == "subscription" ]]; then
-  CLAUDE=(env -u ANTHROPIC_API_KEY claude)
+  CLAUDE=(env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL \
+    -u CLAUDE_CODE_USE_BEDROCK -u CLAUDE_CODE_USE_VERTEX -u CLAUDE_CODE_USE_FOUNDRY claude)
 elif [[ "$AGENT_BACKEND" == "api" ]]; then
   : "${ANTHROPIC_API_KEY:?AGENT_BACKEND=api requires ANTHROPIC_API_KEY}"
   CLAUDE=(claude)
@@ -39,11 +40,19 @@ for i in $(seq 1 "$MAX_SESSIONS"); do
     --dangerously-skip-permissions 2>&1 | tee "$log"
   set -e
   # Usage-limit handling: pause, then continue. The work is resumable by design.
-  if grep -qiE "usage limit|rate limit|limit reached|resets at" "$log"; then
+  # Only the CLI's own final lines are checked, so sessions that merely *discuss* connector
+  # rate limits don't trigger a pause.
+  if tail -n 5 "$log" | grep -qiE "usage limit reached|you've hit your limit|limit will reset|out of extra usage"; then
     echo "Usage limit detected; sleeping ${LIMIT_SLEEP_SECONDS}s."
     echo "- $(date -u +%FT%TZ) usage limit hit in session $i ($AGENT_BACKEND); paused ${LIMIT_SLEEP_SECONDS}s" >> ops/RUNLOG.md
     sleep "$LIMIT_SLEEP_SECONDS"; continue
   fi
-  git push || true
+  # WORK_ORDER §3.5: push only after the private-data and secret scans pass.
+  if python3 scripts/private_data_scan.py && { ! command -v gitleaks >/dev/null || gitleaks git --log-opts="@{u}..HEAD" --no-banner; }; then
+    git push || echo "- $(date -u +%FT%TZ) push failed after session $i" >> ops/RUNLOG.md
+  else
+    echo "- $(date -u +%FT%TZ) push BLOCKED by private-data/secret scan after session $i" >> ops/RUNLOG.md
+    echo "Scan failed; not pushing. Fix before the next session."; exit 1
+  fi
   sleep "$PAUSE_SECONDS"
 done

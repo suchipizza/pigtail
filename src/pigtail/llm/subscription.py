@@ -21,8 +21,15 @@ from typing import Any
 from pigtail.llm.errors import BackendError, UsageLimitReached
 from pigtail.llm.types import BackendResponse
 
-# Env vars that would make the CLI bill the API instead of the subscription.
-STRIPPED_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+# Env vars that would make the CLI bill an API or 3P provider instead of the subscription.
+STRIPPED_ENV = (
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+    "CLAUDE_CODE_USE_FOUNDRY",
+)
 
 LIMIT_PATTERN = re.compile(
     r"usage limit|rate limit|limit reached|limit will reset|resets? at|out of (extra )?usage",

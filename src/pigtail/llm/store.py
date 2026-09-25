@@ -112,11 +112,16 @@ class LLMStore:
             )
 
     def summary(self) -> dict[str, dict[str, float]]:
-        """Per-backend totals. Subscription: session counts and limit hits; api: tokens + cost."""
+        """Per-backend totals.
+
+        `sessions` = backend calls made (any outcome except cache hits and limit hits). For the
+        subscription backend `cost_usd` is a list-price equivalent, not spend.
+        """
         with self._lock:
             rows = self._db.execute(
                 "SELECT backend,"
-                " SUM(status = 'ok'), SUM(status = 'cached'), SUM(status = 'limit'),"
+                " SUM(status IN ('ok', 'invalid_output', 'error')),"
+                " SUM(status = 'cached'), SUM(status = 'limit'),"
                 " SUM(status IN ('error', 'invalid_output')),"
                 " SUM(input_tokens), SUM(output_tokens), SUM(cost_usd)"
                 " FROM llm_usage GROUP BY backend"

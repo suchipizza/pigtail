@@ -45,3 +45,23 @@ def test_package_scopes_and_urls_untouched(pz):
 def test_key_required():
     with pytest.raises(ValueError):
         Pseudonymizer("short")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "released 2026-09-25 with 25000 (2024) stars",
+        "12 345 678 downloads at 1758800000",
+        "doi 10.1145/3597503.3639148, v1.2.3",
+        "ratio 0.123456789 over 1,234,567 events",
+    ],
+)
+def test_prd10_redaction_keeps_dates_counts_and_ids(pz, text):
+    assert pz.strip_identifiers(text) == text
+
+
+@pytest.mark.parametrize(
+    "text", ["call +41 79 123 45 67 now", "tel: 079 123 45 67", "+1 (415) 555-0100"]
+)
+def test_prd10_phone_numbers_redacted(pz, text):
+    assert "[phone]" in pz.strip_identifiers(text)

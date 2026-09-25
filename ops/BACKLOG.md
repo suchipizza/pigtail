@@ -3,7 +3,6 @@ Seeded by the orchestrator in M0 from docs/WORK_ORDER.md §4. Format: `- [ ] [ID
 Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (diagnosis inline).
 
 ## Now
-- [~] [M0-T6] Push to origin and confirm CI green on GitHub — WO §3.5 — M0-T1..T5 — all CI jobs pass
 - [x] [M2-T1] Literature review → docs/research/literature.md (80 citations; recommends StarScout for R3.3) — pending verifier spot-check M2-T4
 - [x] [M2-T2] Source matrix + terms memos (25 sources: 12 cleared incl. conditions, 13 gaps) — pending verifier spot-check M2-T4
 - [ ] [M1-T1] Capture schema v0 (`evidence`, `case`, `repo`, `run`) as JSON Schemas + Postgres migrations; content-addressed snapshot store (SHA-256) on S3 — R1.4, §7 — M0 — examples + validation tests; forward-only tested migrations
@@ -43,6 +42,8 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [ ] [M10] Execution engine (D4) — depends on M9, H5
 
 ## Done
+- [x] [M0-T6] Pushed; CI green on GitHub; **M0 accepted by verifier** (2026-09-25)
+- [x] [M0-T7] Verifier fixes: phone redaction, prompt fingerprint, cache-while-paused, runner scan-before-push (2026-09-25)
 - [x] [M0-T1] Handoff package added to the repo; backlog seeded (2026-09-25)
 - [x] [M0-T2] Scaffold: uv (Python 3.12), ruff, mypy strict, pytest, pre-commit, CI workflow, `.env.example` (2026-09-25)
 - [x] [M0-T3] docker compose: Postgres 16 + SeaweedFS S3 + bucket init; verified locally (2026-09-25)

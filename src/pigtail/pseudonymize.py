@@ -17,7 +17,13 @@ _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _MENTION = re.compile(
     r"(?<![\w/@.])@([A-Za-z0-9][A-Za-z0-9_.-]{0,62}[A-Za-z0-9_]|[A-Za-z0-9])(?![\w/])"
 )
-_PHONE = re.compile(r"(?<!\w)\+?\d[\d \-().]{8,}\d(?!\w)")
+# Phone numbers only in unambiguous forms: international "+<digits>" or labelled ("tel:",
+# "phone:", "call"). Bare digit runs are left alone because dates, counts, timestamps and DOIs
+# must reach the model intact.
+_PHONE = re.compile(
+    r"(?<![\w/+])\+\d{1,3}(?:[ .\-]?\(?\d{1,4}\)?){2,6}(?![\w/])"
+    r"|(?i:\b(?:tel|phone|mobile|call)\b[:.]?\s*)\(?\d[\d \-().]{6,}\d"
+)
 
 
 class Pseudonymizer:

@@ -15,7 +15,8 @@ import anthropic
 from pigtail.llm.errors import BackendError, UsageLimitReached
 from pigtail.llm.types import BackendResponse
 
-# USD per million tokens (input, output), list prices. Used for the cost ledger only.
+# USD per million tokens (input, output), Anthropic first-party list prices as of 2026-09-25
+# (https://www.anthropic.com/pricing). Used for the cost ledger only.
 PRICES: dict[str, tuple[float, float]] = {
     "claude-opus-5": (5.0, 25.0),
     "claude-sonnet-5": (2.0, 10.0),
@@ -78,6 +79,6 @@ class ApiBackend:
             model=msg.model,
             input_tokens=u.input_tokens,
             output_tokens=u.output_tokens,
-            cost_usd=estimate_cost(model, u.input_tokens, u.output_tokens),
+            cost_usd=estimate_cost(msg.model, u.input_tokens, u.output_tokens),
             raw_meta={"id": msg.id},
         )
