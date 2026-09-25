@@ -1,0 +1,35 @@
+{
+  "schema_version": "v0",
+  "id": "case_0123456789abcdef0123",
+  "repo_id": "github:1000001",
+  "opened_at": "2026-09-20T14:00:00Z",
+  "closed_at": null,
+  "trigger": "velocity",
+  "status": "live",
+  "run_id": "run_0123456789abcdef0123456789abcdef",
+  "detection": {
+    "rule_version": "velocity-v0",
+    "detected_hour": "2026-09-20T13:00:00Z",
+    "stars_48h": 140,
+    "stars_48h_raw": 180,
+    "forks_48h": 12,
+    "baseline_mean_48h": 4.0,
+    "baseline_std_48h": 2.5,
+    "sigma_used": 2.5,
+    "z_score": 54.4,
+    "baseline_hours_covered": 720,
+    "baseline_quality": "full",
+    "threshold_min_stars": 100,
+    "threshold_sigma": 3.0,
+    "bot_filter_version": "bot-filter-v0",
+    "coverage": {
+      "source": "gharchive",
+      "window_start": "2026-09-18T14:00:00Z",
+      "window_end": "2026-09-20T14:00:00Z",
+      "observed_stars": 180,
+      "reference_stars": 900,
+      "reference_source": "github_stargazers_api",
+      "ratio": 0.2
+    }
+  }
+}

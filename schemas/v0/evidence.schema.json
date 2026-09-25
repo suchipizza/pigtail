@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/suchipizza/pigtail/schemas/v0/evidence.schema.json",
+  "title": "evidence",
+  "description": "One captured source document, backed by a content-addressed snapshot (PRD §7, R1.4). Snapshot or drop: no evidence without content_hash.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "id", "source", "url", "fetched_at", "content_hash", "snapshot_ref",
+    "reliability", "terms_basis", "retention_class", "deletion_state", "collector_version",
+    "case_id", "repo_id"
+  ],
+  "properties": {
+    "schema_version": {"const": "v0"},
+    "id": {
+      "description": "Deterministic: 'ev_' + first 24 hex of sha256(source, url, content_hash).",
+      "type": "string",
+      "pattern": "^ev_[0-9a-f]{24}$"
+    },
+    "source": {"description": "Connector name.", "type": "string", "pattern": "^[a-z0-9_]+$"},
+    "url": {"type": "string", "minLength": 1},
+    "fetched_at": {"type": "string", "format": "date-time"},
+    "content_hash": {"description": "SHA-256 of the raw bytes, lowercase hex.", "type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "snapshot_ref": {
+      "description": "Where the raw bytes live in private storage (s3://bucket/sha256/.. or local:sha256/..).",
+      "type": "string",
+      "pattern": "^(s3://[^/]+/|local:)sha256/[0-9a-f]{2}/[0-9a-f]{2}/[0-9a-f]{64}$"
+    },
+    "content_type": {"type": ["string", "null"]},
+    "http_status": {"type": ["integer", "null"]},
+    "reliability": {
+      "description": "high = primary raw API/archive data; medium = rendered page or secondary aggregator; low = unverified third-party claim.",
+      "enum": ["high", "medium", "low", "unknown"]
+    },
+    "terms_basis": {"type": "string", "minLength": 1},
+    "retention_class": {
+      "description": "person_level_24m: contains person-level data, raw kept 24 months (PRD §10); project_level: no time limit; derived_aggregate: no person-level data.",
+      "enum": ["person_level_24m", "project_level", "derived_aggregate"]
+    },
+    "deletion_state": {
+      "description": "present; deleted_upstream (removed at source, raw pending drop); raw_dropped (raw removed, hash + coded facts kept, R1.5).",
+      "enum": ["present", "deleted_upstream", "raw_dropped"]
+    },
+    "collector_version": {"type": "string", "minLength": 1},
+    "case_id": {"type": ["string", "null"]},
+    "repo_id": {"type": ["string", "null"]},
+    "run_id": {"type": ["string", "null"]}
+  }
+}

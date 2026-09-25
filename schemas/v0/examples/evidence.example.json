@@ -1,0 +1,19 @@
+{
+  "schema_version": "v0",
+  "id": "ev_0123456789abcdef01234567",
+  "source": "gharchive",
+  "url": "https://data.gharchive.org/2026-09-20-13.json.gz",
+  "fetched_at": "2026-09-20T15:02:11Z",
+  "content_hash": "645b064aff90549d3c85df8dff15f8265461e5f6f5e8376f2cd45d1938460227",
+  "snapshot_ref": "s3://pigtail-snapshots/sha256/64/5b/645b064aff90549d3c85df8dff15f8265461e5f6f5e8376f2cd45d1938460227",
+  "content_type": "application/gzip",
+  "http_status": 200,
+  "reliability": "high",
+  "terms_basis": "synthetic example terms basis",
+  "retention_class": "person_level_24m",
+  "deletion_state": "present",
+  "collector_version": "gharchive/0.1.0",
+  "case_id": null,
+  "repo_id": null,
+  "run_id": "run_0123456789abcdef0123456789abcdef"
+}

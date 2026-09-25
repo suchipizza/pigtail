@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/suchipizza/pigtail/schemas/v0/run.schema.json",
+  "title": "run",
+  "description": "One execution of a pipeline job, recorded so it can be replayed (PRD §7).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "id", "job", "started_at", "finished_at", "status", "code_commit",
+    "config", "counts", "prompt_versions", "model_versions"
+  ],
+  "properties": {
+    "schema_version": {"const": "v0"},
+    "id": {"type": "string", "pattern": "^run_[0-9a-f]{32}$"},
+    "job": {"type": "string", "pattern": "^[a-z0-9_.]+$"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "finished_at": {"type": ["string", "null"], "format": "date-time"},
+    "status": {"enum": ["running", "succeeded", "failed"]},
+    "code_commit": {
+      "description": "git commit of the code, or null when unknown.",
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{7,40}$"
+    },
+    "config": {"type": "object"},
+    "counts": {
+      "type": "object",
+      "additionalProperties": {"type": "number"}
+    },
+    "prompt_versions": {
+      "description": "prompt id -> version, null when the job makes no LLM calls.",
+      "type": ["object", "null"],
+      "additionalProperties": {"type": "string"}
+    },
+    "model_versions": {
+      "description": "backend -> model, null when the job makes no LLM calls.",
+      "type": ["object", "null"],
+      "additionalProperties": {"type": "string"}
+    },
+    "error": {"type": ["string", "null"]}
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "schema_version": "v0",
+  "id": "case_fedcba9876543210fedc",
+  "repo_id": "github:1000002",
+  "opened_at": "2026-09-21T09:30:00Z",
+  "closed_at": null,
+  "trigger": "announced",
+  "status": "pre_launch",
+  "run_id": null,
+  "detection": null
+}

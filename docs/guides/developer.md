@@ -37,5 +37,19 @@ res.output, res.provenance()  # store the provenance with every coded record (R7
 - `UsageLimitReached` pauses the backend; later calls raise `QueuePaused(until)` until the reset. Job runners must catch `QueuePaused`, sleep until `until`, and resume (R15.5).
 - Inputs are stripped of e-mails, phone numbers and @handles before they leave the process.
 
+## Capture layer (M1)
+```bash
+uv run pigtail db migrate                       # forward-only SQL in migrations/, tracked in schema_migrations
+PSEUDONYM_KEY=… uv run pigtail capture scan --start 2026-09-20T00 --end 2026-09-21T00
+```
+- Records follow `schemas/v0/*.schema.json`; `pigtail.capture.models` mirrors them (a test checks both).
+- Connectors subclass `pigtail.connectors.base.Connector`: declare `terms`, rate limit, `handle_fields`;
+  implement `_parse()`. `fetch()` snapshots raw bytes (content-addressed, `SNAPSHOT_BACKEND=local|s3`)
+  and writes `evidence` before anything is parsed; `records()` always pseudonymizes the handle fields.
+  `pigtail.capture.replay.replay()` re-parses a stored snapshot through the same path.
+- Wrap jobs in `RunRecorder` so each run writes a `run` record.
+- Tests marked `db` / `s3` use the compose services and skip if they are unreachable
+  (`PIGTAIL_REQUIRE_DB=1` makes them fail instead; CI sets it).
+
 ## Public-repo rules
 Fixtures are synthetic or pseudonymized and must be listed in `tests/fixtures/MANIFEST.md`. No raw records, snapshots, handles or secrets in git, including commit messages.

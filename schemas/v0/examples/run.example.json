@@ -1,0 +1,14 @@
+{
+  "schema_version": "v0",
+  "id": "run_0123456789abcdef0123456789abcdef",
+  "job": "capture.scan",
+  "started_at": "2026-09-20T15:00:00Z",
+  "finished_at": "2026-09-20T15:04:30Z",
+  "status": "succeeded",
+  "code_commit": "3521953",
+  "config": {"start": "2026-09-20T13:00:00Z", "end": "2026-09-20T14:00:00Z", "min_stars_48h": 100},
+  "counts": {"hours_scanned": 1, "events": 1234, "cases_opened": 1, "http_requests": 1, "cost_usd": 0.0},
+  "prompt_versions": null,
+  "model_versions": null,
+  "error": null
+}

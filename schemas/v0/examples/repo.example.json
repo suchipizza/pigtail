@@ -1,0 +1,9 @@
+{
+  "schema_version": "v0",
+  "id": "github:1000001",
+  "host": "github",
+  "host_id": 1000001,
+  "full_name": "org-a/repo-1",
+  "first_seen_at": "2026-09-20T00:00:00Z",
+  "created_at": null
+}

@@ -24,6 +24,23 @@ jobs:
 
   python:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pigtail
+          POSTGRES_PASSWORD: pigtail
+          POSTGRES_DB: pigtail
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U pigtail"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://pigtail:pigtail@localhost:5432/pigtail
+      # db-marked tests must run (not skip) in CI; s3-marked tests skip (no object store here).
+      PIGTAIL_REQUIRE_DB: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5

@@ -6,7 +6,7 @@ updated: 2026-09-25
 
 | Track | Milestone | Status | Blocker |
 |---|---|---|---|
-| A capture | M1 | in progress (schemas, snapshot store, connector base, velocity scan) | host VM and GCP (H1) for deploy / BigQuery; local dev not blocked |
+| A capture | M1 | core built (schemas, snapshots, connector base, GH Archive scan). **Detection at risk: GH Archive star coverage ≈ 0.7% (ADR-028)**; re-plan M1-T18 | H1 (host, GITHUB_TOKEN); ADR-022 holds |
 | B research | M2 | literature review + source matrix **verified (PASS)**; M2-T3 fake-star reproduction pending | M1 GH Archive pipeline |
 | C methodology | M3 | outcome spec + compliance pack written; H2 raised; verifier review pending | — |
 | C methodology | M4 | ready (codebook v0 next) | — |

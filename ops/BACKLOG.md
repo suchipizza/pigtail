@@ -3,16 +3,19 @@ Seeded by the orchestrator in M0 from docs/WORK_ORDER.md §4. Format: `- [ ] [ID
 Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (diagnosis inline).
 
 ## Now
+- [ ] [M1-T18] Breakout detection re-plan: evaluate own GitHub event collection (Events API, full paging), candidate screening via Search API / HN / Bluesky / registries + stargazers API, and third-party trend services — feasibility, rate limits, cost, terms; recommendation checked by the verifier — ADR-028, G3, R1.1 — GITHUB_TOKEN (H1) for measurements
+- [ ] [M1-T19] Retry and backfill missing GH Archive hours (404s are only marked missing today)
+- [ ] [M1-T20] JSONL export alongside the DB (PRD §7); S3 service in CI; handles inside free text; run error-text redaction; batched detect() for backfills
 - [x] [M2-T1] Literature review → docs/research/literature.md (80 citations; recommends StarScout for R3.3) — pending verifier spot-check M2-T4
 - [x] [M2-T2] Source matrix + terms memos (25 sources: 12 cleared incl. conditions, 13 gaps) — pending verifier spot-check M2-T4
-- [ ] [M1-T1] Capture schema v0 (`evidence`, `case`, `repo`, `run`) as JSON Schemas + Postgres migrations; content-addressed snapshot store (SHA-256) on S3 — R1.4, §7 — M0 — examples + validation tests; forward-only tested migrations
-- [ ] [M1-T2] Connector interface: rate limiting, retries, terms metadata, enable flag, cost accounting, run records — R2.1 — M1-T1 — contract tests with recorded synthetic fixtures
-- [ ] [M1-T3] GH Archive velocity scan (daily; BigQuery if H1 GCP, else hourly dumps from data.gharchive.org) + bot filter v0 + case opening — R1.1 — M1-T2 — threshold configurable; opens cases on fixture data
+- [x] [M1-T1] Capture schema v0 (`evidence`, `case`, `repo`, `run`) as JSON Schemas + Postgres migrations; content-addressed snapshot store (SHA-256) on S3 — R1.4, §7 — M0 — examples + validation tests; forward-only tested migrations
+- [x] [M1-T2] Connector interface: rate limiting, retries, terms metadata, enable flag, cost accounting, run records — R2.1 — M1-T1 — contract tests with recorded synthetic fixtures
+- [x] [M1-T3] GH Archive velocity scan (daily; BigQuery if H1 GCP, else hourly dumps from data.gharchive.org) + bot filter v0 + case opening — R1.1 — M1-T2 — threshold configurable; opens cases on fixture data
 - [ ] [M1-T4] Mention capture: HN Algolia + Firebase — R1.2 — M1-T2, M2-T2 clearance — snapshot within 48 h
 - [ ] [M1-T5] Mention capture: GitHub (REST/GraphQL) — R1.2 — M1-T2, GITHUB_TOKEN — snapshot within 48 h
 - [ ] [M1-T6] Mention capture: Bluesky — R1.2 — M1-T2, M2-T2 clearance
 - [ ] [M1-T7] Wayback save requests + CDX lookup — R1.2 — M1-T2, M2-T2 clearance
-- [ ] [M1-T8] Pseudonymization at ingest for every connector (keyed HMAC; key stored separately) — §10 — M1-T2
+- [x] [M1-T8] Pseudonymization at ingest for every connector (keyed HMAC; key stored separately) — §10 — M1-T2
 - [ ] [M1-T9] Announced-launch watchlist — R1.3 — M1-T2, M2-T2
 - [ ] [M1-T10] Replay: rebuild stored records from snapshots — PRD §5.5 — M1-T3..T7 — replay reproduces records
 - [ ] [M1-T11] Scheduler + health checks + alerting to ops/ALERTS.md; deploy to host — WO M1 — H1 host VM — 7 consecutive days of scans
@@ -27,7 +30,7 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 Before production capture on the host:
 - [ ] [CB-01] 24-month retention purge job (person-level) — retention-policy.md
 - [ ] [CB-03] Encryption at rest: snapshot bucket + database
-- [ ] [CB-04] GH Archive raw-dump minimization (hash kept, bytes purged ≤ 30 d, replay re-downloads) — briefed to M1 engineer
+- [x] [CB-04] GH Archive raw-dump minimization (ADR-027.4)
 - [ ] [CB-09] Pseudonym key rotation runbook
 - [ ] [CB-12] Publish the privacy notice (needs owner placeholders)
 - [ ] [CB-16] Breach runbook

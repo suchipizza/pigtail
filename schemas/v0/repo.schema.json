@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/suchipizza/pigtail/schemas/v0/repo.schema.json",
+  "title": "repo",
+  "description": "A source-code repository under observation (PRD §7). Project-level data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "host", "host_id", "full_name", "first_seen_at"],
+  "properties": {
+    "schema_version": {"const": "v0"},
+    "id": {
+      "description": "Stable pigtail id: '<host>:<host_id>' (survives renames).",
+      "type": "string",
+      "pattern": "^[a-z]+:[0-9]+$"
+    },
+    "host": {"enum": ["github"]},
+    "host_id": {"description": "Numeric id on the host.", "type": "integer", "minimum": 0},
+    "full_name": {
+      "description": "Last seen 'owner/name'.",
+      "type": "string",
+      "pattern": "^[^/\\s]+/[^/\\s]+$"
+    },
+    "first_seen_at": {"type": "string", "format": "date-time"},
+    "created_at": {
+      "description": "Creation time on the host, when known.",
+      "type": ["string", "null"],
+      "format": "date-time"
+    }
+  }
+}

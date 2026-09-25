@@ -45,6 +45,14 @@ class Settings:
     data_dir: Path = Path("data")
     pseudonym_key: str | None = None
     budget_usd_month: float = 300.0
+    database_url: str | None = None
+    snapshot_backend: Literal["local", "s3"] = "local"
+    s3_endpoint: str | None = None
+    s3_bucket: str = "pigtail-snapshots"
+    s3_access_key: str | None = None
+    s3_secret_key: str | None = field(default=None, repr=False)
+    s3_region: str = "us-east-1"
+    gharchive_raw_retention_days: int = 30
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
@@ -57,4 +65,21 @@ class Settings:
             data_dir=Path(e.get("PIGTAIL_DATA_DIR", "data")),
             pseudonym_key=e.get("PSEUDONYM_KEY") or None,
             budget_usd_month=float(e.get("BUDGET_USD_MONTH", "300") or 300),
+            database_url=e.get("DATABASE_URL") or None,
+            snapshot_backend=_snapshot_backend(e.get("SNAPSHOT_BACKEND", "local")),
+            s3_endpoint=e.get("S3_ENDPOINT") or None,
+            s3_bucket=e.get("S3_BUCKET") or "pigtail-snapshots",
+            s3_access_key=e.get("S3_ACCESS_KEY") or None,
+            s3_secret_key=e.get("S3_SECRET_KEY") or None,
+            s3_region=e.get("S3_REGION") or "us-east-1",
+            gharchive_raw_retention_days=int(e.get("GHARCHIVE_RAW_RETENTION_DAYS") or 30),
         )
+
+
+def _snapshot_backend(value: str) -> Literal["local", "s3"]:
+    v = (value or "local").strip().lower()
+    if v == "local":
+        return "local"
+    if v == "s3":
+        return "s3"
+    raise ValueError(f"SNAPSHOT_BACKEND must be 'local' or 's3', got {value!r}")

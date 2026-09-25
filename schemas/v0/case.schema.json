@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/suchipizza/pigtail/schemas/v0/case.schema.json",
+  "title": "case",
+  "description": "A growth episode under investigation (PRD §7, R1.1, R1.3).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "repo_id",
+    "opened_at",
+    "trigger",
+    "status",
+    "detection"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "v0"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^case_[0-9a-f]{20}$"
+    },
+    "repo_id": {
+      "type": "string",
+      "pattern": "^[a-z]+:[0-9]+$"
+    },
+    "opened_at": {
+      "description": "Data time at which the case was opened (end of the detection hour for velocity cases).",
+      "type": "string",
+      "format": "date-time"
+    },
+    "closed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "trigger": {
+      "enum": [
+        "velocity",
+        "announced",
+        "manual",
+        "analyze"
+      ]
+    },
+    "status": {
+      "enum": [
+        "live",
+        "pre_launch",
+        "closed"
+      ]
+    },
+    "run_id": {
+      "description": "Run that opened the case.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "detection": {
+      "description": "Detection metrics; required for velocity cases, null otherwise.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/velocity_detection"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "velocity_detection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule_version",
+        "detected_hour",
+        "stars_48h",
+        "stars_48h_raw",
+        "forks_48h",
+        "baseline_mean_48h",
+        "baseline_std_48h",
+        "sigma_used",
+        "z_score",
+        "baseline_hours_covered",
+        "baseline_quality",
+        "threshold_min_stars",
+        "threshold_sigma",
+        "bot_filter_version",
+        "coverage"
+      ],
+      "properties": {
+        "rule_version": {
+          "type": "string"
+        },
+        "detected_hour": {
+          "description": "Start of the hour bucket that crossed the threshold.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "stars_48h": {
+          "description": "Bot-filtered stars in the trailing 48 h.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "stars_48h_raw": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "forks_48h": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_mean_48h": {
+          "type": "number",
+          "minimum": 0
+        },
+        "baseline_std_48h": {
+          "type": "number",
+          "minimum": 0
+        },
+        "sigma_used": {
+          "description": "Denominator actually used for z (after floors).",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "z_score": {
+          "type": "number"
+        },
+        "baseline_hours_covered": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 720
+        },
+        "baseline_quality": {
+          "enum": [
+            "full",
+            "partial",
+            "none"
+          ]
+        },
+        "threshold_min_stars": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "threshold_sigma": {
+          "type": "number",
+          "minimum": 0
+        },
+        "bot_filter_version": {
+          "type": "string"
+        },
+        "coverage": {
+          "$ref": "#/$defs/coverage"
+        }
+      }
+    },
+    "coverage": {
+      "description": "How complete the star series behind this detection is. GH Archive may under-capture WatchEvents; thresholds are 'as observed in <source>'. reference_* are filled when an independent source (e.g. the GitHub stargazers API) was checked.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "window_start",
+        "window_end",
+        "observed_stars",
+        "reference_stars",
+        "reference_source",
+        "ratio"
+      ],
+      "properties": {
+        "source": {
+          "description": "Star-series source the detection used.",
+          "type": "string"
+        },
+        "window_start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "window_end": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "observed_stars": {
+          "description": "Raw stars observed in the source for the window.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "reference_stars": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "reference_source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ratio": {
+          "description": "observed_stars / reference_stars, null when no reference.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    }
+  }
+}
