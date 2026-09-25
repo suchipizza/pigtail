@@ -148,3 +148,9 @@ Context: PRD §9.3 leaves confidence levels to the codebook. The literature revi
 Options: (a) require α ≥ 0.80 on the promotion-deciding fields for any promotion; (b) keep the PRD gate at 0.70 and tie 0.80 to `high` confidence.
 Decision: (b). G1 and promotion use the PRD's α ≥ 0.70. `low` = candidate; `medium` = promoted under §9.3; `high` = promoted plus ≥ 10 cases across ≥ 3 strata, both §9.3 routes, α ≥ 0.80 on the promotion-deciding fields (C3, C4, C9, C11a, C11b) and no sensitivity flags. α is reported per field on every card. This is stricter than the PRD for `high` and relaxes nothing.
 How to reverse: Move to (a) through an ADR before the pilot is pre-registered; after pre-registration, only with a held-out re-run.
+
+## ADR-026 — Target for the §9.1 forecasting test (resolves M4-T0b) (2026-09-25)
+Context: PRD §9.1 test 1 predicts "the 30-day outcome class" from data available 7 days after detection. The §8.2 classes need T+90 (and T+365) data, so there is no class at 30 days.
+Options: (a) primary target is a provisional T+30 label (`attention_top_decile`, a binary label from outcome-thresholds v0.1.0), predicted from day-7 data; (b) predict the full T+90 class from day-7 data; (c) change the PRD test.
+Decision: (a) is the primary, pre-registered target, because it matches the PRD's 30-day horizon and data from day 7. (b) is pre-registered as a secondary test and reported with equal prominence. Both use the PRD baseline (star velocity + category base rate), Brier score, ≥ 200 cases, and a 95% bootstrap CI. Nothing is relaxed: the pass criterion applies to (a).
+How to reverse: Swap primary and secondary through an ADR before any outcome data for the test exists (the pre-registration timestamp governs).
