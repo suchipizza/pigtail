@@ -20,6 +20,9 @@
 4. **CB-05**: LLM cache rows linked to the evidence dropped in step 2 and rows past
    `LLM_CACHE_RETENTION_DAYS` are deleted; the usage ledger and pause log follow the same period.
 5. **CB-18**: `runs.error` text older than `LOG_RETENTION_DAYS` (default 365) is cleared.
+6. **CB-33**: UI audit rows (`ui_audit_log`, ADR-034.2) older than `LOG_RETENTION_DAYS` are
+   deleted, and expired UI sessions with them. The UI also deletes them at each login; this step
+   makes the limit hold when nobody logs in (the scheduler runs `retention purge` daily).
 
 `project_level` and `derived_aggregate` data are never touched. Each action writes a tombstone
 to the append-only `deletion_log`; the caller wraps the purge in a `RunRecorder` (job
@@ -74,6 +77,8 @@ class PurgeReport:
     llm_cache_rows_expired: int = 0
     llm_ledger_rows_deleted: int = 0
     run_errors_cleared: int = 0
+    ui_audit_rows_deleted: int = 0
+    ui_sessions_expired_deleted: int = 0
     dropped_hashes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -169,6 +174,14 @@ def purge(
     if n:
         log.write("error_text_cleared", "runs.error", rows=n)
 
+    # 6. CB-33: UI audit trail past the log retention, and expired UI sessions.
+    rep.ui_audit_rows_deleted = _delete_older(db, "ui_audit_log", "at", log_cutoff, dry_run)
+    if rep.ui_audit_rows_deleted:
+        log.write("rows_deleted", "ui_audit_log", rows=rep.ui_audit_rows_deleted)
+    rep.ui_sessions_expired_deleted = _delete_older(db, "ui_sessions", "expires_at", now, dry_run)
+    if rep.ui_sessions_expired_deleted:
+        log.write("rows_deleted", "ui_sessions", rows=rep.ui_sessions_expired_deleted)
+
     if run is not None:
         for key in (
             "gharchive_raw_hashes_dropped",
@@ -180,10 +193,25 @@ def purge(
             "llm_cache_rows_expired",
             "llm_ledger_rows_deleted",
             "run_errors_cleared",
+            "ui_audit_rows_deleted",
+            "ui_sessions_expired_deleted",
         ):
             run.incr(key, getattr(rep, key))
         run.incr("person_rows_deleted", sum(rep.person_rows_deleted.values()))
     return rep
+
+
+def _delete_older(db: CaptureDB, table: str, column: str, cutoff: datetime, dry_run: bool) -> int:
+    """Delete (or, in a dry run, count) rows of `table` whose `column` is before `cutoff`."""
+    from psycopg import sql
+
+    cond = sql.SQL("{} < %s").format(sql.Identifier(column))
+    if dry_run:
+        q = sql.SQL("SELECT count(*) FROM {} WHERE ").format(sql.Identifier(table)) + cond
+        row = db.conn.execute(q, (cutoff,)).fetchone()
+        return int(row[0]) if row else 0
+    q = sql.SQL("DELETE FROM {} WHERE ").format(sql.Identifier(table)) + cond
+    return db.conn.execute(q, (cutoff,)).rowcount
 
 
 def _expired_hashes(

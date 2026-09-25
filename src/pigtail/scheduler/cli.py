@@ -43,6 +43,31 @@ def _alert_manager(s: Any, cfg: Any) -> Any:
     return AlertManager(s.data_dir / "alerts", cfg.alerts.repeat, notifiers)
 
 
+def _key_check(s: Any) -> int | None:
+    """CB-25: refuse to start when PSEUDONYM_KEY differs from the database's key fingerprint
+    (recorded on first use). Every job would fail the same check; stopping here is clearer."""
+    if not s.pseudonym_key:
+        return None  # jobs that need the key refuse on their own; doctor reports it
+    import psycopg
+
+    from pigtail.privacy.key_fingerprint import KeyFingerprintMismatch, verify
+    from pigtail.pseudonymize import Pseudonymizer
+
+    try:
+        pz = Pseudonymizer(s.pseudonym_key)
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    try:
+        with psycopg.connect(s.database_url, autocommit=True, connect_timeout=10) as c:
+            verify(c, pz)
+    except KeyFingerprintMismatch as e:
+        log.error("scheduler not started: pseudonym key fingerprint mismatch (CB-25)")
+        print(str(e), file=sys.stderr)
+        return 2
+    return None
+
+
 def cmd_scheduler_run(args: argparse.Namespace) -> int:
     from pigtail.capture.runs import utcnow
     from pigtail.db.migrate import migrate
@@ -65,6 +90,8 @@ def cmd_scheduler_run(args: argparse.Namespace) -> int:
         return 2
     cfg = _cfg(args)
     migrate(s.database_url)
+    if (rc := _key_check(s)) is not None:
+        return rc
     probes = default_probes(s, cfg.alerts)
     alerts = _alert_manager(s, cfg)
     holder: dict[str, Scheduler] = {}

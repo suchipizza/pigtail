@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Literal
 
@@ -17,6 +17,7 @@ DEFAULT_MODEL = "claude-opus-5"
 PERSON_LEVEL_MAX_DAYS = 730  # 24 months
 LLM_CACHE_MAX_DAYS = 730  # 24 months, and never longer than the evidence it came from
 LOG_MAX_DAYS = 365  # 12 months
+GHARCHIVE_RAW_MAX_DAYS = 30  # CB-04 / CB-32: raw GH Archive dumps (retention-policy §2)
 GITHUB_EVENTS_MAX_DAYS = 30  # TM-33 / CB-22: per-repo event actors, person_level_30d
 # ADR-038: default covers the 14-day case cooldown + 48 h detection window (de-duplicating stars
 # within a case window); the lockstep rule is not applied to per-repo events (ADR-037.2).
@@ -46,7 +47,11 @@ def parse_overrides(raw: str) -> dict[str, BackendName]:
     return out
 
 
-@dataclass(frozen=True)
+# CB-29 (ADR-043): fields never shown by `repr(Settings)`. `database_url` can carry a password.
+SECRET_FIELDS = frozenset({"pseudonym_key", "database_url", "s3_access_key", "s3_secret_key"})
+
+
+@dataclass(frozen=True, repr=False)
 class Settings:
     llm_backend: BackendName = "subscription"
     llm_backend_overrides: dict[str, BackendName] = field(default_factory=dict)
@@ -60,13 +65,22 @@ class Settings:
     s3_endpoint: str | None = None
     s3_bucket: str = "pigtail-snapshots"
     s3_access_key: str | None = None
-    s3_secret_key: str | None = field(default=None, repr=False)
+    s3_secret_key: str | None = None
     s3_region: str = "us-east-1"
-    gharchive_raw_retention_days: int = 30
+    gharchive_raw_retention_days: int = GHARCHIVE_RAW_MAX_DAYS
     person_level_retention_days: int = PERSON_LEVEL_MAX_DAYS
     llm_cache_retention_days: int = LLM_CACHE_MAX_DAYS
     log_retention_days: int = LOG_MAX_DAYS
     github_events_retention_days: int = GITHUB_EVENTS_DEFAULT_DAYS
+
+    def __repr__(self) -> str:
+        """Secrets are masked (CB-29): a logged or printed Settings never shows them."""
+        parts = []
+        for f in fields(self):
+            v = getattr(self, f.name)
+            shown = ("'***'" if v else repr(v)) if f.name in SECRET_FIELDS else repr(v)
+            parts.append(f"{f.name}={shown}")
+        return f"Settings({', '.join(parts)})"
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
@@ -86,7 +100,9 @@ class Settings:
             s3_access_key=e.get("S3_ACCESS_KEY") or None,
             s3_secret_key=e.get("S3_SECRET_KEY") or None,
             s3_region=e.get("S3_REGION") or "us-east-1",
-            gharchive_raw_retention_days=int(e.get("GHARCHIVE_RAW_RETENTION_DAYS") or 30),
+            gharchive_raw_retention_days=_days(
+                e, "GHARCHIVE_RAW_RETENTION_DAYS", GHARCHIVE_RAW_MAX_DAYS
+            ),
             person_level_retention_days=_days(
                 e, "PERSON_LEVEL_RETENTION_DAYS", PERSON_LEVEL_MAX_DAYS
             ),

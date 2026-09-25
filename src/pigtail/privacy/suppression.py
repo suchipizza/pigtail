@@ -22,6 +22,12 @@ The list (`privacy_suppression`, migration 0003) holds only:
 Name matching needs the key: `load()` takes the `Pseudonymizer` (or reads `PSEUDONYM_KEY`) and
 fails closed (`MissingNameKey`) when keyed entries exist but no key is available.
 
+Key check (CB-25, ADR-043): when a key is available, `load()` first verifies it against the
+fingerprint stored in the database (recording it on first use) and raises
+`KeyFingerprintMismatch` if the key changed, since every keyed entry would silently stop matching.
+The loaded list carries that fingerprint, and the connector base refuses a pseudonymizer with a
+different key (`Suppressions.check_key`).
+
 Connectors load the list once (`load()`) and drop matching records at ingest
 (`pigtail.connectors.base.Connector.records`). Existing data is purged by
 `pigtail.privacy.requests.purge_subject` / `purge_repo` (`pigtail privacy optout add|purge`).
@@ -97,6 +103,16 @@ class Suppressions:
     repo_names: frozenset[str] = frozenset()  # repo_name_key() values (keyed, rk_)
     legacy_repo_names: frozenset[str] = frozenset()  # legacy_repo_name_key() values (rn_)
     name_key: NameKeyFn | None = field(default=None, compare=False, repr=False)
+    key_fingerprint: str | None = None  # CB-25: fingerprint of the key the list was loaded under
+
+    def check_key(self, pz: Pseudonymizer | None) -> None:
+        """CB-25: raise `KeyFingerprintMismatch` if `pz` is not the key this list was verified
+        against (a connector must pseudonymize with the same key the refusal list matches)."""
+        fp = self.key_fingerprint
+        if pz is not None and fp is not None and pz.fingerprint() != fp:
+            from pigtail.privacy.key_fingerprint import KeyFingerprintMismatch
+
+            raise KeyFingerprintMismatch()
 
     def __bool__(self) -> bool:
         return bool(self.pseudonyms or self.repos or self.repo_names or self.legacy_repo_names)
@@ -151,10 +167,18 @@ def _pseudonymizer_from_env() -> Pseudonymizer | None:
 
 def load(db: CaptureDB, pz: Pseudonymizer | None = None) -> Suppressions:
     """The refusal list. Repo-name entries are matched with `pz` (default: `PSEUDONYM_KEY` from
-    the environment); keyed entries without any key raise `MissingNameKey` (fail closed)."""
+    the environment); keyed entries without any key raise `MissingNameKey` (fail closed).
+
+    With a key, it is first verified against the database's key fingerprint (CB-25; recorded on
+    first use); a different key raises `KeyFingerprintMismatch`."""
+    from pigtail.privacy import key_fingerprint
+
+    pz = pz or _pseudonymizer_from_env()
+    fp: str | None = None
+    if pz is not None and key_fingerprint.verify(db.conn, pz) == "ok":
+        fp = pz.fingerprint()
     rows = db.conn.execute("SELECT kind, value FROM privacy_suppression").fetchall()
     names = frozenset(v for k, v in rows if k == "repo_name")
-    pz = pz or _pseudonymizer_from_env()
     if names and pz is None:
         raise MissingNameKey(
             f"{len(names)} repo-name opt-out(s) need PSEUDONYM_KEY to be matched (CB-13b)"
@@ -165,6 +189,7 @@ def load(db: CaptureDB, pz: Pseudonymizer | None = None) -> Suppressions:
         repo_names=names,
         legacy_repo_names=frozenset(v for k, v in rows if k == "repo_name_unkeyed"),
         name_key=name_keyer(pz) if pz is not None else None,
+        key_fingerprint=fp,
     )
 
 

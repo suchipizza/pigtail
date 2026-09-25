@@ -220,13 +220,19 @@ def cmd_capture_purge_raw(args: argparse.Namespace) -> int:
     from pigtail.capture.db import CaptureDB
     from pigtail.capture.retention import purge_raw
     from pigtail.capture.snapshots import build_store
-    from pigtail.config import Settings
+    from pigtail.config import GHARCHIVE_RAW_MAX_DAYS, Settings
 
     s = Settings.from_env()
     if not s.database_url:
         print("DATABASE_URL is not set", file=sys.stderr)
         return 2
     days = s.gharchive_raw_retention_days if args.retention_days is None else args.retention_days
+    if not 0 <= days <= GHARCHIVE_RAW_MAX_DAYS:  # CB-32: retention-policy ceiling
+        print(
+            f"--retention-days must be between 0 and {GHARCHIVE_RAW_MAX_DAYS} (retention policy)",
+            file=sys.stderr,
+        )
+        return 2
     db = CaptureDB.connect(s.database_url)
     try:
         n = purge_raw(db, build_store(s), source="gharchive", retention_days=days)
@@ -470,7 +476,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 class _Ctx:
     """Settings plus open handles for the privacy commands."""
 
-    def __init__(self, need_key: bool = True) -> None:
+    def __init__(self, need_key: bool = True, key_check: bool = True) -> None:
         from pigtail.capture.db import CaptureDB
         from pigtail.capture.snapshots import build_store
         from pigtail.config import Settings
@@ -488,6 +494,14 @@ class _Ctx:
         self.db = CaptureDB.connect(s.database_url)
         self.store = build_store(s)
         self.pz = Pseudonymizer(s.pseudonym_key) if s.pseudonym_key else None
+        if need_key and key_check and self.pz is not None:
+            from pigtail.privacy.key_fingerprint import verify
+
+            try:  # CB-25: refuse under a changed key (recorded on first use)
+                verify(self.db.conn, self.pz)
+            except BaseException:
+                self.db.close()
+                raise
         self.llm_store = LLMStore(
             s.data_dir / "llm.sqlite3", retention_days=s.llm_cache_retention_days
         )
@@ -517,7 +531,10 @@ def _privacy(fn: Any) -> Any:
 
     def wrapped(args: argparse.Namespace) -> int:
         try:
-            ctx = _Ctx(need_key=getattr(args, "_need_key", True))
+            ctx = _Ctx(
+                need_key=getattr(args, "_need_key", True),
+                key_check=getattr(args, "_key_check", True),
+            )
         except (_UsageError, ValueError) as e:
             print(str(e), file=sys.stderr)
             return 2
@@ -906,6 +923,8 @@ def cmd_backup_restore(args: argparse.Namespace) -> int:
         )
         return 2
     pz = Pseudonymizer(s.pseudonym_key)
+    if (rc := _restore_key_precheck(s.database_url, pz)) is not None:
+        return rc
     store = build_store(s)
     llm = LLMStore(s.data_dir / "llm.sqlite3", retention_days=s.llm_cache_retention_days)
     runs: dict[str, str] = {}
@@ -956,6 +975,63 @@ def cmd_backup_restore(args: argparse.Namespace) -> int:
         )
     print(json.dumps(out, indent=2, default=str))
     return 0
+
+
+def _restore_key_precheck(database_url: str, pz: Any) -> int | None:
+    """CB-25: before a restore replaces anything, the running key must match the live
+    database's fingerprint (the carried-over opt-outs are keyed with it). Exit 2 on mismatch."""
+    import psycopg
+
+    from pigtail.privacy.key_fingerprint import KeyFingerprintMismatch, status
+
+    try:
+        with psycopg.connect(database_url, autocommit=True, connect_timeout=5) as c:
+            st = status(c, pz)
+    except psycopg.Error:
+        return None  # no live database or not migrated: nothing to compare against
+    if st == "mismatch":
+        print(str(KeyFingerprintMismatch()), file=sys.stderr)
+        return 2
+    return None
+
+
+@_privacy
+def cmd_key_fingerprint(args: argparse.Namespace, ctx: _Ctx) -> int:
+    """CB-25: show the pseudonym-key fingerprint status, or re-record it after a documented
+    compromise rotation (`--reset --confirm-rotation`). Never prints the key."""
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.privacy import key_fingerprint as kf
+
+    assert ctx.pz is not None
+    if args.reset:
+        if not args.confirm_rotation:
+            raise _UsageError(
+                "--reset re-keys the database's key check: opt-outs made under the old key stop"
+                f" matching. Only after the rotation procedure in {kf.RUNBOOK} §4; re-run with"
+                " --confirm-rotation"
+            )
+        config = {"reason": "compromise_rotation"}
+        with RunRecorder("privacy.key_fingerprint_reset", config, sink=ctx.db.upsert_run) as run:
+            old, new = kf.reset(ctx.db.conn, ctx.pz, run_id=run.id)
+            run.incr("fingerprint_changed", int(old != new))
+        out: dict[str, Any] = {
+            "run_id": run.id,
+            "status": "ok",
+            "old_fingerprint": old,
+            "fingerprint": new,
+        }
+    else:
+        stored = kf.stored(ctx.db.conn)
+        out = {
+            "status": kf.status(ctx.db.conn, ctx.pz),
+            "fingerprint": stored.fingerprint if stored else None,
+            "running_key_fingerprint": ctx.pz.fingerprint(),
+            "set_at": stored.set_at if stored else None,
+            "set_by": stored.set_by if stored else None,
+            "history": kf.history(ctx.db.conn),
+        }
+    print(json.dumps(out, indent=2, default=str))
+    return 0 if out["status"] != "mismatch" else 1
 
 
 def cmd_backup_prune(args: argparse.Namespace) -> int:
@@ -1082,6 +1158,19 @@ def build_parser() -> argparse.ArgumentParser:
     priv_sub.add_parser("requests", help="request log (no handles)").set_defaults(
         func=cmd_privacy_requests, _need_key=False
     )
+    kfp = priv_sub.add_parser(
+        "key-fingerprint",
+        help="pseudonym-key fingerprint status; --reset after a compromise rotation (CB-25)",
+    )
+    kfp.add_argument(
+        "--reset", action="store_true", help="record the running key as the database's key"
+    )
+    kfp.add_argument(
+        "--confirm-rotation",
+        action="store_true",
+        help="confirm the documented rotation procedure (key-rotation runbook §4) was followed",
+    )
+    kfp.set_defaults(func=cmd_key_fingerprint, _need_key=True, _key_check=False)
     ds = priv_sub.add_parser("deletion-sync", help="re-check upstream deletions (CB-02, R1.5)")
     ds.add_argument("--source", action="append", choices=("hn",), help="default: all")
     ds.add_argument("--dry-run", action="store_true", help="report only; change nothing")
@@ -1168,8 +1257,14 @@ def main(argv: list[str] | None = None) -> int:
     # an uncaught exception's traceback is scrubbed before it reaches stderr.
     configure_logging()
     install_excepthook()
+    from pigtail.privacy.key_fingerprint import KeyFingerprintMismatch
+
     args = build_parser().parse_args(argv)
-    rc: int = args.func(args)
+    try:
+        rc: int = args.func(args)
+    except KeyFingerprintMismatch as e:  # CB-25: fail closed with a clear message, exit 2
+        print(str(e), file=sys.stderr)
+        return 2
     return rc
 
 

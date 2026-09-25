@@ -11,7 +11,8 @@ key handling and backups, the breach runbook, the subscription-vs-api scope of t
 - [Record of processing activities](../compliance/ropa.md) (template to fill in)
 - [Breach response runbook](../compliance/runbooks/breach.md)
 - [`PSEUDONYM_KEY` management and rotation](../compliance/runbooks/key-rotation.md). Don't
-  change the key without reading it: opt-outs stop matching.
+  change the key without reading it: opt-outs stop matching. pigtail detects a changed key and
+  refuses to run (see "Pseudonym key check" under Privacy operations).
 
 Set `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` only once those duties are met.
 
@@ -55,7 +56,7 @@ scheduler (`pigtail scheduler run`) is one small process that:
 | `hn_ranks` | `capture hn-ranks --once` | 5 min | project-level, on by default (ADR-031.1) |
 | `gharchive_scan` | `capture scan --start <midnight −2 d> --end <now −2 h>` | 1 h | complete days already scanned are skipped; catches up after ≤ 2 days of downtime (ADR-028: limited value, cheap) |
 | `gharchive_backfill` | `capture backfill-gharchive --days 7` | 1 h | M1-T19: retries missing GH Archive hours that are due (see below); one query when nothing is due |
-| `retention_purge` | `retention purge` | 1 d | CB-01, CB-04, CB-05, CB-18 |
+| `retention_purge` | `retention purge` | 1 d | CB-01, CB-04, CB-05, CB-18, CB-33 (UI audit rows) |
 | `deletion_sync` | `privacy deletion-sync` | 1 d | CB-02; needs `PSEUDONYM_KEY` |
 | `purge_raw` | `capture purge-raw` | 1 d | CB-04 |
 | `hn_mentions` | `capture mentions --repo … --since <opened −14 d>` per live case opened in the last 48 h | 3 h | person-level: **skipped and logged** unless `PIGTAIL_ENABLE_HN=1` *and* `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` (ADR-022) |
@@ -98,6 +99,12 @@ snapshots (if `SNAPSHOT_BACKEND=local`), the LLM cache and `alerts/`. It reads `
 `--build-arg PIGTAIL_CODE_COMMIT=$(git rev-parse HEAD)` (or export `PIGTAIL_CODE_COMMIT` before
 `docker compose build`) so run records carry the code commit. `docker compose stop` gives
 running jobs 2 minutes to finish.
+
+The `ui` service does **not** load `.env` (CB-29). It gets only the variables listed under its
+`environment:` in `docker-compose.yml` (database, snapshot store, login, retention periods),
+taken from the host environment or `.env` by Compose interpolation. So it never receives
+`PSEUDONYM_KEY`, `GITHUB_TOKEN`, `SMTP_URL` or API keys; the web app doesn't use them. If you add a
+UI setting to `.env`, add it to that list too.
 
 ### With systemd (no Docker)
 `infra/systemd/pigtail-scheduler.service` runs the same command from a checkout in
@@ -250,8 +257,8 @@ logouts, and every snapshot view (time, route, HTTP status, evidence id, content
 session-hash prefix). It stores **no IP address**: the client is a keyed hash of the truncated
 address (IPv4 /24, IPv6 /48), used only to rate-limit logins (5 failures per client network and
 30 overall per 15 minutes) and to spot brute force. The key derives from the password hash, so it
-rotates with the password. Rows older than `LOG_RETENTION_DAYS` (max 365) are deleted at each
-login. uvicorn access logs, which would contain IPs, are off unless `--access-log` is given.
+rotates with the password. Rows older than `LOG_RETENTION_DAYS` (max 365) are deleted by the daily
+`retention purge` (CB-33; expired sessions too) and also at each login. uvicorn access logs, which would contain IPs, are off unless `--access-log` is given.
 Read the log with SQL, e.g. `SELECT at, event, evidence_id FROM ui_audit_log ORDER BY at DESC`.
 
 **What the pages show.**
@@ -314,7 +321,8 @@ uv run pigtail doctor            # human-readable; exit 1 on any FAIL
 uv run pigtail doctor --strict   # also exit 1 on WARN (use in deploy scripts)
 uv run pigtail doctor --json
 ```
-It checks `PSEUDONYM_KEY`, the database and pending migrations, the snapshot bucket's default
+It checks `PSEUDONYM_KEY` and its fingerprint (below), the database and pending migrations, the
+snapshot bucket's default
 encryption (`GetBucketEncryption`), TLS to a remote object store, and prints the retention
 settings. `capture scan` logs the same encryption warning when it starts. Two items show as
 `MANUAL` because no client can see them: Postgres volume encryption and, with
@@ -331,6 +339,37 @@ It also reports which sources are switched on (M1-T23):
   without `GITHUB_TOKEN`; otherwise it shows the retention (`GITHUB_EVENTS_RETENTION_DAYS`).
 
 Flag values and tokens are never printed.
+
+### Pseudonym key check (CB-25, ADR-043)
+Opt-outs and stored pseudonyms are keyed hashes of `PSEUDONYM_KEY`. With a different key they
+silently stop matching: people and repos that opted out would be collected again, and erasure
+would miss their earlier rows. So the database stores a **fingerprint** of the key (`kfp1_` + 32
+hex of HMAC-SHA256(key, `pigtail-key-fingerprint-v1`); it does not reveal the key, and the key
+itself is never stored or printed) in table `pseudonym_key_fingerprint` (migration 0012).
+- **Recorded on first use**: the first command that pseudonymizes or loads the opt-out list with a
+  key (a capture, a `privacy` command, or `scheduler run` at startup) stores it.
+- **Checked on every use**: every capture command (the opt-out list is loaded first and the
+  connector base refuses a pseudonymizer with another key), every `privacy` command that uses the
+  key, `backup restore` (before anything is replaced) and `scheduler run` (it doesn't start).
+  On a mismatch they **refuse** with exit code 2 and a message naming CB-25; scheduled jobs fail
+  and alert.
+- `pigtail doctor` reports `pseudonym_key_fingerprint`: `OK` (matches), `FAIL` (mismatch),
+  `WARN` (nothing recorded yet). Doctor never records anything.
+
+```bash
+uv run pigtail privacy key-fingerprint     # status, stored + running fingerprint, history (exit 1 on mismatch)
+```
+If the check fails and you did **not** rotate on purpose, restore the original key from its
+separate backup; don't reset. After a **documented compromise rotation**
+(`docs/compliance/runbooks/key-rotation.md` §4, run with the new key in the environment):
+```bash
+uv run pigtail privacy key-fingerprint --reset --confirm-rotation
+```
+This records the running key's fingerprint as the database's key. It writes a `runs` record
+(`privacy.key_fingerprint_reset`) and a `reset` event with the old and new fingerprints to the
+append-only `pseudonym_key_fingerprint_log`. `--reset` alone is refused. Resetting does not
+re-key existing opt-outs: do the runbook's mapping steps first. A backup restore keeps the live
+database's fingerprint (its opt-outs are keyed with the live key).
 
 ### Encryption at rest (CB-03)
 Required before production capture (ADR-022).
@@ -360,7 +399,8 @@ uv run pigtail retention purge --dry-run   # report only; still writes a run rec
 uv run pigtail retention purge             # run daily (cron or systemd timer)
 ```
 What it does, in order:
-1. Drops raw GH Archive dumps after `GHARCHIVE_RAW_RETENTION_DAYS` (default 30).
+1. Drops raw GH Archive dumps after `GHARCHIVE_RAW_RETENTION_DAYS` (default and maximum 30,
+   CB-32; `capture purge-raw --retention-days` has the same ceiling).
 2. Drops the raw bytes of every `person_level_24m` evidence record after
    `PERSON_LEVEL_RETENTION_DAYS` (default and maximum 730, counted from `fetched_at`). The evidence
    row keeps its hash, URL, source, fetch time and terms basis, and moves to
@@ -372,6 +412,9 @@ What it does, in order:
    `LLM_CACHE_RETENTION_DAYS` (default and maximum 730). The LLM usage ledger follows the same
    period. Expired cache rows are never served, even before a purge runs.
 5. Clears `runs.error` text older than `LOG_RETENTION_DAYS` (default and maximum 365).
+6. Deletes UI audit rows (`ui_audit_log`) older than `LOG_RETENTION_DAYS`, and expired UI
+   sessions (CB-33). The scheduler's daily `retention_purge` job runs it, so the limit holds
+   even when nobody logs in.
 
 Project-level and aggregate data are never touched. Longer periods than the policy allows are
 rejected at startup. Container and system logs need their own 12-month rotation, for example
@@ -630,8 +673,9 @@ cache (`PIGTAIL_DATA_DIR/llm.sqlite3`) is not backed up; it is a cache.
 **`backup restore --in FILE --yes`** *replaces* the database at `DATABASE_URL`. Stop the
 scheduler first. It needs `PSEUDONYM_KEY` and, for age, the identity file (`--identity` or
 `BACKUP_IDENTITY`; gpg uses its keyring). Steps:
-1. Read the live database's `deletion_log`, opt-out list and request log, plus the run records
-   they reference, before anything changes.
+1. Check that `PSEUDONYM_KEY` matches the live database's key fingerprint (CB-25; exit 2 on a
+   mismatch, nothing changed). Read the live database's `deletion_log`, opt-out list, request
+   log and key fingerprint, plus the run records they reference, before anything changes.
 2. Decrypt and restore the dump with `pg_restore | psql` in **one transaction** that drops and
    recreates schema `public`. The transaction commits only if decryption, `pg_restore` and
    `psql` all succeed, so a wrong key or a truncated file changes nothing.
@@ -676,10 +720,16 @@ uv run pigtail privacy requests                                       # request 
     namespace are listed separately; review them before sending.
 
   Evidence whose raw bytes were already dropped has no person-level content left to search, and
-  the export says how many such records exist. Access requires proof of account control
+  the export says how many such records exist. A retained snapshot that fails to parse is
+  skipped, not fatal (CB-34): the export lists it under `unparseable_snapshots` (source, hash,
+  exception type) and counts it in `snapshots_unparseable`. Access requires proof of account control
   (retention policy §5); check it before running the command. Send the file through a secure
   channel, then delete it.
 - **Erasure** adds the pseudonym to the opt-out list, then purges as described under Opt-outs.
+  A retained **person-level** snapshot that fails to parse is dropped too (raw bytes deleted,
+  tombstone logged), because pigtail can't prove the person isn't in it (CB-34;
+  `snapshots_unparseable_raw_dropped`). Project-level ones are only counted. `optout add` and
+  `optout purge` behave the same way.
   Project-level aggregates without pseudonyms are kept (retention policy §5).
 - **The request log** (`privacy_requests`) stores the request id, type, platform, received and
   completed times, outcome and counts. It never stores the handle or the pseudonym. The

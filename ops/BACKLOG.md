@@ -43,8 +43,8 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 
 ## Compliance controls (docs/compliance/dpia.md; ADR-022 holds)
 Before production capture on the host:
-- [ ] [CB-25] **Key fingerprint**: store a fingerprint of PSEUDONYM_KEY; doctor + collectors refuse on mismatch (ADR-043)
-- [ ] [CB-29] ui service must not load PSEUDONYM_KEY; mask `Settings.pseudonym_key` in repr (ADR-043)
+- [x] [CB-25] **Key fingerprint** (ADR-045) —: store a fingerprint of PSEUDONYM_KEY; doctor + collectors refuse on mismatch (ADR-043)
+- [x] [CB-29] ui service explicit env; secrets masked (ADR-045) —; mask `Settings.pseudonym_key` in repr (ADR-043)
 - [x] [CB-01] 24-month retention purge (`pigtail retention purge`; ADR-030)
 - [~] [CB-03] Encryption at rest: SeaweedFS SSE via `S3_SSE_KEK` + `pigtail doctor`; open: enable on host, Postgres volume encryption (operator)
 - [~] [CB-04] GH Archive raw-dump minimization: 30-day purge + verified re-fetch done (ADR-027.4); open: drop-after-parse, minimal-parse fallback when upstream disappears
@@ -60,14 +60,14 @@ Before enabling Bluesky, HN or V2EX:
 - [x] [CB-13] Opt-out list enforced at ingest + purge (`pigtail privacy optout`)
 Feature-specific:
 - [ ] [CB-17b] Backup follow-ups: ship deletion_log + opt-outs off host continuously; backup container/scheduler job; doctor checks BACKUP_RECIPIENT and backup age; item-level tombstones for upstream deletions; state that the LLM cache isn't backed up (retention-policy §2)
-- [ ] [CB-34] A snapshot that fails to parse must not abort a person purge (skip + report)
+- [x] [CB-34] Unparseable snapshots skipped/dropped, not aborting purges
 - [ ] [CB-26] Re-derive pseudonyms and opt-outs under a new key (migration tool)
 - [ ] [CB-27] Dual-key matching during a rotation window
 - [ ] [CB-28] Command to clear the LLM cache
 - [ ] [CB-30] Alerts from the UI audit log (failed logins, integrity failures)
 - [ ] [CB-31] Rotate host alert files (ALERTS.md, alerts.jsonl)
-- [ ] [CB-32] Upper limit for GHARCHIVE_RAW_RETENTION_DAYS in config
-- [ ] [CB-33] Purge ui_audit_log on a schedule, not only at login
+- [x] [CB-32] GHARCHIVE_RAW_RETENTION_DAYS capped at 30
+- [x] [CB-33] UI audit + sessions purged by the daily retention job
 - [x] [M3-T11] Compliance status sync done — was: CB-13c/CB-17 now implemented (ADR-044); DPIA stale statuses: CB-24 implemented, CB-19 (UI login + audit, ADR-034) implemented, CB-18 filter now on every command (ADR-040.6); LQ-30/31 added
 - [x] [CB-13c] REPO_TABLES registry + schema test (ADR-044) — was: **Before production:** repo opt-out purge (`purge_repo`) must also delete the repo's rows in the M1-T24 tables (repo_star_daily, repo_count_snapshot, star_history_fetch, repo_event_poll, repo_event_daily_agg, detection_agreement); add a test that enumerates every table with a repo key
 - [x] [CB-13b] Keyed name opt-outs (ADR-042.1); remaining unkeyed rows are warned about by doctor — was: **Before production:** name opt-outs must use a keyed hash (HMAC with PSEUDONYM_KEY), not unkeyed SHA-256 (ADR-040.4); migrate existing rows
@@ -86,6 +86,7 @@ Feature-specific:
 - [x] [CB-21] Controller duties (docs/compliance/controller-duties.md + operator guide link)
 
 ## Next
+- [ ] [M3-T12] Update key-rotation runbook for CB-25 commands (reset after building the old-key mapping; §0/§2/§3/§6 statements now outdated) and DPIA/README statuses for CB-25/29/32/33/34
 - [x] [M3-T10] Outcome spec updated (μ_h, calibration pointer, H-sealed cells, HN minutes; ADR-041) — was: state μ_h = μ_d/24 in §2.1; point §5.4 and §9 to the calibration pre-registration; §3.3 note that after the freeze H-sealed is excluded from cell populations (ADR-039.5)
 - [ ] [M4-T5] Day-zone check after the 2026-11-01 DST change before unitizing bursts for the pilot
 - [x] [M4-T4] Split rule + guard + settle-lag collection (ADR-042) — was: Implement the holdout split rule (H-cal / H-eval / H-sealed) with the pre-registered test vectors; scheduled star-history re-fetches at 1/3/7/14/21 days for the settle_lag calibration

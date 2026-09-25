@@ -1,5 +1,10 @@
 """`pigtail doctor`: startup checks for the privacy controls (DPIA CB-03, CB-01, CB-05, CB-13).
 
+`pseudonym_key_fingerprint` (CB-25, ADR-043) compares the running `PSEUDONYM_KEY` with the
+fingerprint stored in the database: `ok`, `fail` on a mismatch (every collector and privacy
+command refuses to run), `warn` while none is recorded yet (the first command that uses the key
+records it). It never records anything itself.
+
 `optout_name_keys` (CB-13b) warns while repo-name opt-outs from before migration 0009 are still
 stored as unkeyed hashes (see `pigtail.privacy.suppression`).
 
@@ -231,6 +236,8 @@ def run_checks(
         out.append(_db_check(s.database_url))
         if (legacy := _legacy_optout_check(s.database_url)) is not None:
             out.append(legacy)
+        if len(key) >= 16 and (fp := _key_fingerprint_check(s.database_url, key)) is not None:
+            out.append(fp)
     out.append(
         Check(
             "postgres_volume_encryption",
@@ -289,6 +296,36 @@ def _db_check(url: str) -> Check:
     if pending:
         return Check("database", "warn", f"pending migrations {pending} (pigtail db migrate)")
     return Check("database", "ok", "reachable, migrations up to date")
+
+
+def _key_fingerprint_check(url: str, key: str) -> Check | None:
+    """CB-25: is the running key the one this database's pseudonyms were made with?"""
+    import psycopg
+
+    from pigtail.privacy.key_fingerprint import RESET_COMMAND, RUNBOOK, status
+    from pigtail.pseudonymize import Pseudonymizer
+
+    name = "pseudonym_key_fingerprint"
+    try:
+        with psycopg.connect(url, connect_timeout=5) as c:
+            st = status(c, Pseudonymizer(key))
+    except psycopg.Error:
+        return None  # not migrated yet / unreachable: reported by the `database` check
+    if st == "ok":
+        return Check(name, "ok", "PSEUDONYM_KEY matches the database's key fingerprint")
+    if st == "unset":
+        return Check(
+            name,
+            "warn",
+            "no key fingerprint recorded yet; the first capture or privacy command records it",
+        )
+    return Check(
+        name,
+        "fail",
+        "PSEUDONYM_KEY does not match the database's key fingerprint: opt-outs would stop "
+        "matching, so collectors and privacy commands refuse to run. Restore the original key, "
+        f"or after a documented compromise rotation ({RUNBOOK} §4) run `{RESET_COMMAND}`",
+    )
 
 
 def _legacy_optout_check(url: str) -> Check | None:

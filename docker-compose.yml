@@ -113,13 +113,30 @@ services:
         PIGTAIL_CODE_COMMIT: ${PIGTAIL_CODE_COMMIT:-}
     image: pigtail-ui:local
     init: true
-    env_file:
-      - path: .env
-        required: false
+    # CB-29 (ADR-043): no `env_file`. The UI gets only the variables below, taken from the host
+    # environment or `.env` by compose interpolation, so it never receives PSEUDONYM_KEY (it does
+    # not pseudonymize), GITHUB_TOKEN, SMTP_URL, API keys or other secrets it does not use.
     environment:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://${POSTGRES_USER:-pigtail}:${POSTGRES_PASSWORD:-pigtail}@db:5432/${POSTGRES_DB:-pigtail}}
       S3_ENDPOINT: ${COMPOSE_S3_ENDPOINT:-http://objectstore:9000}
       PIGTAIL_DATA_DIR: /data
+      # snapshot store (read-only use: snapshot viewer)
+      SNAPSHOT_BACKEND: ${SNAPSHOT_BACKEND:-local}
+      S3_BUCKET: ${S3_BUCKET:-pigtail-snapshots}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-pigtail-local}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-pigtail-local-secret}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      # operator login (R13.3); single-quote the hash in .env so `$` is not interpolated
+      PIGTAIL_OPERATOR_PASSWORD_HASH: ${PIGTAIL_OPERATOR_PASSWORD_HASH:-}
+      PIGTAIL_UI_SECURE_COOKIE: ${PIGTAIL_UI_SECURE_COOKIE:-}
+      PIGTAIL_UI_SESSION_HOURS: ${PIGTAIL_UI_SESSION_HOURS:-}
+      PIGTAIL_UI_IDLE_MINUTES: ${PIGTAIL_UI_IDLE_MINUTES:-}
+      # retention periods shown in the evidence view; audit-log retention (CB-18, CB-33)
+      PERSON_LEVEL_RETENTION_DAYS: ${PERSON_LEVEL_RETENTION_DAYS:-}
+      GHARCHIVE_RAW_RETENTION_DAYS: ${GHARCHIVE_RAW_RETENTION_DAYS:-}
+      LLM_CACHE_RETENTION_DAYS: ${LLM_CACHE_RETENTION_DAYS:-}
+      LOG_RETENTION_DAYS: ${LOG_RETENTION_DAYS:-}
+      GITHUB_EVENTS_RETENTION_DAYS: ${GITHUB_EVENTS_RETENTION_DAYS:-}
     depends_on:
       db: {condition: service_healthy}
     volumes: ["app-data:/data:ro"]  # local snapshots are only read

@@ -80,6 +80,9 @@ TABLE_LEVELS: dict[str, Level] = {
     "repo_event_actor": "never",
     "ui_sessions": "never",
     "ui_audit_log": "never",
+    # the pseudonym-key fingerprint and its history (CB-25): key-derived, useless outside
+    "pseudonym_key_fingerprint": "never",
+    "pseudonym_key_fingerprint_log": "never",
 }
 
 

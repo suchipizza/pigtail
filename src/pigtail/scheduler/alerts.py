@@ -33,7 +33,7 @@ import re
 import smtplib
 import ssl
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from email.message import EmailMessage
 from pathlib import Path
@@ -163,7 +163,7 @@ class SmtpTarget:
     host: str
     port: int
     user: str | None
-    password: str | None
+    password: str | None = field(repr=False)  # CB-29: never in a repr or log
     mode: Literal["plain", "starttls", "ssl"]
 
 

@@ -28,7 +28,9 @@ Every connector gets, from this base class:
 - **refusal list at ingest** (DPIA CB-13): given a `Suppressions` snapshot, `records()` drops
   every record whose pseudonymized handle fields hold a suppressed pseudonym, or whose
   `repo_fields` name an opted-out repo (`<repo_host>:<id>`). Drops are counted on the run
-  (`<name>.suppressed`).
+  (`<name>.suppressed`). The pseudonymizer must hold the key the list was loaded under
+  (`Suppressions.check_key`, CB-25): `suppression.load()` verifies that key against the
+  fingerprint stored in the database and a connector refuses to start with any other key.
 
 **Unparseable pages** (CB-23b): a connector that parses inside a fetch method (HN Algolia pages,
 Firebase items) reports a failed parse through `parse_failed()`, which calls the
@@ -309,7 +311,11 @@ class Connector(ABC):
         self.rng = rng or random.Random()
         self.sleep = sleep
         self.clock = clock
-        self.suppression = suppression or Suppressions()
+        # `is None`, not `or`: an empty list is falsy but still carries the key fingerprint
+        self.suppression = suppression if suppression is not None else Suppressions()
+        # CB-25: the refusal list was verified against the database's key fingerprint; a
+        # pseudonymizer with another key would never match it (KeyFingerprintMismatch).
+        self.suppression.check_key(pseudonymizer)
         self.parse_failure_sink = parse_failure_sink
 
     @classmethod

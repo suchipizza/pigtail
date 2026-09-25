@@ -20,7 +20,9 @@ replicas are backed up by the bucket, not here).
 `DATABASE_URL` and then re-applies every deletion, so a restore cannot bring deleted data back:
 
 1. *Carry-over*: before anything changes, the live database's `deletion_log`, refusal list
-   (`privacy_suppression`), request log and the run records they reference are read.
+   (`privacy_suppression`), request log, pseudonym-key fingerprint and its history (CB-25) and
+   the run records they reference are read. The live fingerprint replaces the restored one: the
+   carried-over opt-outs are keyed with the live key.
 2. The file is decrypted (age identity file `BACKUP_IDENTITY`, or the gpg keyring) and the dump
    is replayed by `pg_restore | psql` inside **one transaction** that first drops and recreates
    schema `public`; the transaction commits only if decryption, `pg_restore` and `psql` all
@@ -382,6 +384,8 @@ class CarryOver:
     suppression: list[dict[str, Any]] = field(default_factory=list)
     requests: list[dict[str, Any]] = field(default_factory=list)
     runs: list[dict[str, Any]] = field(default_factory=list)
+    key_fingerprint: dict[str, Any] | None = None  # CB-25
+    key_fingerprint_log: list[dict[str, Any]] = field(default_factory=list)
     source: str = "none"
 
 
@@ -416,7 +420,21 @@ def read_carry_over(conninfo: str) -> CarryOver:
             "SELECT id, type, platform, received_at, completed_at, outcome, counts, run_id"
             " FROM privacy_requests",
         )
-        run_ids = {r["run_id"] for r in co.deletion_log + co.requests if r["run_id"]}
+        row = conn.execute(
+            "SELECT to_regclass('public.pseudonym_key_fingerprint') IS NOT NULL"
+        ).fetchone()
+        if row and row[0]:  # CB-25 (migration 0012)
+            fps = _rows(
+                conn, "SELECT fingerprint, set_at, set_by, run_id FROM pseudonym_key_fingerprint"
+            )
+            co.key_fingerprint = fps[0] if fps else None
+            co.key_fingerprint_log = _rows(
+                conn,
+                "SELECT logged_at, event, old_fingerprint, new_fingerprint, run_id"
+                " FROM pseudonym_key_fingerprint_log ORDER BY id",
+            )
+        kf_rows = co.key_fingerprint_log + ([co.key_fingerprint] if co.key_fingerprint else [])
+        run_ids = {r["run_id"] for r in co.deletion_log + co.requests + kf_rows if r["run_id"]}
         co.runs = _rows(
             conn,
             "SELECT id, schema_version, job, started_at, finished_at, status, code_commit,"
@@ -435,7 +453,14 @@ def write_carry_over(db: CaptureDB, co: CarryOver) -> dict[str, int]:
     """Write carried-over rows missing from the restored database. Tombstones are matched on
     their content (ids differ between databases); opt-outs are added, never removed."""
     q = db.conn.execute
-    counts = {"runs": 0, "requests": 0, "suppression": 0, "tombstones": 0}
+    counts = {
+        "runs": 0,
+        "requests": 0,
+        "suppression": 0,
+        "tombstones": 0,
+        "key_fingerprint": 0,
+        "key_fingerprint_log": 0,
+    }
     for r in co.runs:
         cols = list(r)
         counts["runs"] += q(
@@ -482,6 +507,29 @@ def write_carry_over(db: CaptureDB, co: CarryOver) -> dict[str, int]:
                   AND d.content_hash IS NOT DISTINCT FROM %(content_hash)s
                   AND d.evidence_id IS NOT DISTINCT FROM %(evidence_id)s
                   AND d.rows_affected = %(rows_affected)s)
+            """,
+            r,
+        ).rowcount
+    if co.key_fingerprint is not None:  # CB-25: the live key wins (opt-outs are keyed with it)
+        counts["key_fingerprint"] = q(
+            "INSERT INTO pseudonym_key_fingerprint (fingerprint, set_at, set_by, run_id)"
+            " VALUES (%(fingerprint)s, %(set_at)s, %(set_by)s,"
+            " (SELECT id FROM runs WHERE id = %(run_id)s))"
+            " ON CONFLICT (singleton) DO UPDATE SET fingerprint = EXCLUDED.fingerprint,"
+            " set_at = EXCLUDED.set_at, set_by = EXCLUDED.set_by, run_id = EXCLUDED.run_id"
+            " WHERE pseudonym_key_fingerprint.fingerprint <> EXCLUDED.fingerprint",
+            co.key_fingerprint,
+        ).rowcount
+    for r in co.key_fingerprint_log:
+        counts["key_fingerprint_log"] += q(
+            """
+            INSERT INTO pseudonym_key_fingerprint_log (logged_at, event, old_fingerprint,
+                new_fingerprint, run_id)
+            SELECT %(logged_at)s, %(event)s, %(old_fingerprint)s, %(new_fingerprint)s,
+                (SELECT id FROM runs WHERE id = %(run_id)s)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM pseudonym_key_fingerprint_log k WHERE k.logged_at = %(logged_at)s
+                  AND k.event = %(event)s AND k.new_fingerprint = %(new_fingerprint)s)
             """,
             r,
         ).rowcount

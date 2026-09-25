@@ -305,3 +305,12 @@ How to reverse: Once CB-26/27 exist, scheduled rotation can return through an AD
 3. **Restore re-applies deletions.** Restore carries the live `deletion_log`, opt-out list and request log over (opt-outs are only ever added back), restores in one transaction, replays every tombstone, then re-applies the opt-out list and runs the retention purge. So deleted data can't come back. If the live database is lost too, deletions made after the last backup are lost; the command warns, and the operator re-enters them from the request records (follow-up: ship `deletion_log` and opt-outs off the host continuously).
 4. Backups run on the host, which needs `pg_dump` 16 and age. The app image has neither (follow-up: a backup container or scheduler job).
 How to reverse: Per item, through an ADR.
+
+## ADR-045 — Key fingerprint check, secret hygiene, retention caps, unparseable snapshots (2026-09-25)
+1. **CB-25.** The fingerprint is `kfp1_` + 128 bits of HMAC(`PSEUDONYM_KEY`, "pigtail-key-fingerprint-v1"), recorded on first use. Every path that pseudonymizes or matches opt-outs refuses on a mismatch (exit 2, alert): the opt-out list, the connector base, privacy commands, backup restore before anything is replaced, and scheduler startup. `pigtail privacy key-fingerprint --reset --confirm-rotation` is the only way to accept a new key, and resets go to an append-only history table plus a run record. On restore, the live fingerprint wins. `pigtail doctor` reports ok, mismatch or unset. `retention purge` isn't gated on the key, because deleting is always safe. The LLM client doesn't check it (it has no database connection).
+2. **CB-29.** The `ui` service gets an explicit list of environment variables (no `PSEUDONYM_KEY`, tokens, SMTP or API keys). `repr(Settings)` masks secrets, including `database_url` and the S3 keys.
+3. **CB-32.** `GHARCHIVE_RAW_RETENTION_DAYS` is capped at 30.
+4. **CB-33.** `retention purge` (daily job) deletes UI audit rows older than `LOG_RETENTION_DAYS`, plus expired sessions.
+5. **CB-34.** An unparseable snapshot no longer aborts access, erasure or opt-out purges. Erasure and opt-out purges drop it if any of its evidence is person-level (deleting is the safer side), with a tombstone.
+6. **Bug fixed:** the connector base used `suppression or Suppressions()`, so an empty opt-out list was replaced and the key check silently skipped. It now uses `is not None`.
+How to reverse: Per item, through an ADR.

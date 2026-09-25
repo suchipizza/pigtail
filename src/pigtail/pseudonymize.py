@@ -36,6 +36,9 @@ PLATFORM_NAMESPACES: dict[str, str] = {
 }
 
 PSEUDONYM_RE = re.compile(r"^p_[0-9a-f]{16}$")
+# CB-25 (ADR-043): fixed label whose keyed hash identifies the key (`Pseudonymizer.fingerprint`).
+KEY_FINGERPRINT_LABEL = "pigtail-key-fingerprint-v1"
+KEY_FINGERPRINT_RE = re.compile(r"^kfp1_[0-9a-f]{32}$")
 
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 # @handle mentions (GitHub, X, Bluesky style). Requires a non-word char (or start) before '@'
@@ -204,6 +207,14 @@ class Pseudonymizer:
 
         Used for keyed lookup keys that are not handles, e.g. repo-name opt-outs (CB-13b)."""
         return hmac.new(self._key, f"{namespace}:{value}".encode(), hashlib.sha256).hexdigest()
+
+    def fingerprint(self) -> str:
+        """CB-25: `kfp1_` + 32 hex of HMAC-SHA256(key, "pigtail-key-fingerprint-v1").
+
+        Identifies the key without revealing it (a keyed hash of a fixed label). The label has
+        no ':' so it can never equal a pseudonym or `keyed_hex` input (always `namespace:...`)."""
+        mac = hmac.new(self._key, KEY_FINGERPRINT_LABEL.encode(), hashlib.sha256).hexdigest()
+        return "kfp1_" + mac[:32]
 
     def strip_identifiers(self, text: str, namespace: str = "generic") -> str:
         """Redact e-mails, phones, profile URLs, DIDs and @mentions before an LLM call (CB-06).

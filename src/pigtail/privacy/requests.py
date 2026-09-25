@@ -28,6 +28,16 @@ discarded: it is never written to the database, the request log, the deletion lo
 - `rekey_unkeyed_names()` (CB-13b): converts legacy unkeyed name entries (before migration 0009)
   to keyed ones for every name found in local data; the rest stay matched until re-added.
 
+**Unparseable snapshots** (CB-34): a retained snapshot that fails to parse does not abort an
+access, erasure or opt-out purge. It is skipped, counted (`snapshots_unparseable`) and logged
+(source, hash prefix and exception type only; never the message, which can quote content).
+Access lists it in the export. Erasure and objection purges drop its raw bytes if any of its
+evidence is person-level, because pigtail cannot prove the person is not in it
+(`snapshots_unparseable_raw_dropped`, tombstone in `deletion_log`); project-level ones are kept.
+
+Key check (CB-25): every entry point verifies `PSEUDONYM_KEY` against the database's key
+fingerprint first (`key_fingerprint.verify`) and refuses under a changed key.
+
 Every request writes a `privacy_requests` row (id, type, platform, dates, outcome, counts; no
 handle and no pseudonym) and runs inside a `RunRecorder`. Deletions write tombstones to
 `deletion_log`.
@@ -36,6 +46,7 @@ handle and no pseudonym) and runs inside a `RunRecorder`. Deletions write tombst
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -49,10 +60,11 @@ from psycopg import sql
 from psycopg.types.json import Jsonb
 
 from pigtail.capture.snapshots import SnapshotMeta, SnapshotNotFound
-from pigtail.connectors.base import Connector, Record
+from pigtail.connectors.base import Connector, ConnectorError, Record
 from pigtail.connectors.registry import CONNECTORS
-from pigtail.privacy import suppression
+from pigtail.privacy import key_fingerprint, suppression
 from pigtail.privacy.deletion import (
+    PARSE_ERRORS,
     PERSON_TABLES,
     REPO_TABLES,
     DeletionLog,
@@ -70,6 +82,9 @@ if TYPE_CHECKING:
     from pigtail.llm.store import LLMStore
 
 RequestType = Literal["access", "erasure", "objection"]
+logger = logging.getLogger("pigtail.privacy.requests")
+# CB-34: what a failed parse of a retained snapshot raises during a subject scan.
+_SCAN_PARSE_ERRORS: tuple[type[BaseException], ...] = (*PARSE_ERRORS, ConnectorError)
 
 
 def new_request_id() -> str:
@@ -86,9 +101,20 @@ class SubjectHit:
     records: list[Record]
 
 
+@dataclass(frozen=True)
+class UnparseableSnapshot:
+    """A retained snapshot that failed to parse during a subject scan (CB-34)."""
+
+    source: str
+    content_hash: str
+    error: str  # exception type only: the message can quote content
+    person_level: bool  # any of its evidence records is person-level
+
+
 @dataclass
 class ScanResult:
     hits: list[SubjectHit] = field(default_factory=list)
+    unparseable: list[UnparseableSnapshot] = field(default_factory=list)  # CB-34: skipped
     snapshots_scanned: int = 0
     snapshots_missing: int = 0  # evidence says present but the bytes are gone
     raw_dropped_not_searchable: int = 0  # hash only; no person-level content left to search
@@ -155,11 +181,23 @@ def scan_snapshots(
                     terms_basis=first[6],
                     content_type=first[7],
                 )
-                found = [
-                    r
-                    for r in conn.records(data, meta)
-                    if any(v in wanted for v in conn.handle_values(r))
-                ]
+                try:
+                    found = [
+                        r
+                        for r in conn.records(data, meta)
+                        if any(v in wanted for v in conn.handle_values(r))
+                    ]
+                except _SCAN_PARSE_ERRORS as e:  # CB-34: skip, count, report
+                    kind = type(e).__name__
+                    person = any(str(ev[4]).startswith("person_level") for ev in evs)
+                    res.unparseable.append(UnparseableSnapshot(name, h, kind, person))
+                    logger.warning(
+                        "%s: snapshot %s could not be parsed during a subject scan (%s); skipped",
+                        name,
+                        h[:12],
+                        kind,
+                    )
+                    continue
                 if found:
                     res.hits.append(
                         SubjectHit(
@@ -236,6 +274,7 @@ def access(
     person_tables: Sequence[PersonTable] = PERSON_TABLES,
     connectors: Mapping[str, type[Connector]] = CONNECTORS,
 ) -> RequestResult:
+    key_fingerprint.verify(db.conn, pz)  # CB-25: refuse under a changed key
     p = suppression.subject_pseudonym(pz, platform, handle)
     generic = pz.pseudonym(handle, "generic")
     rid = new_request_id()
@@ -245,7 +284,7 @@ def access(
         person = _person_rows(db, person_tables, {p})
         cache = llm_store.find_containing([p]) if llm_store else []
         cache_generic = llm_store.find_containing([generic]) if llm_store else []
-        on_list = p in suppression.load(db).pseudonyms
+        on_list = p in suppression.load(db, pz).pseudonyms
         counts = {
             "snapshots_scanned": scan.snapshots_scanned,
             "snapshots_with_records": len(scan.hits),
@@ -254,6 +293,7 @@ def access(
             "llm_cache_rows": len(cache),
             "llm_cache_rows_generic_namespace": len(cache_generic),
             "raw_dropped_not_searchable": scan.raw_dropped_not_searchable,
+            "snapshots_unparseable": len(scan.unparseable),
         }
         export = {
             "request_id": rid,
@@ -273,6 +313,10 @@ def access(
                 for h in scan.hits
             ],
             "person_tables": person,
+            "unparseable_snapshots": [
+                {"source": u.source, "content_hash": u.content_hash, "error": u.error}
+                for u in scan.unparseable
+            ],
             "llm_cache": cache,
             "llm_cache_generic_namespace": {
                 "note": (
@@ -285,6 +329,8 @@ def access(
                 "Records are shown with pseudonymized handles, as pigtail stores them.",
                 "Evidence whose raw bytes were dropped (retention or erasure) keeps only a "
                 "hash, URL and fetch time and cannot be searched for a person.",
+                "Snapshots listed under unparseable_snapshots could not be parsed, so pigtail "
+                "cannot tell whether they contain this person.",
             ],
         }
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -300,6 +346,7 @@ def access(
         raise
     if run is not None:
         run.incr("records_exported", counts["records"])
+        run.incr("snapshots_unparseable", counts["snapshots_unparseable"])
     return RequestResult(rid, "access", outcome, counts, path)
 
 
@@ -323,6 +370,20 @@ def purge_subject(
     evidence_ids: list[str] = []
     for h in scan.hits:
         evidence_ids += drop_raw(db, store, h.content_hash, log)
+    # CB-34: an unparseable person-level snapshot may contain the person; drop it (conservative).
+    unparseable_dropped = 0
+    for u in scan.unparseable:
+        if not u.person_level:
+            continue
+        evidence_ids += drop_raw(db, store, u.content_hash, log)
+        unparseable_dropped += 1
+        logger.warning(
+            "%s: unparseable person-level snapshot %s dropped by a %s purge (%s)",
+            u.source,
+            u.content_hash[:12],
+            log.reason,
+            u.error,
+        )
     rows = delete_person_rows(db, person_tables, log, pseudonyms=ps)
     cache = 0
     if llm_store is not None:
@@ -337,6 +398,8 @@ def purge_subject(
         "records_found": sum(len(h.records) for h in scan.hits),
         "person_rows_deleted": sum(rows.values()),
         "llm_cache_rows_deleted": cache,
+        "snapshots_unparseable": len(scan.unparseable),
+        "snapshots_unparseable_raw_dropped": unparseable_dropped,
     }
 
 
@@ -355,6 +418,7 @@ def erasure(
     connectors: Mapping[str, type[Connector]] = CONNECTORS,
 ) -> RequestResult:
     """Refusal-list entry plus purge. `reason="objection"` is `privacy optout add`."""
+    key_fingerprint.verify(db.conn, pz)  # CB-25: refuse under a changed key
     p = suppression.subject_pseudonym(pz, platform, handle)
     generic = pz.pseudonym(handle, "generic")
     rid = new_request_id()
@@ -380,7 +444,12 @@ def erasure(
             )
         found = sum(
             counts.get(k, 0)
-            for k in ("records_found", "person_rows_deleted", "llm_cache_rows_deleted")
+            for k in (
+                "records_found",
+                "person_rows_deleted",
+                "llm_cache_rows_deleted",
+                "snapshots_unparseable_raw_dropped",
+            )
         )
         outcome = "completed" if found or not purge else "no_data"
         _finish_request(db, rid, outcome, counts)
@@ -664,6 +733,7 @@ def rekey_unkeyed_names(db: CaptureDB, pz: Pseudonymizer) -> dict[str, int]:
     A legacy entry's name is recovered only by matching names pigtail already holds (HN, watch
     list, repos); the keyed entry keeps the platform, reason and request id. Entries whose name
     is not found stay (still matched) until the operator re-adds the name."""
+    key_fingerprint.verify(db.conn, pz)  # CB-25: keyed entries under the wrong key never match
     counts = {"converted": 0, "remaining": 0}
     rows = db.conn.execute(
         "SELECT value, platform, reason, request_id FROM privacy_suppression"
@@ -754,6 +824,7 @@ def optout_repo(
     The repo's name (given, or its `repos.full_name`) is added by hash as well, so HN data about
     it that is matched by name is suppressed and purged too (M1-T23).
     """
+    key_fingerprint.verify(db.conn, pz)  # CB-25
     rid = new_request_id()
     _log_request(db, rid, "objection", platform, run)
     try:
@@ -805,6 +876,7 @@ def optout_repo_name(
     """M1-T23: opt out a repo that is not in `repos`, by normalized `owner/name` (stored only
     as the keyed `repo_name_key`, CB-13b), then purge what is held about it by name. A legacy
     unkeyed entry for the same name is replaced."""
+    key_fingerprint.verify(db.conn, pz)  # CB-25
     name_key = suppression.repo_name_key(full_name, pz, platform)  # ValueError on a bad name
     rid = new_request_id()
     _log_request(db, rid, "objection", platform, run)
@@ -839,6 +911,7 @@ def reapply_refusals(
     connectors: Mapping[str, type[Connector]] = CONNECTORS,
 ) -> dict[str, int]:
     """Purge existing data of everyone and every repo on the list (after a restore, CB-13/17)."""
+    key_fingerprint.verify(db.conn, pz)  # CB-25
     totals: dict[str, int] = {}
     by_platform: dict[str, set[str]] = {}
     repos: list[str] = []

@@ -44,7 +44,7 @@ timeout = "50m"
 retry_base = "10m"
 requires = ["gharchive"]
 
-# Retention purge (CB-01, CB-04, CB-05, CB-18).
+# Retention purge (CB-01, CB-04, CB-05, CB-18; CB-33: UI audit rows past LOG_RETENTION_DAYS).
 [jobs.retention_purge]
 command = ["retention", "purge"]
 every = "1d"
