@@ -76,7 +76,7 @@ Roles to fill in: incident lead **[name, phone]**; controller decision-maker **[
 | **Host alerts** (`PIGTAIL_DATA_DIR/alerts/`, optional e-mail; `src/pigtail/scheduler/alerts.py`) | `db_down`, `s3_down` (availability); `doctor` (any `pigtail doctor` WARN or FAIL, for example the bucket losing default encryption or `PSEUDONYM_KEY` unset); `disk_high`; `job_failing`/`job_stale`; `deletion_sla`; `scheduler_dead` from the external liveness check | I |
 | **`pigtail doctor`** (`src/pigtail/privacy/doctor.py`) | Key presence and length, key fingerprint match (CB-25), database and migrations, bucket encryption, TLS to a remote object store, source flags, unkeyed name opt-outs | I |
 | **Snapshot hash check** when the UI opens a snapshot (`GET /api/snapshots/{hash}`, `src/pigtail/api/app.py`) | Altered raw bytes: refused with 500 and audited as `snapshot_integrity_failure` | I |
-| **UI audit log** (`ui_audit_log`) | `login_failure`, `login_rate_limited`, unexpected `login_success` or `snapshot_view` | I (logged). **No alert** is raised from it; the operator must read it (SQL). **P CB-30** |
+| **UI audit log** (`ui_audit_log`) | `login_failure`, `login_rate_limited`, unexpected `login_success` or `snapshot_view` | I (logged). Alerts `login_failures` (failed or rate-limited logins over a threshold) and `snapshot_integrity` (any integrity failure, critical) are raised from it, counts only (**I CB-30**, ADR-046.5). Logins at unusual times are not alerted: review the log. |
 | **Key change** (`pigtail doctor` check `pseudonym_key_fingerprint`; `pigtail privacy key-fingerprint`) | A `PSEUDONYM_KEY` that differs from the key the database was built with: every key-using command, backup restore and scheduler startup refuse (exit 2; scheduled jobs fail and alert), and `doctor` FAILs. Restore the original key; do not reset ([key-rotation.md](key-rotation.md) §4) | I (CB-25, ADR-045) |
 | **Provider notices** | Hosting, object-storage, e-mail or Anthropic security notices; GitHub notifications about the repo | O |
 | **Reports from people** | Messages to the privacy contact (privacy notice), GitHub issues, security reports | O |
@@ -278,10 +278,10 @@ Contact: [privacy contact]. You can also complain to a data protection authority
 - If an agent session copies anything to `ops/`, it may copy only the sanitized status (id, date, "closed"), never details.
 
 ## Tooling gaps found while writing this runbook
-- **CB-30:** no alert from the UI audit log (repeated `login_failure`/`login_rate_limited`, any `snapshot_integrity_failure`, logins at unusual times).
+- **CB-30** (done, ADR-046.5): alerts from the UI audit log for repeated failed logins and any `snapshot_integrity_failure`; logins at unusual times are still not alerted.
 - **CB-25** (done, ADR-045): an accidental `PSEUDONYM_KEY` change is now detected and refused ([key-rotation.md](key-rotation.md) §0, §6).
-- **CB-17b** (follow-up): deletions made after the last backup are lost if the live database is lost too; ship `deletion_log` and opt-outs off the host continuously.
-- **CB-31:** the host alert files (`ALERTS.md`, `alerts.jsonl`) grow without rotation (`_write()` appends; no pruning in `src/pigtail/scheduler/alerts.py`). They hold no data-subject data by design, but need a 12-month rotation like other logs (CB-18).
+- **CB-17b** (partly done, ADR-046.6: doctor backup checks, optional backup jobs): deletions made after the last backup are lost if the live database is lost too; ship `deletion_log` and opt-outs off the host continuously (open).
+- **CB-31** (done, ADR-046.5): the host alert files (`ALERTS.md`, `alerts.jsonl`) rotate at 1 MB or 30 days and rotated files are deleted within `LOG_RETENTION_DAYS` (≤ 365).
 
 ## Open questions for the lawyer
 - **LQ-31** ([legal-review-questions.md](../legal-review-questions.md)): which supervisory authority or authorities must be notified when the data subjects are worldwide and the controller may not be established in the EU (EDPB ¶73); whether a key-only leak is a notifiable breach; whether a public communication is the right Art. 34(3)(c) route when pigtail holds no contact details.
@@ -290,3 +290,4 @@ Contact: [privacy contact]. You can also complain to a data protection authority
 - 2026-09-25: v0.1 created (CB-16). Statements about pigtail checked against `main`; CB-30 and CB-31 proposed; LQ-31 raised.
 - 2026-09-25 — backups built (CB-17, ADR-044): restore and follow-up lines updated.
 - 2026-09-25 — ADR-045 (CB-25/29/32/33/34): §2 key-change detection implemented (CB-25); tooling gaps updated.
+- 2026-09-25 — ADR-046 (CB-17b/30/31): §2 audit-log alerts implemented (CB-30); tooling gaps updated (CB-30, CB-31 done; CB-17b partial).

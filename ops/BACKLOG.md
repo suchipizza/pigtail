@@ -59,7 +59,7 @@ Before enabling Bluesky, HN or V2EX:
 - [x] [CB-08] Data-subject requests (`pigtail privacy request access|erasure`); follow-up: rectification
 - [x] [CB-13] Opt-out list enforced at ingest + purge (`pigtail privacy optout`)
 Feature-specific:
-- [ ] [CB-35] Restore also refuses backups taken before a bare fingerprint `--reset` (ADR-046.4)
+- [x] [CB-35] Restore refuses backups taken before a rekey or reset
 - [~] [CB-17b] doctor backup checks + optional jobs done (ADR-046.6); still open: ship deletion_log + opt-outs off host continuously; backup container/scheduler job; doctor checks BACKUP_RECIPIENT and backup age; item-level tombstones for upstream deletions; state that the LLM cache isn't backed up (retention-policy §2)
 - [x] [CB-34] Unparseable snapshots skipped/dropped, not aborting purges
 - [x] [CB-26] `privacy rekey` (ADR-046)
@@ -87,7 +87,7 @@ Feature-specific:
 - [x] [CB-21] Controller duties (docs/compliance/controller-duties.md + operator guide link)
 
 ## Next
-- [ ] [M3-T13] Runbook + retention-policy §3.5: document `privacy rekey`, scheduled rotation allowed again (ADR-046); DPIA statuses CB-26/27/28/30/31
+- [x] [M3-T13] Runbook v0.3 (rekey primary, scheduled rotation allowed) — was: Runbook + retention-policy §3.5: document `privacy rekey`, scheduled rotation allowed again (ADR-046); DPIA statuses CB-26/27/28/30/31
 - [x] [M3-T12] done (runbook v0.2) — Update key-rotation runbook for CB-25 commands (reset after building the old-key mapping; §0/§2/§3/§6 statements now outdated) and DPIA/README statuses for CB-25/29/32/33/34
 - [x] [M3-T10] Outcome spec updated (μ_h, calibration pointer, H-sealed cells, HN minutes; ADR-041) — was: state μ_h = μ_d/24 in §2.1; point §5.4 and §9 to the calibration pre-registration; §3.3 note that after the freeze H-sealed is excluded from cell populations (ADR-039.5)
 - [ ] [M4-T5] Day-zone check after the 2026-11-01 DST change before unitizing bursts for the pilot

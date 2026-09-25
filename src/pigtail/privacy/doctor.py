@@ -386,8 +386,9 @@ def _key_fingerprint_check(url: str, key: str) -> Check | None:
         name,
         "fail",
         "PSEUDONYM_KEY does not match the database's key fingerprint: opt-outs would stop "
-        "matching, so collectors and privacy commands refuse to run. Restore the original key, "
-        f"or after a documented compromise rotation ({RUNBOOK} §4) run `{RESET_COMMAND}`",
+        "matching, so collectors and privacy commands refuse to run. Restore the original key; "
+        f"a rotation uses `pigtail privacy rekey` ({RUNBOOK} §4.1), and `{RESET_COMMAND}` only "
+        "the §4.2 fallback",
     )
 
 

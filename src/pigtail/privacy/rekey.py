@@ -429,7 +429,7 @@ def _rekey_tx(
         raise RekeyRefused(
             f"{n} other session(s) are connected to the database. Stop every writer (scheduler, "
             "app, ui, cron jobs) first: a collector that loaded the refusal list under the old "
-            "key could write old pseudonyms after the rotation (runbook key-rotation.md §4)",
+            "key could write old pseudonyms after the rotation (runbook key-rotation.md §4.1)",
             rep,
         )
     tables = ["pseudonym_key_fingerprint", "privacy_suppression", *(t.table for t in person_tables)]

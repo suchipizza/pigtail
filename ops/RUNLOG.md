@@ -35,3 +35,4 @@ One entry per session: date · session id · tasks · outcomes · cost · next.
 - 2026-09-25 CB-25 key fingerprint, CB-29 secret hygiene, CB-32, CB-33, CB-34 (engineer). Migration 0012. 489 tests pass. Fixed a bug where an empty opt-out list skipped the key check. ADR-045.
 - 2026-09-25 CI: gitleaks flagged synthetic test values in test_secret_hygiene (false positive); marked with gitleaks:allow; CI green.
 - 2026-09-25 CB-26 rekey (atomic re-derivation), CB-27 not needed, CB-28, CB-30, CB-31, CB-17b doctor checks (engineer). Migration 0013. 526 tests pass. ADR-046.
+- 2026-09-25 CB-35 (restore refuses pre-reset backups) and key-rotation runbook v0.3 with compliance status sync. 529 tests pass. Pausing new work here pending the owner's decision (asked whether to continue with smaller items).

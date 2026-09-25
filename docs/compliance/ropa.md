@@ -58,7 +58,7 @@ Details, status and evidence: [dpia.md](dpia.md) §6 (measures per risk) and §9
 - **Encryption at rest:** bucket SSE via `S3_SSE_KEK` or provider encryption, checked by `pigtail doctor` (I, partly); Postgres and `PIGTAIL_DATA_DIR` volume encryption (O) (CB-03).
 - **Access control:** services bound to `127.0.0.1` (`docker-compose.yml`); private UI behind an argon2id password, server-side sessions, audit log without IP addresses (CB-19, ADR-034; `src/pigtail/api/auth.py`) (I); role-based access not built, one operator account (P CB-19).
 - **Redaction before LLM calls** (CB-06, partly) and CLI telemetry opt-outs (CB-07) (I).
-- **Log hygiene:** redacting log filter in every CLI command and scheduled job (ADR-040.6); `runs.error` scrubbed and cleared after 12 months (CB-18) (I); container and system log rotation on the host (O); alert-file rotation (P CB-31).
+- **Log hygiene:** redacting log filter in every CLI command and scheduled job (ADR-040.6); `runs.error` scrubbed and cleared after 12 months (CB-18) (I); container and system log rotation on the host (O); alert-file rotation (I CB-31, ADR-046.5).
 - **Public-repo protection:** CI private-data scan and gitleaks (`scripts/private_data_scan.py`, `.github/workflows/ci.yml`) (I).
 - **Rights and refusals:** access, erasure and opt-out tooling (CB-08, CB-13), keyed repo-name opt-outs (CB-13b, ADR-042.1) and a repo purge covering every repo-keyed table (CB-13c, ADR-044.1) (I); deletion sync for HN (CB-02) (I).
 - **Monitoring:** host alerts and `pigtail doctor` (ADR-033) (I).
@@ -174,7 +174,7 @@ Not active. Blocked until H2 and H4 ([lia.md](lia.md) §7). No personal data by 
 | Source | pigtail |
 | Recipients | **[E-mail provider]** if `SMTP_URL` is set. The public repo receives only `pigtail alerts export` summaries without message text |
 | Transfers | **[...]** (e-mail provider location) |
-| Retention | `runs.error`: cleared after `LOG_RETENTION_DAYS` (max 365) by the purge (I). Alert files: **no rotation today** (append-only; **P CB-31**). Container and system logs: 12 months by operator rotation (O) |
+| Retention | `runs.error`: cleared after `LOG_RETENTION_DAYS` (max 365) by the purge (I). Alert files: rotated at 1 MB or 30 days, rotated files deleted once their first event is older than `LOG_RETENTION_DAYS` (**I CB-31**, ADR-046.5). Container and system logs: 12 months by operator rotation (O) |
 | Security | CB-18 scrubbing of every alert line and log record; files 0600 in a 0700 directory |
 | Status | I (rotation gaps as noted) |
 
@@ -209,3 +209,4 @@ Not active. Blocked until H2 and H4 ([lia.md](lia.md) §7). No personal data by 
 ## Changelog
 - 2026-09-25: v0.1 created (CB-15). Activities A1, A1b, A1c, A2a, A2b, A3, A7, A8, A9, A10, A11; each checked against `main`. Gaps recorded as CB-31 (alert-file rotation), CB-32 (cap on `GHARCHIVE_RAW_RETENTION_DAYS`) and CB-33 (UI audit-log purge without logins).
 - 2026-09-25 — status sync (M3-T11): §2.1 backup target and §2.3 measures updated (CB-17 backups I with follow-ups; CB-18 I with host rotation O; CB-13b/CB-13c; CB-19 role-based access P); A8 status notes role-based access open; A10 backups implemented, LLM cache not in backups.
+- 2026-09-25 — ADR-046 (CB-31): §2.3 and A9 alert-file rotation implemented.

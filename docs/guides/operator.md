@@ -12,8 +12,9 @@ key handling and backups, the breach runbook, the subscription-vs-api scope of t
 - [Breach response runbook](../compliance/runbooks/breach.md)
 - [`PSEUDONYM_KEY` management and rotation](../compliance/runbooks/key-rotation.md). Don't
   change the key without reading it: opt-outs stop matching. pigtail detects a changed key and
-  refuses to run (see "Pseudonym key check" under Privacy operations). Rotate with
-  `pigtail privacy rekey` ("Rotating the key" under Privacy operations).
+  refuses to run (see "Pseudonym key check" under Privacy operations). To rotate the key,
+  follow the runbook's §4.1, which uses `pigtail privacy rekey` ("Rotating the key" under
+  Privacy operations); scheduled rotation every 24 months is allowed (runbook §4.3).
 
 Set `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` only once those duties are met.
 
@@ -389,8 +390,9 @@ itself is never stored or printed) in table `pseudonym_key_fingerprint` (migrati
 uv run pigtail privacy key-fingerprint     # status, stored + running fingerprint, history (exit 1 on mismatch)
 ```
 If the check fails and you did **not** rotate on purpose, restore the original key from its
-separate backup; don't reset. After a **documented compromise rotation**
-(`docs/compliance/runbooks/key-rotation.md` §4, run with the new key in the environment):
+separate backup; don't reset. To rotate on purpose, use `privacy rekey` (below). Reset only in
+the runbook's **manual fallback** (`docs/compliance/runbooks/key-rotation.md` §4.2, chiefly when
+the old key is lost), with the new key in the environment:
 ```bash
 uv run pigtail privacy key-fingerprint --reset --confirm-rotation
 ```
@@ -399,14 +401,18 @@ This records the running key's fingerprint as the database's key. It writes a `r
 append-only `pseudonym_key_fingerprint_log`. `--reset` alone is refused. Resetting does not
 re-key existing opt-outs: use `privacy rekey` (below) instead, which re-derives them and records
 the new fingerprint in the same transaction. A backup restore keeps the live database's
-fingerprint (its opt-outs are keyed with the live key).
+fingerprint (its opt-outs are keyed with the live key) and **refuses a backup taken before the
+reset** (CB-35); the command reminds you to take a fresh backup.
 
 ### Rotating the key: `privacy rekey` (CB-26)
 `privacy rekey` moves the database from the old `PSEUDONYM_KEY` to a new one in **one
 transaction**: every stored pseudonym is re-derived under the new key (or deleted), the LLM
 cache is cleared, and the key fingerprint switches to the new key last. If anything can't be
-done, nothing changes. Follow the rotation runbook (`docs/compliance/runbooks/key-rotation.md`)
-for the surrounding steps (decision record, sealed old key, backup).
+done, nothing changes. **Follow the rotation runbook, §4.1**
+([`docs/compliance/runbooks/key-rotation.md`](../compliance/runbooks/key-rotation.md)), for the
+full procedure: decision record, sealed old key, handles file, stopping every service, backups
+before and after, and when to destroy the old key. Its §4.3 gives the schedule (every 24 months,
+and after a compromise or a departure).
 
 A pseudonym is a one-way hash of a handle, and pigtail stores no handles, so re-deriving needs the
 handle again. `rekey` gets it, only in memory, from:
@@ -433,8 +439,8 @@ Rules:
   `--drop-unmapped` (those rows are deleted; for `upstream_items` only the author is cleared, so
   deletion sync keeps tracking the item) or `--purge-person-level` (every person-level row,
   mapped or not). Deletions are logged in `deletion_log` with reason `key_rotation`.
-- It refuses while other sessions are connected to the database. Stop the scheduler, the `app`
-  and `ui` services and any cron jobs first.
+- It refuses while other sessions are connected to the database. Stop the `scheduler` and `ui`
+  services and any cron jobs first.
 
 ```bash
 export OLD_PSEUDONYM_KEY=...   # the old key, only for this shell (e.g. `read -s`); never an argument
@@ -452,8 +458,11 @@ a handle, a repo name or the file's path. Exit 2 means it refused and nothing ch
 
 Afterwards: `pigtail privacy key-fingerprint` shows the new key with a `rekey` event. Backups taken
 before the rotation hold old pseudonyms: `backup restore` refuses them, and they expire with
-`backup prune` after 35 days. Keep the old key sealed until then, then destroy it. Delete JSONL
-exports made with `--include-person-level` before the rotation.
+`backup prune` after 35 days. **Take a fresh backup right away.** Keep the old key sealed until
+the old backups are pruned, then destroy it. Delete JSONL exports made with
+`--include-person-level` before the rotation. Run `rekey` with the same `PIGTAIL_DATA_DIR` as the
+scheduler (under Compose, `docker compose run --rm -e OLD_PSEUDONYM_KEY scheduler pigtail privacy
+rekey …`), or it clears a different LLM cache; runbook §4.1 has the Compose details.
 
 No dual-key window (CB-27) is needed: the switch is atomic, and every command started afterwards
 checks the new fingerprint.
@@ -772,8 +781,9 @@ scheduler first. It needs `PSEUDONYM_KEY` and, for age, the identity file (`--id
 1. Check that `PSEUDONYM_KEY` matches the live database's key fingerprint (CB-25; exit 2 on a
    mismatch, nothing changed). Read the live database's `deletion_log`, opt-out list, request
    log and key fingerprint, plus the run records they reference, before anything changes. A
-   backup taken before the last `privacy rekey` is refused (CB-26): its pseudonyms are keyed with
-   the old key.
+   backup taken before the last `privacy rekey` (CB-26) or the last bare
+   `privacy key-fingerprint --reset` (CB-35) is refused, as is one whose creation time is
+   unknown: its pseudonyms are keyed with the old key (runbook §4.4).
 2. Decrypt and restore the dump with `pg_restore | psql` in **one transaction** that drops and
    recreates schema `public`. The transaction commits only if decryption, `pg_restore` and
    `psql` all succeed, so a wrong key or a truncated file changes nothing.

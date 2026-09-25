@@ -463,3 +463,76 @@ def test_cb26_restore_refuses_a_backup_taken_before_the_rotation():
         check_rotation(co, {})  # unknown creation time: refuse
     check_rotation(co, {"created_at": (at + timedelta(hours=1)).isoformat()})
     check_rotation(CarryOver(), {"created_at": at.isoformat()})  # no rotation: fine
+
+
+def test_cb35_restore_refuses_a_backup_taken_before_a_bare_fingerprint_reset():
+    """CB-35 (ADR-046.4): a bare `privacy key-fingerprint --reset` changes the key as surely as
+    a rekey, so a backup taken before it is refused the same way."""
+    at = datetime(2026, 9, 20, 12, tzinfo=UTC)
+    co = CarryOver(key_fingerprint_log=[{"event": "reset", "logged_at": at}])
+    with pytest.raises(BackupError, match=r"before the pseudonym key was rotated.*--reset"):
+        check_rotation(co, {"created_at": (at - timedelta(days=1)).isoformat()})
+    with pytest.raises(BackupError, match="--reset"):
+        check_rotation(co, {})  # unknown creation time: refuse
+    check_rotation(co, {"created_at": (at + timedelta(hours=1)).isoformat()})
+    # the first-use `recorded` event is not a key change
+    first = CarryOver(key_fingerprint_log=[{"event": "recorded", "logged_at": at}])
+    check_rotation(first, {"created_at": (at - timedelta(days=1)).isoformat()})
+
+
+def test_cb35_restore_guard_uses_the_most_recent_rekey_or_reset():
+    rekey_at = datetime(2026, 9, 10, tzinfo=UTC)
+    reset_at = datetime(2026, 9, 20, tzinfo=UTC)
+    co = CarryOver(
+        key_fingerprint_log=[
+            {"event": "recorded", "logged_at": rekey_at - timedelta(days=30)},
+            {"event": "rekey", "logged_at": rekey_at},
+            {"event": "reset", "logged_at": reset_at},
+        ]
+    )
+    between = {"created_at": (rekey_at + timedelta(days=1)).isoformat()}
+    with pytest.raises(BackupError, match="--reset"):  # after the rekey, before the reset
+        check_rotation(co, between)
+    check_rotation(co, {"created_at": (reset_at + timedelta(minutes=1)).isoformat()})
+    co.key_fingerprint_log.append({"event": "rekey", "logged_at": reset_at + timedelta(days=1)})
+    with pytest.raises(BackupError, match="privacy rekey"):
+        check_rotation(co, {"created_at": (reset_at + timedelta(hours=1)).isoformat()})
+
+
+def test_cb35_restore_refuses_before_replacing_anything_after_a_reset(
+    capture_db, pg_url, tmp_path, monkeypatch
+):
+    """End to end through `backup.restore()` without age/gpg: the manifest reader is stubbed,
+    and the database must not be touched (restore_database never runs)."""
+    from pigtail.capture.snapshots import LocalSnapshotStore
+    from pigtail.privacy import backup
+
+    db = capture_db
+    key_fingerprint.verify(db.conn, OLD)  # recorded on first use
+    key_fingerprint.reset(db.conn, NEW)  # bare reset: event `reset`
+    before = key_fingerprint.history(db.conn)
+    assert [e["event"] for e in before] == ["recorded", "reset"]
+
+    path = tmp_path / "pigtail-backup-20260901T000000Z.age"
+    path.write_bytes(b"age-encryption.org/v1\n")  # header only: never decrypted here
+    monkeypatch.setattr(backup, "detect_tool", lambda p: "age")
+    monkeypatch.setattr(
+        backup,
+        "read_manifest",
+        lambda p, identity=None: {"created_at": "2026-09-01T00:00:00+00:00"},
+    )
+
+    def must_not_run(*a: Any, **k: Any) -> Any:
+        raise AssertionError("restore_database ran despite a pre-reset backup")
+
+    monkeypatch.setattr(backup, "restore_database", must_not_run)
+    with pytest.raises(BackupError, match="key-fingerprint --reset"):
+        backup.restore(
+            path,
+            pg_url,
+            LocalSnapshotStore(tmp_path / "snap"),
+            reapply=lambda _db: {},
+            retention=lambda _db: {},
+        )
+    assert key_fingerprint.history(db.conn) == before
+    assert key_fingerprint.stored(db.conn).fingerprint == NEW.fingerprint()  # type: ignore[union-attr]

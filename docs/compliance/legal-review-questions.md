@@ -251,12 +251,12 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 
 ### LQ-30 · Honouring objections after a pseudonym-key change · Priority B
 - **Context:**
-  - The refusal list stores objectors only as keyed pseudonyms and keyed repo-name hashes, never handles, names or contact details (ADR-030.4, ADR-042.1). A new `PSEUDONYM_KEY` makes those entries stop matching, so collection about the objectors would resume. Entries can be re-derived only where the handle still appears in retained raw data ([runbooks/key-rotation.md](runbooks/key-rotation.md) §3). pigtail does not yet detect a key change (CB-25).
+  - The refusal list stores objectors only as keyed pseudonyms and keyed repo-name hashes, never handles, names or contact details (ADR-030.4, ADR-042.1). A new `PSEUDONYM_KEY` makes those entries stop matching, so collection about the objectors would resume. Entries can be re-derived only where the handle still appears in retained raw data ([runbooks/key-rotation.md](runbooks/key-rotation.md) §3). pigtail detects a key change and refuses to run (CB-25, ADR-045). `pigtail privacy rekey` (CB-26, ADR-046.1) re-derives every entry through handles the operator supplies from the original requests or finds in retained raw data, and refuses to rotate while any opt-out cannot be mapped; entries can be lost only in the manual fallback when the old key itself is lost (runbook §4.2).
 - **Question:**
-  1. After a rotation (for example following a key compromise), what must the controller do for objections whose handles can no longer be recovered? Is it acceptable to keep the old key sealed only for matching old objections (dual-key matching, CB-27)?
+  1. After a rotation (for example following a key compromise), what must the controller do for objections whose handles can no longer be recovered? Is it acceptable to keep the old key sealed only for matching old objections? (Dual-key matching, CB-27, was found not needed for a planned rotation, ADR-046.2.)
   2. Should the controller keep the handle of an objector (or a contact) specifically so that the objection survives a rotation, and would that be proportionate?
-- **Default meanwhile:** no scheduled rotation until CB-25 to CB-27 exist; rotate only after a compromise, following the runbook; unmappable entries are recorded as unresolved.
-- **Blocks:** scheduled key rotation ([retention-policy.md](retention-policy.md) §3.5).
+- **Default meanwhile:** rotate only with `pigtail privacy rekey`; scheduled rotation every 24 months is allowed again (ADR-046.3) but is postponed whenever an opt-out cannot be mapped; after a key loss, unmappable entries are recorded as unresolved.
+- **Blocks:** nothing since ADR-046; the answer to question 2 decides how long the controller keeps the original requests that a rotation needs ([runbooks/key-rotation.md](runbooks/key-rotation.md) §4.3, [retention-policy.md](retention-policy.md) §3.5).
 
 ### LQ-31 · Breach notification: which authority, key-only leaks, and how to inform data subjects · Priority B
 - **Context:**
@@ -395,3 +395,4 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - 2026-09-25 — ADR-038 wording (16-day default; CB-02 per source)
 - 2026-09-25 — LQ-30 (objections after a key change; from the CB-09 runbook) and LQ-31 (breach notification: authority, key-only leaks, informing data subjects; from the CB-16 runbook) added; summary updated.
 - 2026-09-25 — backup status updated (CB-17 implemented).
+- 2026-09-25 — ADR-046: LQ-30 context, default and blocks updated (`privacy rekey` refuses on any unmappable opt-out; scheduled rotation allowed again; CB-27 not needed).

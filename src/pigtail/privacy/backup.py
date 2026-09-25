@@ -23,7 +23,8 @@ replicas are backed up by the bucket, not here).
    (`privacy_suppression`), request log, pseudonym-key fingerprint and its history (CB-25) and
    the run records they reference are read. The live fingerprint replaces the restored one: the
    carried-over opt-outs are keyed with the live key. A backup taken before the live database's
-   last `privacy rekey` (CB-26) is refused (`check_rotation`): its pseudonyms use the old key.
+   last key change, a `privacy rekey` (CB-26) or a bare `privacy key-fingerprint --reset`
+   (CB-35, ADR-046.4), is refused (`check_rotation`): its pseudonyms use the old key.
 2. The file is decrypted (age identity file `BACKUP_IDENTITY`, or the gpg keyring) and the dump
    is replayed by `pg_restore | psql` inside **one transaction** that first drops and recreates
    schema `public`; the transaction commits only if decryption, `pg_restore` and `psql` all
@@ -447,23 +448,40 @@ def read_carry_over(conninfo: str) -> CarryOver:
     return co
 
 
+ROTATION_EVENTS = ("rekey", "reset")  # fingerprint-log events that change the key
+
+
 def check_rotation(co: CarryOver, manifest: Mapping[str, Any]) -> None:
-    """CB-26: refuse a backup taken before the live database's last key rotation by
-    re-derivation (`pigtail privacy rekey`). Its pseudonyms are keyed with the old key: they
-    would come back unmappable, and its refusal list would not match under the live key."""
-    rekeys = [e["logged_at"] for e in co.key_fingerprint_log if e.get("event") == "rekey"]
-    if not rekeys:
+    """CB-26, CB-35 (ADR-046.4): refuse a backup taken before the live database's last key
+    change: a rotation by re-derivation (`pigtail privacy rekey`, event `rekey`) or a bare
+    fingerprint reset (`pigtail privacy key-fingerprint --reset`, event `reset`). Its
+    pseudonyms are keyed with the old key: they would come back unmappable, and its refusal
+    list would not match under the live key. A backup of unknown creation time is refused."""
+    changes = [
+        (e["logged_at"], str(e["event"]))
+        for e in co.key_fingerprint_log
+        if e.get("event") in ROTATION_EVENTS and e.get("logged_at") is not None
+    ]
+    if not changes:
         return
-    last = max(rekeys)
+    last, event = max(changes)
     try:
         created = datetime.fromisoformat(str(manifest["created_at"]))
     except (KeyError, ValueError):
         created = None
+    if created is not None and created.tzinfo is None:
+        created = created.replace(tzinfo=UTC)
     if created is None or created < last:
+        how = (
+            "`pigtail privacy rekey`, CB-26"
+            if event == "rekey"
+            else "`pigtail privacy key-fingerprint --reset`, CB-35"
+        )
         raise BackupError(
             "this backup was taken before the pseudonym key was rotated "
-            f"({last:%Y-%m-%d %H:%M} UTC, `pigtail privacy rekey`): its pseudonyms and opt-outs "
-            "are keyed with the old key. Restore a backup taken after the rotation (CB-26)."
+            f"({last:%Y-%m-%d %H:%M} UTC, {how}): its pseudonyms and opt-outs are keyed with "
+            "the old key and would not match under the live key. Restore a backup taken after "
+            "the rotation."
         )
 
 
@@ -758,7 +776,7 @@ def restore(
         raise BackupError(f"no such backup file: {path}")
     detect_tool(path)
     co = read_carry_over(conninfo)
-    if any(e.get("event") == "rekey" for e in co.key_fingerprint_log):  # CB-26
+    if any(e.get("event") in ROTATION_EVENTS for e in co.key_fingerprint_log):  # CB-26, CB-35
         check_rotation(co, read_manifest(path, identity=identity))
     manifest = restore_database(path, conninfo, identity=identity)
     applied = migrate(conninfo, migrations_dir)

@@ -1040,8 +1040,8 @@ def cmd_key_fingerprint(args: argparse.Namespace, ctx: _Ctx) -> int:
         if not args.confirm_rotation:
             raise _UsageError(
                 "--reset re-keys the database's key check: opt-outs made under the old key stop"
-                f" matching. Only after the rotation procedure in {kf.RUNBOOK} §4; re-run with"
-                " --confirm-rotation"
+                " matching. Rotate with `pigtail privacy rekey` instead; reset only in the fallback"
+                f" procedure in {kf.RUNBOOK} §4.2 (old key lost); re-run with --confirm-rotation"
             )
         config = {"reason": "compromise_rotation"}
         with RunRecorder("privacy.key_fingerprint_reset", config, sink=ctx.db.upsert_run) as run:
@@ -1053,6 +1053,11 @@ def cmd_key_fingerprint(args: argparse.Namespace, ctx: _Ctx) -> int:
             "old_fingerprint": old,
             "fingerprint": new,
         }
+        print(
+            "fingerprint reset: `pigtail backup restore` now refuses backups taken before this"
+            " reset (CB-35); take a fresh backup.",
+            file=sys.stderr,
+        )
     else:
         stored = kf.stored(ctx.db.conn)
         out = {
@@ -1083,7 +1088,7 @@ def cmd_privacy_rekey(args: argparse.Namespace, ctx: _Ctx) -> int:
         raise _UsageError(
             "rekey rewrites every stored pseudonym and switches the database to the new key."
             " Stop every writer, take a backup, run it with --dry-run first, then re-run with"
-            " --confirm-rotation (key-rotation runbook §4)"
+            " --confirm-rotation (key-rotation runbook §4.1)"
         )
     try:
         old = rk.old_key_from_env(args.old_key_env)
@@ -1279,7 +1284,7 @@ def build_parser() -> argparse.ArgumentParser:
     kfp.add_argument(
         "--confirm-rotation",
         action="store_true",
-        help="confirm the documented rotation procedure (key-rotation runbook §4) was followed",
+        help="confirm the fallback rotation procedure (key-rotation runbook §4.2) was followed",
     )
     kfp.set_defaults(func=cmd_key_fingerprint, _need_key=True, _key_check=False)
     rkp = priv_sub.add_parser(
@@ -1317,7 +1322,7 @@ def build_parser() -> argparse.ArgumentParser:
     rkp.add_argument(
         "--confirm-rotation",
         action="store_true",
-        help="confirm the rotation procedure (key-rotation runbook §4) is being followed",
+        help="confirm the rotation procedure (key-rotation runbook §4.1) is being followed",
     )
     # the running key is the NEW key: it cannot match the stored fingerprint yet
     rkp.set_defaults(func=cmd_privacy_rekey, _need_key=True, _key_check=False)

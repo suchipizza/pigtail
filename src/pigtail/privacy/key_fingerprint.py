@@ -18,9 +18,10 @@ erasure would miss their earlier rows. So the database remembers which key it wa
   `reapply_refusals`, `rekey_unkeyed_names`), backup restore (before anything is replaced) and
   `pigtail scheduler run` at startup.
 - `pigtail doctor` reports `pseudonym_key_fingerprint`: ok / fail (mismatch) / warn (unset).
-- After a documented compromise rotation (runbook `key-rotation.md` §4) the operator re-records
-  it with `pigtail privacy key-fingerprint --reset --confirm-rotation` (event `reset`, with a
-  `runs` record `privacy.key_fingerprint_reset`).
+- In the manual fallback rotation (runbook `key-rotation.md` §4.2, old key lost) the operator
+  re-records it with `pigtail privacy key-fingerprint --reset --confirm-rotation` (event `reset`,
+  with a `runs` record `privacy.key_fingerprint_reset`). `backup restore` then refuses backups
+  taken before the reset (CB-35).
 - `pigtail privacy rekey` (CB-26, `pigtail.privacy.rekey`) re-derives every stored pseudonym
   under the new key and records the new fingerprint (event `rekey`, migration 0013) as the last
   write of the same transaction.
@@ -51,8 +52,9 @@ class KeyFingerprintMismatch(RuntimeError):
         super().__init__(
             "PSEUDONYM_KEY does not match the key this database was built with (CB-25): "
             "opt-outs and stored pseudonyms would silently stop matching, so pigtail refuses to "
-            "run. Restore the original key. If the key was rotated on purpose after a "
-            f"compromise, follow {RUNBOOK} §4 and then run `{RESET_COMMAND}`."
+            "run. Restore the original key. To rotate the key on purpose, follow "
+            f"{RUNBOOK} §4.1 (`pigtail privacy rekey`); `{RESET_COMMAND}` is only the §4.2 "
+            "fallback when the old key is lost."
         )
 
 
