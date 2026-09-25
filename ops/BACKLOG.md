@@ -73,7 +73,7 @@ Feature-specific:
 - [ ] [CB-21] Operator guide: controller duties
 
 ## Next
-- [ ] [M3-T10] Outcome spec: state μ_h = μ_d/24 in §2.1; point §5.4 and §9 to the calibration pre-registration; §3.3 note that after the freeze H-sealed is excluded from cell populations (ADR-039.5)
+- [x] [M3-T10] Outcome spec updated (μ_h, calibration pointer, H-sealed cells, HN minutes; ADR-041) — was: state μ_h = μ_d/24 in §2.1; point §5.4 and §9 to the calibration pre-registration; §3.3 note that after the freeze H-sealed is excluded from cell populations (ADR-039.5)
 - [ ] [M4-T5] Day-zone check after the 2026-11-01 DST change before unitizing bursts for the pilot
 - [ ] [M4-T4] Implement the holdout split rule (H-cal / H-eval / H-sealed) with the pre-registered test vectors; scheduled star-history re-fetches at 1/3/7/14/21 days for the settle_lag calibration
 - [x] [M3-T4] Compliance docs' CB statuses updated (ADR-030)

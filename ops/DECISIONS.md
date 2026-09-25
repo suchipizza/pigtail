@@ -276,3 +276,8 @@ How to reverse: 1–4 through a codebook or spec version bump; 5 only before the
 5. **Raw drops.** GitHub search pages are dropped at parse (CB-24). Person-level pages that fail to parse are dropped immediately, and only counts go into the run record (CB-23b).
 6. **Every CLI command installs the redacting log filter** (CB-18b) and logs at INFO level to stderr.
 How to reverse: Per item, through an ADR.
+
+## ADR-041 — HN front-page minutes may be a labelled lower bound when polling starts mid-window (2026-09-25)
+Context: Outcome-model §2.4 says a window that starts before a source's coverage is `unknown`. The implemented HN front-page metric (ADR-040.2) returns an `estimated` value with `lower_bound: true` when polling covers part of the window.
+Decision: Allowed for this metric only, because it is descriptive and never an input to classes, the forecasting test or mechanism promotion. It must carry `estimated`, `lower_bound: true` and its uncovered minutes wherever it's shown. Any analysis that uses it as a covariate or outcome must either treat such values as `unknown` or pre-register how it handles lower bounds.
+How to reverse: Return `unknown` for partly covered windows (a one-line change in `hn_frontpage.py`).
