@@ -56,7 +56,12 @@ services:
       aws --endpoint-url http://objectstore:9000 s3 mb s3://$$S3_BUCKET) &&
       if [ -n \"$$S3_SSE\" ]; then aws --endpoint-url http://objectstore:9000 s3api put-bucket-encryption
       --bucket $$S3_BUCKET --server-side-encryption-configuration
-      '{\"Rules\":[{\"ApplyServerSideEncryptionByDefault\":{\"SSEAlgorithm\":\"AES256\"}}]}'; fi"
+      '{\"Rules\":[{\"ApplyServerSideEncryptionByDefault\":{\"SSEAlgorithm\":\"AES256\"}}]}'; fi &&
+      echo ready > /tmp/probe && i=0 &&
+      until aws --endpoint-url http://objectstore:9000 s3 cp /tmp/probe s3://$$S3_BUCKET/.pigtail-probe >/dev/null 2>&1;
+      do i=$$((i+1)); [ $$i -ge 60 ] && echo 'object store not writable after 60 tries' && exit 1; sleep 2; done &&
+      aws --endpoint-url http://objectstore:9000 s3 rm s3://$$S3_BUCKET/.pigtail-probe >/dev/null &&
+      echo 'object store writable'"
 
   scheduler:
     # Unattended runtime (M1-T21): capture, retention, deletion sync, /healthz, alerts.
