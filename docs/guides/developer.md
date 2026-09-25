@@ -35,7 +35,11 @@ res.output, res.provenance()  # store the provenance with every coded record (R7
 - Bump `PromptSpec.version` whenever the prompt text changes. The cache is keyed on it (ADR-006).
 - `job` names route to a backend through `LLM_BACKEND_OVERRIDES` (e.g. `tier2_extraction:api`).
 - `UsageLimitReached` pauses the backend; later calls raise `QueuePaused(until)` until the reset. Job runners must catch `QueuePaused`, sleep until `until`, and resume (R15.5).
-- Inputs are stripped of e-mails, phone numbers and @handles before they leave the process.
+- Inputs are stripped of e-mails, phone numbers, @handles, profile URLs (`github.com/<login>`,
+  `bsky.app/profile/…`, `news.ycombinator.com/user?id=…`) and `did:plc:`/`did:web:` ids before
+  they leave the process (DPIA CB-06). Pass `namespace="github"` (the source's pseudonym
+  namespace) so @mentions get the same pseudonyms the connector stores, and `evidence_id=` so the
+  cache row is purged with its source (CB-05).
 
 ## Capture layer (M1)
 ```bash
@@ -47,7 +51,13 @@ PSEUDONYM_KEY=… uv run pigtail capture scan --start 2026-09-20T00 --end 2026-0
   implement `_parse()`. `fetch()` snapshots raw bytes (content-addressed, `SNAPSHOT_BACKEND=local|s3`)
   and writes `evidence` before anything is parsed; `records()` always pseudonymizes the handle fields.
   `pigtail.capture.replay.replay()` re-parses a stored snapshot through the same path.
-- Wrap jobs in `RunRecorder` so each run writes a `run` record.
+- Wrap jobs in `RunRecorder` so each run writes a `run` record. Its error text is scrubbed of
+  identifiers and truncated (CB-18); use `pigtail.logsafe.configure_logging()` for log output.
+- Connectors take `suppression=pigtail.privacy.suppression.load(db)` and drop opted-out people
+  and repos in `records()` (CB-13). Declare `repo_fields` for numeric repo ids.
+- Tables holding pseudonymous person-level rows must be registered in
+  `pigtail.privacy.deletion.PERSON_TABLES` so retention (CB-01) and erasure (CB-08) reach them.
+  Operator commands: docs/guides/operator.md "Privacy operations".
 - Tests marked `db` / `s3` use the compose services and skip if they are unreachable
   (`PIGTAIL_REQUIRE_DB=1` makes them fail instead; CI sets it).
 

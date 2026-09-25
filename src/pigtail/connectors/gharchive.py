@@ -53,6 +53,8 @@ class GHArchiveConnector(Connector):
     reliability = "high"
     handle_fields: ClassVar[tuple[str, ...]] = ("actor",)
     handle_namespace: ClassVar[str] = "github"
+    repo_fields: ClassVar[tuple[str, ...]] = ("repo_id",)
+    repo_host: ClassVar[str] = "github"
     timeout_seconds: ClassVar[float] = 600.0
 
     def _parse(self, data: bytes, meta: SnapshotMeta) -> Iterator[Record]:

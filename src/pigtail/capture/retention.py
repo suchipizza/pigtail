@@ -8,6 +8,8 @@ the evidence moves to `deletion_state = 'raw_dropped'`. Replay re-downloads by U
 the hash (`pigtail.capture.replay`).
 
 A content hash is dropped only when *every* evidence record pointing at it is past the cutoff.
+With a `DeletionLog` each drop also writes a tombstone and `dry_run` is honoured
+(`pigtail retention purge`, CB-01).
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from datetime import UTC, datetime, timedelta
 
 from pigtail.capture.db import CaptureDB
 from pigtail.capture.snapshots import SnapshotStore
+from pigtail.privacy.deletion import DeletionLog, drop_raw
 
 
 def purge_raw(
@@ -25,6 +28,7 @@ def purge_raw(
     source: str,
     retention_days: int,
     now: datetime | None = None,
+    log: DeletionLog | None = None,
 ) -> int:
     """Drop raw bytes older than the retention for `source`; return the number of hashes purged."""
     if retention_days < 0:
@@ -41,6 +45,10 @@ def purge_raw(
     ).fetchall()
     purged = 0
     for (h,) in rows:
+        if log is not None:
+            drop_raw(db, store, h, log)
+            purged += 1
+            continue
         store.delete(h)
         db.conn.execute(
             "UPDATE evidence SET deletion_state = 'raw_dropped' "

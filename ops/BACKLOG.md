@@ -28,21 +28,21 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 
 ## Compliance controls (docs/compliance/dpia.md; ADR-022 holds)
 Before production capture on the host:
-- [ ] [CB-01] 24-month retention purge job (person-level) — retention-policy.md
-- [ ] [CB-03] Encryption at rest: snapshot bucket + database
+- [x] [CB-01] 24-month retention purge (`pigtail retention purge`; ADR-030)
+- [~] [CB-03] Encryption at rest: SeaweedFS SSE via `S3_SSE_KEK` + `pigtail doctor`; open: enable on host, Postgres volume encryption (operator)
 - [~] [CB-04] GH Archive raw-dump minimization: 30-day purge + verified re-fetch done (ADR-027.4); open: drop-after-parse, minimal-parse fallback when upstream disappears
 - [ ] [CB-09] Pseudonym key rotation runbook
 - [ ] [CB-12] Publish the privacy notice (needs owner placeholders)
 - [ ] [CB-16] Breach runbook
 - [ ] [CB-17] Encrypted backups; deletions re-applied after a restore
-- [ ] [CB-18] Log hygiene (no content or handles in logs)
+- [~] [CB-18] Log hygiene: redaction filter + `runs.error` scrubbing; open: install filter in all services, log rotation
 Before enabling Bluesky, HN or V2EX:
 - [ ] [CB-02] Deletion sync (Bluesky ≤ 48 h) — R1.5
-- [ ] [CB-06] Redact profile URLs, `did:` identifiers and bare handles before LLM calls
-- [ ] [CB-08] Data-subject request tooling (access, objection, erasure)
-- [ ] [CB-13] Honour explicit refusals (opt-out list)
+- [~] [CB-06] Profile URLs, DIDs, per-source namespaces redacted before LLM calls; open: gists, avatar URLs, bare handles in author fields
+- [x] [CB-08] Data-subject requests (`pigtail privacy request access|erasure`); follow-up: rectification
+- [x] [CB-13] Opt-out list enforced at ingest + purge (`pigtail privacy optout`)
 Feature-specific:
-- [ ] [CB-05] Time limit on the LLM cache, linked to evidence (before Tier 2 extraction)
+- [x] [CB-05] LLM cache expiry (24 months) + evidence links + purge
 - [ ] [CB-10] Account reach stored in bands
 - [x] [CB-11] Codebook privacy rules (codebook v0.1.0 §12)
 - [ ] [CB-14] Guard against naming people in outputs (before spread graphs, public mode, D3, D4)
@@ -52,6 +52,7 @@ Feature-specific:
 - [ ] [CB-21] Operator guide: controller duties
 
 ## Next
+- [ ] [M3-T4] Update compliance docs' CB statuses for CB-01/03/05/06/08/13/18 (ADR-030); verifier check
 - [ ] [M5-T1] Coding prompts must include the codebook P1 instruction (ignore personal characteristics); verifier checks it — codebook §12, DPIA R9
 - [ ] [M2-T3] Fake-star method: select, reproduce on a sample, document validation — R3.3 — M2-T1
 - [x] [M2-T4] Verifier spot-check — round 1 FAIL, round 2 PASS @191c44d (2026-09-25)

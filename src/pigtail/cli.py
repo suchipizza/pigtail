@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 from datetime import UTC, datetime
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -50,7 +51,7 @@ def cmd_llm_status(_: argparse.Namespace) -> int:
     from pigtail.llm.store import LLMStore
 
     s = Settings.from_env()
-    store = LLMStore(s.data_dir / "llm.sqlite3")
+    store = LLMStore(s.data_dir / "llm.sqlite3", retention_days=s.llm_cache_retention_days)
     out = {
         "llm_backend": s.llm_backend,
         "overrides": s.llm_backend_overrides,
@@ -104,9 +105,11 @@ def cmd_capture_scan(args: argparse.Namespace) -> int:
     from pigtail.config import Settings
     from pigtail.connectors.gharchive import GHArchiveConnector
     from pigtail.db.migrate import migrate
+    from pigtail.logsafe import configure_logging
+    from pigtail.privacy import suppression
     from pigtail.pseudonymize import Pseudonymizer
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    configure_logging()  # CB-18: handles, e-mails and payloads never reach the log
     s = Settings.from_env()
     if not s.database_url:
         print("DATABASE_URL is not set", file=sys.stderr)
@@ -115,6 +118,7 @@ def cmd_capture_scan(args: argparse.Namespace) -> int:
         print("PSEUDONYM_KEY is not set (>= 16 chars; PRD §10)", file=sys.stderr)
         return 2
     migrate(s.database_url)
+    _warn_unencrypted(s, logging.getLogger("pigtail.capture"))
     cfg = VelocityConfig(min_stars_48h=args.min_stars, sigma=args.sigma)
     db = CaptureDB.connect(s.database_url)
     config = scan_config_dict(
@@ -131,6 +135,7 @@ def cmd_capture_scan(args: argparse.Namespace) -> int:
                 pseudonymizer=Pseudonymizer(s.pseudonym_key),
                 run=run,
                 evidence_sink=db.upsert_evidence,
+                suppression=suppression.load(db),  # CB-13: refusals dropped at ingest
             )
             res = VelocityScanner(connector=conn, db=db, cfg=cfg, run=run).scan(
                 args.start, args.end, force=args.force
@@ -178,6 +183,286 @@ def cmd_capture_purge_raw(args: argparse.Namespace) -> int:
     return 0
 
 
+def _warn_unencrypted(s: Any, log: Any) -> None:
+    """CB-03: warn at startup when the snapshot store is not known to be encrypted."""
+    from pigtail.privacy.doctor import run_checks
+
+    try:
+        checks = run_checks(s, db_check=False)
+    except Exception as e:  # the check must never block a scan
+        log.warning("encryption check failed: %s", type(e).__name__)
+        return
+    for c in checks:
+        if c.name == "snapshot_bucket_encryption" and c.status != "ok":
+            log.warning("CB-03 %s: %s", c.status, c.detail)
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """CB-03: report encryption at rest and other privacy preconditions."""
+    from pigtail.config import Settings
+    from pigtail.privacy.doctor import exit_code, run_checks
+
+    try:
+        s = Settings.from_env()
+    except ValueError as e:
+        print(f"[FAIL] settings: {e}", file=sys.stderr)
+        return 1
+    checks = run_checks(s)
+    if args.json:
+        print(json.dumps([c.to_dict() for c in checks], indent=2))
+    else:
+        for c in checks:
+            print(f"[{c.status.upper():>6}] {c.name}: {c.detail}")
+    return exit_code(checks, strict=args.strict)
+
+
+class _Ctx:
+    """Settings plus open handles for the privacy commands."""
+
+    def __init__(self, need_key: bool = True) -> None:
+        from pigtail.capture.db import CaptureDB
+        from pigtail.capture.snapshots import build_store
+        from pigtail.config import Settings
+        from pigtail.db.migrate import migrate
+        from pigtail.llm.store import LLMStore
+        from pigtail.pseudonymize import Pseudonymizer
+
+        s = Settings.from_env()
+        if not s.database_url:
+            raise _UsageError("DATABASE_URL is not set")
+        if need_key and not s.pseudonym_key:
+            raise _UsageError("PSEUDONYM_KEY is not set (>= 16 chars; PRD §10)")
+        migrate(s.database_url)
+        self.settings = s
+        self.db = CaptureDB.connect(s.database_url)
+        self.store = build_store(s)
+        self.pz = Pseudonymizer(s.pseudonym_key) if s.pseudonym_key else None
+        self.llm_store = LLMStore(
+            s.data_dir / "llm.sqlite3", retention_days=s.llm_cache_retention_days
+        )
+
+    def close(self) -> None:
+        self.db.close()
+
+
+class _UsageError(Exception):
+    pass
+
+
+def _read_handle(value: str | None) -> str:
+    """`--handle X`, or `--handle -` / no flag to read it from stdin (keeps it out of history)."""
+    if value and value != "-":
+        return value
+    if sys.stdin.isatty():
+        print("handle: ", end="", file=sys.stderr, flush=True)
+    handle = sys.stdin.readline().strip()
+    if not handle:
+        raise _UsageError("no handle given")
+    return handle
+
+
+def _privacy(fn: Any) -> Any:
+    """Run a privacy command with a context; usage errors exit 2."""
+
+    def wrapped(args: argparse.Namespace) -> int:
+        try:
+            ctx = _Ctx(need_key=getattr(args, "_need_key", True))
+        except (_UsageError, ValueError) as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        try:
+            rc: int = fn(args, ctx)
+            return rc
+        except _UsageError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        finally:
+            ctx.close()
+
+    return wrapped
+
+
+@_privacy
+def cmd_retention_purge(args: argparse.Namespace, ctx: _Ctx) -> int:
+    """CB-01 (+ CB-04, CB-05, CB-18): purge person-level data past its retention."""
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.privacy.retention import RetentionConfig, purge
+
+    s = ctx.settings
+    cfg = RetentionConfig(
+        person_level_days=s.person_level_retention_days,
+        gharchive_raw_days=s.gharchive_raw_retention_days,
+        log_days=s.log_retention_days,
+    )
+    config = {
+        "dry_run": args.dry_run,
+        "person_level_days": cfg.person_level_days,
+        "gharchive_raw_days": cfg.gharchive_raw_days,
+        "log_days": cfg.log_days,
+        "llm_cache_days": s.llm_cache_retention_days,
+        "snapshot_backend": s.snapshot_backend,
+    }
+    with RunRecorder("retention.purge", config, sink=ctx.db.upsert_run) as run:
+        rep = purge(
+            ctx.db, ctx.store, cfg=cfg, llm_store=ctx.llm_store, run=run, dry_run=args.dry_run
+        )
+    out = {"run_id": run.id, **rep.to_dict()}
+    if len(rep.dropped_hashes) > 20:
+        out["dropped_hashes"] = [*rep.dropped_hashes[:20], f"... {len(rep.dropped_hashes)} total"]
+    print(json.dumps(out, indent=2))
+    return 0
+
+
+def _repo_key(ctx: _Ctx, args: argparse.Namespace) -> str | None:
+    if args.repo_id is not None:
+        return f"{args.platform}:{args.repo_id}"
+    if args.repo:
+        row = ctx.db.conn.execute(
+            "SELECT id FROM repos WHERE host = %s AND lower(full_name) = lower(%s)",
+            (args.platform, args.repo),
+        ).fetchone()
+        if row is None:
+            raise _UsageError(f"repo {args.repo!r} is not in the database; use --repo-id")
+        return str(row[0])
+    return None
+
+
+@_privacy
+def cmd_optout_add(args: argparse.Namespace, ctx: _Ctx) -> int:
+    """CB-13: add a person (pseudonymized at once) or a repo to the refusal list, then purge."""
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.privacy import requests
+
+    assert ctx.pz is not None
+    key = _repo_key(ctx, args)
+    config = {"platform": args.platform, "kind": "repo" if key else "pseudonym"}
+    with RunRecorder("privacy.optout", config, sink=ctx.db.upsert_run) as run:
+        if key is not None:
+            res = requests.optout_repo(
+                ctx.db,
+                ctx.store,
+                platform=args.platform,
+                repo_key=key,
+                llm_store=ctx.llm_store,
+                run=run,
+                purge=not args.no_purge,
+            )
+        else:
+            res = requests.erasure(
+                ctx.db,
+                ctx.store,
+                ctx.pz,
+                platform=args.platform,
+                handle=_read_handle(args.handle),
+                llm_store=ctx.llm_store,
+                run=run,
+                reason="objection",
+                purge=not args.no_purge,
+            )
+    print(json.dumps({"request_id": res.request_id, "outcome": res.outcome, **res.counts}))
+    return 0
+
+
+@_privacy
+def cmd_optout_remove(args: argparse.Namespace, ctx: _Ctx) -> int:
+    from pigtail.privacy import suppression
+
+    assert ctx.pz is not None
+    key = _repo_key(ctx, args)
+    if key is not None:
+        ok = suppression.remove(ctx.db, "repo", key)
+    else:
+        p = suppression.subject_pseudonym(ctx.pz, args.platform, _read_handle(args.handle))
+        ok = suppression.remove(ctx.db, "pseudonym", p)
+    print(json.dumps({"removed": ok}))
+    return 0
+
+
+@_privacy
+def cmd_optout_list(_args: argparse.Namespace, ctx: _Ctx) -> int:
+    from pigtail.privacy import suppression
+
+    print(json.dumps(suppression.entries(ctx.db), indent=2, default=str))
+    return 0
+
+
+@_privacy
+def cmd_optout_purge(_args: argparse.Namespace, ctx: _Ctx) -> int:
+    """CB-13: re-apply the whole refusal list to existing data (e.g. after a restore)."""
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.privacy.requests import reapply_refusals
+
+    assert ctx.pz is not None
+    with RunRecorder("privacy.optout_purge", {}, sink=ctx.db.upsert_run) as run:
+        totals = reapply_refusals(ctx.db, ctx.store, ctx.pz, llm_store=ctx.llm_store, run=run)
+    print(json.dumps({"run_id": run.id, **totals}, indent=2))
+    return 0
+
+
+@_privacy
+def cmd_privacy_request(args: argparse.Namespace, ctx: _Ctx) -> int:
+    """CB-08: access (export to a local JSON file) or erasure for one platform handle."""
+    from pathlib import Path
+
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.privacy import requests
+
+    assert ctx.pz is not None
+    handle = _read_handle(args.handle)
+    config = {"type": args.type, "platform": args.platform}
+    with RunRecorder(f"privacy.{args.type}", config, sink=ctx.db.upsert_run) as run:
+        if args.type == "access":
+            out_dir = Path(args.out) if args.out else ctx.settings.data_dir / "requests"
+            res = requests.access(
+                ctx.db,
+                ctx.store,
+                ctx.pz,
+                platform=args.platform,
+                handle=handle,
+                out_dir=out_dir,
+                llm_store=ctx.llm_store,
+                run=run,
+            )
+        else:
+            res = requests.erasure(
+                ctx.db,
+                ctx.store,
+                ctx.pz,
+                platform=args.platform,
+                handle=handle,
+                llm_store=ctx.llm_store,
+                run=run,
+            )
+    out: dict[str, Any] = {"request_id": res.request_id, "type": res.type, "outcome": res.outcome}
+    out |= res.counts
+    if res.export_path is not None:
+        out["export_path"] = str(res.export_path)
+    print(json.dumps(out, indent=2))
+    return 0
+
+
+@_privacy
+def cmd_privacy_requests(_args: argparse.Namespace, ctx: _Ctx) -> int:
+    from pigtail.privacy.requests import requests_log
+
+    print(json.dumps(requests_log(ctx.db), indent=2, default=str))
+    return 0
+
+
+def _add_subject_args(p: argparse.ArgumentParser, repos: bool) -> None:
+    from pigtail.pseudonymize import PLATFORM_NAMESPACES
+
+    p.add_argument("--platform", required=True, choices=sorted(PLATFORM_NAMESPACES))
+    p.add_argument(
+        "--handle",
+        help="account handle; pseudonymized at once, never stored. Omit or '-' to read stdin",
+    )
+    if repos:
+        g = p.add_mutually_exclusive_group()
+        g.add_argument("--repo-id", type=int, help="numeric repo id of an opted-out project")
+        g.add_argument("--repo", help="owner/name of an opted-out project already in the DB")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pigtail", description=__doc__)
     p.add_argument("--version", action="version", version=f"pigtail {__version__}")
@@ -207,6 +492,43 @@ def build_parser() -> argparse.ArgumentParser:
     purge = cap_sub.add_parser("purge-raw", help="drop raw GH Archive dumps past retention")
     purge.add_argument("--retention-days", type=int, help="default GHARCHIVE_RAW_RETENTION_DAYS")
     purge.set_defaults(func=cmd_capture_purge_raw)
+
+    ret = sub.add_parser("retention", help="retention purge (DPIA CB-01)")
+    ret_sub = ret.add_subparsers(dest="retention_command", required=True)
+    rp = ret_sub.add_parser("purge", help="purge person-level data past its retention")
+    rp.add_argument("--dry-run", action="store_true", help="report only; change nothing")
+    rp.set_defaults(func=cmd_retention_purge, _need_key=False)
+
+    priv = sub.add_parser("privacy", help="opt-outs and data-subject requests (CB-08, CB-13)")
+    priv_sub = priv.add_subparsers(dest="privacy_command", required=True)
+    opt = priv_sub.add_parser("optout", help="refusal list (CB-13)")
+    opt_sub = opt.add_subparsers(dest="optout_command", required=True)
+    oa = opt_sub.add_parser("add", help="add a person or repo and purge their existing data")
+    _add_subject_args(oa, repos=True)
+    oa.add_argument("--no-purge", action="store_true", help="only add to the list")
+    oa.set_defaults(func=cmd_optout_add)
+    orm = opt_sub.add_parser("remove", help="remove a person or repo from the list")
+    _add_subject_args(orm, repos=True)
+    orm.set_defaults(func=cmd_optout_remove)
+    opt_sub.add_parser("list", help="list entries (pseudonyms and repo ids only)").set_defaults(
+        func=cmd_optout_list, _need_key=False
+    )
+    opt_sub.add_parser("purge", help="re-apply the whole list to existing data").set_defaults(
+        func=cmd_optout_purge
+    )
+    req = priv_sub.add_parser("request", help="data-subject request (CB-08)")
+    req.add_argument("type", choices=("access", "erasure"))
+    _add_subject_args(req, repos=False)
+    req.add_argument("--out", help="access: export directory (default PIGTAIL_DATA_DIR/requests)")
+    req.set_defaults(func=cmd_privacy_request)
+    priv_sub.add_parser("requests", help="request log (no handles)").set_defaults(
+        func=cmd_privacy_requests, _need_key=False
+    )
+
+    doc = sub.add_parser("doctor", help="privacy/encryption preconditions (DPIA CB-03)")
+    doc.add_argument("--strict", action="store_true", help="exit 1 on warnings too")
+    doc.add_argument("--json", action="store_true")
+    doc.set_defaults(func=cmd_doctor)
 
     for stage, milestone in PENDING_STAGES.items():
         sp = sub.add_parser(stage, help=f"(not yet implemented; {milestone})")

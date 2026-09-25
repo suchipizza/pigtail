@@ -12,6 +12,12 @@ BACKENDS: tuple[BackendName, ...] = ("subscription", "api")
 
 DEFAULT_MODEL = "claude-opus-5"
 
+# Retention ceilings from docs/compliance/retention-policy.md (DPIA CB-01, CB-05, CB-18).
+# Operators may configure shorter periods, never longer ones.
+PERSON_LEVEL_MAX_DAYS = 730  # 24 months
+LLM_CACHE_MAX_DAYS = 730  # 24 months, and never longer than the evidence it came from
+LOG_MAX_DAYS = 365  # 12 months
+
 
 def _backend(value: str, source: str) -> BackendName:
     v = value.strip().lower()
@@ -53,6 +59,9 @@ class Settings:
     s3_secret_key: str | None = field(default=None, repr=False)
     s3_region: str = "us-east-1"
     gharchive_raw_retention_days: int = 30
+    person_level_retention_days: int = PERSON_LEVEL_MAX_DAYS
+    llm_cache_retention_days: int = LLM_CACHE_MAX_DAYS
+    log_retention_days: int = LOG_MAX_DAYS
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
@@ -73,7 +82,21 @@ class Settings:
             s3_secret_key=e.get("S3_SECRET_KEY") or None,
             s3_region=e.get("S3_REGION") or "us-east-1",
             gharchive_raw_retention_days=int(e.get("GHARCHIVE_RAW_RETENTION_DAYS") or 30),
+            person_level_retention_days=_days(
+                e, "PERSON_LEVEL_RETENTION_DAYS", PERSON_LEVEL_MAX_DAYS
+            ),
+            llm_cache_retention_days=_days(e, "LLM_CACHE_RETENTION_DAYS", LLM_CACHE_MAX_DAYS),
+            log_retention_days=_days(e, "LOG_RETENTION_DAYS", LOG_MAX_DAYS),
         )
+
+
+def _days(e: dict[str, str], name: str, maximum: int) -> int:
+    """A retention period in days: default and ceiling `maximum` (the policy limit)."""
+    raw = (e.get(name) or "").strip()
+    days = int(raw) if raw else maximum
+    if not 0 <= days <= maximum:
+        raise ValueError(f"{name} must be between 0 and {maximum} (retention policy), got {days}")
+    return days
 
 
 def _snapshot_backend(value: str) -> Literal["local", "s3"]:

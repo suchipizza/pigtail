@@ -21,8 +21,10 @@ from types import TracebackType
 from typing import Any
 
 from pigtail.capture.models import Run, new_run_id
+from pigtail.logsafe import scrub
 
 RunSink = Callable[[Run], None]
+RUN_ERROR_MAX_CHARS = 1000
 
 _HEX = re.compile(r"^[0-9a-f]{7,40}$")
 
@@ -123,5 +125,6 @@ class RunRecorder:
         if exc is None:
             self._emit(status="succeeded", finished_at=self.clock())
         else:
-            msg = f"{type(exc).__name__}: {exc}"[:1000]
+            # CB-18: no handles, e-mails or payloads in `runs.error`.
+            msg = scrub(f"{type(exc).__name__}: {exc}", limit=RUN_ERROR_MAX_CHARS)
             self._emit(status="failed", finished_at=self.clock(), error=msg)

@@ -2,8 +2,12 @@
 
 Every call:
 1. picks the backend (`LLM_BACKEND`, or a per-job override),
-2. strips direct identifiers from the input before it leaves the process (PRD §10),
-3. serves from the cache keyed on (prompt id+version, input hash, schema, model, backend),
+2. strips direct identifiers from the input before it leaves the process (PRD §10; e-mails,
+   phones, profile URLs, DIDs and @mentions, DPIA CB-06), pseudonymizing @mentions in the
+   caller's per-source `namespace`,
+3. serves from the cache keyed on (prompt id+version, input hash, schema, model, backend);
+   cache rows expire after LLM_CACHE_RETENTION_DAYS and can be linked to an `evidence_id` so
+   they are purged with their source (CB-05),
 4. refuses new model calls while that backend is paused after a limit hit (cache hits
    still served),
 5. validates the output against the pydantic schema (one retry on invalid output),
@@ -31,7 +35,8 @@ from pigtail.llm.types import (
 )
 from pigtail.pseudonymize import Pseudonymizer
 
-Redactor = Callable[[str], str]
+# (text, namespace) -> redacted text; `Pseudonymizer.strip_identifiers` in production.
+Redactor = Callable[[str, str], str]
 
 
 class LLMClient:
@@ -82,10 +87,18 @@ class LLMClient:
         job: str,
         model: str | None = None,
         use_cache: bool = True,
+        namespace: str = "generic",
+        evidence_id: str | None = None,
     ) -> LLMResult[T]:
+        """Run one structured call.
+
+        `namespace` is the pseudonym namespace of the input's source (e.g. "github", "hn") for
+        @mentions (CB-06). `evidence_id` links the cached output to the evidence it was derived
+        from, so the cache row is purged with that evidence (CB-05).
+        """
         backend = self.backend_for(job)
         model = model or self.model
-        safe_input = self.redact(input_text)
+        safe_input = self.redact(input_text, namespace)
         input_hash = sha256_text(safe_input)
         key = self.cache_key(backend.name, model, prompt, schema_hash(schema), input_hash)
 
@@ -106,6 +119,8 @@ class LLMClient:
 
         if use_cache and (hit := self.store.cache_get(key)) is not None:
             data, cached_model = hit
+            if evidence_id is not None:
+                self.store.link_evidence(key, evidence_id)
             rec("cached", cached_model)
             return self._result(
                 schema.model_validate(data),
@@ -145,7 +160,9 @@ class LLMClient:
                 rec("invalid_output", resp.model, resp)
                 continue
             rec("ok", resp.model, resp)
-            self.store.cache_put(key, output.model_dump(mode="json"), resp.model)
+            self.store.cache_put(
+                key, output.model_dump(mode="json"), resp.model, evidence_id=evidence_id
+            )
             return self._result(output, backend.name, resp.model, prompt, input_hash, cached=False)
         raise StructuredOutputError(f"output failed schema validation: {last_err}")
 
@@ -179,7 +196,8 @@ def build_client(settings: Settings | None = None, store: LLMStore | None = None
         backends={"subscription": SubscriptionBackend(), "api": ApiBackend()},
         default_backend=s.llm_backend,
         overrides=s.llm_backend_overrides,
-        store=store or LLMStore(s.data_dir / "llm.sqlite3"),
+        store=store
+        or LLMStore(s.data_dir / "llm.sqlite3", retention_days=s.llm_cache_retention_days),
         model=s.llm_model,
         redactor=pz.strip_identifiers,
         limit_pause_seconds=s.llm_limit_pause_seconds,

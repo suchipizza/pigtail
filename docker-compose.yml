@@ -24,6 +24,9 @@ services:
     environment:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-pigtail-local}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-pigtail-local-secret}
+      # DPIA CB-03: SSE-S3 key-encryption key (64 hex chars, `openssl rand -hex 32`). Empty =
+      # SSE disabled. Keep it in the host environment, never in git or in the data volume.
+      WEED_S3_SSE_KEK: ${S3_SSE_KEK:-}
     entrypoint: >
       /bin/sh -c "sed -e s/__S3_ACCESS_KEY__/$$S3_ACCESS_KEY/ -e s/__S3_SECRET_KEY__/$$S3_SECRET_KEY/
       /etc/pigtail/s3.json.tmpl > /tmp/s3.json &&
@@ -47,9 +50,13 @@ services:
       AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-pigtail-local-secret}
       AWS_DEFAULT_REGION: us-east-1
       S3_BUCKET: ${S3_BUCKET:-pigtail-snapshots}
+      S3_SSE: ${S3_SSE_KEK:+on}  # only a flag; the key itself stays with the object store
     entrypoint: >
-      /bin/sh -c "aws --endpoint-url http://objectstore:9000 s3api head-bucket --bucket $$S3_BUCKET 2>/dev/null ||
-      aws --endpoint-url http://objectstore:9000 s3 mb s3://$$S3_BUCKET"
+      /bin/sh -c "(aws --endpoint-url http://objectstore:9000 s3api head-bucket --bucket $$S3_BUCKET 2>/dev/null ||
+      aws --endpoint-url http://objectstore:9000 s3 mb s3://$$S3_BUCKET) &&
+      if [ -n \"$$S3_SSE\" ]; then aws --endpoint-url http://objectstore:9000 s3api put-bucket-encryption
+      --bucket $$S3_BUCKET --server-side-encryption-configuration
+      '{\"Rules\":[{\"ApplyServerSideEncryptionByDefault\":{\"SSEAlgorithm\":\"AES256\"}}]}'; fi"
 
 volumes:
   db-data:

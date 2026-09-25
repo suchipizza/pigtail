@@ -20,6 +20,10 @@ Every connector gets, from this base class:
   always replaces them with keyed pseudonyms (namespace `handle_namespace`). A connector can see
   raw handles only in `_parse()` and `_pre_pseudonymize()` (e.g. to drop bots by login). Raw
   snapshot bytes stay in private storage only.
+- **refusal list at ingest** (DPIA CB-13): given a `Suppressions` snapshot, `records()` drops
+  every record whose pseudonymized handle fields hold a suppressed pseudonym, or whose
+  `repo_fields` name an opted-out repo (`<repo_host>:<id>`). Drops are counted on the run
+  (`<name>.suppressed`).
 
 Subclasses implement `_parse(data, meta)`; the same code path serves live ingest and replay
 (`pigtail.capture.replay`).
@@ -50,6 +54,7 @@ from pigtail.capture.snapshots import (
     SnapshotStore,
     sha256_hex,
 )
+from pigtail.privacy.suppression import Suppressions
 from pigtail.pseudonymize import Pseudonymizer
 
 USER_AGENT = f"pigtail/{__version__} (+https://github.com/suchipizza/pigtail)"
@@ -208,6 +213,8 @@ class Connector(ABC):
     retention_class: ClassVar[RetentionClass] = "person_level_24m"
     handle_fields: ClassVar[tuple[str, ...]] = ()
     handle_namespace: ClassVar[str] = "generic"
+    repo_fields: ClassVar[tuple[str, ...]] = ()  # numeric repo ids, checked against opt-outs
+    repo_host: ClassVar[str] = "github"
     timeout_seconds: ClassVar[float] = 60.0
 
     def __init__(
@@ -226,6 +233,7 @@ class Connector(ABC):
         rng: random.Random | None = None,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        suppression: Suppressions | None = None,
     ) -> None:
         e = os.environ if env is None else env
         flag = e.get(f"PIGTAIL_CONNECTOR_{self.name.upper()}_ENABLED")
@@ -252,6 +260,7 @@ class Connector(ABC):
         self.rng = rng or random.Random()
         self.sleep = sleep
         self.clock = clock
+        self.suppression = suppression or Suppressions()
 
     @property
     def collector_version(self) -> str:
@@ -393,16 +402,57 @@ class Connector(ABC):
             return [self._pseudo(v) for v in value]
         raise TypeError(f"handle field must be str, list or None, got {type(value).__name__}")
 
+    def handle_values(self, record: Record) -> list[str]:
+        """Values of the handle fields of a (pseudonymized) record."""
+        return [v for path in self.handle_fields for v in _get_path(record, path.split("."))]
+
+    def repo_keys(self, record: Record) -> list[str]:
+        """`<repo_host>:<id>` keys of the repo fields of a record (matches `repos.id`)."""
+        return [
+            f"{self.repo_host}:{v}"
+            for path in self.repo_fields
+            for v in _get_path(record, path.split("."))
+        ]
+
+    def is_suppressed(self, record: Record) -> bool:
+        """True if the record belongs to someone or some repo on the refusal list (CB-13)."""
+        s = self.suppression
+        if s.pseudonyms and any(v in s.pseudonyms for v in self.handle_values(record)):
+            return True
+        return bool(s.repos) and any(k in s.repos for k in self.repo_keys(record))
+
     def records(self, data: bytes, meta: SnapshotMeta) -> Iterator[Record]:
-        """Parsed records with every declared handle field pseudonymized."""
+        """Parsed records with every declared handle field pseudonymized.
+
+        Records of suppressed people or repos are dropped here (CB-13).
+        """
         for rec in self._parse(data, meta):
             kept = self._pre_pseudonymize(rec)
-            if kept is not None:
-                yield self.pseudonymize(kept)
+            if kept is None:
+                continue
+            out = self.pseudonymize(kept)
+            if self.suppression and self.is_suppressed(out):
+                if self.run is not None:
+                    self.run.incr(f"{self.name}.suppressed")
+                continue
+            yield out
 
     def fetch_records(self, url: str, **kw: Any) -> tuple[Fetched, Iterator[Record]]:
         f = self.fetch(url, **kw)
         return f, self.records(f.data, f.meta)
+
+
+def _get_path(obj: Any, parts: list[str]) -> list[str]:
+    """Scalar values at a dotted path (lists are walked); non-None values as strings."""
+    if isinstance(obj, list):
+        return [v for item in obj for v in _get_path(item, parts)]
+    if not isinstance(obj, dict) or parts[0] not in obj:
+        return []
+    val = obj[parts[0]]
+    if len(parts) > 1:
+        return _get_path(val, parts[1:])
+    items = val if isinstance(val, list) else [val]
+    return [str(v) for v in items if v is not None]
 
 
 def _replace_path(obj: Any, parts: list[str], fn: Callable[[Any], Any]) -> None:
