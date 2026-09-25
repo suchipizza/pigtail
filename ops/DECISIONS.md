@@ -68,7 +68,7 @@ Context: The source matrix cites a platform's published contact address (hello@�
 Decision: Generic role addresses (hello@, info@, support@, legal@, …) are allowed; personal addresses are still blocked. Commits are gated on the scan passing (it failed once without gating: see RUNLOG 2026-09-25; no personal data was involved).
 How to reverse: Remove the role-address pattern from `EMAIL_ALLOW`.
 
-## ADR-012 — Stars for scoring come from the GitHub stargazers API (2026-09-25)
+## ADR-012 — Stars for scoring come from the GitHub stargazers API (2026-09-25) — SUPERSEDED by ADR-032
 Context: PRD §8.1 names GH Archive as the primary source for stars. ADR-009 records under-capture since 2025-05, and GH Archive has no un-star events. The 24-month universe falls almost entirely in that period.
 Options: GH Archive primary; API only; API for scored cases, with GH Archive as a fallback only when the measured coverage is ≥ 0.90.
 Decision: The third option. Store three series: `raw`, `bot_filtered` and `starscout_filtered`. The API series is net of un-stars and survivor-biased, so scoring uses the first fetch after T+k (docs/specs/outcome-model.md).
@@ -194,3 +194,18 @@ How to reverse: Per item, through a new ADR plus a migration.
 4. **Mention matching.** The queries are the `github.com/owner/name` URL, `owner/name`, and name plus owner. Name-only hits are kept only with `--loose`. The owner is never searched alone, since it may be a person.
 5. **Connector base additions:** a group enable flag, `person_level_hold`, a `check()` that stores nothing and runs while disabled, and a per-fetch `retention_class`.
 How to reverse: Per item, through an ADR (1: turn off `hn_ranks`; 3: switch to per-item snapshots to reduce collateral drops).
+
+## ADR-032 — Breakout detection and star series without GH Archive or stargazer lists (supersedes ADR-012; updates ADR-028) (2026-09-25)
+Context (docs/research/detection-replan.md, verified 2026-09-25 apart from citation fixes):
+- GitHub restricted `/repos/{o}/{r}/stargazers` to admins and collaborators on 2026-06-30, and GraphQL `stargazers` returns nothing. ADR-012's source is gone.
+- New endpoint `GET /repos/{o}/{r}/stargazers/history` (2026-09-04): weekly and daily net counts back to the repo's creation, no identities, no 40k cap. Day boundaries are "not guaranteed to align with UTC" (they are consistent with US Pacific time).
+- GH Archive captured ≈ 2% of stars on 2026-09-24. Our own `/events` polling is limited by GitHub (300 events, a 60 s poll interval) to ≤ ~3%, and faster polling would break ToS §H.
+- The OpenDigger mirror (gharchive issue #323) has no stated licence and a single operator. Its counts agreed with GitHub for the repos it saw (1.013×), but its misses can't be observed with that method.
+Decision:
+1. **Screening (candidate discovery):** hourly GraphQL star and fork counts for a watch list of up to 50k repos (100 repos per query at cost 1). GitHub Search sweeps. GitHub URLs from the HN rank poller (plus Show HN). GH Archive stays on as a cheap control. **OpenDigger is off by default** until H2 answers LQ-28 and a TM-32 memo clears it; if cleared, it becomes a drop-in screen.
+2. **R1.1 check:** on the public net star count (watch-list snapshots, confirmed with the star-history endpoint). The bot filter becomes a confirmation step based on per-repo event polling (15–60 min intervals, within GitHub's 60 s poll interval) for tracked cases. Each case records which data its bot filter used and a coverage ratio.
+3. **Scoring series (replaces ADR-012):** daily net stars from the star-history endpoint (`verified`, net, days not UTC-aligned: documented). `raw` = star-history. `bot_filtered` and `starscout_filtered` are computed only where per-repo event data exists (from tracking onwards, or through the GH Archive ~2% before that); otherwise they are `unknown`. They are never imputed.
+4. **One identity:** a single `GITHUB_TOKEN`. No GitHub App on top of a PAT to double the limits (ToS §H, conservative reading). The steady-state budget is ≈ 61% of REST, 14% of GraphQL and 12% of search.
+5. **G3:** repos on the watch list are detected within ~1–2 h. Repos outside it depend on Search and HN picking them up first; this is stated as a limitation.
+Nothing in the PRD is relaxed. R1.1's thresholds are unchanged; only the data source changes. R3.3 fake-star filtering is limited by data availability, and every window reports it.
+How to reverse: If GH Archive or OpenDigger is cleared with verified coverage ≥ 0.95 (sampled from the universe or star-history, not from the mirror itself), it may become the primary screen again through a new ADR.
