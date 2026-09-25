@@ -129,3 +129,22 @@ Context: PRD §12 makes `subscription` the default. The compliance pack found th
 Options: (a) switch the product default to `api` now; (b) keep `subscription` for the owner's own non-commercial research use, with telemetry off (CB-07, done), pseudonymized inputs, no bulk person-level coding until LQ-1/2 are answered, and heavy jobs routed to `api` per job when a key exists.
 Decision: (b). It's the most reversible option, it matches the owner's explicit choice (ADR-001), and the question is raised in H2 (LQ-1, LQ-2).
 How to reverse: Set `LLM_BACKEND=api`. Nothing else changes (D6 acceptance).
+
+## ADR-024 — Codebook v0.1.0 adopted for the pilot (2026-09-25)
+Context: M4-T1 produced docs/methodology/codebook.md and schemas/codebook/v0.1.0.json. It hasn't been tested on coded data yet.
+Decisions (all v0, calibrated in the M4 pilot; any change needs a semver bump plus a changelog entry, R6.3):
+1. **Two event layers.** `burst` and `quiet` are computed from the filtered star series (onset rule from outcome-model §2.1; burst end 3 d, merge gap 7 d, minimum quiet 7 d). `prep`, `launch`, `relaunch` and `pivot` are coded from evidence. This avoids having to agree on where events start and end. To reverse: code all six and add them as core fields.
+2. **Spread-graph edges** are `supported` only at evidence level ≥ "attributed", with valid hashes on both ends and the source posted before the target. To reverse: raise the minimum to "explicit".
+3. **Trigger windows:** 48 h before to 6 h after onset; 7 days for newsletters. Candidates are ranked in a fixed order, not by weights. `none_observed` does not mean "organic", and every attribution lists the channels we can't observe. The pilot calibrates this.
+4. **Reach bands** (log10): r0 none, r1 < 1k, r2 1k–9,999, r3 10k–99,999, r4 ≥ 100k, stored at ingest (CB-10). Changing them is a major version bump.
+5. **Categories:** ADR-017's 15 categories adopted unchanged, with boundary rules added. This closes ADR-017's open point.
+6. **`unknown` in α:** counts as a value for nominal fields; counts as missing for ordinal fields, plus a separate known-vs-unknown α that must also pass. This stops coders inflating α by answering "unknown".
+7. **G1's "< 10% of categories changed"** is counted over the enum values in the codebook JSON (79 in v0.1.0, so at most 7 may change per revision round).
+8. **Account nodes** are defined but disabled (`account_nodes_enabled: false`, ADR-022). The public-figure rule stays inactive until LQ-7 is answered.
+How to reverse: Each item as noted, through a codebook version bump.
+
+## ADR-025 — Mechanism confidence levels, and the α threshold for promotion-deciding fields (resolves M4-T0) (2026-09-25)
+Context: PRD §9.3 leaves confidence levels to the codebook. The literature review notes that α ≥ 0.70 is in Krippendorff's "tentative conclusions" band.
+Options: (a) require α ≥ 0.80 on the promotion-deciding fields for any promotion; (b) keep the PRD gate at 0.70 and tie 0.80 to `high` confidence.
+Decision: (b). G1 and promotion use the PRD's α ≥ 0.70. `low` = candidate; `medium` = promoted under §9.3; `high` = promoted plus ≥ 10 cases across ≥ 3 strata, both §9.3 routes, α ≥ 0.80 on the promotion-deciding fields (C3, C4, C9, C11a, C11b) and no sensitivity flags. α is reported per field on every card. This is stricter than the PRD for `high` and relaxes nothing.
+How to reverse: Move to (a) through an ADR before the pilot is pre-registered; after pre-registration, only with a held-out re-run.
