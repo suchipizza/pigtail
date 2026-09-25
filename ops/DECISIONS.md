@@ -122,6 +122,7 @@ Decision (in force until the listed controls exist and/or H2 answers):
 - No account-level spread graphs until LQ-8 is answered.
 - No private individuals, matched losers or personal-account repos named in any output.
 This is stricter than the PRD and doesn't relax any requirement.
+Update (2026-09-25): CB-04 is partly met by ADR-027.4 (30-day raw purge + verified re-fetch); drop-after-parse and a minimal-parse fallback are still open.
 How to reverse: Lift each hold when its controls are verified, or when H2 answers the related question.
 
 ## ADR-023 — Subscription backend stays the default, limited to the owner's own use (2026-09-25)

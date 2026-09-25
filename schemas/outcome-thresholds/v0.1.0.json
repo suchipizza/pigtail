@@ -5,12 +5,28 @@
   "status": "provisional",
   "created": "2026-09-25",
   "spec": "docs/specs/outcome-model.md",
-  "requirements": ["R1.1", "R3.1", "R3.3", "R3.4", "R3.5", "PRD §8.2", "PRD §5.3"],
+  "requirements": [
+    "R1.1",
+    "R3.1",
+    "R3.3",
+    "R3.4",
+    "R3.5",
+    "PRD §8.2",
+    "PRD §5.3"
+  ],
   "calibration_policy": {
     "calibrate_only_in": "M4 pilot, on pilot calibration data, before held-out outcomes are seen",
     "frozen_as": "1.0.0",
-    "post_outcome_change_requires": ["ADR in ops/DECISIONS.md", "re-run on held-out data", "report results under old and new versions"],
-    "semver": {"patch": "wording only", "minor": "numeric threshold change", "major": "inputs, class definitions or precedence change"}
+    "post_outcome_change_requires": [
+      "ADR in ops/DECISIONS.md",
+      "re-run on held-out data",
+      "report results under old and new versions"
+    ],
+    "semver": {
+      "patch": "wording only",
+      "minor": "numeric threshold change",
+      "major": "inputs, class definitions or precedence change"
+    }
   },
   "holdout": {
     "method": "sha256(salt + case_id) mod 100 < share_percent",
@@ -23,21 +39,61 @@
     "burst_onset_rule": "earliest hour in the 48h detection window with filtered stars > mu_h + 3*sqrt(mu_h) (mu_h + 1 if mu_h == 0); else window start",
     "tie_rule": "T_launch == T_burst -> anchor_type launch; equal launch timestamps -> lowest evidence_id"
   },
-  "burst_detection": {"id": "velocity-v0", "min_net_stars_48h": 100, "sigma": 3},
-  "fake_star_filter": {"id": "starscout-v0", "n": 50, "m": 10, "delta_t_days": 30, "rho": 0.5, "level": "campaign"},
-  "observation_points_days": [7, 30, 90, 365],
+  "burst_detection": {
+    "id": "velocity-v0",
+    "min_net_stars_48h": 100,
+    "sigma": 3,
+    "baseline_days": 30
+  },
+  "fake_star_filter": {
+    "id": "starscout-v0",
+    "n": 50,
+    "m": 10,
+    "delta_t_days": 30,
+    "rho": 0.5,
+    "level": "campaign",
+    "campaign_rule": {
+      "min_fake_stars_in_month": 50,
+      "min_fake_share_in_month": 0.5,
+      "min_fake_share_all_time": 0.1,
+      "comparators": "strictly greater than"
+    }
+  },
+  "observation_points_days": [
+    7,
+    30,
+    90,
+    365
+  ],
   "windows": {
     "flow": "[T, T+k) UTC, hourly resolution",
     "pre_anchor_baseline_days": 30,
-    "stock_tolerance": {"min_days": 1, "fraction_of_k": 0.1},
+    "stock_tolerance": {
+      "min_days": 1,
+      "fraction_of_k": 0.1
+    },
     "settle_lag_days_default": 3
   },
   "normalization": {
-    "cell": ["category", "cohort_quarter_utc"],
-    "adoption_cell_extra": ["primary_ecosystem"],
+    "cell": [
+      "category",
+      "cohort_quarter_utc"
+    ],
+    "adoption_cell_extra": [
+      "primary_ecosystem"
+    ],
     "percentile_method": "mid_rank: 100 * (n_below + 0.5 * n_equal) / n",
     "min_cell_n": 30,
-    "fallback_order": [["category", "calendar_year"], ["all_categories", "cohort_quarter_utc"]],
+    "fallback_order": [
+      [
+        "category",
+        "calendar_year"
+      ],
+      [
+        "all_categories",
+        "cohort_quarter_utc"
+      ]
+    ],
     "flag_cell_if_unknown_share_above": 0.5,
     "taxonomy_version": "categories-v0-provisional"
   },
@@ -48,88 +104,221 @@
     "fallback_source": "gharchive",
     "gharchive_min_coverage_ratio": 0.9,
     "velocity_rolling_days": 7,
-    "peak_window_days": [7, 30]
+    "peak_window_days": [
+      7,
+      30
+    ]
   },
   "zero_floor": true,
   "inputs": {
-    "A30": {"metric": "att.stars", "offset_days": 30, "transform": "cell_percentile"},
-    "AD90": {"metric": "adopt.downloads", "offset_days": 90, "transform": "cell_percentile", "scope": "primary_ecosystem"},
-    "AD365": {"metric": "adopt.downloads", "offset_days": 365, "transform": "cell_percentile", "scope": "primary_ecosystem"},
-    "CM90": {"metric": "comm.returning_external_contributors", "offset_days": 90, "transform": "cell_percentile"},
-    "V90": {"metric": "att.star_velocity_7d", "offset_days": 90, "unit": "stars/day"},
-    "P30": {"metric": "att.star_peak_velocity_30", "offset_days": 30, "unit": "stars/day"},
-    "burst_30": {"definition": "velocity detection with onset in [T, T+30d) or anchor_type burst"},
-    "burst_any": {"definition": "velocity detection with onset in [T-30d, T+90d)"},
-    "launch_signal": {"definition": "case has an anchor (declared launch or burst)"}
+    "A30": {
+      "metric": "att.stars",
+      "offset_days": 30,
+      "transform": "cell_percentile"
+    },
+    "AD90": {
+      "metric": "adopt.downloads",
+      "offset_days": 90,
+      "transform": "cell_percentile",
+      "scope": "primary_ecosystem"
+    },
+    "AD365": {
+      "metric": "adopt.downloads",
+      "offset_days": 365,
+      "transform": "cell_percentile",
+      "scope": "primary_ecosystem"
+    },
+    "CM90": {
+      "metric": "comm.returning_external_contributors",
+      "offset_days": 90,
+      "transform": "cell_percentile"
+    },
+    "V90": {
+      "metric": "att.star_velocity_7d",
+      "offset_days": 90,
+      "unit": "stars/day"
+    },
+    "P30": {
+      "metric": "att.star_peak_velocity_30",
+      "offset_days": 30,
+      "unit": "stars/day"
+    },
+    "burst_30": {
+      "definition": "velocity detection with onset in [T, T+30d) or anchor_type burst"
+    },
+    "burst_any": {
+      "definition": "velocity detection with onset in [T-30d, T+90d)"
+    },
+    "launch_signal": {
+      "definition": "case has an anchor (declared launch or burst)"
+    }
   },
   "returning_external_contributor": {
     "min_merged_prs": 2,
     "min_span_days": 30,
-    "external_excludes_author_association": ["OWNER", "MEMBER", "COLLABORATOR"],
+    "external_excludes_author_association": [
+      "OWNER",
+      "MEMBER",
+      "COLLABORATOR"
+    ],
     "exclude_bots": "bot-filter-v0",
-    "not_applicable_at_offsets_days": [7, 30]
+    "not_applicable_at_offsets_days": [
+      7,
+      30
+    ]
   },
   "classes": [
     {
       "name": "winner",
       "precedence": 1,
       "final_at_offset_days": 90,
-      "rule": {"all": [
-        {"input": "A30", "op": ">=", "value": 90},
-        {"any": [
-          {"input": "AD90", "op": ">=", "value": 75},
-          {"input": "CM90", "op": ">=", "value": 75}
-        ]}
-      ]}
+      "rule": {
+        "all": [
+          {
+            "input": "A30",
+            "op": ">=",
+            "value": 90
+          },
+          {
+            "any": [
+              {
+                "input": "AD90",
+                "op": ">=",
+                "value": 75
+              },
+              {
+                "input": "CM90",
+                "op": ">=",
+                "value": 75
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "short_lived",
       "precedence": 2,
       "final_at_offset_days": 90,
-      "rule": {"all": [
-        {"input": "burst_30", "op": "==", "value": true},
-        {"input": "P30", "op": ">", "value": 0},
-        {"input": "V90", "op": "<", "value_expr": "0.10 * P30"},
-        {"input": "AD90", "op": "<", "value": 50, "if_not_applicable_use": {"input": "CM90", "op": "<", "value": 50}}
-      ]}
+      "rule": {
+        "all": [
+          {
+            "input": "burst_30",
+            "op": "==",
+            "value": true
+          },
+          {
+            "input": "P30",
+            "op": ">",
+            "value": 0
+          },
+          {
+            "input": "V90",
+            "op": "<",
+            "value_expr": "0.10 * P30"
+          },
+          {
+            "input": "AD90",
+            "op": "<",
+            "value": 50,
+            "if_not_applicable_use": {
+              "input": "CM90",
+              "op": "<",
+              "value": 50
+            }
+          }
+        ]
+      }
     },
     {
       "name": "attention_only",
       "precedence": 3,
       "final_at_offset_days": 90,
-      "rule": {"all": [
-        {"input": "A30", "op": ">=", "value": 90},
-        {"not_class": ["winner", "short_lived"]}
-      ]}
+      "rule": {
+        "all": [
+          {
+            "input": "A30",
+            "op": ">=",
+            "value": 90
+          },
+          {
+            "not_class": [
+              "winner",
+              "short_lived"
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "slow_riser",
       "precedence": 4,
       "final_at_offset_days": 365,
-      "rule": {"all": [
-        {"input": "burst_any", "op": "==", "value": false},
-        {"input": "A30", "op": "<", "value": 90},
-        {"input": "AD365", "op": ">=", "value": 75}
-      ]}
+      "rule": {
+        "all": [
+          {
+            "input": "burst_any",
+            "op": "==",
+            "value": false
+          },
+          {
+            "input": "A30",
+            "op": "<",
+            "value": 90
+          },
+          {
+            "input": "AD365",
+            "op": ">=",
+            "value": 75
+          }
+        ]
+      }
     },
     {
       "name": "plateau",
       "precedence": 5,
       "provisional_at_offset_days": 90,
       "final_at_offset_days": 365,
-      "rule": {"all": [
-        {"input": "launch_signal", "op": "==", "value": true},
-        {"not_class": ["winner", "short_lived", "attention_only", "slow_riser"]}
-      ]}
+      "rule": {
+        "all": [
+          {
+            "input": "launch_signal",
+            "op": "==",
+            "value": true
+          },
+          {
+            "not_class": [
+              "winner",
+              "short_lived",
+              "attention_only",
+              "slow_riser"
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "unclassified",
       "precedence": 6,
-      "reasons": ["pending", "small_cohort", "missing_data", "no_anchor"]
+      "reasons": [
+        "pending",
+        "small_cohort",
+        "missing_data",
+        "no_anchor"
+      ]
     }
   ],
   "provisional_labels": [
-    {"name": "attention_top_decile", "at_offset_days": 30, "rule": {"input": "A30", "op": ">=", "value": 90}, "note": "display only, marked provisional; not a class"}
+    {
+      "name": "attention_top_decile",
+      "at_offset_days": 30,
+      "rule": {
+        "input": "A30",
+        "op": ">=",
+        "value": 90
+      },
+      "note": "display only, marked provisional; not a class"
+    }
   ],
   "edge_rules": {
     "comparison": "unrounded values; >= and < inclusive/exclusive as written",

@@ -119,11 +119,11 @@ Covered in [lia.md](lia.md) §3. In summary:
 - the 24-month limit follows from T+365 scoring (R3.1) and the 24-month universe window (R4.1);
 - spread graphs are limited to Tier 2 and Tier 3 cases.
 
-**Minimisation gap:** D2. Whole GH Archive hourly dumps, including free text and possibly e-mail addresses, are kept for replay even though the analysis uses six fields. Proposed fix (CB-04):
-- keep the SHA-256 and the source URL;
-- drop the raw bytes after parsing, or after 30 days;
-- replay re-downloads the dump from `data.gharchive.org` and checks its hash;
-- if the upstream copy disappears, replay falls back to the stored minimal parse.
+**Minimisation gap:** D2. Whole GH Archive hourly dumps, including free text and possibly e-mail addresses, are kept for replay even though the analysis uses six fields. Fix (CB-04), **partly implemented** (ADR-027.4; items marked I are in `src/pigtail/capture/retention.py`, the rest P):
+- I: keep the SHA-256 and the source URL;
+- I: drop the raw bytes after 30 days (P: immediately after parsing);
+- I: replay re-downloads the dump from `data.gharchive.org` and checks its hash;
+- P: if the upstream copy disappears, replay falls back to the stored minimal parse (today it raises `NotFound`).
 
 Replay stays verifiable, and the largest pool of raw person-level data goes away.
 
@@ -181,7 +181,7 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | R3 | Graphs only for Tier 2 and Tier 3. Nodes pseudonymised. Private UI only. No public identifying graphs (PRD §4). | P (not built) |
 | | Hold A4 until LQ-8 is answered or CB-14 is in place. | P |
 | R4 | Retention job: 24 months for `person_level_24m`, then aggregate or delete. | P CB-01 |
-| | Minimise GH Archive raw dumps (hash + re-fetch). | P CB-04 |
+| | Minimise GH Archive raw dumps (hash + re-fetch). | I (partly) CB-04: 30-day purge + verified re-fetch; P: drop-after-parse, minimal-parse fallback |
 | | Retention fields exist (`evidence.retention_class`, `migrations/0001_capture_v0.sql`, `src/pigtail/capture/models.py`). | I |
 | R5 | Deletion sync per source ([retention-policy.md](retention-policy.md) §4); `deletion_state` field (`migrations/0001_capture_v0.sql`). | I (field) / P CB-02 |
 | | Bluesky is not enabled before CB-02. | P (gate) |
@@ -261,7 +261,7 @@ These are for the orchestrator to add to `ops/BACKLOG.md`. "Blocks" says which p
 | CB-01 | Retention job: purge or aggregate `person_level_24m` evidence, snapshots and derived pseudonymous rows at 24 months. Dry-run report. Tested. | Production capture on the host (M1 acceptance); any person-level source beyond GH Archive (ADR-022) | engineer |
 | CB-02 | Deletion-sync framework (R1.5): Bluesky Jetstream delete and account events with raw copy dropped in ≤ 48 h; propagation of the HN `deleted` flag; propagation to snapshots, LLM cache, derived rows and the backup tombstone log | Any person-level source beyond GH Archive (ADR-022): Bluesky, HN, V2EX and Discord connectors | engineer |
 | CB-03 | Encryption at rest for the snapshot bucket (SSE or an encrypted volume) and the Postgres volume. Documented in the operator guide. | Production host; any person-level source beyond GH Archive (ADR-022; also a TM-06 condition for Bluesky) | engineer |
-| CB-04 | Minimise GH Archive raw dumps: keep hash and URL, drop bytes after parse or after ≤ 30 days, replay re-fetches and verifies | Production capture on the host | engineer |
+| CB-04 | Minimise GH Archive raw dumps: keep hash and URL, drop bytes after parse or after ≤ 30 days, replay re-fetches and verifies | Production capture on the host | engineer — **Partly done 2026-09-25** (30-day purge, verified re-fetch); open: drop-after-parse, minimal-parse fallback |
 | CB-05 | Give `llm_cache` a retention class, `evidence_id` links and a TTL of ≤ 24 months; purge with its source | Tier 2 LLM extraction at scale (M5) | engineer |
 | CB-06 | Extend the redactor: profile URLs (github.com/<login>, bsky.app/profile/<handle>, news.ycombinator.com/user?id=), `did:` identifiers, bare handles from known author fields. Add tests. | Any person-level source beyond GH Archive (ADR-022); mention capture (A2) being sent to the LLM | engineer |
 | CB-07 | Subscription subprocess: set `DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, `DISABLE_FEEDBACK_COMMAND=1` (or `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`). Redact or truncate CLI output in `BackendError` messages. **Done 2026-09-25** (`PRIVACY_ENV` sets all four variables; `BackendError` carries no CLI output). | — (was: subscription-mode coding of person-level text) | engineer |
@@ -284,3 +284,4 @@ These are for the orchestrator to add to `ops/BACKLOG.md`. "Blocks" says which p
 - 2026-09-25: v0.1 created (M3-T2).
 - 2026-09-25 — fixes after verifier M3 round 1: uncommitted M1 controls relabelled "I (M1, pending merge)" (§6 R1, R4, R5); CB-07 marked implemented (§2.3 D9, §2.5, §6 R6 and R11, §9); §7 and the §9 "Blocks" column aligned with ADR-022 and with capture running in local development only.
 - 2026-09-25 — M1 capture core merged at `ec79762`; "I (M1, pending merge)" labels changed to "I".
+- 2026-09-25 — fixes after verifier M3 round 2: CB-04 marked partly implemented (30-day purge + verified re-fetch; drop-after-parse and minimal-parse fallback still planned); stale 'pending merge' conditions removed.

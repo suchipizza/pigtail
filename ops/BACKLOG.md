@@ -30,7 +30,7 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 Before production capture on the host:
 - [ ] [CB-01] 24-month retention purge job (person-level) — retention-policy.md
 - [ ] [CB-03] Encryption at rest: snapshot bucket + database
-- [x] [CB-04] GH Archive raw-dump minimization (ADR-027.4)
+- [~] [CB-04] GH Archive raw-dump minimization: 30-day purge + verified re-fetch done (ADR-027.4); open: drop-after-parse, minimal-parse fallback when upstream disappears
 - [ ] [CB-09] Pseudonym key rotation runbook
 - [ ] [CB-12] Publish the privacy notice (needs owner placeholders)
 - [ ] [CB-16] Breach runbook

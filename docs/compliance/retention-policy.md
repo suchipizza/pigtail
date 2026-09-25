@@ -26,10 +26,11 @@ The class is recorded on every evidence record: `evidence.retention_class` in `s
 
 **Why 24 months:** outcomes are scored up to T+365 (R3.1). The universe covers a trailing 24 months (R4.1). Matched losers are selected after outcomes are known. See [lia.md](lia.md) §3. A shorter period is allowed per source when the terms require it (§4).
 
-**Minimisation ahead of the 24-month limit.** GH Archive hourly dumps are the largest pool of raw person-level data, and only six fields are used. Planned change (CB-04):
-- drop the raw bytes after parsing, or after ≤ 30 days;
-- keep the hash and URL;
-- replay re-downloads the dump from `data.gharchive.org` and checks the hash.
+**Minimisation ahead of the 24-month limit.** GH Archive hourly dumps are the largest pool of raw person-level data, and only six fields are used. CB-04, **partly implemented** (`src/pigtail/capture/retention.py`, ADR-027.4):
+- **I:** raw bytes are purged after `GHARCHIVE_RAW_RETENTION_DAYS` (default 30) by `purge_raw()`, which runs after every `capture scan` and via `pigtail capture purge-raw`; the evidence record keeps the hash and URL and is marked `raw_dropped`;
+- **I:** replay and forced re-scans re-download the dump from `data.gharchive.org` and refuse it if the hash differs;
+- **P:** dropping the bytes immediately after parsing (instead of after ≤ 30 days);
+- **P:** a fallback to a stored minimal parse if the upstream copy disappears (today `replay()` raises `NotFound`).
 
 ---
 
@@ -37,7 +38,7 @@ The class is recorded on every evidence record: `evidence.retention_class` in `s
 
 | Store | Content | Retention | Deletion mechanism | Status |
 |---|---|---|---|---|
-| Snapshot store (S3 bucket or `PIGTAIL_DATA_DIR/snapshots`; `src/pigtail/capture/snapshots.py`) | Raw bytes plus `.meta.json` sidecar, content-addressed | Per the class of the **longest-living** evidence record that references the hash | Delete the object and its sidecar only when no live evidence record still needs the raw bytes. Content addressing means one blob can back several evidence records. | Store: I. Retention: **P (CB-01)**. No delete method exists yet. |
+| Snapshot store (S3 bucket or `PIGTAIL_DATA_DIR/snapshots`; `src/pigtail/capture/snapshots.py`) | Raw bytes plus `.meta.json` sidecar, content-addressed | Per the class of the **longest-living** evidence record that references the hash | Delete the object and its sidecar only when no live evidence record still needs the raw bytes. Content addressing means one blob can back several evidence records. | Store: I. Retention: **P (CB-01)**. `SnapshotStore.delete()` removes the bytes and keeps the `.meta.json` sidecar; `purge_raw()` uses it (CB-04). |
 | Postgres `evidence` | Metadata, hash, terms basis | Kept for as long as its coded facts are used. After the raw copy is dropped, `deletion_state` is `raw_dropped` or `deleted_upstream`. | Update the state; delete the row if it is still person-level after aggregation | Field: I (`migrations/0001_capture_v0.sql`). Job: P |
 | Postgres case, actor and edge tables (M5) | Pseudonymised records | 24 months | Delete, or roll up into aggregates | P |
 | Postgres `repo_hourly_activity`, `gharchive_hours` | Aggregates, scan log | No limit | — | I (`migrations/0002_repo_hourly_activity.sql`) |
@@ -142,3 +143,4 @@ Review this policy when a source is added, when a platform's terms change, at H2
 - 2026-09-25: v0.1 created (M3-T2).
 - 2026-09-25 — fixes after verifier M3 round 1: uncommitted M1 controls relabelled "I (M1, pending merge)" (§1, §2 snapshot store, evidence and `repo_hourly_activity` rows, §4); CB-07 marked implemented (§2 Logs row, §6).
 - 2026-09-25 — M1 capture core merged at `ec79762`; "I (M1, pending merge)" labels changed to "I".
+- 2026-09-25 — fixes after verifier M3 round 2: CB-04 marked partly implemented (30-day purge + verified re-fetch; drop-after-parse and minimal-parse fallback still planned); stale 'pending merge' conditions removed.

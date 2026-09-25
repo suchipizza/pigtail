@@ -4,7 +4,7 @@
 **Requirements:** PRD §5.3, §5.6, F3 (R3.1–R3.5), §8.1, §8.2, §9.1; ADR-009, ADR-010.
 **Author role:** `analyst` (with researcher discipline: every factual claim about a source cites the source matrix `docs/research/source-matrix.md` (SM) or the literature review `docs/research/literature.md` (LR); anything we could not confirm is marked **unverified**).
 **Data version:** none. The spec precedes data. No outcome has been computed or looked at.
-**Code commit:** `0d1317e` (`git rev-parse --short HEAD` on 2026-09-25; the working tree had uncommitted M1 changes that do not touch outcome scoring).
+**Code commit:** `3f07692` (2026-09-25; includes the merged M1 capture core; outcome scoring itself is not implemented yet).
 **Machine-readable thresholds:** `schemas/outcome-thresholds/v0.1.0.json` (`outcome-thresholds v0.1.0`).
 
 ## 0. Limitations (read first)
@@ -324,3 +324,4 @@ Calibration happens once, on pilot data, and produces `outcome-thresholds v1.0.0
 - 2026-09-25 — v0.1.0 draft (M3-T1).
 - 2026-09-25 — fixes after verifier M3 round 1: `botfilter.py` and `velocity.py` marked "M1, pending merge"; H2 Q4/Q5/Q12 references replaced by LQ-6, LQ-15 and LQ-21 (§1.2, §1.4, §1.5, §7); "adoption is flat" (`AD90 < 50`) and the `attention_only` burst choice documented (§5.2) and added to the pilot list (§9 items 2 and 11); ADR-012's 0.95 vs the 0.90 gate explained (§5.3). The thresholds JSON gains `burst_detection` (`velocity-v0`: 100 stars in 48 h, 3σ, per PRD R1.1) and `fake_star_filter` (`starscout-v0`: n = 50, m = 10, Δt = 30 d, ρ = 0.5, campaign level, per §4). These record parameters already fixed in §2.1 and §4; no threshold, input or class changed, so the file stays provisional `outcome-thresholds v0.1.0` and the version number is not bumped.
 - 2026-09-25 — M1 capture core merged at `ec79762`; "I (M1, pending merge)" labels changed to "I".
+- 2026-09-25 — fixes after verifier M3 round 2: CB-04 marked partly implemented (30-day purge + verified re-fetch; drop-after-parse and minimal-parse fallback still planned); stale 'pending merge' conditions removed.
