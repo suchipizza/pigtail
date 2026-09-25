@@ -125,7 +125,7 @@ Conclusion: aggregate research and project-level forensics sit within reasonable
 - **Scale:** A1 covers every public GitHub event, so millions of people. A2–A4 cover people who mention roughly 300 Tier 2 repos (G2).
 
 ### 4.4 Safeguards that tip the balance
-Status: **I** = implemented and on `main` (file cited), **I** = implemented in the uncommitted M1 capture work but not yet merged to `main`, **P** = planned (backlog id in [dpia.md](dpia.md) §9).
+Status: **I** = implemented and on `main` (file cited), **P** = planned (backlog id in [dpia.md](dpia.md) §9).
 
 | # | Safeguard | Status |
 |---|---|---|

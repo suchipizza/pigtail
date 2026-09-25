@@ -166,7 +166,7 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 
 ## 6. Measures, mapped to controls
 
-**I** = implemented and on `main` (evidence cited). **I** = implemented in the uncommitted M1 capture work, not yet merged to `main`. **P** = planned (backlog id, §9). **O** = operator action.
+**I** = implemented and on `main` (evidence cited). **P** = planned (backlog id, §9). **O** = operator action.
 
 | Risk | Measures | Status |
 |---|---|---|

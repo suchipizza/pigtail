@@ -10,7 +10,7 @@
 
 All URLs were accessed on 2026-09-25.
 
-**Status legend:** **I** = implemented in code on `main` (file cited). **I** = implemented in the uncommitted M1 capture work, not yet merged to `main`. **P** = planned (backlog id). **O** = operator procedure.
+**Status legend:** **I** = implemented in code on `main` (file cited). **P** = planned (backlog id). **O** = operator procedure.
 
 ---
 
