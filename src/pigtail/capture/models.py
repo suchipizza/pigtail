@@ -93,15 +93,19 @@ class VelocityDetection(BaseModel):
 
 
 BotFilterState = Literal["pending", "applied", "unavailable"]
-BotFilterSource = Literal["repo_events", "gharchive", "none"]
+BotFilterBasis = Literal["repo_events", "gharchive", "none"]
 
 
 class BotFilterStatus(BaseModel):
     """Bot/lockstep confirmation of a detection-v1 case (ADR-032.2; replan §6.3).
 
-    `pending`: per-repo events polling is on and will fill this in; `applied`: the heuristics of
-    `pigtail.capture.botfilter` ran on identity-level events for the window; `unavailable`: no
-    identity-level source (events polling off or held by ADR-022). Counts are null until applied.
+    `status`: `pending` (per-repo events polling is on and will fill this in), `applied` (the
+    heuristics of `pigtail.capture.botfilter` ran on identity-level events for the window),
+    `unavailable` (no identity-level source: events polling off or held by ADR-022).
+    `basis`: the data the filter used (outcome-model §2.1 `bot_filter_basis`).
+    `confirmed` (outcome-model §2.1 `bot_filter_confirmed`): null until applied; then whether the
+    window still meets R1.1's absolute threshold after removing the stars the filter flagged
+    (star-history net stars minus flagged stars). Counts are null until applied.
     `coverage_ratio` = distinct non-bot stargazers seen in events / star-history net stars for the
     window (reference = star-history).
     """
@@ -109,8 +113,10 @@ class BotFilterStatus(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     status: BotFilterState
-    source: BotFilterSource
+    basis: BotFilterBasis
+    confirmed: bool | None = None
     version: str
+    layers: list[str] = Field(default_factory=list)  # heuristics applied, e.g. ["login_rules"]
     updated_at: datetime | None = None
     stars_seen: int | None = Field(default=None, ge=0)
     stars_bot: int | None = Field(default=None, ge=0)

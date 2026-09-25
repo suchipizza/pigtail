@@ -6,8 +6,9 @@ content, so deletions can be re-applied after a backup restore (retention-policy
 
 `PERSON_TABLES` is the registry of Postgres tables holding pseudonymous person-level rows, so the
 retention purge (by `time_column`) and erasure (by `pseudonym_column`) reach them:
-`hn_mention` (M1-T4) and `upstream_items` (deletion sync, CB-02; migration 0005). M5 tables
-(actors, edges, posts) must register here too.
+`hn_mention` (M1-T4), `upstream_items` (deletion sync, CB-02; migration 0005) and
+`repo_event_actor` (GitHub per-repo events, M1-T24; TM-33; capped at 30 days by `retention_days`,
+CB-22). M5 tables (actors, edges, posts) must register here too.
 """
 
 from __future__ import annotations
@@ -30,16 +31,26 @@ Action = Literal[
 
 @dataclass(frozen=True)
 class PersonTable:
-    """A table of pseudonymous person-level rows, purged at 24 months and on erasure."""
+    """A table of pseudonymous person-level rows, purged at 24 months (or `retention_days` if
+    shorter) and on erasure."""
 
     table: str
     pseudonym_column: str
     time_column: str
+    retention_days: int | None = None  # a source-specific cap below the 24-month default
+    retention_class: str = "person_level_24m"  # person_level_30d rows follow its cap (CB-22)
 
 
 PERSON_TABLES: tuple[PersonTable, ...] = (
     PersonTable("hn_mention", "author", "last_seen_at"),
     PersonTable("upstream_items", "author_pseudonym", "last_seen_at"),
+    PersonTable(
+        "repo_event_actor",
+        "actor_pseudonym",
+        "created_at",
+        retention_days=30,
+        retention_class="person_level_30d",
+    ),
 )
 
 

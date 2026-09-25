@@ -241,3 +241,15 @@ Decision: Per-repo events fall under ADR-022's full person-level preconditions (
 - **CB-23:** keep only star and fork events at parse, drop the raw bytes immediately (hash kept), and never build or export a per-repo stargazer list.
 The connector stays off (`PIGTAIL_ENABLE_GITHUB_EVENTS=0` plus the ADR-022 flag) until then, and LQ-29 may stop it altogether. Until it runs, the bot-filter confirmation and the filtered series going forward stay `unavailable`, which ADR-035 makes non-blocking for classes.
 How to reverse: Drop the per-repo events source entirely (the bot filter stays unavailable) or lift the hold after H2 answers LQ-29.
+
+## ADR-037 — Detection v1 implementation choices (M1-T24) (2026-09-25)
+1. **Cases open on the public net star count with the bot filter `pending`; confirmation comes later.** R1.1 says "after bot filtering", but for most repos no bot-filter data exists until tracking starts (ADR-032, ADR-036). Waiting would lose the evidence that capture exists to save (the capture layer is exempt from the pilot gate, PRD §12). Every case records `bot_filter.status|basis|confirmed`. Analyses and outcome classes treat `confirmed = false` cases as flagged, and report `pending`/`unavailable` shares per stratum. This adapts R1.1's source, not its threshold; §9.2–9.3 gates are untouched.
+2. **Only the login-based bot rules are applied to per-repo events.** The lockstep rule needs each account's activity elsewhere on GitHub, which per-repo events don't show; applied to stars and forks alone, it would flag organic bursts. It's recorded as not applied (`layers=["login_rules"]`, `stars_lockstep=null`).
+3. **v0 (GH Archive) and v1 share the `velocity` trigger and the 14-day cooldown,** so one breakout opens one case. Agreement is recorded in `detection_agreement`.
+4. **Watch-list policy:** up to 50k repos. Opted-out, missing and private repos are dropped. Unpinned entries not nominated for 30 days are dropped unless they gained ≥ 30 stars in 7 days. Above the cap, the lowest priority goes first.
+5. **GitHub budget:** an hourly cap per bucket (core 70%, GraphQL 70%, search 1,260/h), per-run caps, and a server-side reserve (hard stop when under 30% is left). Spend is shared across processes through `github_budget_ledger`.
+6. **Star-history day labels are stored as GitHub returns them.** America/Los_Angeles is assumed only to decide "today" and window days, until validation M2 (the DST change on 2026-11-01) confirms it.
+7. **A candidate is rejected when star-history shows < 90 stars for the 48 h window** (90% of the R1.1 minimum, to allow for day misalignment). Calibrate this with validation M4.
+8. **Search snapshots are classed `person_level_24m`,** because results embed owner objects.
+9. **API version pinned to `2026-03-10`,** the version the star-history docs are published under.
+How to reverse: Per item, through an ADR (1: open cases only after confirmation, accepting evidence loss).

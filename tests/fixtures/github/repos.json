@@ -1,0 +1,13 @@
+{
+  "_note": "Synthetic GitHub repos for M1-T24 tests. Fake orgs org-x / org-y, fake ids 7000001+, fake node ids. Not real GitHub data. `daily` = star-history net stars per endpoint day, most recent LAST, ending on the fake 'today'.",
+  "repos": [
+    {"id": 7000001, "node_id": "R_fake_7000001", "full_name": "org-x/repo-1", "owner_type": "Organization",
+     "created_at": "2025-01-10T12:00:00Z", "stars": 4000, "forks": 210, "series": "burst"},
+    {"id": 7000002, "node_id": "R_fake_7000002", "full_name": "org-x/repo-2", "owner_type": "Organization",
+     "created_at": "2024-06-01T08:00:00Z", "stars": 9000, "forks": 800, "series": "flat_busy"},
+    {"id": 7000003, "node_id": "R_fake_7000003", "full_name": "org-y/repo-3", "owner_type": "Organization",
+     "created_at": "2026-09-20T10:00:00Z", "stars": 260, "forks": 9, "series": "new_burst"},
+    {"id": 7000004, "node_id": "R_fake_7000004", "full_name": "org-y/repo-4", "owner_type": "User",
+     "created_at": "2025-11-02T00:00:00Z", "stars": 120, "forks": 4, "series": "quiet"}
+  ]
+}

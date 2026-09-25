@@ -6,7 +6,7 @@ updated: 2026-09-25
 
 | Track | Milestone | Status | Blocker |
 |---|---|---|---|
-| A capture | M1 | core built (schemas, snapshots, connector base, GH Archive scan). **Detection at risk: GH Archive star coverage ≈ 0.7% (ADR-028)**; re-plan M1-T18 | H1 (host, GITHUB_TOKEN); ADR-022 holds |
+| A capture | M1 | built: GH Archive scan (control), HN rank poller, HN connectors (held), detection v1 on GitHub API (ADR-032/037), privacy controls, scheduler, D1 preview. Not live: no host, no GITHUB_TOKEN | H1 (host, GITHUB_TOKEN); ADR-022 holds; CB-12 notice details |
 | B research | M2 | literature review + source matrix **verified (PASS)**; M2-T3 fake-star reproduction pending | M1 GH Archive pipeline |
 | C methodology | M3 | **accepted** (verifier PASS round 4, 2026-09-25) | — |
 | C methodology | M4 | codebook v0.1.0, pre-registrations, candidate cards done; pilot blocked | ADR-022 controls + HN connector; M1-T18; H1 (training off or API key) |

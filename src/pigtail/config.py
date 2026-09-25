@@ -17,6 +17,7 @@ DEFAULT_MODEL = "claude-opus-5"
 PERSON_LEVEL_MAX_DAYS = 730  # 24 months
 LLM_CACHE_MAX_DAYS = 730  # 24 months, and never longer than the evidence it came from
 LOG_MAX_DAYS = 365  # 12 months
+GITHUB_EVENTS_MAX_DAYS = 30  # TM-33 / CB-22: per-repo event actors, person_level_30d
 
 
 def _backend(value: str, source: str) -> BackendName:
@@ -62,6 +63,7 @@ class Settings:
     person_level_retention_days: int = PERSON_LEVEL_MAX_DAYS
     llm_cache_retention_days: int = LLM_CACHE_MAX_DAYS
     log_retention_days: int = LOG_MAX_DAYS
+    github_events_retention_days: int = GITHUB_EVENTS_MAX_DAYS
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
@@ -87,6 +89,9 @@ class Settings:
             ),
             llm_cache_retention_days=_days(e, "LLM_CACHE_RETENTION_DAYS", LLM_CACHE_MAX_DAYS),
             log_retention_days=_days(e, "LOG_RETENTION_DAYS", LOG_MAX_DAYS),
+            github_events_retention_days=_days(
+                e, "GITHUB_EVENTS_RETENTION_DAYS", GITHUB_EVENTS_MAX_DAYS
+            ),
         )
 
 

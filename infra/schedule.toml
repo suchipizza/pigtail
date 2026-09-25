@@ -63,3 +63,61 @@ timeout = "1h"
 window = "48h"
 since_before_open = "14d"
 retry_base = "10m"
+
+# --- GitHub detection (M1-T24, ADR-032). Every job below requires the `github` connector, which
+# makes no live call without GITHUB_TOKEN: until the operator sets it, each run is skipped and
+# logged with reason `missing_env:GITHUB_TOKEN` (no failure, no alert). Budgets: see
+# docs/guides/operator.md "GitHub token and budgets".
+
+# Hourly GraphQL star/fork counts for the watch list (100 repos per query, ~1 point each).
+[jobs.gh_watchlist_counts]
+command = ["capture", "github", "watchlist-counts"]
+every = "1h"
+timeout = "45m"
+retry_base = "5m"
+requires = ["github"]
+
+# Search sweeps (new repos, recently pushed repos in star bands) into the watch list.
+[jobs.gh_search_sweep]
+command = ["capture", "github", "search-sweep", "--kind", "all"]
+every = "6h"
+timeout = "2h"
+retry_base = "15m"
+requires = ["github"]
+
+# GitHub URLs from the HN rank poller + Show HN (project-level), and GH Archive nominations.
+[jobs.gh_hn_screen]
+command = ["capture", "github", "hn-screen"]
+every = "1h"
+timeout = "30m"
+retry_base = "5m"
+requires = ["github", "hn_ranks"]
+
+# Star-history baselines: new watch-list entries, pre-threshold repos and cases (daily refresh).
+[jobs.gh_star_history_confirm]
+command = ["capture", "github", "star-history", "--candidates"]
+every = "1h"
+timeout = "50m"
+retry_base = "10m"
+requires = ["github"]
+
+# Detection v1 (counts screen + star-history confirmation). GH Archive `gharchive_scan` stays on
+# as the velocity-v0 control; agreement is recorded.
+[jobs.gh_detect_v1]
+command = ["capture", "github", "detect-v1"]
+every = "1h"
+timeout = "30m"
+retry_base = "5m"
+requires = ["github"]
+
+# Per-repo events for open cases (TM-33): PERSON-LEVEL, off by default. Needs `enabled = true`
+# here, PIGTAIL_ENABLE_GITHUB_EVENTS=1 and PIGTAIL_ADR022_PERSON_SOURCES_OK=1 (ADR-022, ADR-036);
+# otherwise skipped with reason connector_disabled / person_source_hold. Each repo is polled at
+# most every 15 min and never faster than GitHub's X-Poll-Interval.
+[jobs.gh_repo_events]
+command = ["capture", "github", "repo-events"]
+every = "15m"
+timeout = "14m"
+retry_base = "5m"
+enabled = false
+requires = ["github", "github_events"]

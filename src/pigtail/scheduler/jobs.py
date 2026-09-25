@@ -12,8 +12,10 @@ Kinds:
   `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` (ADR-022, ADR-031.2); otherwise it is skipped and logged,
   never failed.
 
-`requires` (list of connector names) makes any job skip while one of them is disabled, or held
-by ADR-022 (`PersonSourceHold`).
+`requires` (list of connector names) makes any job skip while one of them is disabled, held
+by ADR-022 (`PersonSourceHold`), or missing an environment variable it needs for live calls
+(`requires_env`, e.g. `GITHUB_TOKEN` for the GitHub connectors: skip reason
+`missing_env:GITHUB_TOKEN`, logged; M1-T24).
 """
 
 from __future__ import annotations
@@ -72,6 +74,9 @@ def connector_gate(names: Sequence[str], env: Mapping[str, str]) -> str | None:
             return "connector_disabled"
         if cls.person_level_hold and env.get(ADR022_ENV, "").strip() != "1":
             return "person_source_hold"
+        for var in cls.requires_env:
+            if not (env.get(var) or "").strip():
+                return f"missing_env:{var}"
     return None
 
 
@@ -89,6 +94,12 @@ class Planner:
                     "job %s skipped: person-level connector held by ADR-022 "
                     "(PIGTAIL_ADR022_PERSON_SOURCES_OK is not 1)",
                     spec.name,
+                )
+            elif reason.startswith("missing_env:"):
+                log.warning(
+                    "job %s skipped: %s is not set (no live call without it)",
+                    spec.name,
+                    reason.split(":", 1)[1],
                 )
             else:
                 log.info("job %s skipped: %s", spec.name, reason)

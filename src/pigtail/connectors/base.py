@@ -233,6 +233,7 @@ class Connector(ABC):
     enabled_by_default: ClassVar[bool] = False
     enable_env: ClassVar[str | None] = None  # optional group flag, e.g. PIGTAIL_ENABLE_HN
     person_level_hold: ClassVar[bool] = False  # ADR-022: needs ADR022_ENV=1 to be enabled
+    requires_env: ClassVar[tuple[str, ...]] = ()  # env vars without which no live call is made
     rate_per_second: ClassVar[float] = 1.0
     burst: ClassVar[int] = 1
     safety_margin: ClassVar[float] = 0.2
@@ -371,10 +372,27 @@ class Connector(ABC):
             raise NotFound(url, 404)
         if not resp.is_success:
             raise FetchError(url, resp.status_code)
+        return self._snapshot_response(
+            resp, case_id=case_id, repo_id=repo_id, retention_class=retention_class
+        )
+
+    def _snapshot_response(
+        self,
+        resp: httpx.Response,
+        *,
+        url: str | None = None,
+        case_id: str | None = None,
+        repo_id: str | None = None,
+        retention_class: RetentionClass | None = None,
+    ) -> Fetched:
+        """Snapshot a successful response's raw bytes and record evidence (before any parsing).
+
+        `url` overrides the evidence URL (default: the request URL).
+        """
         data = resp.content
         meta = SnapshotMeta(
             source=self.name,
-            url=str(resp.request.url),
+            url=url or str(resp.request.url),
             fetched_at=self.clock(),
             collector_version=self.collector_version,
             terms_basis=self.terms.terms_basis,

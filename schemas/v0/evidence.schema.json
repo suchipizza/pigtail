@@ -34,8 +34,8 @@
     },
     "terms_basis": {"type": "string", "minLength": 1},
     "retention_class": {
-      "description": "person_level_24m: contains person-level data, raw kept 24 months (PRD §10); project_level: no time limit; derived_aggregate: no person-level data.",
-      "enum": ["person_level_24m", "project_level", "derived_aggregate"]
+      "description": "person_level_24m: contains person-level data, raw kept 24 months (PRD §10); person_level_30d: person-level data kept at most 30 days (GitHub per-repo events, TM-33, CB-22); project_level: no time limit; derived_aggregate: no person-level data.",
+      "enum": ["person_level_24m", "person_level_30d", "project_level", "derived_aggregate"]
     },
     "deletion_state": {
       "description": "present; deleted_upstream (removed at source, raw pending drop); raw_dropped (raw removed, hash + coded facts kept, R1.5).",

@@ -317,6 +317,81 @@ will plug into the same job before it may be enabled.
   Evidence attaches to the repo's newest open case if it has one. `--loose` also keeps hits that
   only contain the repo name (noisy for common words).
 
+### GitHub token and budgets (M1-T24, ADR-032)
+Breakout detection uses the GitHub API: hourly star counts for a watch list, Search sweeps,
+the star-history endpoint and, optionally, per-repo events for open cases.
+
+**The token.** Create one fine-grained personal access token on your own GitHub account with
+access to *public repositories only* and no extra permissions, and put it in the host's `.env`
+as `GITHUB_TOKEN=…` (never in git). Use one token only: GitHub's terms forbid sharing or pooling
+tokens to exceed rate limits (TM-02), so don't add a second token or a GitHub App to raise them
+(ADR-032.4). The token is sent only as an `Authorization` header and is never logged.
+**Without `GITHUB_TOKEN` pigtail makes no GitHub API call**: the `capture github` commands exit 2,
+and the scheduler skips the `gh_*` jobs with the logged reason `missing_env:GITHUB_TOKEN` (not a
+failure, no alert).
+
+**Budgets.** One token has three separate buckets. pigtail caps each at 70 % per UTC hour by
+default (validation plan M7) and stops hard (no request sent) when a cap is reached; the job
+records `budget_stop` and resumes on its next run.
+
+| Bucket | GitHub limit | Default cap | Override (per hour) | Used by |
+|---|---|---|---|---|
+| core | 5,000 requests/h | 3,500 | `GITHUB_BUDGET_CORE_PER_HOUR` | star history, per-repo events |
+| graphql | 5,000 points/h | 3,500 | `GITHUB_BUDGET_GRAPHQL_PER_HOUR` | watch-list counts (100 repos ≈ 1 point) |
+| search | 30 requests/min | 1,260 (21/min) | `GITHUB_BUDGET_SEARCH_PER_HOUR` | Search sweeps |
+
+- The hourly spend is shared by all pigtail processes through the `github_budget_ledger` table.
+- `GITHUB_BUDGET_RESERVE_FRACTION` (default 0.30): stop when GitHub reports less than this share
+  of a bucket left and the reset is more than 2 minutes away. This also leaves room for anything
+  else you run with the same account.
+- Each job run has its own cap too (`--max-points`, `--max-requests`; defaults: counts 700
+  points, search 400, star history 400, detect-v1 200, repo events 1,600 core requests).
+- Rate-limit answers are honoured: `Retry-After`, `X-RateLimit-Reset`, at least 60 s (doubling)
+  for secondary limits; requests are serial; ETag `304` answers cost nothing; per-repo events are
+  never polled faster than GitHub's `X-Poll-Interval`.
+- Expected steady state (replan §6.2, a 50,000-repo watch list): core ≈ 3,055/h (61 %), GraphQL
+  ≈ 700/h (14 %), search ≈ 210/h (12 %). Check actual use with
+  `uv run pigtail capture github budget --hours 24`.
+
+**Jobs** (`infra/schedule.toml`; all skip until `GITHUB_TOKEN` is set):
+
+| Job | Every | Command |
+|---|---|---|
+| `gh_watchlist_counts` | 1 h | `capture github watchlist-counts` (watch-list cap `--cap`, default 50,000) |
+| `gh_search_sweep` | 6 h | `capture github search-sweep --kind all` |
+| `gh_hn_screen` | 1 h | `capture github hn-screen` (HN + Show HN URLs, GH Archive nominations) |
+| `gh_star_history_confirm` | 1 h | `capture github star-history --candidates` |
+| `gh_detect_v1` | 1 h | `capture github detect-v1` |
+| `gh_repo_events` | 15 min | `capture github repo-events` (**off**; see below) |
+
+Add a repo by hand with `uv run pigtail capture github watch-add --repo owner/name`. The GH
+Archive `gharchive_scan` job keeps running as the velocity-v0 control; `detect-v1` reports how
+often both agree (`agreement_30d`).
+
+**Per-repo events (person-level).** `repo-events` reads `WatchEvent`/`ForkEvent` actors for
+repos with an open case, to confirm the bot filter. It is off by default. To turn it on, meet
+every ADR-022 precondition (see "Hacker News sources" above; ADR-036), then set
+`PIGTAIL_ENABLE_GITHUB_EVENTS=1` and `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` and change
+`enabled = true` on `gh_repo_events`. Actors are pseudonymized at ingest; raw event pages are
+deleted right after parsing; the pseudonymous rows are kept at most 30 days
+(`GITHUB_EVENTS_RETENTION_DAYS`, default and maximum 30) and deleted by `pigtail retention purge`;
+only daily aggregates stay (CB-22, CB-23). pigtail never builds or exports a list of a repo's
+stargazers.
+
+**Day boundaries.** Star-history days are GitHub's own day labels, which are not UTC days
+(probably US Pacific; to be confirmed around the DST change on 2026-11-01). Stored rows carry a
+`day_boundary_tz` note.
+
+**First runs once the token exists** (validation plan in `docs/research/detection-replan.md` §8):
+```bash
+uv run pigtail capture github search-sweep --kind new --max-requests 60   # seed the watch list
+uv run pigtail capture github hn-screen
+uv run pigtail capture github watchlist-counts --max-points 50             # M3: cost per batch
+uv run pigtail capture github budget --hours 1                              # M7: ledger
+uv run pigtail capture github star-history --candidates --max-requests 50
+uv run pigtail capture github detect-v1                                    # needs ≥ 2 count runs
+```
+
 ### Opt-outs (CB-13)
 ```bash
 uv run pigtail privacy optout add --platform github --handle -       # reads the handle from stdin

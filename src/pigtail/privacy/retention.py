@@ -11,7 +11,12 @@
    one blob can back several records: a hash is dropped only when no *present* record still
    needs it (a `project_level` or `derived_aggregate` record, or a younger person-level one).
    Such hashes are reported as `blocked_shared`.
-3. Rows of registered person-level tables (`PERSON_TABLES`) older than the cutoff are deleted.
+   **CB-22**: `person_level_30d` evidence (GitHub per-repo events, TM-33) older than
+   `GITHUB_EVENTS_RETENTION_DAYS` (default and ceiling 30) is treated the same way. Its raw bytes
+   are normally dropped right after parsing already; this catches anything left behind.
+3. Rows of registered person-level tables (`PERSON_TABLES`) older than the cutoff are deleted;
+   a table with its own `retention_days` (GitHub per-repo event actors: 30 days, CB-22) uses
+   the shorter of the two cutoffs.
 4. **CB-05**: LLM cache rows linked to the evidence dropped in step 2 and rows past
    `LLM_CACHE_RETENTION_DAYS` are deleted; the usage ledger and pause log follow the same period.
 5. **CB-18**: `runs.error` text older than `LOG_RETENTION_DAYS` (default 365) is cleared.
@@ -50,6 +55,7 @@ class RetentionConfig:
     person_level_days: int = 730
     gharchive_raw_days: int = 30
     log_days: int = 365
+    github_events_days: int = 30  # CB-22: person_level_30d evidence and person-table rows
 
 
 @dataclass
@@ -61,6 +67,7 @@ class PurgeReport:
     gharchive_raw_hashes_dropped: int = 0
     person_level_hashes_dropped: int = 0
     person_level_evidence_raw_dropped: int = 0
+    person_level_30d_hashes_dropped: int = 0
     blocked_shared: int = 0
     person_rows_deleted: dict[str, int] = field(default_factory=dict)
     llm_cache_rows_for_evidence: int = 0
@@ -101,39 +108,35 @@ def purge(
         db, store, source="gharchive", retention_days=cfg.gharchive_raw_days, now=now, log=log
     )
 
-    # 2. CB-01: person-level evidence past 24 months.
-    rows = db.conn.execute(
-        """
-        SELECT e.content_hash, array_agg(e.id ORDER BY e.id),
-               EXISTS (
-                   SELECT 1 FROM evidence o
-                   WHERE o.content_hash = e.content_hash AND o.deletion_state = 'present'
-                     AND (o.retention_class <> 'person_level_24m' OR o.fetched_at > %(cutoff)s)
-               )
-        FROM evidence e
-        WHERE e.retention_class = 'person_level_24m' AND e.deletion_state = 'present'
-          AND e.fetched_at <= %(cutoff)s
-        GROUP BY e.content_hash
-        ORDER BY e.content_hash
-        """,
-        {"cutoff": cutoff},
-    ).fetchall()
+    # 2. CB-01: person-level evidence past 24 months; CB-22: 30-day class past its cap.
     done = {e["content_hash"] for e in log.entries if e["action"] == "raw_dropped"}
     dropped_evidence: list[str] = []
-    for h, ids, blocked in rows:
-        if h in done:  # dry run: already counted in step 1
-            continue
-        if blocked:
-            rep.blocked_shared += 1
-            continue
-        dropped_evidence += list(ids)
-        drop_raw(db, store, h, log)
-        rep.person_level_hashes_dropped += 1
-        rep.dropped_hashes.append(h)
+    events_cutoff = now - timedelta(days=min(cfg.github_events_days, cfg.person_level_days))
+    for rclass, class_cutoff in (
+        ("person_level_24m", cutoff),
+        ("person_level_30d", events_cutoff),
+    ):
+        for h, ids in _expired_hashes(db, rclass, class_cutoff, done, rep):
+            dropped_evidence += list(ids)
+            drop_raw(db, store, h, log)
+            done.add(h)
+            rep.dropped_hashes.append(h)
+            if rclass == "person_level_24m":
+                rep.person_level_hashes_dropped += 1
+            else:
+                rep.person_level_30d_hashes_dropped += 1
     rep.person_level_evidence_raw_dropped = len(dropped_evidence)
 
-    # 3. Pseudonymous person-level rows (none registered before M5).
-    rep.person_rows_deleted = delete_person_rows(db, person_tables, log, older_than=cutoff)
+    # 3. Pseudonymous person-level rows; tables with their own cap use the shorter cutoff.
+    rep.person_rows_deleted = {}
+    for t in person_tables:
+        t_cutoff = cutoff
+        if t.retention_days is not None:
+            days = min(t.retention_days, cfg.person_level_days)
+            if t.retention_class == "person_level_30d":
+                days = min(days, cfg.github_events_days)
+            t_cutoff = max(cutoff, now - timedelta(days=days))
+        rep.person_rows_deleted |= delete_person_rows(db, [t], log, older_than=t_cutoff)
 
     # 4. CB-05: LLM cache derived from dropped evidence, then everything past the cache TTL.
     if llm_store is not None:
@@ -171,6 +174,7 @@ def purge(
             "gharchive_raw_hashes_dropped",
             "person_level_hashes_dropped",
             "person_level_evidence_raw_dropped",
+            "person_level_30d_hashes_dropped",
             "blocked_shared",
             "llm_cache_rows_for_evidence",
             "llm_cache_rows_expired",
@@ -180,3 +184,35 @@ def purge(
             run.incr(key, getattr(rep, key))
         run.incr("person_rows_deleted", sum(rep.person_rows_deleted.values()))
     return rep
+
+
+def _expired_hashes(
+    db: CaptureDB, rclass: str, cutoff: datetime, done: set[str], rep: PurgeReport
+) -> list[tuple[str, list[str]]]:
+    """Hashes whose `rclass` evidence is past `cutoff` and that no present record still needs
+    (a record of another class, or a younger one of this class). Blocked ones are counted."""
+    rows = db.conn.execute(
+        """
+        SELECT e.content_hash, array_agg(e.id ORDER BY e.id),
+               EXISTS (
+                   SELECT 1 FROM evidence o
+                   WHERE o.content_hash = e.content_hash AND o.deletion_state = 'present'
+                     AND (o.retention_class <> %(cls)s OR o.fetched_at > %(cutoff)s)
+               )
+        FROM evidence e
+        WHERE e.retention_class = %(cls)s AND e.deletion_state = 'present'
+          AND e.fetched_at <= %(cutoff)s
+        GROUP BY e.content_hash
+        ORDER BY e.content_hash
+        """,
+        {"cutoff": cutoff, "cls": rclass},
+    ).fetchall()
+    out: list[tuple[str, list[str]]] = []
+    for h, ids, blocked in rows:
+        if h in done:  # dry run: already counted in an earlier step
+            continue
+        if blocked:
+            rep.blocked_shared += 1
+            continue
+        out.append((h, list(ids)))
+    return out

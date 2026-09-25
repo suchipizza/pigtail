@@ -3,9 +3,12 @@ Seeded by the orchestrator in M0 from docs/WORK_ORDER.md §4. Format: `- [ ] [ID
 Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (diagnosis inline).
 
 ## Now
+- [ ] [M1-T27] When GITHUB_TOKEN arrives: validation runs M7 → M3 → M2 → M1 → M4 (detection-replan §8; order and commands in RUNLOG 2026-09-25)
+- [ ] [M1-T28] Case API `detection_hours` should read `repo_count_snapshot` for v1 cases; daily wide-universe sweep (≥ 100 stars); lockstep alternative for events
+- [ ] [M3-T9] Verifier re-check of ADR-032/035/036 docs + case schema bot_filter fields; compliance docs: CB-22/23 now implemented
 - [ ] [M1-T25] D1 follow-ups: browser check (operator), p95 benchmark at 5,000 evidence items, generated TS types, streaming hash check for large snapshots, live refresh, audit-log reader
 - [ ] [M1-T26] External liveness check for the scheduler (a dead scheduler can't alert itself)
-- [ ] [M1-T24] Implement ADR-032: watch-list GraphQL snapshots, Search sweeps, HN→repo screen, star-history client (baseline, confirmation, scoring, backfill), per-repo events polling for tracked cases; case coverage fields — needs GITHUB_TOKEN (H1) for live runs; build and test on fixtures now
+- [x] [M1-T24] ADR-032 implemented on fixtures (ADR-037); live runs wait for GITHUB_TOKEN — was: Implement ADR-032: watch-list GraphQL snapshots, Search sweeps, HN→repo screen, star-history client (baseline, confirmation, scoring, backfill), per-repo events polling for tracked cases; case coverage fields — needs GITHUB_TOKEN (H1) for live runs; build and test on fixtures now
 - [x] [M3-T6] Outcome spec updated to ADR-032 (star-history, day mapping)
 - [x] [M3-T7] LIA/DPIA: per-repo events (A1b, D12/D13, R15), OpenDigger not processed
 - [x] [M3-T8] ADR-035 applied (thresholds v0.2.0, spec, pre-reg amendment 1 ×2, case schema, codebook errata) — was: Apply ADR-035: thresholds v0.2.0 (new file, keep v0.1.0), spec §5, dated amendments to both pre-registrations, fix stargazers-API references in schemas/v0/case.schema.json (+example) and codebook depends_on_adrs; verifier check of M3-T6..T8
@@ -54,8 +57,8 @@ Before enabling Bluesky, HN or V2EX:
 - [x] [CB-08] Data-subject requests (`pigtail privacy request access|erasure`); follow-up: rectification
 - [x] [CB-13] Opt-out list enforced at ingest + purge (`pigtail privacy optout`)
 Feature-specific:
-- [ ] [CB-22] `person_level_30d` retention class + purge for per-repo events (ADR-036) — in M1-T24
-- [ ] [CB-23] Per-repo events: keep star/fork only, drop raw at parse, no stargazer list anywhere (ADR-036) — in M1-T24
+- [x] [CB-22] `person_level_30d` retention class + purge (migration 0007)
+- [x] [CB-23] Per-repo events: star/fork only, raw dropped at parse, no stargazer-list path (tested)
 - [x] [CB-05] LLM cache expiry (24 months) + evidence links + purge
 - [ ] [CB-10] Account reach stored in bands
 - [x] [CB-11] Codebook privacy rules (codebook v0.1.0 §12)

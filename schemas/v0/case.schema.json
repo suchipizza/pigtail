@@ -337,13 +337,15 @@
       "description": "detection-v1 (ADR-032, M1-T24): stars_48h is the net change of the public stargazer count over the window (hourly GraphQL snapshots); baseline from the star-history endpoint (daily, endpoint day labels, not UTC-aligned); baseline_hours_covered = baseline days x 24."
     },
     "bot_filter": {
-      "description": "Bot/lockstep confirmation state of a detection-v1 case (ADR-032.2). coverage_ratio = identity-level stars seen / star-history net stars for the window.",
+      "description": "Bot/lockstep confirmation state of a detection-v1 case (ADR-032.2; outcome-model §2.1 bot_filter_basis / bot_filter_confirmed). coverage_ratio = identity-level stars seen / star-history net stars for the window.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "status",
-        "source",
+        "basis",
+        "confirmed",
         "version",
+        "layers",
         "updated_at",
         "stars_seen",
         "stars_bot",
@@ -362,15 +364,30 @@
             "unavailable"
           ]
         },
-        "source": {
+        "basis": {
+          "description": "Data the bot filter used (outcome-model §2.1 bot_filter_basis).",
           "enum": [
             "repo_events",
             "gharchive",
             "none"
           ]
         },
+        "confirmed": {
+          "description": "outcome-model §2.1 bot_filter_confirmed: null until applied; then whether the window still meets R1.1's absolute threshold after removing flagged stars.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "version": {
           "type": "string"
+        },
+        "layers": {
+          "description": "Bot-filter heuristics applied (login_rules; lockstep only where cross-repo activity is observable).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "updated_at": {
           "type": [

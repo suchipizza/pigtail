@@ -440,11 +440,13 @@ def cmd_retention_purge(args: argparse.Namespace, ctx: _Ctx) -> int:
         person_level_days=s.person_level_retention_days,
         gharchive_raw_days=s.gharchive_raw_retention_days,
         log_days=s.log_retention_days,
+        github_events_days=s.github_events_retention_days,
     )
     config = {
         "dry_run": args.dry_run,
         "person_level_days": cfg.person_level_days,
         "gharchive_raw_days": cfg.gharchive_raw_days,
+        "github_events_days": cfg.github_events_days,
         "log_days": cfg.log_days,
         "llm_cache_days": s.llm_cache_retention_days,
         "snapshot_backend": s.snapshot_backend,
@@ -693,6 +695,9 @@ def build_parser() -> argparse.ArgumentParser:
     men.add_argument("--loose", action="store_true", help="also keep repo-name-only matches")
     men.add_argument("--no-items", action="store_true", help="skip per-item Firebase snapshots")
     men.set_defaults(func=cmd_capture_mentions)
+    from pigtail.capture.github_cli import add_commands as add_github_commands
+
+    add_github_commands(cap_sub)  # `pigtail capture github …` (M1-T24, ADR-032)
 
     ret = sub.add_parser("retention", help="retention purge (DPIA CB-01)")
     ret_sub = ret.add_subparsers(dest="retention_command", required=True)

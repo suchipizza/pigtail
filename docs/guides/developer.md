@@ -64,6 +64,24 @@ PSEUDONYM_KEY=… uv run pigtail capture scan --start 2026-09-20T00 --end 2026-0
 - Tables holding pseudonymous person-level rows must be registered in
   `pigtail.privacy.deletion.PERSON_TABLES` so retention (CB-01) and erasure (CB-08) reach them.
   Operator commands: docs/guides/operator.md "Privacy operations".
+- A table with a shorter cap than 24 months sets `PersonTable.retention_days` and
+  `retention_class` (e.g. `repo_event_actor`: 30 days, `person_level_30d`, CB-22).
+- **GitHub (M1-T24, ADR-032).** `pigtail.connectors.github` has two connectors on one HTTP
+  layer (`GitHubAPI`): `github` (project-level: GraphQL counts, Search, star history) and
+  `github_events` (person-level per-repo events; off, ADR-022 hold). The layer adds the token
+  (`GITHUB_TOKEN`, `MissingToken` without it), per-resource token buckets, primary/secondary
+  rate-limit handling, conditional requests (`fetch_conditional`, ETag cache `github_http_cache`)
+  and budget hard stops (`pigtail.connectors.github_budget`: hourly caps from a shared ledger, job
+  caps, server reserve). `Connector.requires_env` makes scheduler jobs skip with
+  `missing_env:<VAR>`. Capture code: `capture/github_watch.py` (watch list, selection policy,
+  GraphQL batches), `capture/github_screens.py` (Search slicing under the 1,000-result cap, HN /
+  Show HN, GH Archive), `capture/star_history.py` (endpoint day labels, never converted to UTC),
+  `capture/detection_v1.py` (candidates from hourly counts, star-history baseline with the
+  velocity-v0 statistics on days, agreement with v0), `capture/repo_events.py` (events polling,
+  aggregate-only bot filter), CLI in `capture/github_cli.py`. Tests run against
+  `tests/github_fake.py` (httpx `MockTransport`): no network and no real token in tests.
+  `repo_event_actor` may only be read in aggregate (`tests/unit/test_github_privacy_m1t24.py`
+  enforces this); never add a function, command or API path that lists a repo's stargazers.
 - Tests marked `db` / `s3` use the compose services and skip if they are unreachable
   (`PIGTAIL_REQUIRE_DB=1` makes them fail instead; CI sets it).
 

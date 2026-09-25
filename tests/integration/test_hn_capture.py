@@ -89,7 +89,8 @@ def test_m1_t14_m1_t4_migrations_create_tables(capture_db):
         "upstream_items",
         "evidence_upstream_items",
     } <= names
-    assert {t.table for t in PERSON_TABLES} == {"hn_mention", "upstream_items"}
+    # repo_event_actor: GitHub per-repo events (M1-T24, TM-33), 30-day cap (CB-22)
+    assert {t.table for t in PERSON_TABLES} == {"hn_mention", "upstream_items", "repo_event_actor"}
     with pytest.raises(psycopg.errors.CheckViolation):  # pseudonyms only, never handles
         capture_db.conn.execute(
             "INSERT INTO upstream_items (platform, item_id, author_pseudonym, first_seen_at,"
