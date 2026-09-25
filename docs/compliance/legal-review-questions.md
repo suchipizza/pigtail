@@ -206,9 +206,9 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 ### LQ-25 · Raw GH Archive dumps: proportionality of keeping them for replay · Priority B
 - **Context:**
   - Whole hourly dumps are stored raw. They contain logins, avatar URLs and issue and comment bodies, and older dumps may contain commit author e-mail addresses. The analysis uses six fields.
-  - The proposed fix (CB-04) is to keep the hash, drop the bytes after ≤ 30 days, and have replay re-download and verify.
-- **Question:** is the 30-day raw window plus hash-based replay proportionate? Or must the raw dumps be dropped immediately after parsing?
-- **Default meanwhile:** CB-04 must be implemented before the capture runs on the production host. Until then the capture runs only locally for testing.
+  - CB-04 is partly implemented (`src/pigtail/capture/retention.py`): the hash and URL are kept, the bytes are purged after ≤ 30 days, and replay re-downloads and verifies the hash. Still open: dropping the bytes immediately after parsing, and a fallback when the upstream copy disappears.
+- **Question:** is the 30-day raw window plus hash-based replay proportionate? Or must the raw dumps be dropped immediately after parsing? And is it acceptable that replay becomes impossible if the upstream copy disappears?
+- **Default meanwhile:** the open parts of CB-04 are completed before capture runs on the production host. Until then the capture runs only locally for testing.
 - **Blocks:** production capture on the host (M1 acceptance).
 
 ### LQ-26 · Keeping "hash + coded facts" after an upstream deletion · Priority B
@@ -326,3 +326,4 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 ## Changelog
 - 2026-09-25: v0.1 created (M3-T2).
 - 2026-09-25 — fixes after verifier M3 round 1: LQ-6 (and the LQ-10 and LQ-12 defaults) now refer to ADR-022 and its full list of pre-conditions for person-level sources.
+- 2026-09-25 — fixes after verifier M3 round 3: CB-11 marked implemented (codebook v0.1.0 §12); LQ-25 updated for CB-04 partly implemented.

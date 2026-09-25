@@ -176,7 +176,7 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | | The key is backed up separately from data backups. | O (H1) |
 | | Key rotation and escrow procedure; the key is never placed in DB dumps. | P CB-09 |
 | | No handles in public outputs; quoted spans never published. | I (policy, PRD §4) / P (output guard CB-14) |
-| R2 | No decisions about individuals. Outcome classes are for projects. Reach is stored in bands. The codebook forbids scoring individuals. | I (design) / P CB-10, CB-11 |
+| R2 | No decisions about individuals. Outcome classes are for projects. Reach is stored in bands. The codebook forbids scoring individuals. | I (design); I CB-11 (codebook v0.1.0 §12, `schemas/codebook/v0.1.0.json` `privacy_rules_cb_11`); P CB-10 |
 | | Matched losers are not named publicly without consent. | P CB-20 |
 | R3 | Graphs only for Tier 2 and Tier 3. Nodes pseudonymised. Private UI only. No public identifying graphs (PRD §4). | P (not built) |
 | | Hold A4 until LQ-8 is answered or CB-14 is in place. | P |
@@ -202,7 +202,7 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | | Strong credentials in production (defaults only for local dev). | O |
 | | Access control and an audit log on the private UI. | P CB-19 |
 | | Breach runbook: GDPR Art. 33 ("not later than 72 hours" where feasible); FADP Art. 24 ("as quickly as possible"). | P CB-16 |
-| R9 | No Art. 9 attributes in the codebook. Closed schemas. Prompts instruct the model to ignore personal characteristics. | I (schemas) / P CB-11 |
+| R9 | No Art. 9 attributes in the codebook. Closed schemas. Prompts instruct the model to ignore personal characteristics. | I (schemas); I CB-11 (codebook v0.1.0 §12) |
 | R10 | Public notice with a contact route. | P CB-12 |
 | | Access, objection and erasure tooling. | P CB-08 |
 | | Honour explicit refusals (FADP Art. 30(2)(b)). | P CB-13 |
@@ -268,7 +268,7 @@ These are for the orchestrator to add to `ops/BACKLOG.md`. "Blocks" says which p
 | CB-08 | Data-subject tooling: `pigtail privacy lookup|export|suppress|erase <platform> <handle>`. Suppression list checked at ingest. Request log without handles. | Any person-level source beyond GH Archive; publication of the notice | engineer |
 | CB-09 | Pseudonym-key management runbook: generation, separate backup, rotation (re-pseudonymisation job), never in DB dumps | Production host | engineer + operator |
 | CB-10 | Reach bands for person accounts instead of exact counts | Spread graphs / R5.5 | engineer |
-| CB-11 | Codebook privacy rules: no Art. 9 or FADP Art. 5(c) attributes, no individual scoring, no cross-platform identity resolution, the public-figure rule | Codebook v0 (M4) | analyst |
+| CB-11 | Codebook privacy rules: no Art. 9 or FADP Art. 5(c) attributes, no individual scoring, no cross-platform identity resolution, the public-figure rule | Codebook v0 (M4) | analyst — **Done 2026-09-25** (codebook v0.1.0 §12) |
 | CB-12 | Publish the privacy notice (operator site plus a link from the README and the UI), fill in the placeholders, publish the DPIA summary | Any person-level source beyond GH Archive; production host | operator |
 | CB-13 | Honour explicit refusals (a Bluesky user-intents opt-out once adopted; objections received) | Any person-level source beyond GH Archive (ADR-022); Bluesky connector (re-check TM-06) | engineer |
 | CB-14 | Output guard: no private individuals named in planner, growth-engine or trend outputs; a public-figure allowlist; a minimum cell size (e.g. k ≥ 10) for public aggregates | Spread graphs (A4), D2 public mode, D3/D4 | engineer |
@@ -285,3 +285,4 @@ These are for the orchestrator to add to `ops/BACKLOG.md`. "Blocks" says which p
 - 2026-09-25 — fixes after verifier M3 round 1: uncommitted M1 controls relabelled "I (M1, pending merge)" (§6 R1, R4, R5); CB-07 marked implemented (§2.3 D9, §2.5, §6 R6 and R11, §9); §7 and the §9 "Blocks" column aligned with ADR-022 and with capture running in local development only.
 - 2026-09-25 — M1 capture core merged at `ec79762`; "I (M1, pending merge)" labels changed to "I".
 - 2026-09-25 — fixes after verifier M3 round 2: CB-04 marked partly implemented (30-day purge + verified re-fetch; drop-after-parse and minimal-parse fallback still planned); stale 'pending merge' conditions removed.
+- 2026-09-25 — fixes after verifier M3 round 3: CB-11 marked implemented (codebook v0.1.0 §12); LQ-25 updated for CB-04 partly implemented.

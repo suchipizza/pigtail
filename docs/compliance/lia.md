@@ -96,7 +96,7 @@ The question is whether each category of personal data is necessary for the inte
 ### 4.1 Nature of the data
 - The data is public activity and posts about software. It is mostly professional or hobby activity.
 - **No special categories are sought.** Free text can still incidentally reveal political views, health, religion or trade-union membership (for example a post that mentions a boycott, or a bio). Art. 9(2)(e) ("manifestly made public") is not a safe assumption for every post (LQ-9). Safeguards:
-  - the codebook forbids coding any Art. 9 or FADP Art. 5(c) attribute (**planned**, CB-11);
+  - the codebook forbids coding any Art. 9 or FADP Art. 5(c) attribute (**implemented**, CB-11: codebook v0.1.0 §12);
   - LLM output schemas are closed (`additionalProperties: false`, `src/pigtail/llm/types.py`), so the model can only return codebook fields (**implemented**).
 - **Children:** GitHub and Bluesky users may be under 18, and pigtail cannot tell. Art. 6(1)(f) gives children extra weight. Mitigation: no individual-level evaluation or outputs, pseudonymisation, and public outputs aggregated.
 
@@ -205,3 +205,4 @@ This LIA supports Art. 6(1)(f) GDPR and Art. 31(1) FADP **only while all of the 
 - 2026-09-25 — fixes after verifier M3 round 1: uncommitted M1 controls relabelled "I (M1, pending merge)" (§3, §4.4 S1/S3/S5/S6/S12); §4.5 A1 is local development only (ADR-022); person-level-source pre-conditions aligned with ADR-022 (§4.5, §6, §7); S9 corrected (LLM-path redaction uses one `generic` namespace).
 - 2026-09-25 — M1 capture core merged at `ec79762`; "I (M1, pending merge)" labels changed to "I".
 - 2026-09-25 — fixes after verifier M3 round 2: CB-04 marked partly implemented (30-day purge + verified re-fetch; drop-after-parse and minimal-parse fallback still planned); stale 'pending merge' conditions removed.
+- 2026-09-25 — fixes after verifier M3 round 3: CB-11 marked implemented (codebook v0.1.0 §12); LQ-25 updated for CB-04 partly implemented.

@@ -44,7 +44,7 @@ Before enabling Bluesky, HN or V2EX:
 Feature-specific:
 - [ ] [CB-05] Time limit on the LLM cache, linked to evidence (before Tier 2 extraction)
 - [ ] [CB-10] Account reach stored in bands
-- [ ] [CB-11] Codebook privacy rules (M4)
+- [x] [CB-11] Codebook privacy rules (codebook v0.1.0 §12)
 - [ ] [CB-14] Guard against naming people in outputs (before spread graphs, public mode, D3, D4)
 - [ ] [CB-15] Record of processing activities
 - [ ] [CB-19] UI login + audit log
@@ -64,7 +64,7 @@ Feature-specific:
 - [x] [M4-T0] α threshold decided: gate 0.70 (PRD), 0.80 for `high` confidence (ADR-025)
 - [x] [M4-T1] Codebook v0.1.0 + schemas/codebook/v0.1.0.json (ADR-024/025) (2026-09-25)
 - [x] [M4-T1b] 13 seed candidate mechanism cards (docs/methodology/mechanisms/candidates.md) — was: Seed candidate mechanism cards from practitioner sources (lit. [63][64][65]) so the pilot can code C11a/C11b — M4-T1
-- [ ] [M4-T1c] Align `reliability` description in schemas/v0/evidence.schema.json with codebook §2.3 anchors — after M1 merge
+- [ ] [M4-T1c] Align `reliability` description in schemas/v0/evidence.schema.json with codebook §2.3 anchors — M1 merged; ready
 - [ ] [M5-T0] Citation validator must apply the same deterministic redaction to the snapshot before matching quoted spans (R7.1) — codebook open issue 2
 - [x] [M4-T2] Pilot + forecasting-test pre-registrations committed (ADR-029) — was: Pre-register pilot analyses in docs/preregistration/ (incl. minimum units per core field so thin fields count as unassessed, codebook open issue 3; §9.1 forecasting target M4-T0b) — WO §6 — M4-T1
 - [ ] [M4-T2b] Pre-register threshold calibration (ADR-019) before any class base rate is computed
