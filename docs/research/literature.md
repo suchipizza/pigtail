@@ -42,7 +42,7 @@ How citations work here: `[n]` points to the numbered entry in §8 ("Citation li
 ### 1.3 How developers promote projects (Borges & Valente, IEEE Computer 2019)
 - **Channels:** In 100 popular repos, Twitter, user meetings and blogs are the most common promotion channels [7].
 - **Hacker News data:** The authors found 3,019 HN posts that referenced 96 of the projects. Upvote quartiles were 2, 3 and 12. They define "successful" posts as the top 10%, meaning at least 132 upvotes [8].
-- **Before vs after a successful post:** Median stars were 74 in the 3 days before and 138 in the 3 days after, and the two distributions differ statistically [8].
+- **Before vs after a successful post:** Median stars were 74 in the 3 days before and 138 in the 3 days after. The distributions differ under a one-tailed Mann-Whitney U test (p ≤ 0.05), with a medium effect size (Cliff's d = −0.372) [8].
 - **Validity limits:**
   - This is a naive pre/post comparison with no control group.
   - It covers only very popular projects.
@@ -57,7 +57,7 @@ How citations work here: `[n]` points to the numbered entry in §8 ("Citation li
 - **Validity limits:**
   - Matching only on observables.
   - Tweets are selected on project quality and momentum.
-- **Reproducibility:** The NSF PAR open-access copy exists [10]. I did not check for a replication package (**unverified**).
+- **Reproducibility:** The NSF PAR open-access copy exists [10]. A replication package exists: slide 20 of the authors' slides says "Replication package!" [11], and the artifact repository `CMUSTRUDEL/oss-twitter-promotion-icse2022` (MIT) "accompanies our ICSE 2022 paper". It holds the CSV data behind Table 2, Table 3 and appendix Figure 2 [81].
 - **pigtail use:** This is the closest published template for R8.2 and R8.3 (matched control + pre/post difference). It is also evidence that attention and contributor outcomes should be scored separately (PRD §5.3).
 
 ### 1.5 Novelty and popularity (Fang, Herbsleb & Vasilescu, ICSE 2024)
@@ -69,7 +69,7 @@ How citations work here: `[n]` points to the numbered entry in §8 ("Citation li
 - **Not verified:** I did not verify how it collects data (sampling, caps on large repos). pigtail should not rely on it as a data source.
 - **pigtail approach:** Build star series from GH Archive `WatchEvent`s. GitHub's docs describe a WatchEvent as "a user stars a repository" [15].
   - GH Archive has archived the public timeline since 2011-02-12, in hourly files and as a BigQuery dataset [16].
-  - Whether GH Archive records **un**-stars is **unverified**. Treat the series as gross stars.
+  - GH Archive does **not** record un-stars. GitHub's docs say the `WatchEvent` action "Can only be `started`" [15], and GH Archive mirrors the Events API. So "net stars" cannot be computed from GH Archive alone; treat the series as gross stars and take net counts from the stargazers API.
 
 ---
 
@@ -112,7 +112,7 @@ How citations work here: `[n]` points to the numbered entry in §8 ("Citation li
 
 **Data needed.**
 - The full GH Archive event stream.
-- Size: the paper cites about 20 TB of GitHub metadata [17][19]. The README estimates ≥ 20 TB processed for low-activity and ≥ 40 TB for lockstep on BigQuery (about $6.25/TB) [23].
+- Size: the paper says StarScout scanned "more than 20 TB of data from GHArchive" (§3.3 Implementation) [20]. The README estimates ≥ 20 TB processed for low-activity and ≥ 40 TB for lockstep on BigQuery (about $6.25/TB) [23].
 - A **local DuckDB/Parquet mode** exists [24]:
   - "quick" (1 week, ~11 GB), "month" (~45 GB) and "year" (~300 GB) presets; "research" replicates the paper (~700 GB).
   - Needs 16+ GB RAM and 200–500 GB of temporary space for large runs.
@@ -133,7 +133,12 @@ How citations work here: `[n]` points to the numbered entry in §8 ("Citation li
 - **Check Point "Stargazers Ghost Network" (2024) [practitioner/security research]:**
   - More than 3,000 ghost accounts and more than 2,200 malicious repos were observed [22].
   - It is used as StarScout's recall ground truth.
-- **Successor methods:** I found no peer-reviewed successor to StarScout as of 2026-09-25. Searches only returned re-uses, press coverage and gists. A 2026 arXiv study of multi-agent frameworks avoids stars rather than filtering them, calling star counts a reflection of "hype cycles and inorganic activity" [28]. **StarScout is the current reference method.**
+- **Successor methods:** I found no peer-reviewed successor to StarScout as of 2026-09-25. Searches only returned re-uses, press coverage and gists. The searches re-run on 2026-09-25 were:
+  - `fake GitHub stars detection 2025 2026 paper`
+  - `StarScout fake stars follow-up study ICSE FSE MSR 2026`
+  - `"fake stars" GitHub detection arXiv 2026`
+  - `GitHub star inflation lockstep detection peer-reviewed "six million" fake stars cited by`
+  - They returned the StarScout paper itself (arXiv, ACM, CMU copies), its code and forks, a CMU news item, gists, blog posts and press, and [28]. There was no new peer-reviewed detection method. A general web search is not a citation index, so this negative finding is limited. A Google Scholar "cited by" check was not done. A 2026 arXiv study of multi-agent frameworks avoids stars rather than filtering them, calling star counts a reflection of "hype cycles and inorganic activity" [28]. **StarScout is the current reference method.**
 
 ### 2.3 Recommendation for PRD R3.3: reproduce StarScout
 Adopt **StarScout's two signatures plus its campaign post-processing, using the authors' public local DuckDB pipeline on GH Archive** [23][24]. Pin the commit and all parameters (n=50, m=10, Δt=30 d, ρ=0.5, and the 50 / 50% / 10% campaign thresholds) in a versioned config, and store both the raw and the filtered star series (R3.3).
@@ -303,9 +308,10 @@ None of these sources has a control group. pigtail should treat them only as **c
 
 ### 6.2 LLMs as coders
 - **Gilardi, Alizadeh & Kubli (PNAS 2023):**
-  - On 6,183 tweets and news articles, zero-shot ChatGPT beat crowd workers by about 25 percentage points on average across four datasets.
-  - Its intercoder agreement was higher than that of crowd workers and trained annotators.
-  - Cost was < $0.003 per annotation [72][73].
+  - The PNAS version [72] uses four samples of tweets and news articles (n = 6,183). Zero-shot ChatGPT beat crowd workers by about 25 percentage points on average across the four datasets. The same figures are in the PubMed abstract (PMID 37463210) [82].
+  - Its intercoder agreement was higher than that of crowd workers and trained annotators [72].
+  - Cost was < $0.003 per annotation [72].
+  - The arXiv preprint [73] reports an earlier sample of 2,382 tweets, and says ChatGPT beat crowd workers on four of five tasks. Cite [72] for the published figures.
 - **Reiss (arXiv 2023):** ChatGPT's classification consistency across repeats, temperature and prompt variants can fall short of reliability thresholds [74].
 - **Pangakis, Wolken & Fasching (arXiv 2023):** Across 27 tasks and 11 datasets with GPT-4, performance varies by task. Any LLM annotation must be validated against human labels [75].
 - **Ziems et al. (Computational Linguistics 2024):** A roadmap for LLMs as computational-social-science tools [76].
@@ -366,9 +372,9 @@ Each hypothesis is pre-registrable (R11.1) and states what would falsify it.
 - **H-L10 (R4.3, §9.2):** Matching on the PRD covariates alone leaves SMD ≥ 0.25 on founder audience size for a non-trivial share of pairs. Adding Stoddard-style post-quality estimates [42] and pre-launch velocity improves balance. *Falsified if* the balance gate passes with the base covariates at the target yield.
 
 ### 7.3 Open issues
-1. No peer-reviewed causal estimate of HN front-page position on GitHub stars was found. pigtail's R8.1 design would be new. It needs HN rank polling (PRD §8.1 "own rank polling"), which must be in place early because rank history can't be backfilled from Algolia (the Algolia API itself is to be confirmed in the source matrix).
+1. No peer-reviewed causal estimate of HN front-page position on GitHub stars was found. pigtail's R8.1 design would be new. It needs HN rank polling (PRD §8.1 "own rank polling"), which must be in place early. Rank history probably cannot be backfilled: the Algolia API's search hits carry `points`, `num_comments`, `created_at` and a `front_page` tag, but no rank or position field (observed on 2026-09-25; see source matrix §2.3), and the official Firebase API serves only the current `topstories` list [83]. This is our inference from those fields, not a documented statement.
 2. StarScout has no direct precision estimate [20]. pigtail's audit (§2.3 step 4) is the only precision evidence, and it needs private storage of account-level samples. This depends on the compliance pack (M3).
-3. Whether GH Archive records un-star events is unverified. It affects "net stars" in R1.1 ("≥ 100 net stars") and should be resolved in the source-matrix task.
+3. Resolved: GH Archive does not record un-star events, because a `WatchEvent` action "Can only be `started`" [15]. "Net stars" in R1.1 ("≥ 100 net stars") cannot be computed from GH Archive. Net counts need the stargazers API (source matrix §2.1–§2.2).
 4. The PRD α ≥ 0.70 threshold is below Krippendorff's conventional 0.80 [71] (secondary-source verification). Recommend an ADR.
 5. The Fang et al. 2022 exact identification details are summarized from the authors' slides and CMU news [11][12]. The ACM full text returned HTTP 403, so a verifier with access should confirm them.
 6. The Twitter/X data used in [9] may no longer be affordable. This affects replicating H-L5 on X and is deferred to the source matrix.
@@ -457,6 +463,9 @@ Each hypothesis is pre-registrable (R11.1) and states what would falsify it.
 78. Barrie, Palaiologou & Törnberg, "Prompt Stability Scoring for Text Annotation with Large Language Models", arXiv 2024 — https://arxiv.org/abs/2407.02039
 79. Baumann et al., "Large Language Model Hacking: Quantifying the Hidden Risks of Using LLMs for Text Annotation", arXiv 2025 — https://arxiv.org/abs/2509.08825
 80. Zheng et al., "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena", NeurIPS 2023 — https://arxiv.org/abs/2306.05685
+81. Fang et al. 2022 replication artifact, `CMUSTRUDEL/oss-twitter-promotion-icse2022` (MIT) — https://github.com/CMUSTRUDEL/oss-twitter-promotion-icse2022
+82. Gilardi, Alizadeh & Kubli 2023, PubMed record PMID 37463210 (abstract read through the Europe PMC API, because PubMed served a CAPTCHA) — https://pubmed.ncbi.nlm.nih.gov/37463210/
+83. Hacker News official API (Firebase) README — https://github.com/HackerNews/API
 
 ## 9. Citation list for verifier spot-check
 Suggested 10 for the M2 acceptance spot-check. They cover the load-bearing claims; the full list is in §8.
@@ -467,9 +476,15 @@ Suggested 10 for the M2 acceptance spot-check. They cover the load-bearing claim
 | [17] | Title change v1 → v2; ICSE'26; 2019–2024 window | https://arxiv.org/abs/2412.13459 |
 | [24] | Local DuckDB mode; disk and RAM requirements | https://github.com/hehao98/StarScout/blob/main/scripts/local/README.md |
 | [25] | Zenodo package, CC BY 4.0, 5.6 GB MongoDB dump | https://zenodo.org/doi/10.5281/zenodo.17009693 |
-| [8] | HN successful post ≥ 132 upvotes; median 74 → 138 stars | https://arxiv.org/pdf/1908.04219 |
+| [8] | HN successful post ≥ 132 upvotes; median 74 → 138 stars; Mann-Whitney p ≤ 0.05, Cliff's d = −0.372 | https://arxiv.org/pdf/1908.04219 |
 | [3] | Four growth patterns 58.2 / 30.0 / 9.3 / 2.3% | https://ar5iv.labs.arxiv.org/html/1811.07643 |
 | [40] | 138 launches; +121 / +189 / +289 stars; Show HN n.s. | https://arxiv.org/abs/2511.04453 |
 | [45] | SMD < 0.25 and variance ratio 0.5–2 (Rubin 2001); no hypothesis tests for balance | https://arxiv.org/pdf/1010.5586 |
 | [79] | ~31% incorrect conclusions for SOTA LLMs; 37 tasks / 21 studies / 18 models | https://arxiv.org/abs/2509.08825 |
 | [11] | Fang 2022 design (matched control, pre/post) and +7% stars / +2% contributors | https://cmustrudel.github.io/slides/fang2022twitter.pdf |
+
+---
+
+## Changelog
+
+- 2026-09-25 — corrections after verifier spot-check M2-T4. §1.3: Mann-Whitney and Cliff's d added from [8]. §1.4: Fang et al. replication package confirmed ([11] slide 20, [81]). §1.6 and §7.3 item 3: the un-star question is resolved from [15]. §2.1: "~20 TB" now cited to [20]. §2.2: the StarScout successor search queries are recorded. §6.2: Gilardi figures attributed to [72], with PubMed [82] and the 2,382-tweet note for [73]. §7.3 item 1: the rank-backfill claim is labelled as inference and sourced. Citations [81]–[83] added.

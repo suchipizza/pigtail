@@ -1,4 +1,4 @@
-# Per-source terms memos (TM-01 … TM-25)
+# Per-source terms memos (TM-01 … TM-31)
 
 **Prepared by:** the compliance agent. It is not a lawyer. These memos prepare material for legal review at gate H2, and until that review happens pigtail enforces conservative defaults.
 
@@ -25,7 +25,10 @@
 - From https://github.com/igrigorik/gharchive.org:
   > "Note this repository does _not_ contain the GH Archive dataset (event archives/data)."
   > "The dataset includes material that may be subject to third party rights."
-  - The dataset itself has no stated licence (issue #137, https://github.com/igrigorik/gharchive.org/issues/137).
+  - The dataset itself has no stated licence. Issue #137 (2016) asked for the licence. The maintainer (igrigorik) answered on 2016-04-04 with an "Official answer from GitHub" and closed the issue (https://github.com/igrigorik/gharchive.org/issues/137):
+    > "The API is free to use, but you need to follow our Terms of Service."
+    - The answer also says repository content "may be subject to the terms of the repo's project", and points to GitHub's privacy policy for republishing personal information.
+    - It states no dataset licence.
 - From GitHub Acceptable Use Policies §7 (https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies):
   > "Researchers may use public, non-personal information from the Service for research purposes, only if any publications resulting from that research are open access."
   > "Your use of information from the Service must comply with the GitHub Privacy Statement."
@@ -35,7 +38,7 @@
 - Never sell or export personal information.
 - Public outputs are aggregate only and open access.
 - Enforce a BigQuery byte cap.
-- Cross-check star counts against the GitHub API, because the data-quality issue is open (https://github.com/igrigorik/gharchive.org/issues/320).
+- Cross-check star counts against the GitHub API, because the data-quality issues are open (https://github.com/igrigorik/gharchive.org/issues/310, https://github.com/igrigorik/gharchive.org/issues/320). The loss is likely systematic (the crawler reads only page 1 of the Events API; unmerged fix PR #317), so no single correction factor applies. Treat 2025-10-09 to about 2025-10-14 as near-empty (https://github.com/igrigorik/gharchive.org/issues/312).
 
 **Risk:** the data has no explicit licence, and the AUP research allowance covers only *non-personal* information (Q1, Q3).
 
@@ -142,10 +145,11 @@ AUP §7 applies as in TM-01.
 
 **Clauses relied on:** https://docs.pypi.org/api/bigquery/
 > "The tables and its pertaining data are licensed under the Creative Commons License."
-> "the rows in this BigQuery table are immutable and are not removed even if a release or project is deleted."
+- The "Creative Commons License" link points to https://creativecommons.org/licenses/by/4.0/, so the licence is **CC BY 4.0**.
+- The page also says "the rows in this BigQuery table are immutable and are not removed even if a release or project is deleted". That sentence describes the `distribution_metadata` table, not `file_downloads`, which pigtail uses. No deletion statement was found for `file_downloads`.
 
 **Conditions**
-- Credit PyPI/PSF. The exact Creative Commons variant is **unverified** (Q6).
+- Attribute under CC BY 4.0: "PyPI / Linehaul (PSF), CC BY 4.0", with a link to the licence.
 - Query by partition only, under a byte cap.
 - Do not bulk-query pypistats.org (https://pypistats.org/api/).
 
@@ -171,8 +175,10 @@ AUP §7 applies as in TM-01.
 - From https://crates.io/policies, which prohibits:
   > "using our servers for any form of excessive automated bulk activity, to place undue burden on our servers"
 
+- The same page lists access methods to "try … in the order below": the crate index, crate content, RSS feeds, database dumps, and then the API.
+
 **Conditions**
-- Prefer the database dumps and archive CSVs over the API.
+- Follow that order. Use the index, crate content, RSS and dumps or archive CSVs before the API.
 - Keep API use to 1 request per second or less, with a contact in the User-Agent.
 - Drop the `users` table from dumps.
 - No licence for the dump data was found (Q6).
@@ -228,7 +234,7 @@ AUP §7 applies as in TM-01.
 **Decision: CLEARED-WITH-CONDITIONS; off by default for commercial operators until Q5 is answered**
 
 **Clauses relied on**
-- Terms of Use dated 2014-12-31. We verified them through a 2021 archived copy (https://ia801705.us.archive.org/26/items/05132021/Internet%20Archive%20Terms%20of%20Use.mhtml). The live page at https://archive.org/about/terms.php could not be rendered, so whether this is still the current text is unverified.
+- Terms of Use dated "31 Dec 2014". We verified them through the copy saved in archive.org item `05132021` (https://archive.org/download/05132021/Internet%20Archive%20Terms%20of%20Use.mhtml, re-read 2026-09-25). The live page at https://archive.org/about/terms.php could not be rendered, so whether this is still the current text is unverified.
   > "Access to the Archive's Collections is provided at no cost to you and is granted for scholarship and research purposes only."
   > "not to collect or store personal data about anyone"
 - Save Page Now 2 API document, 2026-07-22 (https://docs.google.com/document/d/1Nsv52MvSjbLb2PCpHlat0gkzw0EvtSgpKHu4mk0MnrA): authenticated users get 7 captures per minute and 30,000 per day.
@@ -262,7 +268,10 @@ AUP §7 applies as in TM-01.
     > "beyond the scope of hobbyist projects, commercial prototyping, initial development … you must apply (or already subscribe to) an Enterprise plan"
   - §IV.B:
     > "delete or modify that X Content … within twenty four (24) hours after a written request"
-  > "use the X API or X Content to fine-tune or train a foundation or frontier model"
+  - §III.A.k:
+    > "use the X API or X Content to fine-tune or train a foundation or frontier model"
+  - §XIV.B:
+    > "conducting or providing surveillance or gathering intelligence, including but not limited to investigating or tracking X users"
 - Developer Policy (https://docs.x.com/developer-terms/policy):
   > "If you store X Content offline, you must keep it up to date with the current state of that content on X."
 - Pricing (https://docs.x.com/x-api/getting-started/pricing): pay-per-use at $0.005 per post read, capped at 3 million reads a month. Enterprise pricing is not published.
@@ -398,7 +407,114 @@ AUP §7 applies as in TM-01.
 - Y Combinator Terms of Use (https://www.ycombinator.com/legal):
   > "you agree not to modify, copy, frame, scrape, rent, lease, loan, sell, distribute or create derivative works based on the Site"
 - https://www.ycombinator.com/robots.txt: `Disallow: /companies?*`
-- There is no official API. The unofficial `yc-oss/api` is not an authorised source.
+- There is no official API. The unofficial `yc-oss/api` says it "uses the Algolia search index to fetch the companies in a GitHub Actions workflow that runs every day" (https://github.com/yc-oss/api). That this is YC's own site-search index is our inference. YC has not authorised it, so it is not an authorised source.
+
+### TM-26: GitHub dependency graph (dependencies and dependents)
+
+**Decision: dependencies through the APIs are CLEARED-WITH-CONDITIONS; the dependents page is a GAP**
+
+**Clauses and facts relied on**
+- The REST dependency-graph section covers dependency review, dependency submission and SBOM export (https://docs.github.com/en/rest/dependency-graph). No REST or GraphQL endpoint lists dependents. The GraphQL `Repository.dependencyGraphManifests` field lists *dependencies* only (schema introspected on 2026-09-25).
+- The SBOM export endpoint "is closing down and will not be accessible after November 13, 2026" (https://docs.github.com/en/rest/dependency-graph/sboms).
+- Dependents docs (https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/exploring-the-dependencies-of-a-repository):
+  > "The dependent counts are approximate and may not always match the dependents listed."
+- https://github.com/robots.txt, `User-agent: *`: `Disallow: /*/*/network`. This covers `/network/dependents`.
+- AUP §7 (https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies):
+  > "Scraping refers to extracting information from our Service via an automated process, such as a bot or webcrawler."
+- API use falls under ToS §H, as in TM-02.
+
+**Conditions (dependencies)**
+- The same as TM-02.
+- Migrate to the SBOM `generate-report` and `fetch-report` endpoints before 2026-11-13.
+
+**Why dependents are a gap:** there is no API, robots.txt disallows the path, and the AUP research allowance does not clearly extend to commercial operators. Use deps.dev dependents (TM-12) instead.
+
+### TM-27: Discord invite API (member counts)
+
+**Decision: CLEARED-WITH-CONDITIONS; disabled by default for commercial operators until Q12 is answered**
+
+**Clauses relied on**
+- Endpoint docs (https://docs.discord.com/developers/resources/invite):
+  - `with_counts`: "whether the invite should contain approximate member counts"
+  - `approximate_member_count`: "approximate count of total members, returned from the `GET /invites/<code>`"
+- Discord Developer Terms of Service, effective 2024-07-08 (https://support-dev.discord.com/hc/en-us/articles/8562894815383-Discord-Developer-Terms-of-Service):
+  - §13:
+    > "“API Data” means any data, information, or other content you obtain through the APIs (including personal data)."
+  - §5.b: API Data must be deleted promptly when, among other cases,
+    > "we request you delete it; (d) the applicable user requests you delete it"
+- Discord Developer Policy, effective 2024-07-08 (https://support-dev.discord.com/hc/en-us/articles/8563934450327-Discord-Developer-Policy):
+  - Item 15:
+    > "Do not use API Data for any purpose outside of what is necessary to provide your stated functionality."
+  - Item 18:
+    > "Do not sell, license, or otherwise commercialize API Data"
+  - Item 20:
+    > "Do not mine or scrape any data, content, or information available on or through Discord services"
+- Discord Terms of Service, last updated 2025-08-29 (https://discord.com/terms), ban:
+  > "scraping our services without our written consent, including by using any robot, spider, crawler, scraper, or other automatic device, process, or software"
+- Both developer pages return HTTP 403 to automated fetches. The text was read through the Help Center API (`/api/v2/help_center/en-us/articles/{id}.json`) on 2026-09-25.
+
+**Conditions**
+- Use only invite codes that the project itself publishes. Never enumerate codes.
+- Use the operator's own registered Discord application, with a stated functionality and a privacy policy.
+- Store only the server id, the approximate counts and the fetch time. Drop `inviter` and all user fields.
+- At most one request per invite per day.
+- Delete on a request from Discord, the server owner or the project, and delete everything if API access ends.
+- Never sell or license the counts. Public outputs are aggregate only.
+
+**Risk:** whether low-rate polling of a documented endpoint is "mining or scraping", and whether commercial analytics "commercialize[s]" API Data (Q12).
+
+### TM-28: Slack invite links
+
+**Decision: GAP (the metric is `unknown`)**
+
+**Facts relied on**
+- `team.info` needs a `team:read` token and returns no member count. Cross-workspace lookup "only works for domains in the same enterprise as the querying team token" (https://docs.slack.dev/reference/methods/team.info).
+- No public endpoint for invite-link member counts was found (web search, 2026-09-25).
+- Slack API Terms of Service, effective 2025-10-10 (https://slack.com/terms-of-service/api):
+  > "you may not sell, rent, lease, sublicense, redistribute, or syndicate access to any of our APIs"
+
+**Path forward:** the project's own workspace admin shares counts. These are `self_reported` unless the admin installs the operator's app for this purpose.
+
+### TM-29: Careers pages (project websites)
+
+**Decision: CLEARED-WITH-CONDITIONS, per site**
+
+**Basis**
+- There is no single platform. Each host's robots.txt (RFC 9309, https://www.rfc-editor.org/rfc/rfc9309) and site terms govern.
+- Wayback lookups and captures fall under TM-13.
+
+**Conditions**
+- Prefer Wayback, under TM-13 (off by default for commercial operators until Q5 is answered).
+- Fetch directly only if robots.txt allows the path and the site terms do not bar automated access. Record the check as `TM-29:<host>:<date>`.
+- At most one fetch per page per day.
+- Extract project-level facts only. Drop names and contacts of people.
+- If the site disallows automated access, record a gap for that case. An operator may still enter the facts manually as `self_reported`.
+
+### TM-30: HN "Who is hiring?" threads
+
+**Decision: CLEARED-WITH-CONDITIONS, pending Q4 (the same basis as TM-03 and TM-04)**
+
+**Basis**
+- The threads are ordinary HN items posted by the `whoishiring` account (https://hacker-news.firebaseio.com/v0/user/whoishiring.json, observed 2026-09-25).
+- They are retrieved through the Firebase and Algolia APIs only. The YC Terms of Use apply as in TM-03.
+
+**Conditions**
+- Use only "Who is hiring?" threads. Exclude "Who wants to be hired?" and "Freelancer?" threads, which hold job seekers' personal data.
+- Pseudonymise commenters, and strip emails and names from the text.
+- Store only the project, month and role counts.
+- Do not republish comment text.
+
+### TM-31: Press as a funding source
+
+**Decision: CLEARED-WITH-CONDITIONS (manual entry only)**
+
+**Basis:** there is no automated collection, so no platform API terms apply. Copyright limits copying, so pigtail stores only the citation (URL, date, a quote of no more than 25 words) and the extracted facts.
+
+**Conditions**
+- The operator enters every record.
+- Label the data `self_reported`. It becomes `verified` only when a licensed source confirms it (for example TM-24 under the operator's own licence).
+- Name investors as organisations only.
+- Evidence copies are Wayback captures under TM-13, not private copies of articles.
 
 ---
 
@@ -409,9 +525,16 @@ AUP §7 applies as in TM-01.
 - **Q3 (GitHub ToS D.9 "Access Reciprocity"):** Is LLM *inference* on GitHub content outside this clause, which covers developing or training commercially available AI models?
 - **Q4 (Hacker News):** Do YC's public API invitations (the HackerNews/API README and the Algolia API run with HN) count as "expressly authorized" under the YC Terms of Use? If so, commercial operators may use the API despite the ToU's bans on commercial reproduction and scraping. Is storing snapshots privately "reproduc[ing] … for commercial purposes"?
 - **Q5 (Internet Archive):** Can a commercial operator use CDX lookups and Save Page Now for project-level pages, given the ToU's "scholarship and research purposes only" wording? Does requesting a public capture differ legally from using the collections?
-- **Q6 (Open-data licences):** Which licence variant covers the PyPI BigQuery tables? Does deps.dev's CC-BY 4.0 grant override the Google APIs Terms clause against building databases? Are the crates.io dumps under any licence?
+- **Q6 (Open-data licences):** The PyPI BigQuery tables are CC BY 4.0 (link target on https://docs.pypi.org/api/bigquery/). Is that grant enough for commercial storage and analysis? Does deps.dev's CC-BY 4.0 grant override the Google APIs Terms clause against building databases? Are the crates.io dumps under any licence?
 - **Q7 (No stated terms):** For sources with no terms or data licence (Homebrew analytics, V2EX, Lobste.rs apart from robots.txt), is low-rate API access to aggregate or public data acceptable? What attribution should we give?
 - **Q8 (China PIPL):** Does pseudonymised processing in the EU or Switzerland of public posts by users in China (from V2EX, and any future Chinese source) trigger PIPL Art. 3(2)? If it does, it would also trigger the Art. 53 duty to appoint a representative in China. Is aggregate, project-mention-only use a safe harbour?
-- **Q9 (X):** If an operator had an X Enterprise agreement, would case forensics that link accounts in a spread graph (R5.3) breach X's rules on "tracking X users" and surveillance?
+- **Q9 (X):** If an operator had an X Enterprise agreement, would case forensics that link accounts in a spread graph (R5.3) breach X's rules on "tracking X users" and surveillance (Developer Agreement §XIV.B)?
 - **Q10 (dev.to):** Does publishing the Forem API imply a licence that overrides the site terms' "non-commercial transitory viewing only" wording for API data?
 - **Q11 (General):** For people whose public posts appear in private snapshots, is our 24-month retention for person-level data, together with pseudonymisation at ingest, adequate under GDPR and the Swiss FADP? Is it compatible with each CLEARED-WITH-CONDITIONS source? The LIA and DPIA will be drafted in M3.
+- **Q12 (Discord):** Under the Discord Developer Policy (items 18 and 20) and the Discord ToS, is a commercial operator allowed to poll the documented `GET /invites/{code}?with_counts=true` endpoint once a day for invite codes that projects publish themselves, and to store only the aggregate member counts for internal analysis? Does that count as "mining or scraping" or "commercializ[ing]" API Data?
+
+---
+
+## Changelog
+
+- 2026-09-25 — corrections after verifier spot-check M2-T4. TM-01: issue #137 answer by the maintainer; #310, #312 and PR #317 added. TM-07: CC BY 4.0, and the immutability quote reassigned to `distribution_metadata`. TM-09: access order. TM-13: citation URL. TM-15: section labels §III.A.k and §XIV.B. TM-25: yc-oss/api quote. New memos TM-26 to TM-31. Q6 and Q9 updated; Q12 added.
