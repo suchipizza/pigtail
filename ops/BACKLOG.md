@@ -86,7 +86,7 @@ Feature-specific:
 - [x] [CB-21] Controller duties (docs/compliance/controller-duties.md + operator guide link)
 
 ## Next
-- [ ] [M3-T12] Update key-rotation runbook for CB-25 commands (reset after building the old-key mapping; §0/§2/§3/§6 statements now outdated) and DPIA/README statuses for CB-25/29/32/33/34
+- [x] [M3-T12] done (runbook v0.2) — Update key-rotation runbook for CB-25 commands (reset after building the old-key mapping; §0/§2/§3/§6 statements now outdated) and DPIA/README statuses for CB-25/29/32/33/34
 - [x] [M3-T10] Outcome spec updated (μ_h, calibration pointer, H-sealed cells, HN minutes; ADR-041) — was: state μ_h = μ_d/24 in §2.1; point §5.4 and §9 to the calibration pre-registration; §3.3 note that after the freeze H-sealed is excluded from cell populations (ADR-039.5)
 - [ ] [M4-T5] Day-zone check after the 2026-11-01 DST change before unitizing bursts for the pilot
 - [x] [M4-T4] Split rule + guard + settle-lag collection (ADR-042) — was: Implement the holdout split rule (H-cal / H-eval / H-sealed) with the pre-registered test vectors; scheduled star-history re-fetches at 1/3/7/14/21 days for the settle_lag calibration
