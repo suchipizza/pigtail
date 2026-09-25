@@ -33,3 +33,6 @@ Add a row for every new file, including amendments and addenda.
 5. **No private data here.** This folder is public (CLAUDE.md, PRD §10). It holds designs, hashes and aggregate results only: no repo names of matched losers or personal-account repos, no case-level coded values, no quoted spans, no handles or pseudonyms. Private manifests stay in private storage and are referenced here only by their SHA-256.
 6. **Thresholds don't move after data.** A threshold set here (α, SMD, Brier margin, minimum n) is never lowered after the data it gates has been seen. Where the PRD sets the threshold (§9.2, §9.3), changing it needs owner approval as well as an ADR (WORK_ORDER §1).
 7. **Reports cite their pre-registration.** Every report that runs a pre-registered analysis (in `docs/reports/`) cites the file and its freezing commit hash. It also has a "Deviations" section, which may say "none".
+
+## Errata (naming only; no analysis change)
+- 2026-09-25 — `2026-09-25-forecasting-test-amendment-1.md` line 33 uses `bot_filter_confirmed`; the case schema field is `bot_filter.confirmed` (same meaning). Recorded here because the amendment is frozen.

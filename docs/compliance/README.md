@@ -11,7 +11,7 @@ Pack version: 0.1 · 2026-09-25 · Task M3-T2. All sources cited were accessed o
 | File | What it is | Main legal anchors |
 |---|---|---|
 | [lia.md](lia.md) | Legitimate-interest assessment: the purpose, necessity and balancing tests, the safeguards, the conditions, and the outcome for each processing activity (A1–A7) | GDPR Art. 6(1)(f); EDPB Guidelines 1/2024; FADP Art. 6, 30, 31 |
-| [dpia.md](dpia.md) | Light DPIA: whether a DPIA is required (yes), the data inventory D1–D14, risks R1–R15 rated by likelihood and severity, measures mapped to implemented or planned controls, residual risk, and **backlog CB-01…CB-23** | GDPR Art. 35–36; WP248 rev.01; FADP Art. 22–23 |
+| [dpia.md](dpia.md) | Light DPIA: whether a DPIA is required (yes), the data inventory D1–D14, risks R1–R15 rated by likelihood and severity, measures mapped to implemented or planned controls, residual risk, and **backlog CB-01…CB-24** | GDPR Art. 35–36; WP248 rev.01; FADP Art. 22–23 |
 | [retention-policy.md](retention-policy.md) | Retention classes (24 months for person-level data, 16 days by default (ceiling 30; ADR-038) for per-repo GitHub event actors, unlimited for project-level), a store-by-store schedule, pseudonym key management, deletion sync per source, data-subject requests, LLM retention per backend, backups and logs | GDPR Art. 5(1)(e), 17; FADP Art. 6(4); terms memos |
 | [privacy-notice.md](privacy-notice.md) | Public privacy notice template for data subjects, in plain language. The `[operator]` and contact fields must be filled in before publishing. | GDPR Art. 14, 21; FADP Art. 19, 20 |
 | [terms-memos.md](terms-memos.md) | Per-source platform terms memos TM-01…TM-33 and the clearance decisions (M2; TM-32 and TM-33 from the detection re-plan, ADR-032) | Platform terms, cited per memo |
@@ -70,3 +70,4 @@ Update the pack when a source is added, when a platform's or Anthropic's terms c
 - 2026-09-25 — detection re-plan (ADR-032): terms memos TM-32 (OpenDigger mirror, GAP pending LQ-28, off by default) and TM-33 (GitHub star-history endpoint and per-repo events, cleared with conditions); legal questions LQ-27, LQ-28 and LQ-29; index updated.
 - 2026-09-25 — CB-22/23 implemented (M1-T24, ADR-037): key conclusions add the GitHub detection v1 status (connector off by default, remaining holds CB-02 and CB-12); file index counts updated (D1–D14, R1–R15, CB-01…CB-23).
 - 2026-09-25 — ADR-038 wording (16-day default; CB-02 per source)
+- 2026-09-25 — backlog count CB-01…CB-24 (CB-24 added, ADR-038).

@@ -93,15 +93,19 @@ class Settings:
             llm_cache_retention_days=_days(e, "LLM_CACHE_RETENTION_DAYS", LLM_CACHE_MAX_DAYS),
             log_retention_days=_days(e, "LOG_RETENTION_DAYS", LOG_MAX_DAYS),
             github_events_retention_days=_days(
-                e, "GITHUB_EVENTS_RETENTION_DAYS", GITHUB_EVENTS_DEFAULT_DAYS
+                e,
+                "GITHUB_EVENTS_RETENTION_DAYS",
+                GITHUB_EVENTS_MAX_DAYS,
+                default=GITHUB_EVENTS_DEFAULT_DAYS,
             ),
         )
 
 
-def _days(e: dict[str, str], name: str, maximum: int) -> int:
-    """A retention period in days: default and ceiling `maximum` (the policy limit)."""
+def _days(e: dict[str, str], name: str, maximum: int, default: int | None = None) -> int:
+    """A retention period in days: ceiling `maximum` (the policy limit); default `default`,
+    or the ceiling when no separate default is given."""
     raw = (e.get(name) or "").strip()
-    days = int(raw) if raw else maximum
+    days = int(raw) if raw else (maximum if default is None else default)
     if not 0 <= days <= maximum:
         raise ValueError(f"{name} must be between 0 and {maximum} (retention policy), got {days}")
     return days

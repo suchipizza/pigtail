@@ -725,9 +725,10 @@ def test_m1_t24_cb22_retention_setting_capped_at_30_days():
     from pigtail.config import Settings
 
     assert Settings.from_env({}).github_events_retention_days == 16
-    assert (
-        Settings.from_env({"GITHUB_EVENTS_RETENTION_DAYS": "7"}).github_events_retention_days == 7
-    )
+    for ok in ("7", "17", "30"):  # ADR-038: default 16, ceiling 30
+        assert Settings.from_env(
+            {"GITHUB_EVENTS_RETENTION_DAYS": ok}
+        ).github_events_retention_days == int(ok)
     with pytest.raises(ValueError):
         Settings.from_env({"GITHUB_EVENTS_RETENTION_DAYS": "31"})
 

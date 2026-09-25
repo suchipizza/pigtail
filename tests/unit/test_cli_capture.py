@@ -52,6 +52,7 @@ def test_cb02_deletion_sync_requires_pseudonym_key(monkeypatch, capsys):
     from pigtail.cli import main
 
     monkeypatch.delenv("PSEUDONYM_KEY", raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://pigtail:pigtail@127.0.0.1:1/none")
     rc = main(["privacy", "deletion-sync", "--dry-run"])
     assert rc != 0
     assert "PSEUDONYM_KEY" in capsys.readouterr().err
