@@ -25,7 +25,7 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 
 ## Next
 - [ ] [M2-T3] Fake-star method: select, reproduce on a sample, document validation — R3.3 — M2-T1
-- [ ] [M2-T4] Verifier spot-check of 10 citations across M2 docs — WO M2 — M2-T1, M2-T2
+- [~] [M2-T4] Verifier spot-check — round 1 FAIL (fixable; no fabrication); corrections in progress, then re-check
 - [ ] [M3-T1] Outcome model spec → docs/specs/outcome-model.md; versioned class thresholds — §8, R3.5 — M2-T2
 - [ ] [M3-T2] Compliance pack: LIA, light DPIA, retention policy, privacy notice, legal-review questions; raise H2 — §10 — M2-T2
 - [ ] [M4-T0] ADR: stricter α ≥ 0.80 for promotion-deciding fields (lit. review open issue 4; stricter than PRD §9.2, not a relaxation) — decide before pilot pre-registration
