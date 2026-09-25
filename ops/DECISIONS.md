@@ -253,3 +253,9 @@ How to reverse: Drop the per-repo events source entirely (the bot filter stays u
 8. **Search snapshots are classed `person_level_24m`,** because results embed owner objects.
 9. **API version pinned to `2026-03-10`,** the version the star-history docs are published under.
 How to reverse: Per item, through an ADR (1: open cases only after confirmation, accepting evidence loss).
+
+## ADR-038 — Per-repo GitHub events: 16-day default retention; CB-02 met by short retention (amends ADR-036) (2026-09-25)
+Context: The compliance update for CB-22/23 found two things. (1) GitHub imposes no deletion obligation on API consumers, and there is no GitHub deletion-sync source, while ADR-036 lists CB-02 as a precondition for this source. (2) ADR-037.2 means the lockstep rule isn't applied to per-repo events, so the pseudonymous actor rows only de-duplicate stars within a case window (14-day cooldown + 48 h), which needs ~16 days, not 30.
+Decision: The default `GITHUB_EVENTS_RETENTION_DAYS` becomes **16** (ceiling stays 30), following data minimization. For this source, CB-02 is satisfied by raw bytes dropped at parse plus actor rows expiring within 16 days (≤ 30 max). Un-stars and deleted accounts upstream are therefore reflected within that period, and a separate sync would add nothing. The other ADR-022 preconditions still apply (CB-12 open; CB-03 and CB-06 partial). LQ-29 items 4–5 stay open for the lawyer.
+Also: raw GitHub search pages should be dropped at parse (only the owner type is used), as HN items are (backlog CB-24).
+How to reverse: Raise the default (≤ 30) with a documented purpose; add a GitHub deletion-sync source if GitHub or H2 requires one.

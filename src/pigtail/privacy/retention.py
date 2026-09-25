@@ -12,10 +12,10 @@
    needs it (a `project_level` or `derived_aggregate` record, or a younger person-level one).
    Such hashes are reported as `blocked_shared`.
    **CB-22**: `person_level_30d` evidence (GitHub per-repo events, TM-33) older than
-   `GITHUB_EVENTS_RETENTION_DAYS` (default and ceiling 30) is treated the same way. Its raw bytes
-   are normally dropped right after parsing already; this catches anything left behind.
+   `GITHUB_EVENTS_RETENTION_DAYS` (default 16, ceiling 30; ADR-038) is treated the same way.
+   Its raw bytes are normally dropped right after parsing; this catches anything left behind.
 3. Rows of registered person-level tables (`PERSON_TABLES`) older than the cutoff are deleted;
-   a table with its own `retention_days` (GitHub per-repo event actors: 30 days, CB-22) uses
+   a table with its own `retention_days` (GitHub per-repo event actors: 16 days, cap 30) uses
    the shorter of the two cutoffs.
 4. **CB-05**: LLM cache rows linked to the evidence dropped in step 2 and rows past
    `LLM_CACHE_RETENTION_DAYS` are deleted; the usage ledger and pause log follow the same period.
@@ -55,7 +55,7 @@ class RetentionConfig:
     person_level_days: int = 730
     gharchive_raw_days: int = 30
     log_days: int = 365
-    github_events_days: int = 30  # CB-22: person_level_30d evidence and person-table rows
+    github_events_days: int = 16  # CB-22 / ADR-038: person_level_30d evidence + person rows
 
 
 @dataclass

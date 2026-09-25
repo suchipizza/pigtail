@@ -16,7 +16,7 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [x] [M1-T21] Scheduler, health, alerts, Docker/systemd (ADR-033) — was: Scheduler: long-running `hn-ranks --loop`, daily `deletion-sync`, mentions for new cases within 48 h (R1.2); deploy when the host exists (H1)
 - [ ] [M1-T22] Front-page minutes (`att.hn_frontpage_minutes`) from rank observations, handling polling gaps
 - [ ] [M1-T23] HN follow-ups: clear `hn_story` titles for stories deleted upstream; a repo opt-out should also reach mentions of repos not in `repos`; `pigtail doctor` reports HN and ADR-022 flags; live check of Algolia
-- [ ] [M3-T5] Compliance docs: CB-02 status (HN implemented; Bluesky pending) — retention-policy §4, DPIA
+- [ ] [M3-T5] Compliance docs: CB-02 status per source (HN implemented; GitHub events met by retention, ADR-038; Bluesky pending); update the 30→16-day wording in the LIA/DPIA text
 - [x] [M1-T18] Detection re-plan verified → ADR-032; citation fixes applied; TM-32/33, LQ-27..29 added
 - [ ] [M3-T7] LIA/DPIA: add per-repo events processing (TM-33) and LQ-29 to the balancing test and risk register: evaluate own GitHub event collection (Events API, full paging), candidate screening via Search API / HN / Bluesky / registries + stargazers API, and third-party trend services — feasibility, rate limits, cost, terms; recommendation checked by the verifier — ADR-028, G3, R1.1 — GITHUB_TOKEN (H1) for measurements
 - [ ] [M1-T19] Retry and backfill missing GH Archive hours (404s are only marked missing today)
@@ -57,6 +57,8 @@ Before enabling Bluesky, HN or V2EX:
 - [x] [CB-08] Data-subject requests (`pigtail privacy request access|erasure`); follow-up: rectification
 - [x] [CB-13] Opt-out list enforced at ingest + purge (`pigtail privacy optout`)
 Feature-specific:
+- [ ] [CB-24] Drop raw GitHub search pages at parse (only owner type is used), like HN items (ADR-038)
+- [ ] [CB-23b] Unparseable events pages: drop raw bytes immediately (today kept until the 30-day purge)
 - [x] [CB-22] `person_level_30d` retention class + purge (migration 0007)
 - [x] [CB-23] Per-repo events: star/fork only, raw dropped at parse, no stargazer-list path (tested)
 - [x] [CB-05] LLM cache expiry (24 months) + evidence links + purge

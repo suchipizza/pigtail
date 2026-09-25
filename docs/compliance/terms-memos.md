@@ -575,6 +575,15 @@ AUP §7 applies as in TM-01.
 - Parse only `WatchEvent` and `ForkEvent` actors (fork actors are needed for the fork-farm bot and lockstep features and the PRD §8.1 attention metrics); drop the raw response at parse (CB-23).
 - Pseudonymise `actor` at ingest; use identities only for aggregate bot and lockstep flags; never rebuild, store or export a stargazer list; keep person-level event rows at most 30 days (`person_level_30d`, CB-22), then aggregates only.
 
+**Implementation status (M1-T24, ADR-037; checked against `main` on 2026-09-25)**
+- Connectors: `github` (project-level: GraphQL counts, search, star-history; no live call without `GITHUB_TOKEN`) and `github_events` (per-repo events; off by default, `PIGTAIL_ENABLE_GITHUB_EVENTS` plus `PIGTAIL_ADR022_PERSON_SOURCES_OK`; scheduler job `gh_repo_events` has `enabled = false`), both in `src/pigtail/connectors/github.py`; each record's `terms_basis` cites TM-02 and TM-33.
+- One token from `GITHUB_TOKEN`; per-resource rate limiters and budgets with hard stops; primary and secondary limit handling; ETag on events and star-history; `X-Poll-Interval` respected; API version pinned to `2026-03-10` (ADR-037.9).
+- Scope in code is narrower than the condition: live `velocity` cases opened in the last 14 days, plus pre-threshold repos only with `--prethreshold` (not scheduled); "tracked repos" are not a target class (`src/pigtail/capture/repo_events.py`).
+- CB-23 **I**: only `WatchEvent` and `ForkEvent` parsed, payloads never kept, raw pages dropped right after parsing (hash kept, tombstone), no path lists stargazers (tests in `tests/unit/test_github_privacy_m1t24.py` and `tests/integration/test_github_detection_m1t24.py`).
+- CB-22 **I**: `person_level_30d`, `GITHUB_EVENTS_RETENTION_DAYS` default 16, ≤ 30 (ADR-038), daily purge (see [retention-policy.md](retention-policy.md) §1).
+- Identities are used only for the login-based bot flag and distinct counts; the lockstep rule is not applied to per-repo events (ADR-037.2), so "aggregate bot and lockstep flags" above is narrower in practice.
+- Search result pages are stored as `person_level_24m` because items embed owner objects (ADR-037.8); only the owner type is parsed. The stargazers list endpoint is not called.
+
 ---
 
 ## Questions for the owner's lawyer (gate H2)
@@ -601,3 +610,5 @@ New questions from TM-32 and TM-33 go straight into `legal-review-questions.md`:
 - 2026-09-25 — corrections after verifier spot-check M2-T4. TM-01: issue #137 answer by the maintainer; #310, #312 and PR #317 added. TM-07: CC BY 4.0, and the immutability quote reassigned to `distribution_metadata`. TM-09: access order. TM-13: citation URL. TM-15: section labels §III.A.k and §XIV.B. TM-25: yc-oss/api quote. New memos TM-26 to TM-31. Q6 and Q9 updated; Q12 added.
 - 2026-09-25 — new memos TM-32 (OpenDigger GH-event mirror: GAP pending LQ-28, off by default per ADR-032) and TM-33 (GitHub star-history endpoint and per-repo Events API: cleared with conditions under TM-02; actor use pending LQ-29). Research basis: `docs/research/detection-replan.md`.
 - 2026-09-25 — fixes after verifier (ADR-036 alignment): TM-33 names `WatchEvent` and `ForkEvent` actors (forks for fork-farm bot/lockstep features and the PRD §8.1 attention metrics), the ADR-036 gate and the `person_level_30d` class.
+- 2026-09-25 — CB-22/23 implemented (M1-T24, ADR-037): TM-33 gains an implementation-status note (connectors, gate, scope as coded, CB-22 and CB-23 implemented with test citations, no lockstep on per-repo events, search pages `person_level_24m`).
+- 2026-09-25 — ADR-038: per-repo event actor rows default to 16 days (cap 30); CB-02 for this source is met by short retention plus the raw drop at parse.

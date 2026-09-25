@@ -724,7 +724,7 @@ def test_m1_t24_cb22_repo_event_rows_and_raw_purged_after_30_days(capture_db, tm
 def test_m1_t24_cb22_retention_setting_capped_at_30_days():
     from pigtail.config import Settings
 
-    assert Settings.from_env({}).github_events_retention_days == 30
+    assert Settings.from_env({}).github_events_retention_days == 16
     assert (
         Settings.from_env({"GITHUB_EVENTS_RETENTION_DAYS": "7"}).github_events_retention_days == 7
     )

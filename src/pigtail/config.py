@@ -18,6 +18,9 @@ PERSON_LEVEL_MAX_DAYS = 730  # 24 months
 LLM_CACHE_MAX_DAYS = 730  # 24 months, and never longer than the evidence it came from
 LOG_MAX_DAYS = 365  # 12 months
 GITHUB_EVENTS_MAX_DAYS = 30  # TM-33 / CB-22: per-repo event actors, person_level_30d
+# ADR-038: default covers the 14-day case cooldown + 48 h detection window (de-duplicating stars
+# within a case window); the lockstep rule is not applied to per-repo events (ADR-037.2).
+GITHUB_EVENTS_DEFAULT_DAYS = 16
 
 
 def _backend(value: str, source: str) -> BackendName:
@@ -63,7 +66,7 @@ class Settings:
     person_level_retention_days: int = PERSON_LEVEL_MAX_DAYS
     llm_cache_retention_days: int = LLM_CACHE_MAX_DAYS
     log_retention_days: int = LOG_MAX_DAYS
-    github_events_retention_days: int = GITHUB_EVENTS_MAX_DAYS
+    github_events_retention_days: int = GITHUB_EVENTS_DEFAULT_DAYS
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
@@ -90,7 +93,7 @@ class Settings:
             llm_cache_retention_days=_days(e, "LLM_CACHE_RETENTION_DAYS", LLM_CACHE_MAX_DAYS),
             log_retention_days=_days(e, "LOG_RETENTION_DAYS", LOG_MAX_DAYS),
             github_events_retention_days=_days(
-                e, "GITHUB_EVENTS_RETENTION_DAYS", GITHUB_EVENTS_MAX_DAYS
+                e, "GITHUB_EVENTS_RETENTION_DAYS", GITHUB_EVENTS_DEFAULT_DAYS
             ),
         )
 

@@ -374,7 +374,7 @@ every ADR-022 precondition (see "Hacker News sources" above; ADR-036), then set
 `PIGTAIL_ENABLE_GITHUB_EVENTS=1` and `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` and change
 `enabled = true` on `gh_repo_events`. Actors are pseudonymized at ingest; raw event pages are
 deleted right after parsing; the pseudonymous rows are kept at most 30 days
-(`GITHUB_EVENTS_RETENTION_DAYS`, default and maximum 30) and deleted by `pigtail retention purge`;
+(`GITHUB_EVENTS_RETENTION_DAYS`, default 16, maximum 30; ADR-038) and deleted by `pigtail retention purge`;
 only daily aggregates stay (CB-22, CB-23). pigtail never builds or exports a list of a repo's
 stargazers.
 
