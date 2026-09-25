@@ -1,4 +1,4 @@
-# Per-source terms memos (TM-01 … TM-31)
+# Per-source terms memos (TM-01 … TM-33)
 
 Part of the compliance pack: see [README.md](README.md).
 
@@ -518,6 +518,62 @@ AUP §7 applies as in TM-01.
 - Name investors as organisations only.
 - Evidence copies are Wayback captures under TM-13, not private copies of articles.
 
+### TM-32: OpenDigger GH-event mirror (gharchive issue #323)
+
+**Decision: GAP, pending LQ-28.** Off by default (ADR-032). The research case for it is in `docs/research/detection-replan.md` §0, §5 and §7.
+
+**What it is**
+- A GH Archive-compatible archive of hourly `YYYY-MM-DD-H.json.gz` files with per-hour manifests (event counts, size, SHA-256), at `https://gharchive.open-digger.cn/`, starting on 2026-09-06 UTC. It was announced in https://github.com/igrigorik/gharchive.org/issues/323 (opened 2026-09-09 by an OpenDigger maintainer on its behalf).
+- Coverage: much higher than GH Archive (57× the `WatchEvent`s on 2026-09-24). Its counts agree with GitHub's star-history for the repos it saw (1.013×), but its misses are unmeasured (detection-replan §7.4).
+
+**Clauses and facts relied on**
+- Issue #323 says the data is:
+  > "publicly available for anyone to download and use"
+- **Licence or terms:** none published, in the issue or found elsewhere (unverified beyond the issue and the file host). "Available to use" is not a licence, and it names no conditions, attribution or warranty.
+- **Operator:** a single operator, OpenDigger (open-digger.cn), represented by one maintainer in the issue. No SLA, no contact for data-protection requests, no deletion process stated.
+- **Hosting (measured 2026-09-25):** the files are served with `Server: AliyunOSS` and `x-oss-*` headers, i.e. Alibaba Cloud Object Storage Service. The region is not stated.
+- **Collection rate:** the maintainer wrote on 2026-09-13 (same issue):
+  > "maintaining a target overlap rate of 20% results in an interval of approximately 1.5 seconds between consecutive requests"
+  and that the collector "automatically shortens the polling interval" when overlap falls.
+- **GitHub's rule for the upstream API** (https://docs.github.com/en/rest/activity/events):
+  > "There is also an "X-Poll-Interval" header that specifies how often (in seconds) you are allowed to poll."
+  We measured `X-Poll-Interval: 60` on `/events` (detection-replan §1.1). About 1.5 s is roughly 40× that rate.
+- **GitHub terms upstream:** ToS §H ("Abuse or excessively frequent requests to GitHub via the API may result in the temporary or permanent suspension…", "You may not share API tokens to exceed GitHub's rate limitations"; TM-02), and AUP §7 on reuse of information from the Service (TM-01). The data is the same kind as GH Archive's (actor logins, repo names, payloads) and is personal data about GitHub users.
+
+**Analysis (not legal advice)**
+- *Does the consumer inherit the collector's problem?* GitHub's terms bind whoever calls the API. Pigtail would not call `/events` at all for this source, so pigtail would not itself break §H. But: (a) pigtail would knowingly build on data that, on the operator's own account, was collected faster than GitHub says clients are "allowed to poll"; (b) GitHub could stop the collector at any time, so the source may vanish; (c) AUP §7 and the GitHub Privacy Statement apply to *use* of information from the Service, whoever collected it; (d) knowingly using data gathered in breach of a platform's terms may weigh against pigtail in the GDPR balancing test and in any contract or unfair-competition claim. Whether any of this exposes a commercial consumer is LQ-28.
+- *Database rights:* if OpenDigger (or GitHub) has an EU sui generis database right (Directive 96/9/EC, Art. 7; text not fetched on 2026-09-25, **unverified quote**) in the compiled archive, extracting substantial parts without a licence could infringe. With no licence published, the default is "no licence granted". LQ-28.
+- *Personal data:* the same as TM-01 (pseudonymise at ingest, 24-month cap, aggregates only in outputs). The files are large (≈ 300–410 MB compressed per hour), so CB-04 minimisation matters more here.
+- *Stability:* high risk: three weeks old at the access date, single operator, no terms.
+
+**Conditions if LQ-28 clears it** (from detection-replan §5)
+- Stream-filter to `WatchEvent` and `ForkEvent`, pseudonymise actors in memory, store only repo-hour aggregates plus pseudonymised actor sets for bot filtering.
+- Do not snapshot whole raw files; store hash plus manifest plus the filtered subset (CB-04; changes ADR-027 item 4 for this source).
+- Screening and bot filtering only; never the scoring series.
+- Attribute "OpenDigger". Stop if the operator publishes terms that forbid this, or if GitHub objects to the collector.
+- Coverage is audited against a sample drawn from `U` or star-history, not from the mirror itself (detection-replan §8 M1).
+
+**Until then:** the connector stays off. `evidence.terms_basis` must not cite TM-32 for any stored record.
+
+### TM-33: GitHub star-history endpoint and per-repo Events API
+
+**Decision: CLEARED-WITH-CONDITIONS (under TM-02).** The per-repo `WatchEvent.actor` use is pending LQ-29; the conservative conditions below apply meanwhile.
+
+**Endpoints**
+- `GET /repos/{owner}/{repo}/stargazers/history`: weekly and daily star counts back to the repo's creation, no identities (https://docs.github.com/en/rest/activity/starring?apiVersion=2026-03-10#get-repository-star-history; announced https://github.blog/changelog/2026-09-04-new-api-endpoint-provides-privacy-safe-star-history-data/). It contains no personal data.
+- `GET /repos/{owner}/{repo}/events`: the latest 300 public events for one repo, including `WatchEvent`s with `actor` (https://docs.github.com/en/rest/activity/events). This is personal data.
+
+**Clauses relied on**
+- TM-02 (ToS §H, rate limits) and TM-01 (AUP §7).
+- The Events API docs: "'X-Poll-Interval' header that specifies how often (in seconds) you are allowed to poll" (measured 60 s on per-repo events).
+- GitHub restricted the stargazer *lists* on 2026-06-30 because they had "increasingly been misused to collect user data for spam activities" (https://github.blog/changelog/2026-06-30-upcoming-access-restrictions-to-public-api-endpoints-and-ui-views/). The per-repo Events API was not in the restricted list.
+
+**Conditions**
+- One operator token; no pooling; no App-plus-PAT doubling (ADR-032 item 4).
+- Poll per-repo events no faster than `X-Poll-Interval` (ADR-032: every 15–60 min), with ETag; star-history at most daily per repo, serial queue, within primary and secondary limits.
+- Per-repo events only for repos with an open case, tracked repos (R17.4) or repos above the pre-threshold.
+- Pseudonymise `actor` at ingest; use identities only for aggregate bot and lockstep flags; never rebuild, store or export a stargazer list; keep person-level event rows at most 30 days, then aggregates only.
+
 ---
 
 ## Questions for the owner's lawyer (gate H2)
@@ -535,8 +591,11 @@ AUP §7 applies as in TM-01.
 - **Q11 (General):** For people whose public posts appear in private snapshots, is our 24-month retention for person-level data, together with pseudonymisation at ingest, adequate under GDPR and the Swiss FADP? Is it compatible with each CLEARED-WITH-CONDITIONS source? The LIA and DPIA will be drafted in M3.
 - **Q12 (Discord):** Under the Discord Developer Policy (items 18 and 20) and the Discord ToS, is a commercial operator allowed to poll the documented `GET /invites/{code}?with_counts=true` endpoint once a day for invite codes that projects publish themselves, and to store only the aggregate member counts for internal analysis? Does that count as "mining or scraping" or "commercializ[ing]" API Data?
 
+New questions from TM-32 and TM-33 go straight into `legal-review-questions.md`: LQ-28 (OpenDigger mirror) and LQ-29 (stargazer identities from events after GitHub's list restriction).
+
 ---
 
 ## Changelog
 
 - 2026-09-25 — corrections after verifier spot-check M2-T4. TM-01: issue #137 answer by the maintainer; #310, #312 and PR #317 added. TM-07: CC BY 4.0, and the immutability quote reassigned to `distribution_metadata`. TM-09: access order. TM-13: citation URL. TM-15: section labels §III.A.k and §XIV.B. TM-25: yc-oss/api quote. New memos TM-26 to TM-31. Q6 and Q9 updated; Q12 added.
+- 2026-09-25 — new memos TM-32 (OpenDigger GH-event mirror: GAP pending LQ-28, off by default per ADR-032) and TM-33 (GitHub star-history endpoint and per-repo Events API: cleared with conditions under TM-02; actor use pending LQ-29). Research basis: `docs/research/detection-replan.md`.

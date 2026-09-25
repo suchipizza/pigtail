@@ -14,8 +14,8 @@ Pack version: 0.1 · 2026-09-25 · Task M3-T2. All sources cited were accessed o
 | [dpia.md](dpia.md) | Light DPIA: whether a DPIA is required (yes), the data inventory D1–D11, risks R1–R14 rated by likelihood and severity, measures mapped to implemented or planned controls, residual risk, and **backlog CB-01…CB-21** | GDPR Art. 35–36; WP248 rev.01; FADP Art. 22–23 |
 | [retention-policy.md](retention-policy.md) | Retention classes (24 months for person-level data, unlimited for project-level), a store-by-store schedule, pseudonym key management, deletion sync per source, data-subject requests, LLM retention per backend, backups and logs | GDPR Art. 5(1)(e), 17; FADP Art. 6(4); terms memos |
 | [privacy-notice.md](privacy-notice.md) | Public privacy notice template for data subjects, in plain language. The `[operator]` and contact fields must be filled in before publishing. | GDPR Art. 14, 21; FADP Art. 19, 20 |
-| [terms-memos.md](terms-memos.md) | Per-source platform terms memos TM-01…TM-31 and the clearance decisions (M2) | Platform terms, cited per memo |
-| [legal-review-questions.md](legal-review-questions.md) | A consolidated, numbered list for the lawyer: LQ-1…LQ-26, each with context, the default applied meanwhile and what it blocks. It carries over terms-memos Q1–Q12 (mapping table inside). | — |
+| [terms-memos.md](terms-memos.md) | Per-source platform terms memos TM-01…TM-33 and the clearance decisions (M2; TM-32 and TM-33 from the detection re-plan, ADR-032) | Platform terms, cited per memo |
+| [legal-review-questions.md](legal-review-questions.md) | A consolidated, numbered list for the lawyer: LQ-1…LQ-29, each with context, the default applied meanwhile and what it blocks. It carries over terms-memos Q1–Q12 and maps TM-32/TM-33 to LQ-28/LQ-29 (mapping table inside). | — |
 
 ## Reading order for the lawyer
 1. [legal-review-questions.md](legal-review-questions.md), the summary table at the end
@@ -66,3 +66,4 @@ Update the pack when a source is added, when a platform's or Anthropic's terms c
 - 2026-09-25 — fixes after verifier M3 round 1: person-level-source pre-conditions now point to ADR-022 (CB-01, 02, 03, 06, 08, 12, 13); uncommitted M1 controls labelled "I (M1, pending merge)"; CB-07 marked implemented.
 - 2026-09-25 — M1 capture core merged at `ec79762`; "I (M1, pending merge)" labels changed to "I".
 - 2026-09-25 — CB statuses updated after privacy-controls merge (ADR-030): CB-01, CB-05, CB-08, CB-13 done; CB-03, CB-06, CB-18 partly done (key conclusions, code status).
+- 2026-09-25 — detection re-plan (ADR-032): terms memos TM-32 (OpenDigger mirror, GAP pending LQ-28, off by default) and TM-33 (GitHub star-history endpoint and per-repo events, cleared with conditions); legal questions LQ-27, LQ-28 and LQ-29; index updated.

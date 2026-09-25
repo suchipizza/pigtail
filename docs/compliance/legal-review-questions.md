@@ -7,7 +7,7 @@
 2. [dpia.md](dpia.md)
 3. [retention-policy.md](retention-policy.md)
 4. [privacy-notice.md](privacy-notice.md)
-5. [terms-memos.md](terms-memos.md) (per-source platform terms, TM-01 to TM-31)
+5. [terms-memos.md](terms-memos.md) (per-source platform terms, TM-01 to TM-33)
 
 **Access date:** every URL was accessed on 2026-09-25.
 
@@ -47,8 +47,10 @@ Priority:
 | Q10 | LQ-20 |
 | Q11 | LQ-12 |
 | Q12 | LQ-21 |
+| TM-32 (new, no Q number) | LQ-28 |
+| TM-33 (new, no Q number) | LQ-29 |
 
-LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from the LIA and DPIA.
+LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from the LIA and DPIA. LQ-27 comes from the backlog (ADR-030.1). LQ-28 and LQ-29 come from the detection re-plan (`docs/research/detection-replan.md`, ADR-032) and memos TM-32 and TM-33.
 
 ---
 
@@ -222,6 +224,27 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - **Default meanwhile:** on upstream deletion or erasure, delete everything carrying a pseudonym, text or quote. Keep only hash, time, platform and non-identifying coded facts. For erasure this is implemented (CB-08, ADR-030.1): the whole raw snapshot containing the person is dropped (a content-addressed blob cannot be edited), the evidence row keeps hash, URL and fetch time, and replay re-downloads the snapshot and drops the person at ingest.
 - **Blocks:** nothing, as long as the default is applied.
 
+### LQ-27 · Replay after an erasure briefly re-processes the erased person's data · Priority C
+- **Context:**
+  - Erasure (CB-08, ADR-030.1) drops every raw snapshot containing the person, because a content-addressed blob cannot be edited. The evidence row keeps hash, URL and fetch time.
+  - Replay re-downloads the upstream copy (for example a GH Archive hourly file), verifies the hash and parses it again. The person is on the opt-out list (CB-13), so their records are dropped **at ingest**.
+  - So for a short time, in memory during parsing, pigtail processes the erased person's data again before discarding it. Nothing about them is written to storage, logs or the LLM.
+- **Question:** is this transient re-processing compatible with GDPR Art. 17 and FADP Art. 32(2)(c) (the erasure has been carried out, and the opt-out suppression list is what keeps them out)? Or must replay be impossible for snapshots that contained an erased person (for example by never re-downloading them)? Is keeping the person's pseudonym on the suppression list itself proportionate?
+- **Default meanwhile:** replay runs only on an operator command; the opt-out filter runs before any write; the dropped records are not logged (CB-18); the suppression list holds pseudonyms only (ADR-030.4).
+- **Blocks:** nothing, as long as the default is applied.
+
+### LQ-29 · Stargazer identities from events after GitHub restricted stargazer lists · Priority B
+- **Context:**
+  - GitHub limited `/repos/{owner}/{repo}/stargazers` and `/subscribers` to admins and collaborators on 2026-06-30, because the lists had "increasingly been misused to collect user data for spam activities which negatively impacts user experience and platform trust" (https://github.blog/changelog/2026-06-30-upcoming-access-restrictions-to-public-api-endpoints-and-ui-views/).
+  - Who starred a repo is still visible in public `WatchEvent`s (`actor`): through the per-repo Events API (TM-33), GH Archive (TM-01) and the OpenDigger mirror (TM-32, a gap).
+  - Pigtail uses these identities only for R3.3 / R1.1 bot and lockstep filtering (ADR-027 item 2, ADR-032 item 2): pseudonymised at ingest, aggregates only, never a list.
+- **Question:**
+  1. Is processing stargazer identities from events for bot filtering still proportionate under the GDPR Art. 6(1)(f) balancing test (LIA) and FADP Art. 6 and 30–31?
+  2. Does GitHub's restriction signal what GitHub users can now reasonably expect (EDPB Guidelines 1/2024 on reasonable expectations), so that the balancing shifts against collecting stargazer identities by other routes?
+  3. Could it be read as circumventing GitHub's restriction (ToS §H, AUP), even though the Events API is public and documented?
+- **Default meanwhile:** the TM-33 conditions: only repos with an open case, tracked repos or repos above the pre-threshold; poll within `X-Poll-Interval`; pseudonymise at ingest; person-level event rows kept ≤ 30 days, then aggregates; never rebuild, store or export a stargazer list; cases record `bot_filter_basis` and `coverage_ratio`.
+- **Blocks:** any wider use of stargazer identities (retention beyond 30 days, cross-repo stargazer graphs, a StarScout-style reproduction on identities beyond the tracked set). The `starscout_filtered` series stays `unknown` where these conditions don't allow the data.
+
 ### LQ-12 (was Q11) · Adequacy of 24-month retention plus pseudonymisation at ingest · Priority A
 - **Context:** carried over from terms-memos Q11:
   > "For people whose public posts appear in private snapshots, is our 24-month retention for person-level data, together with pseudonymisation at ingest, adequate under GDPR and the Swiss FADP? Is it compatible with each CLEARED-WITH-CONDITIONS source?"
@@ -235,7 +258,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 
 ---
 
-## Part 2: platform terms (carried over from terms-memos.md Q1–Q10 and Q12, unchanged in substance)
+## Part 2: platform terms (carried over from terms-memos.md Q1–Q10 and Q12, unchanged in substance; LQ-28 is new, from TM-32)
 
 ### LQ-4 (was Q1) · GitHub / GH Archive: commercial processing of personal event data · Priority A
 - **Context:**
@@ -313,6 +336,19 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - **Default meanwhile:** disabled by default for commercial operators (TM-27). The community-size metric is `unknown` or `self_reported`.
 - **Blocks:** Discord connector.
 
+### LQ-28 · OpenDigger GH-event mirror: may a commercial operator ingest it? · Priority B
+- **Context** (TM-32):
+  - An hourly GH Archive-compatible archive of all public GitHub events since 2026-09-06, with much higher coverage than GH Archive (https://github.com/igrigorik/gharchive.org/issues/323). The issue says it is "publicly available for anyone to download and use". No licence or terms are published. One operator (OpenDigger); files are served from Alibaba Cloud OSS.
+  - The operator says its collector polls about every 1.5 s. GitHub's Events API says the `X-Poll-Interval` header "specifies how often (in seconds) you are allowed to poll"; we measured 60 s. GitHub ToS §H bars "excessively frequent requests" (TM-02).
+  - The content is personal data about GitHub users (actor logins), like GH Archive (LQ-4).
+- **Question:**
+  1. Does "publicly available for anyone to download and use", with no licence, allow commercial ingestion, storage of derived aggregates and pseudonymised actor sets, and publication of aggregate findings?
+  2. Could OpenDigger (or GitHub) hold an EU sui generis database right (Directive 96/9/EC, Art. 7) or a Swiss equivalent claim in the archive, and would our extraction (streamed, filtered to two event types, raw files not kept) be a "substantial part"?
+  3. Do GitHub's ToS and AUP flow down to a consumer who never calls the GitHub API, given the data came from it?
+  4. Does knowingly using data collected at ≈ 40× GitHub's stated poll interval expose pigtail (contract, unfair competition, or weight in the GDPR balancing test)?
+- **Default meanwhile:** OpenDigger is **off by default** (ADR-032). Screening uses the watch universe, Search, HN and GH Archive.
+- **Blocks:** the OpenDigger screen and OpenDigger-based bot filtering (faster G3 detection outside the watch universe).
+
 ---
 
 ## Summary for the owner
@@ -320,11 +356,12 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 | Priority | Questions | Blocks if unanswered |
 |---|---|---|
 | **A** | LQ-1, LQ-2, LQ-4, LQ-8, LQ-10, LQ-12 | Release (M9); subscription-mode coding at scale; account-level spread graphs; person-level sources beyond GH Archive (until the notice and controls exist) |
-| **B** | LQ-3, LQ-6, LQ-7, LQ-11, LQ-13, LQ-14, LQ-15, LQ-18, LQ-23, LQ-24, LQ-25, LQ-26 | The named source or feature |
-| **C** | LQ-5, LQ-9, LQ-16, LQ-17, LQ-19, LQ-20, LQ-21, LQ-22 | Nothing (the defaults stand) |
+| **B** | LQ-3, LQ-6, LQ-7, LQ-11, LQ-13, LQ-14, LQ-15, LQ-18, LQ-23, LQ-24, LQ-25, LQ-26, LQ-28, LQ-29 | The named source or feature |
+| **C** | LQ-5, LQ-9, LQ-16, LQ-17, LQ-19, LQ-20, LQ-21, LQ-22, LQ-27 | Nothing (the defaults stand) |
 
 ## Changelog
 - 2026-09-25: v0.1 created (M3-T2).
 - 2026-09-25 — fixes after verifier M3 round 1: LQ-6 (and the LQ-10 and LQ-12 defaults) now refer to ADR-022 and its full list of pre-conditions for person-level sources.
 - 2026-09-25 — fixes after verifier M3 round 3: CB-11 marked implemented (codebook v0.1.0 §12); LQ-25 updated for CB-04 partly implemented.
 - 2026-09-25 — CB statuses updated after privacy-controls merge (ADR-030): LQ-6, LQ-10 and LQ-12 defaults now give the status of the ADR-022 pre-conditions; LQ-23 notes CB-13 implemented; LQ-26 notes how erasure is implemented.
+- 2026-09-25 — new questions LQ-27 (replay after an erasure; from the backlog, ADR-030.1), LQ-28 (OpenDigger mirror; TM-32, ADR-032) and LQ-29 (stargazer identities from events after GitHub's 2026-06-30 restriction; TM-33). Mapping table and summary updated.

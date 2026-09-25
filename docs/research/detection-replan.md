@@ -1,6 +1,6 @@
 # Breakout detection re-plan (M1-T18)
 
-**Status:** draft, to be checked by the verifier. **Author role:** `researcher`, with a `compliance` review of terms. Neither author is a lawyer; the terms conclusions are conservative engineering defaults until H2 answers.
+**Status:** verified 2026-09-25, with the verifier's corrections applied (see Changelog). **Adopted as ADR-032** in `ops/DECISIONS.md`, with one difference from the proposal in §9: **the OpenDigger mirror is off by default** until H2 answers LQ-28 and TM-32 clears it. **Author role:** `researcher`, with a `compliance` review of terms. Neither author is a lawyer; the terms conclusions are conservative engineering defaults until H2 answers.
 **Access date for every URL:** 2026-09-25. **Measurements:** run by the research agent on 2026-09-25 between 13:00 and 15:30 UTC (details in §7).
 **Inputs:** ADR-009, ADR-012, ADR-022, ADR-027, ADR-028, ADR-031; PRD R1.1, R1.3, G3, R4.1, R4.4, R17.4; `docs/research/source-matrix.md` §2.1–2.4 (TM-01…TM-04); `docs/specs/outcome-model.md` §2.
 **Requirements referenced:** G3, R1.1, R1.3, R3.3, R4.1, R4.4, R17.1, R17.4, §10 (Terms, Cost control).
@@ -15,18 +15,18 @@
    - GitHub announced on 2026-06-30 that "Access to the following public API endpoints will be limited to admins and collaborators": the List stargazers endpoint `/repos/{owner}/{repo}/stargazers` and the List watchers endpoint (https://github.blog/changelog/2026-06-30-upcoming-access-restrictions-to-public-api-endpoints-and-ui-views/). The stated reason is that these lists "increasingly [were] misused to collect user data for spam activities".
    - **Measured:** an authenticated REST call to `/repos/{o}/{r}/stargazers` for a repo we don't administer returns `404 Not Found`. The GraphQL `Repository.stargazers` connection returns `totalCount: 0` and no edges, including for `facebook/react`. The maintainer of Daily Stars Explorer reports the same GraphQL restriction (https://github.com/emanuelef/daily-stars-explorer, via its README as surfaced by search).
    - So per-star `starred_at` timestamps can no longer be fetched for third-party repos. This removes the stargazer-identity basis for the StarScout-style filter (R3.3) and for ADR-012's `starscout_filtered` series.
-   - **GitHub's replacement** (changelog 2026-09-04, https://github.blog/changelog/2026-09-04-new-api-endpoint-provides-privacy-safe-star-history-data/) is `GET /repos/{owner}/{repo}/stargazers/history`. It "Returns repository stars grouped by calendar weeks, most recent first". `per_page` max 30 weeks, `page` max 100. Each item has `week`, `total` and `days[7]` (https://docs.github.com/en/rest/activity/starring?apiVersion=2026-03-10#get-repository-star-history).
+   - **GitHub's replacement** (changelog 2026-09-04, https://github.blog/changelog/2026-09-04-new-api-endpoint-provides-privacy-safe-star-history-data/) is `GET /repos/{owner}/{repo}/stargazers/history`. It "Returns repository stars grouped by calendar weeks, most recent first". `per_page` max 30 weeks, `page` max 100. Each item has `week`, `total` and `days[7]` (https://docs.github.com/en/rest/activity/starring?apiVersion=2026-03-10#get-repository-star-history). The docs also say: "Week and day boundaries are not guaranteed to align with UTC."
    - **Measured on that endpoint:**
      - Summing all weeks gives exactly the current `stargazers_count` (`dream-num/univer` 18,174 = 18,174; `facebook/react` 250,717 = 250,717). It is therefore the **current** stargazers bucketed by star date: net of un-stars and survivor-biased, the same semantics ADR-012 assumed for the old API.
      - It returned full history for a 250k-star repo, so the old undocumented 40,000-star cap no longer matters.
      - The current day is filled in during the day (196 stars for Friday at 14:19 UTC), and responses carry `Cache-Control: max-age=60`.
-     - **Day buckets seem to be US-Pacific days, not UTC days.** For 13 repos we compared per-repo `WatchEvent`s with the endpoint's count for 2026-09-24. The total absolute error was 289 stars with UTC midnight boundaries and 76 with boundaries at 07:00 UTC (midnight PDT). 11 of the 13 repos matched within ±7. This is **inferred, unverified**; the DST switch on 2026-11-01 will confirm whether the zone is America/Los_Angeles.
+     - **Day buckets seem to be US-Pacific days, not UTC days.** GitHub documents only that "Week and day boundaries are not guaranteed to align with UTC" (docs URL above); which zone they use is not documented. For 13 repos we compared per-repo `WatchEvent`s with the endpoint's count for 2026-09-24. The total absolute error was 289 stars with UTC midnight boundaries and 76 with boundaries at 07:00 UTC (midnight PDT). 11 of the 13 repos matched within ±7. The verifier's own small test corroborates it: on one repo, 9 of 11 days matched exactly under PDT day boundaries. Pacific days remain an **inference** from small tests, not a documented fact; the DST switch on 2026-11-01 will confirm whether the zone is America/Los_Angeles.
      - One request = one core REST call (rate-limit headers show `X-RateLimit-Resource: core`).
-2. **A public mirror with near-complete event capture now exists, and our own compliant poller can't match it.**
+2. **A public mirror with much higher event capture than GH Archive now exists, and our own compliant poller can't match it.**
    - OpenDigger has run a GH Archive-compatible hourly archive since 2026-09-06 (https://github.com/igrigorik/gharchive.org/issues/323).
    - **Measured, 2026-09-24:** 14,641,819 events and 347,966 `WatchEvent`s in OpenDigger's 24 hourly files. The GH Archive copy in ClickHouse holds 6,091 `WatchEvent`s for the same day (§7.1), so OpenDigger has about 57× as many.
    - On hour 12, 98.3% of the `WatchEvent`s that GitHub's per-repo Events API returned for 17 repos were also in OpenDigger (237 of 241 by event id).
-   - **Against GitHub's own daily counts** (100 repos in 4 velocity strata, Pacific day 2026-09-24), OpenDigger's star count was **1.013×** the star-history net count, with a per-repo median of 1.000 (§7.4). In other words, near-complete coverage on that day.
+   - **Against GitHub's own daily counts** (100 repos in 4 velocity strata, Pacific day 2026-09-24), OpenDigger's star count was **1.013×** the star-history net count, with a per-repo median of 1.000 (§7.4). This is **agreement among repos OpenDigger saw**: the strata were drawn from OpenDigger's own counts, so repos (or stars) that OpenDigger missed could not enter the sample, and its misses are unobservable with this method. It is not a coverage estimate (see §8 M1).
    - The catch: OpenDigger polls about every 1.5 s (maintainer comment, 2026-09-13, same issue). GitHub's `X-Poll-Interval` header is 60 s. See §1 and §5.
 
 ---
@@ -60,7 +60,7 @@ Source: https://docs.github.com/en/rest/activity/events
   - OpenDigger reports an interval of about 1.5 s between requests at a 20% overlap target. GH Archive's crawler used a fixed 0.75 s (issue #323 comment).
   - One page every 1.5 s is 2,400 requests per hour. All 3 pages every 1.6 s is about 6,750 requests per hour, which is more than one token's 5,000.
   - Either way the poller runs at roughly 40× the rate `X-Poll-Interval` allows.
-- **Conclusion (b):** within the documented cadence, own collection gives about 3% coverage. Near-complete coverage means ignoring `X-Poll-Interval`, and possibly pooling tokens, which ToS §H forbids. The PRD non-goal "No circumvention of rate limits … or platform terms" applies. **Rejected.**
+- **Conclusion (b):** within the documented cadence, own collection gives about 3% coverage. Capturing most of the stream means ignoring `X-Poll-Interval`, and possibly pooling tokens, which ToS §H forbids. The PRD non-goal "No circumvention of rate limits … or platform terms" applies. **Rejected.**
 
 ### 1.3 What does work: per-repo Events API for repos we already track
 - `GET /repos/{owner}/{repo}/events` has the same 300-event window and the same 60 s `X-Poll-Interval`, but it covers one repo.
@@ -70,7 +70,7 @@ Source: https://docs.github.com/en/rest/activity/events
   - 17 repos for hour 12 UTC: 241 `WatchEvent`s, 98.3% of them also present in OpenDigger.
 - Limit: a repo with more than 300 events between polls overflows the window. At 4 polls per hour that is more than about 1,200 events per hour, which only the very largest bursts reach. This is a known truncation to detect and record.
 - Use: identity-level star data (for the R1.1 "after bot filtering" step and ADR-027's lockstep flag) for **tracked** repos only, polled every 15–60 min, which stays within `X-Poll-Interval`.
-- Terms caveat: see §5, LQ-new-2.
+- Terms caveat: see §5, TM-33 and LQ-29.
 
 ---
 
@@ -86,7 +86,7 @@ Source: https://docs.github.com/en/rest/activity/events
 | **Bluesky** | Launch posts that link to GitHub | Jetstream needs no auth (TM-06) | **Held** by ADR-022 until CB-02 and related controls exist | Revisit when the hold is lifted |
 | **Registries** (npm TM-08, crates TM-09, PyPI TM-07) | Download spikes for packages that map to a repo | Daily granularity | Cleared / cleared with conditions | Mostly lagging and useful for adoption; low value for G3 latency |
 | **Product Hunt, launch watchlist (R1.3)** | Announced launches | — | Product Hunt is a **GAP** (TM-16) | R1.3 relies on HN, Bluesky (held) and operator entry |
-| **OpenDigger mirror** | Repos with any stars or forks in the last hour, near-complete (§0) | Hourly files of about 300–410 MB compressed (**measured** manifests), so about 9 GB/day of transfer | See §5 | Drop-in for the existing GH Archive scanner (same file format; only the host changes) |
+| **OpenDigger mirror** | Repos with any stars or forks in the last hour; high capture among repos it saw, misses unmeasured (§0, §7.4) | Hourly files of about 300–410 MB compressed (**measured** manifests), so about 9 GB/day of transfer | **GAP pending LQ-28** (TM-32); off by default (ADR-032) | Drop-in for the existing GH Archive scanner if cleared (same file format; only the host changes) |
 | **GH Archive** (status quo) | About 2% of stars | Hourly | TM-01 | Keep as a fallback and as a free control |
 
 ### 2.2 Measurement per candidate: what is still possible
@@ -94,7 +94,7 @@ Source: https://docs.github.com/en/rest/activity/events
 | Method | Resolution | Cost (one token) | Net of un-stars? | Identities (for bot filter)? | Backfill? |
 |---|---|---|---|---|---|
 | Stargazers API `starred_at` | Per star | — | — | — | **Closed** since 2026-06-30 (§0) |
-| **Star-history endpoint** | Day (Pacific day, inferred) | 1 core request per 30 weeks of history; `per_page=5` covers 35 days in 1 request | Yes (sum = current count) | No | **Yes, back to repo creation** (docs: pagination "walks backward toward the repository's creation week") |
+| **Star-history endpoint** | Day (Pacific day, inferred) | 1 core request per 30 weeks of history; `per_page=6` covers the 30-day baseline before a 48 h window in 1 request (`per_page=5` covers only 29–35 days, depending on the weekday) | Yes (sum = current count) | No | **Yes, back to repo creation** (docs: "Pages move backward toward the repository's creation week") |
 | **GraphQL batched `stargazerCount`** | Whatever cadence we poll at (hourly) | **Measured**: 100 aliased `repository{stargazerCount forkCount pushedAt}` lookups cost **1 point**. Limit 5,000 points/h, secondary 2,000 points/min (https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api) | Yes (public counter) | No | No (live only) |
 | **Per-repo Events API** | Per event | 1–3 core requests per poll; ETag `304`s are free (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api) | No (starts only) | Yes (`actor`) | Last 300 events / 30 days |
 | OpenDigger / GH Archive hourly | Per event | Bandwidth only | No | Yes | OpenDigger only from 2026-09-06 |
@@ -118,14 +118,14 @@ Source: https://docs.github.com/en/rest/activity/events
 
 | Service | Data source | Coverage for 2025–26 stars | API / limits | Terms (commercial, storage) | Cost | Verdict |
 |---|---|---|---|---|---|---|
-| **OSS Insight** (PingCAP) | "All the data we use … sources from GH Archive" (https://ossinsight.io/blog/how-it-works). A PingCAP blog also mentions combining GH Archive with the GitHub events API for real-time updates (https://www.pingcap.com/blog/build-a-better-github-insight-tool-in-a-week-a-true-story/); whether that is still true is unverified | Inherits GH Archive's loss (the real-time part's coverage is unverified) | Public API `v1beta`: no auth, 600 requests/h per IP, 1,000/min globally; trending and "stargazers history" endpoints (https://ossinsight.io/docs/api) | No API terms found (unverified); the repo is Apache-2.0 code, which is not a data licence | Free | **GAP** (no terms; same data-quality problem) |
+| **OSS Insight** (PingCAP) | "All the data we use … sources from GH Archive" (https://ossinsight.io/blog/how-it-works). An earlier draft said a PingCAP blog describes adding the GitHub events API for real-time updates; the verifier **did not find this at the cited URL** (https://www.pingcap.com/blog/build-a-better-github-insight-tool-in-a-week-a-true-story/), so the claim is withdrawn | Inherits GH Archive's loss | Public API `v1beta`: no auth, 600 requests/h per IP, 1,000/min globally; trending and "stargazers history" endpoints (https://ossinsight.io/docs/api) | No API terms found (unverified); the repo is Apache-2.0 code, which is not a data licence | Free | **GAP** (no terms; same data-quality problem) |
 | **Trendshift** / Signal API | Not disclosed (unverified). Signal offers "engagement spike detection", Trendshift rankings, and "GitHub's trending list captured daily" (https://trendshift.io/signal) | Unverified | API key; limits not published (https://api.trendshift.io/docs was empty when fetched) | ToS effective 2026-07-19: raw data "licensed for use within your own products and analysis"; "may not re-distribute, resell, or publish the raw API data" (https://trendshift.io/tos) | $9/month starter (https://trendshift.io/signal) | **Optional screen, CLEARED-WITH-CONDITIONS** (private use only, no republication). Needs an owner budget decision |
 | **star-history.com** | Now uses GitHub's star-history endpoint; before that, the stargazers API (https://www.star-history.com/blog/new-github-star-history-api/, https://www.star-history.com/blog/github-stargazer-api-restriction/) | Same as the GitHub endpoint | No API of its own documented (unverified) | — | Free | Not needed; call GitHub directly |
 | **Daily Stars Explorer** | Open-source tool; used GraphQL stargazers, which the 2026 restriction broke (README, https://github.com/emanuelef/daily-stars-explorer) | — | Self-hosted, with the user's own PAT | Tool, not a data service | Free | Not a source |
-| **ClickHouse `github_events`** | "contains a copy of the GH Archive", reloaded every 10 min (https://clickhouse.com/docs/getting-started/example-datasets/github-events). The site warns: "Since the middle of 2025 that feed reports almost only PushEvent events … heavily undercounted for 2025–2026" (https://ghe.clickhouse.tech/) | Same as GH Archive. **Measured**: monthly `WatchEvent`s 5.5–7.1 M through 2025-05, then 2.0–3.8 M (2025-06 to 2026-03), 79,895 in 2026-07 and 69,168 in 2026-08, with bursts in early September (§7.1) | Public playground, SQL over HTTP | "research purposes"; no licence stated | Free | Useful only as a query tool for measuring GH Archive; **not a better source** |
+| **ClickHouse `github_events`** | "We prepared a dataset from the GH Archive that contains all the events in all GitHub repositories since 2011 in structured format" (https://ghe.clickhouse.tech/). Refresh frequency: not stated there (unverified). The same page warns: "Since the middle of 2025 that feed reports almost only PushEvent events … heavily undercounted for 2025–2026" (https://ghe.clickhouse.tech/) | Same as GH Archive. **Measured**: monthly `WatchEvent`s 5.5–7.1 M through 2025-05, then 2.0–3.8 M (2025-06 to 2026-03), 79,895 in 2026-07 and 69,168 in 2026-08, with bursts in early September (§7.1) | Public playground, SQL over HTTP | "research purposes"; no licence stated | Free | Useful only as a query tool for measuring GH Archive; **not a better source** |
 | **Libraries.io** | Package managers plus current repo metadata | Current `stars` only, no history (https://libraries.io/api) | 60 requests/min per API key | No data licence stated on the API page | Free | Not useful for velocity |
 | **ecosyste.ms** | Timeline index: "Data updated hourly from GH Archive" (https://timeline.ecosyste.ms/). The repos service has current metadata | Same as GH Archive | Free 300 requests/h; Develop $200/month (1,000/h); Scale $1,000/month (5,000/h) (https://ecosyste.ms/pricing) | Data CC BY-SA 4.0; commercial licences on request (https://ecosyste.ms/) | Free or paid | Not better for stars; share-alike clashes with pigtail's MIT outputs if reused |
-| **OpenDigger mirror** | Its own Events API collector (§0) | Near-complete (measured) | Anonymous HTTPS, hourly files plus manifest | No licence or terms published; "publicly available for anyone to download and use" (issue #323) | Free (bandwidth about 9 GB/day) | **Best public event source; see §5 for conditions** |
+| **OpenDigger mirror** | Its own Events API collector (§0) | High among repos it saw (1.013× star-history, §7.4); misses unmeasured | Anonymous HTTPS, hourly files plus manifest | No licence or terms published; "publicly available for anyone to download and use" (issue #323) | Free (bandwidth about 9 GB/day) | **Best public event source found, but GAP pending LQ-28** (TM-32; off by default, ADR-032) |
 
 **Is there any other public GitHub event mirror with better coverage?**
 - ClickHouse, OSS Insight and ecosyste.ms all take their data from GH Archive.
@@ -142,12 +142,12 @@ Coverage is the share of true stars seen. G3 needs a case within 24 h. Tier 1 is
 |---|---|---|---|---|---|---|
 | GH Archive (status quo) | **~2.1%** measured (§7.2) | About 1–2 h, but misses almost all bursts | Free | n/a | TM-01, CwC | Done |
 | (b) own `/events` at `X-Poll-Interval` | ≤ ~3% (arithmetic, §1.2) | 5 min + queue (30 s–6 h) | Free | Fine (60 requests/h) | TM-02, CwC | M |
-| (b′) own `/events` at ~1.5 s | Near-complete (as OpenDigger) | Minutes | Free | 2,400–6,750 requests/h: over one token for all pages | **Not cleared** (ignores X-Poll-Interval; ToS §H) | M |
-| **OpenDigger mirror** | **~100%**: 1.013× star-history net stars (100 repos, 1 day, §7.4); 98% of per-repo `WatchEvent`s on a sampled hour; 57× GH Archive | About 1 h 5 min (hour file plus 5-min API delay; manifest written at +2 min) | Free, about 9 GB/day transfer | No GitHub API cost | **Provisional CwC**, screen-only (§5, LQ-new-1) | **S** (drop-in for the GH Archive scanner) |
+| (b′) own `/events` at ~1.5 s | High (as OpenDigger) | Minutes | Free | 2,400–6,750 requests/h: over one token for all pages | **Not cleared** (ignores X-Poll-Interval; ToS §H) | M |
+| **OpenDigger mirror** | High but **not a coverage estimate**: 1.013× star-history net stars among repos OpenDigger saw (100 repos, 1 day, §7.4; misses unobservable); 98% of per-repo `WatchEvent`s on a sampled hour; 57× GH Archive | The hour's file appears ≈ 12 min after the hour ends (**measured**: hour 2026-09-24T12 file `Last-Modified` 13:12:33 UTC), so an event is available ≈ 12 min to ≈ 1 h 12 min after it happens; ≈ 1–1.25 h after the hour starts | Free, about 9 GB/day transfer | No GitHub API cost | **GAP pending LQ-28** (TM-32); off by default (ADR-032) | **S** (drop-in for the GH Archive scanner) |
 | **GraphQL batched counts** (watch universe) | 100% of *net* change for repos in the universe, 0% outside it | ≤ 1 h | Free | 50,000 repos hourly = 500 points/h (10%) | TM-02, CwC, no personal data | S |
-| **Star-history endpoint** | 100% net, daily | Same day (current-day bucket updates; about 60 s cache) | Free | Tier 1 full histories: about 5,000 × 1–24 pages; ≈ 3 h of core budget | TM-02, CwC, no personal data | S |
+| **Star-history endpoint** | 100% net, daily | Same day (current-day bucket updates; about 60 s cache) | Free | Tier 1 full histories: 5,000 × 1–33 pages (a repo created in 2008 has ≈ 960 weeks ÷ 30 per page ≈ 33 pages) = 5k–165k requests, ≈ 1–33 h at the full core budget; the real figure depends on the Tier 1 age distribution (unknown until the list exists) | TM-02, CwC, no personal data | S |
 | **Search API** | Discovery only | ≤ 30 min for new repos | Free | 1,800 requests/h in its own bucket | TM-02, CwC | S |
-| **Per-repo Events** (tracked repos) | ~100% of star events within the window (§1.3) | 5 min + queue | Free | 400–2,000 core requests/h for 2,000 candidates | TM-02, CwC; LQ-new-2 | S |
+| **Per-repo Events** (tracked repos) | ~100% of star events within the window (§1.3) | 5 min + queue | Free | 400–2,000 core requests/h for 2,000 candidates | TM-33 (under TM-02), CwC; LQ-29 | S |
 | HN rank poller | Discovery (HN-launched repos) | Minutes | Free | n/a | ADR-031 | XS |
 | Trendshift Signal | Unverified | Daily lists | $9/month | n/a | CwC (own use) | S |
 | OSS Insight | GH Archive-based | — | Free | 600 requests/h per IP | GAP | — |
@@ -163,7 +163,7 @@ Coverage is the share of true stars seen. G3 needs a case within 24 h. Tier 1 is
   - The docs call the header how often "you are allowed to poll".
   - ToS §H prohibits "excessively frequent requests" and sharing tokens to exceed limits.
   - At the permitted cadence it is useless (≤ 3%).
-- **Per-repo Events API for tracked repos: CLEARED-WITH-CONDITIONS (TM-02), with a new legal question (LQ-new-2).** The ≥ 60 s cadence is respected.
+- **Per-repo Events API for tracked repos: CLEARED-WITH-CONDITIONS (TM-33 under TM-02), with a new legal question (LQ-29).** The ≥ 60 s cadence is respected.
   - Risk: GitHub closed stargazer *lists* in 2026 to stop spam harvesting. `WatchEvent.actor` still exposes who starred. Collecting it for many repos could be read as working around the intent of that restriction, although the endpoint is public and documented.
   - Conservative conditions:
     - pseudonymise `actor` at ingest (keyed hash, per TM-01);
@@ -171,7 +171,7 @@ Coverage is the share of true stars seen. G3 needs a case within 24 h. Tier 1 is
     - never rebuild or export stargazer lists;
     - keep person-level event rows at most 30 days, then only aggregates;
     - collect only for repos with an open case or above the pre-threshold.
-- **OpenDigger mirror: PROVISIONALLY CLEARED-WITH-CONDITIONS, screen-only (new TM-32), pending LQ-new-1.**
+- **OpenDigger mirror: GAP pending LQ-28 (TM-32).** This draft first proposed a provisional clearance; ADR-032 instead keeps it **off by default** until H2 answers LQ-28. The conditions below apply only if it is cleared.
   - The content is the same kind of data as GH Archive (TM-01, already a permitted person-level source under ADR-022).
   - There is no licence or terms, the same as GH Archive; GitHub's AUP §7 governs reuse.
   - Extra risks:
@@ -187,9 +187,9 @@ Coverage is the share of true stars seen. G3 needs a case within 24 h. Tier 1 is
 - **GitHub Trending HTML: GAP** for commercial operators (no API; AUP §7 allowance is for research and archiving). Don't scrape. Use Trendshift if a trending screen is wanted.
 - **OSS Insight: GAP** (no terms found). **ecosyste.ms:** CC BY-SA 4.0; not needed. **Libraries.io:** not needed.
 
-New legal-review questions (for `docs/compliance/legal-review-questions.md`; not added here because this task edits only this file):
-- **LQ-new-1:** May a commercial operator ingest a third-party mirror (OpenDigger) of GitHub public events whose collection cadence appears to exceed GitHub's `X-Poll-Interval`, given that the mirror publishes no licence?
-- **LQ-new-2:** After GitHub restricted stargazer lists (2026-06-30) to curb spam harvesting, may pigtail process `WatchEvent.actor` from the Events API (pseudonymised at ingest, used only for aggregate bot filtering)? Does the same apply to GH Archive and OpenDigger `WatchEvent`s?
+New legal-review questions, now filed in `docs/compliance/legal-review-questions.md` as LQ-28 (was LQ-new-1) and LQ-29 (was LQ-new-2); memos TM-32 and TM-33 are in `docs/compliance/terms-memos.md`:
+- **LQ-28 (was LQ-new-1):** May a commercial operator ingest a third-party mirror (OpenDigger) of GitHub public events whose collection cadence appears to exceed GitHub's `X-Poll-Interval`, given that the mirror publishes no licence?
+- **LQ-29 (was LQ-new-2):** After GitHub restricted stargazer lists (2026-06-30) to curb spam harvesting, may pigtail process `WatchEvent.actor` from the Events API (pseudonymised at ingest, used only for aggregate bot filtering)? Does the same apply to GH Archive and OpenDigger `WatchEvent`s?
 
 ---
 
@@ -197,7 +197,7 @@ New legal-review questions (for `docs/compliance/legal-review-questions.md`; not
 
 ### 6.1 Layers
 1. **Discovery (candidate intake, continuous).**
-   - (a) OpenDigger hourly scan, using the existing `velocity.py` code with the host switched, as the primary screen.
+   - (a) OpenDigger hourly scan, using the existing `velocity.py` code with the host switched. **Off by default (ADR-032)** until LQ-28 and TM-32 clear it; this draft had proposed it as the primary screen.
    - (b) GH Archive scan kept as a free control and fallback.
    - (c) Search API sweeps: new repos every 30 min; active repos daily.
    - (d) GitHub URLs from the HN rank poller, including `showstories`.
@@ -207,7 +207,7 @@ New legal-review questions (for `docs/compliance/legal-review-questions.md`; not
    - `U` = every repo any screen produced in the last 30 days, plus open cases, plus tracked repos (R17.4), plus a rolling slice of the wide universe (`stars ≥ 100`, about 481k, swept once a day).
    - Cap at 50,000 repos hourly.
 3. **Baseline and confirmation (daily truth).** Star-history endpoint:
-   - fetched on entry to `U` (35 days in one call, which gives the R1.1 30-day baseline);
+   - fetched on entry to `U` with `per_page=6` (6 weeks in one call, which covers the R1.1 30-day baseline before a 48 h window; `per_page=5` covers only 29–35 days);
    - refreshed daily for repos above the pre-threshold and for cases.
 4. **Case tracking (identity-level).** Per-repo Events polling, every 15 min for open cases and every 60 min for pre-threshold repos, with ETag. Provides the bot and lockstep filter (ADR-027 item 2), forks, and early community events.
 
@@ -229,7 +229,7 @@ Budgets are 5,000 core requests/h, 5,000 GraphQL points/h, and 30 search request
 
 One-off jobs:
 - Build the wide-universe list through Search: about 481 star-range partitions × 10 pages ≈ 4,810 search requests ≈ 2.7 h.
-- Tier 1 full histories (R4.4): 5,000 repos × 1–24 pages; ≈ 15k–30k core requests, or 3–6 h at full budget.
+- Tier 1 full histories (R4.4): 5,000 repos × 1–33 pages (2008-era repos ≈ 960 weeks ÷ 30 ≈ 33 pages); 5k–165k core requests, or ≈ 1–33 h at the full core budget. A tighter figure needs the Tier 1 age distribution (unknown until the list exists).
 - R4.1 trailing-24-month backfill: star-history for about 481k repos at 1–4 pages (a 24-month window needs 4 pages of 30 weeks). ≈ 0.5–2 M requests, or 4–17 days at 100% of one token, and about twice that at 50%. **Feasible as a background job.**
 
 Secondary limits to respect: ≤ 900 REST points/min, ≤ 2,000 GraphQL points/min, ≤ 100 concurrent, serial queue. The large-alias GraphQL query's CPU and timeout behaviour at scale is **unverified**; see M3.
@@ -253,7 +253,7 @@ Secondary limits to respect: ≤ 900 REST points/min, ≤ 2,000 GraphQL points/m
   - the case opens only after the bot and lockstep filter has run on identity-level star events (per-repo Events, or OpenDigger actors) for the window;
   - the case records `bot_filter_basis` ∈ {`repo_events`, `opendigger`, `gharchive`, `none`}, and `coverage_ratio` = identity-level stars seen ÷ star-history net stars (ADR-009 field; the reference changes from the stargazers API to star-history).
 - **Onset hour** (outcome-model §2.1) is computed from hourly count snapshots or OpenDigger events when present. Otherwise onset precision is `day`.
-- **G3:** a repo in `U` is detected within about 1 h of crossing and confirmed within one more poll cycle. A repo not yet in `U` is found by OpenDigger within about 1–2 h, by Search within 30 min once it has ≥ 20 stars, or by HN within minutes. The expected worst case is well inside 24 h, *if* OpenDigger stays up. Without it, G3 depends on Search and HN, and recall must be measured (M4).
+- **G3:** a repo in `U` is detected within about 1 h of crossing and confirmed within one more poll cycle. A repo not yet in `U` is found by OpenDigger within about 1–2 h, by Search within 30 min once it has ≥ 20 stars, or by HN within minutes. The expected worst case is well inside 24 h, *if* OpenDigger is cleared and stays up. Without it (the ADR-032 default), G3 depends on Search and HN, and recall must be measured (M4).
 - **R17.4:** "Track this project" = add to `U` and to the per-repo Events poller. This is cheap and fits within 1 h.
 
 ---
@@ -296,7 +296,7 @@ The agent's own `gh` CLI login was used, because no project `GITHUB_TOKEN` exist
 | **All** | | 100 | **15,756** | **15,548** | **1.013** | **1.000** | |
 
 - **Reading:**
-  - OpenDigger saw essentially every star that day in every velocity stratum, including the burst stratum.
+  - Among repos OpenDigger saw, its counts agree with GitHub's in every velocity stratum, including the burst stratum. Because the strata were drawn from OpenDigger's own counts, repos or stars it missed could not be sampled, so this does **not** measure OpenDigger's coverage; §8 M1 samples from outside the mirror.
   - A ratio slightly above 1 is expected: OpenDigger counts gross star events, while star-history counts net current stargazers.
   - The fit on Pacific-day boundaries also supports the time-zone inference in §0.
   - This is **one day**, measured three weeks after the mirror started. M1 in §8 makes it a daily check.
@@ -306,7 +306,7 @@ The agent's own `gh` CLI login was used, because no project `GITHUB_TOKEN` exist
 
 ## 8. Validation plan once the project token exists (H1)
 - **M1 — Daily coverage audit (replaces M1-T16's method).**
-  - Every day, sample 200 repos stratified by velocity (from `U`).
+  - Every day, sample 200 repos stratified by velocity from the universe `U` or from star-history counts, **never from the mirror under test**, so that its misses are observable.
   - Compare (i) OpenDigger and (ii) GH Archive `WatchEvent` counts per Pacific day with the star-history day count.
   - Store per-source daily coverage.
   - Alarm if OpenDigger falls below 0.90 or a file or manifest is missing; fall back to Search, HN and `U`.
@@ -327,37 +327,44 @@ The agent's own `gh` CLI login was used, because no project `GITHUB_TOKEN` exist
 
 ## 9. Implications for pigtail
 
-1. **G3, R1.1:** Replace GH Archive as the primary screen with the hybrid in §6. G3 becomes achievable (≤ ~2 h detection for repos in `U` or in OpenDigger) and is measured by M4.
+1. **G3, R1.1:** Replace GH Archive as the primary screen with the hybrid in §6. G3 becomes achievable (≤ ~2 h detection for repos in `U`, or in OpenDigger if it is cleared) and is measured by M4.
 2. **R1.1:** Evaluate the thresholds on the public net stargazer count (hourly GraphQL, daily star-history). Bot filtering becomes a confirmation step on identity-level events. Record `bot_filter_basis` and `coverage_ratio`. R1.1's thresholds are unchanged, and no recalibration for GH Archive coverage is needed any more.
-3. **ADR-012 is superseded:** the stargazers API is closed. The scoring star series comes from the star-history endpoint (daily, net, survivor-biased, back to creation). Update `outcome-model.md` §2.1 (onset from the hourly series where available, otherwise day precision) and M3-T3 (costs are about 1–24 requests per repo, with no 40k cap).
+3. **ADR-012 is superseded:** the stargazers API is closed. The scoring star series comes from the star-history endpoint (daily, net, survivor-biased, back to creation). Update `outcome-model.md` §2.1 (onset from the hourly series where available, otherwise day precision) and M3-T3 (costs are about 1–33 requests per repo, with no 40k cap).
 4. **R3.3 (fake-star filter):** StarScout-style filtering needs stargazer identities. They are now available only from events (OpenDigger from 2026-09-06, per-repo Events live, GH Archive at about 2% before that). The `starscout_filtered` series is `unknown` for historical windows before 2026-09-06, and the R3.3 reproduction must report this.
-5. **R4.1:** The 24-month universe can be backfilled at daily resolution from star-history in about 1–3 weeks of background budget on one token. R4.4 Tier 1 (≥ 5,000) histories cost about 3–6 h.
-6. **R17.1 Stage 1 / R17.4:** GitHub history for any URL = star-history (1–24 requests). "Track" = add to `U` and to the repo-events poller. Both fit the ≤ 10 min and ≤ 1 h targets.
+5. **R4.1:** The 24-month universe can be backfilled at daily resolution from star-history in about 1–3 weeks of background budget on one token. R4.4 Tier 1 (≥ 5,000) histories cost 5k–165k requests (≈ 1–33 h at the full core budget; 1–33 pages per repo).
+6. **R17.1 Stage 1 / R17.4:** GitHub history for any URL = star-history (1–33 requests). "Track" = add to `U` and to the repo-events poller. Both fit the ≤ 10 min and ≤ 1 h targets.
 7. **R1.3:** Discovery of announced launches depends on HN (ADR-031 poller: add `showstories`), operator entry, and Bluesky after the ADR-022 hold is lifted. Product Hunt stays a gap.
-8. **§10 Terms / ADR-022:** Add TM-32 (OpenDigger, provisional, screen-only) and LQ-new-1 and LQ-new-2. Don't collect `/events` faster than `X-Poll-Interval`. Don't scrape Trending. Owner decisions: the Trendshift $9/month option; the OpenDigger bandwidth of about 9 GB/day on the host.
+8. **§10 Terms / ADR-022:** TM-32 (OpenDigger, GAP pending LQ-28), TM-33 (star-history and per-repo events) and LQ-28 and LQ-29 are now filed. Don't collect `/events` faster than `X-Poll-Interval`. Don't scrape Trending. Owner decisions: the Trendshift $9/month option; the OpenDigger bandwidth of about 9 GB/day on the host.
 9. **ADR-027 item 4:** Don't snapshot whole OpenDigger hourly files (about 300–410 MB each). Store hash plus manifest plus the filtered subset instead (CB-04).
-10. **M1-T16:** Change its method to the star-history comparison (§8 M1). The ADR-009/012 reverse conditions ("coverage ≥ 0.95") now apply to OpenDigger as well as to GH Archive.
+10. **M1-T16:** Change its method to the star-history comparison (§8 M1). The ADR-009/012 reverse conditions ("coverage ≥ 0.95") now apply to OpenDigger as well as to GH Archive, measured on a sample drawn from `U` or star-history.
 
 ### Proposed ADR text
 
+*As adopted, ADR-032 in `ops/DECISIONS.md` differs from this proposal: OpenDigger is off by default until H2 answers LQ-28 and TM-32 clears it. The text below is kept as proposed, with the verifier's factual corrections.*
+
 > **ADR-032 — Breakout detection: hybrid screen plus GitHub net-count measurement; stargazers API replaced by the star-history endpoint (2026-09-25)**
-> Context: GH Archive captured about 2.1% of stars on 2026-09-24 (M1-T18 §7.2). GitHub restricted `/stargazers` (REST and GraphQL) to admins and collaborators on 2026-06-30 and on 2026-09-04 added `GET /repos/{o}/{r}/stargazers/history` (daily, net counts, back to creation, no identities). Pigtail's own `/events` collection at the permitted `X-Poll-Interval` (60 s) would see ≤ 3% of the public stream (~650k events/h). The OpenDigger mirror (#323) matched GitHub's daily net star counts (1.013×, 100 repos, one day) but publishes no licence and polls faster than GitHub's interval.
+> Context: GH Archive captured about 2.1% of stars on 2026-09-24 (M1-T18 §7.2). GitHub restricted `/stargazers` (REST and GraphQL) to admins and collaborators on 2026-06-30 and on 2026-09-04 added `GET /repos/{o}/{r}/stargazers/history` (daily, net counts, back to creation, no identities). Pigtail's own `/events` collection at the permitted `X-Poll-Interval` (60 s) would see ≤ 3% of the public stream (~650k events/h). The OpenDigger mirror (#323) agreed with GitHub's daily net star counts for the repos it saw (1.013×, 100 repos drawn from OpenDigger's own counts, one day; its misses are unobservable with that method) but publishes no licence and polls faster than GitHub's interval.
 > Options: (a) GH Archive only; (b) own `/events` firehose; (c) screens plus per-candidate measurement; (d) third-party services; (e) hybrid of (c) with the OpenDigger screen.
 > Decision: (e).
-> (1) Screens: OpenDigger hourly (screen and bot filter only, aggregates plus pseudonymised actors, no raw snapshots; provisional under TM-32 pending LQ-new-1), GH Archive (control), Search API sweeps, HN rank poller URLs (add `showstories`).
+> (1) Screens: OpenDigger hourly (screen and bot filter only, aggregates plus pseudonymised actors, no raw snapshots; GAP under TM-32 pending LQ-28; off by default in the adopted ADR-032), GH Archive (control), Search API sweeps, HN rank poller URLs (add `showstories`).
 > (2) Watch universe `U` ≤ 50k repos: hourly GraphQL batched `stargazerCount`/`forkCount`.
 > (3) Star-history endpoint for the 30-day baseline, daily confirmation, backfill and the scoring series (supersedes ADR-012's stargazers-API source; three series become `raw_net` (star-history), `bot_filtered` and `starscout_filtered` (event-based, `unknown` where no identity-level events exist)).
-> (4) Per-repo Events API at ≥ 15 min intervals for cases and pre-threshold repos, for the R1.1 bot filter (pseudonymised at ingest, 30-day person-level retention, pending LQ-new-2).
+> (4) Per-repo Events API at ≥ 15 min intervals for cases and pre-threshold repos, for the R1.1 bot filter (pseudonymised at ingest, 30-day person-level retention, TM-33, pending LQ-29).
 > R1.1 is evaluated on net public counts, with bot filtering as a confirmation step; the case records `bot_filter_basis` and `coverage_ratio`. Pigtail never polls `/events` faster than `X-Poll-Interval`, never pools tokens, never scrapes Trending, and runs on one token within ≤ 70% of each bucket.
-> How to reverse: If OpenDigger coverage falls below 0.90 for 7 days, or its terms or LQ-new-1 forbid use, drop it and rely on Search, HN and `U` (M4 recall decides whether G3 still holds). If GH Archive coverage is restored to ≥ 0.95 (M1-T16), it can replace OpenDigger. If GitHub restores `starred_at`, revisit (3).
+> How to reverse: If OpenDigger coverage falls below 0.90 for 7 days, or its terms or LQ-28 forbid use, drop it and rely on Search, HN and `U` (M4 recall decides whether G3 still holds). If GH Archive coverage is restored to ≥ 0.95 (M1-T16, sampled from `U` or star-history), it can replace OpenDigger. If GitHub restores `starred_at`, revisit (3).
 
 ---
 
 ## 10. Open issues
 - Whether `/events` is complete at any polling rate is unverified. The OpenDigger comparison is against per-repo Events, which come from the same system.
-- The Pacific-day bucketing of star-history is inferred from 13 repos (§0) and is consistent with the 100-repo fit in §7.4. It is not documented (M2).
+- The Pacific-day bucketing of star-history is inferred from 13 repos (§0), corroborated by the verifier's one-repo test (9 of 11 days exact under PDT) and consistent with the 100-repo fit in §7.4. GitHub documents only that boundaries are "not guaranteed to align with UTC" (M2).
 - GraphQL 100-alias queries were measured once (cost 1 point). CPU and timeout behaviour at 50k repos per hour is unverified (M3).
-- OpenDigger has no terms and a single operator, and its bandwidth is about 9 GB/day. It is 19 days old, and its coverage was validated on one day only (§7.4).
+- OpenDigger has no terms and a single operator, and its bandwidth is about 9 GB/day. It is 19 days old, and only its agreement among repos it saw was measured, on one day (§7.4); its coverage is unmeasured.
 - Trendshift's data source and API limits are unverified.
 - Whether star-history excludes stars from spam-flagged or suspended accounts is unverified (the net-zero outlier in §7.2).
-- LQ-new-1 and LQ-new-2 need to go into the legal-review list, and TM-32 into the terms memos. That is outside this task's file scope.
+- LQ-28 and LQ-29 are now in the legal-review list, and TM-32 and TM-33 in the terms memos (2026-09-25).
+
+---
+
+## Changelog
+- 2026-09-25 — corrections after verifier: ClickHouse re-cited to https://ghe.clickhouse.tech/ ("We prepared a dataset from the GH Archive…"; "reloaded every 10 min" and the clickhouse.com docs URL removed); PingCAP events-API claim withdrawn (not found at cited URL); star-history pages 1–33 (not 1–24), Tier 1 cost 5k–165k requests (≈ 1–33 h) in §4, §6.2 and §9.3, §9.5, §9.6; docs line "Week and day boundaries are not guaranteed to align with UTC." cited in §0, docs quote corrected to "Pages move backward toward the repository's creation week" (§2.2), Pacific day kept as an inference with the verifier's 9/11-day test; 1.013× reworded as agreement among repos OpenDigger saw (misses unobservable), "saw essentially every star" removed, M1 now samples from `U` or star-history (§0, §4, §7.4, §8, §9, proposed ADR); `per_page=6` for the 30-day baseline (§2.2, §6.1); OpenDigger availability ≈ hour end + ~12 min (§4, measured `Last-Modified`). Noted that ADR-032 adopted the design with OpenDigger off by default; LQ-new-1/2 renamed LQ-28/LQ-29 and TM-32/TM-33 filed.

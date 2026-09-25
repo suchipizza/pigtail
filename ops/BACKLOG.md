@@ -10,7 +10,8 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [ ] [M1-T22] Front-page minutes (`att.hn_frontpage_minutes`) from rank observations, handling polling gaps
 - [ ] [M1-T23] HN follow-ups: clear `hn_story` titles for stories deleted upstream; a repo opt-out should also reach mentions of repos not in `repos`; `pigtail doctor` reports HN and ADR-022 flags; live check of Algolia
 - [ ] [M3-T5] Compliance docs: CB-02 status (HN implemented; Bluesky pending) — retention-policy §4, DPIA
-- [x] [M1-T18] Detection re-plan verified (technical claims) → ADR-032; doc citation fixes in progress: evaluate own GitHub event collection (Events API, full paging), candidate screening via Search API / HN / Bluesky / registries + stargazers API, and third-party trend services — feasibility, rate limits, cost, terms; recommendation checked by the verifier — ADR-028, G3, R1.1 — GITHUB_TOKEN (H1) for measurements
+- [x] [M1-T18] Detection re-plan verified → ADR-032; citation fixes applied; TM-32/33, LQ-27..29 added
+- [ ] [M3-T7] LIA/DPIA: add per-repo events processing (TM-33) and LQ-29 to the balancing test and risk register: evaluate own GitHub event collection (Events API, full paging), candidate screening via Search API / HN / Bluesky / registries + stargazers API, and third-party trend services — feasibility, rate limits, cost, terms; recommendation checked by the verifier — ADR-028, G3, R1.1 — GITHUB_TOKEN (H1) for measurements
 - [ ] [M1-T19] Retry and backfill missing GH Archive hours (404s are only marked missing today)
 - [ ] [M1-T20] JSONL export alongside the DB (PRD §7); S3 service in CI; handles inside free text; run error-text redaction; batched detect() for backfills
 - [x] [M2-T1] Literature review → docs/research/literature.md (80 citations; recommends StarScout for R3.3) — pending verifier spot-check M2-T4
@@ -61,7 +62,7 @@ Feature-specific:
 ## Next
 - [x] [M3-T4] Compliance docs' CB statuses updated (ADR-030)
 - [ ] [CB-18b] Install RedactingFilter in every CLI command/service (currently `capture scan` only)
-- [ ] [LQ-27] Add legal question: after an erasure, replay briefly re-processes the erased person's data before dropping it at ingest (ADR-030.1) — acceptable?
+- [x] [LQ-27] Added to legal-review-questions (with LQ-28 OpenDigger, LQ-29 stargazer identities) — was: Add legal question: after an erasure, replay briefly re-processes the erased person's data before dropping it at ingest (ADR-030.1) — acceptable?
 - [ ] [M5-T1] Coding prompts must include the codebook P1 instruction (ignore personal characteristics); verifier checks it — codebook §12, DPIA R9
 - [ ] [M2-T3] Fake-star method: select, reproduce on a sample, document validation — R3.3 — M2-T1
 - [x] [M2-T4] Verifier spot-check — round 1 FAIL, round 2 PASS @191c44d (2026-09-25)

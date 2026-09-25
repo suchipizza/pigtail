@@ -31,7 +31,7 @@ The clearance levels mean:
 | # | Source | Coverage / depth | Granularity | Cost | Rate limit | Auth | Commercial | Storage | Deletion duty | AI/ML limits | Stability risk | Decision |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | GH Archive + BigQuery | Public GitHub events since 2011-02-12 | Hourly files; BigQuery day, month and year tables | BigQuery $6.25/TiB, first 1 TiB/month free | BigQuery quotas | GCP project | No dataset licence stated; maintainer points to GitHub ToS (issue #137); GitHub AUP applies | Not addressed | None stated | GitHub ToS D.9 covers *training* only | **High**: star capture reportedly collapsed in 2025–26 (likely systematic crawler loss) | CLEARED-WITH-CONDITIONS |
-| 2 | GitHub REST/GraphQL | All public repos, stargazers with `starred_at` | Per event and per star | Free | REST 5,000/h (token); GraphQL 5,000 pts/h | PAT / App | Allowed within the AUP (no spam, no selling personal info) | Not restricted in §H | None stated | Training only (D.9) | Low–medium | CLEARED-WITH-CONDITIONS |
+| 2 | GitHub REST/GraphQL | All public repos. Stargazer lists (`starred_at`) **restricted to admins and collaborators since 2026-06-30** (§2.2) | Per event and per star | Free | REST 5,000/h (token); GraphQL 5,000 pts/h | PAT / App | Allowed within the AUP (no spam, no selling personal info) | Not restricted in §H | None stated | Training only (D.9) | Low–medium | CLEARED-WITH-CONDITIONS |
 | 3 | HN Algolia API | HN from item 1 (2006-10-09), observed | Per item | Free | 10,000 req/h per IP | None | YC ToU is ambiguous | Not addressed | None stated | None found | Medium (no SLA) | CLEARED-WITH-CONDITIONS |
 | 4 | HN Firebase API | All items since 2006-10-09; top/new/best lists | Per item, live lists | Free | "currently no rate limit" | None | YC ToU is ambiguous | Not addressed | None; `deleted` flag exists | None found | Medium (v0, may break) | CLEARED-WITH-CONDITIONS |
 | 5 | Reddit Data API | Posts, comments, users | Per item | Commercial fees at Reddit's discretion; $0.24/1K unverified | 100 QPM per OAuth client | OAuth + **prior approval** | **Needs a separate written agreement** | Only for the approved use case | **Yes**: delete removed content; 48 h recommended | No training; no sensitive inference; no sharing with third parties | Very high | **GAP** |
@@ -61,6 +61,8 @@ The clearance levels mean:
 | 29 | Careers pages (project sites) | Per site | Per page capture | Free | Self-imposed | None | Per-site terms | Per-site terms | Per site | Per site | Per site | CLEARED-WITH-CONDITIONS (per-site check; Wayback first) |
 | 30 | HN "Who is hiring?" threads | Monthly threads by the `whoishiring` account since 2011 (observed) | Per comment | Free | As TM-03/TM-04 | None | As TM-03/TM-04 | As TM-03/TM-04 | None; `deleted` flag | None found | Medium | CLEARED-WITH-CONDITIONS (as HN, pending Q4) |
 | 31 | Press (funding announcements) | Whatever the operator enters | Per announcement | — | — | — | Operator-entered citation only | URL, date and a short quote only | — | — | Low | CLEARED-WITH-CONDITIONS (manual, `self_reported`) |
+| 32 | OpenDigger GH-event mirror | All public GitHub events since 2026-09-06; much higher capture than GH Archive (misses unmeasured) | Hourly files + manifests | Free (≈ 9 GB/day transfer) | None stated | None | No licence or terms; "publicly available for anyone to download and use" (issue #323) | Not addressed | None stated | None stated | **High** (single operator, weeks old, collector polls ≈ 1.5 s vs GitHub's 60 s `X-Poll-Interval`) | **GAP** pending LQ-28 (TM-32; off by default, ADR-032) |
+| 33 | GitHub star-history endpoint (+ per-repo Events) | Every public repo, back to creation; no identities. Per-repo events: last 300 / 30 days, with `actor` | Weekly and daily (days not UTC-aligned) | Free | Core REST (1 request per 30 weeks) | PAT | As TM-02 | As TM-02 | None stated | As TM-02 | Low–medium (new endpoint, 2026-09-04) | CLEARED-WITH-CONDITIONS (TM-33; per-repo `actor` use pending LQ-29) |
 
 ---
 
@@ -130,6 +132,7 @@ The clearance levels mean:
 **Stargazers**
 - The `application/vnd.github.star+json` media type returns `starred_at` timestamps (https://docs.github.com/en/rest/activity/starring).
 - A cap of 400 pages (40,000 stars) is widely reported but is **not in the official docs**, so it is unverified. The connector must detect truncation.
+- **Restricted since 2026-06-30:** GitHub limited the List stargazers endpoint `/repos/{owner}/{repo}/stargazers` (and List watchers) to admins and collaborators, because the lists had "increasingly been misused to collect user data for spam activities" (https://github.blog/changelog/2026-06-30-upcoming-access-restrictions-to-public-api-endpoints-and-ui-views/, accessed 2026-09-25). Pigtail measured a `404` on REST and an empty GraphQL `stargazers` connection for repos it doesn't administer (`docs/research/detection-replan.md` §0). The paragraph above therefore describes the pre-restriction API; ADR-032 replaces it with the star-history endpoint (§2.33, TM-33).
 
 **Terms**
 - ToS §H: abuse can lead to suspension; "You may not share API tokens to exceed GitHub's rate limitations"; no downloading of data for spamming or for selling personal information (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service).
@@ -678,6 +681,25 @@ The page says "No rate limits are required" for the sparse index, and "No rate l
 
 **Decision: CLEARED-WITH-CONDITIONS (manual only).**
 
+### 2.32 OpenDigger GH-event mirror (gharchive issue #323), TM-32
+
+- **Coverage:** a GH Archive-compatible hourly archive (`https://gharchive.open-digger.cn/YYYY-MM-DD-H.json.gz`, with manifests) since 2026-09-06 (https://github.com/igrigorik/gharchive.org/issues/323). Measured 2026-09-24: 57× GH Archive's `WatchEvent`s; counts agree with GitHub's star-history (1.013×) for the repos it saw, but its misses are unmeasured (detection-replan §7.4).
+- **Latency (measured):** an hour's file appears ≈ 12 min after the hour ends.
+- **Cost:** free; ≈ 300–410 MB compressed per hour (≈ 9 GB/day).
+- **Auth / limits:** anonymous HTTPS; no limits stated. Served from Alibaba Cloud OSS (`Server: AliyunOSS`, measured).
+- **Terms:** none published. The issue says "publicly available for anyone to download and use". GitHub ToS §H and AUP §7 apply upstream. The operator's collector polls about every 1.5 s (maintainer comment, 2026-09-13), against a measured `X-Poll-Interval` of 60 s.
+- **Stability:** high risk (single operator, no SLA, weeks old).
+
+**Decision: GAP pending LQ-28** (TM-32). Off by default under ADR-032.
+
+### 2.33 GitHub star-history endpoint and per-repo Events API, TM-33
+
+- `GET /repos/{owner}/{repo}/stargazers/history` (announced 2026-09-04, https://github.blog/changelog/2026-09-04-new-api-endpoint-provides-privacy-safe-star-history-data/): weekly totals and `days[7]`, `per_page` ≤ 30 weeks, `page` ≤ 100; "Pages move backward toward the repository's creation week"; "Week and day boundaries are not guaranteed to align with UTC" (https://docs.github.com/en/rest/activity/starring?apiVersion=2026-03-10#get-repository-star-history). Net of un-stars (sums to the current count), no identities, no 40k cap (measured). One core request per 30 weeks.
+- `GET /repos/{owner}/{repo}/events`: last 300 events within 30 days, with `actor`; `X-Poll-Interval` 60 s (measured) (https://docs.github.com/en/rest/activity/events).
+- **Terms:** as TM-02.
+
+**Decision: CLEARED-WITH-CONDITIONS** (TM-33): one operator token; poll within `X-Poll-Interval` (15–60 min per repo, ETag); per-repo events only for cases, tracked and pre-threshold repos; pseudonymise `actor` at ingest, aggregates only, ≤ 30-day person-level rows, never rebuild a stargazer list (pending LQ-29).
+
 ---
 
 ## 3. Gap list (R2.3)
@@ -698,12 +720,12 @@ The page says "No rate limits are required" for the sparse index, and "No rate l
 | YC directory | ToU bans scraping; no API (TM-25) | Written permission from YC | "Backing" stratum (R4.2) |
 | GitHub dependents page | No REST or GraphQL endpoint; robots.txt `Disallow: /*/*/network` (TM-26) | Crawl permission from GitHub support; meanwhile use deps.dev (TM-12) | GitHub-native dependents counts (§8.1 adoption); ecosystems outside deps.dev |
 | Slack invite links | No public member-count endpoint (TM-28) | The project's workspace admin shares counts | Slack community size (§8.1) is `unknown` |
+| OpenDigger mirror | No licence or terms; single operator; collector polls ≈ 40× faster than GitHub's `X-Poll-Interval` (TM-32) | H2 answer to LQ-28; written terms from the operator | Faster G3 detection outside the watch universe; OpenDigger-based bot filtering (ADR-032) |
 
 **Not audited in this pass:**
-- the OpenDigger GH Archive mirror (issue #323)
 - hosted job boards used by careers pages (TM-29 asks for a per-host check)
 
-The Discord invite API, Slack invite links, careers pages, HN "Who is hiring?" threads, press as a funding source, and the GitHub dependency graph were audited on 2026-09-25 (§2.26–§2.31, TM-26 to TM-31).
+The Discord invite API, Slack invite links, careers pages, HN "Who is hiring?" threads, press as a funding source, and the GitHub dependency graph were audited on 2026-09-25 (§2.26–§2.31, TM-26 to TM-31). The OpenDigger mirror and the GitHub star-history endpoint were audited on 2026-09-25 (§2.32–§2.33, TM-32 and TM-33).
 
 ---
 
@@ -748,7 +770,7 @@ Gap sources are not built. Their connector stubs carry only the enable flag, set
    - It is needed first for Bluesky (and for Reddit and X if they are ever enabled).
    - Reddit's position that de-identified retention still violates its terms means "keep hash plus coded facts" may not suffice for Reddit. Q2 asks about this.
    - The schema field `deletion_state` is required for every person-level source.
-3. **§7, `evidence.terms_basis`: use the memo IDs TM-01 to TM-31 plus the access date.**
+3. **§7, `evidence.terms_basis`: use the memo IDs TM-01 to TM-33 plus the access date.**
    - The connector interface (R2.1) must refuse to run when the enable flag is on but the clearance is GAP, unless the operator records a permission reference.
 4. **§8.1 outcome model (feeds M3 `docs/specs/outcome-model.md`).**
    - "Reddit reach" becomes `unknown` by default.
@@ -793,3 +815,4 @@ Gap sources are not built. Their connector stubs carry only the enable flag, set
 ## Changelog
 
 - 2026-09-25 — corrections after verifier spot-check M2-T4. GH Archive: issue #137 answer by the maintainer, #310 root cause and PR #317, #312 drop and recovery, #320 scope of 2 repos. PyPI licence is CC BY 4.0, and the immutability quote applies to `distribution_metadata` only. crates.io access order. "AppView" wording replaced. Internet Archive citation URL. HN Algolia depth and rank-field observation. GitHub ToS D.9 URL. X Developer Agreement section labels. yc-oss/api quote. New audits §2.26–§2.31 (TM-26 to TM-31), with the summary table, gap list, priority order, "Not audited" and implications updated.
+- 2026-09-25 — detection re-plan (ADR-032): rows 32 (OpenDigger mirror, **GAP** pending LQ-28, TM-32) and 33 (GitHub star-history endpoint plus per-repo events, CLEARED-WITH-CONDITIONS, TM-33); §2.32–§2.33 added; §2.2 and row 2 note that stargazer lists are restricted to admins and collaborators since 2026-06-30 (GitHub changelog); OpenDigger moved from "Not audited" to the gap list.
