@@ -131,7 +131,7 @@ Options: (a) switch the product default to `api` now; (b) keep `subscription` fo
 Decision: (b). It's the most reversible option, it matches the owner's explicit choice (ADR-001), and the question is raised in H2 (LQ-1, LQ-2).
 How to reverse: Set `LLM_BACKEND=api`. Nothing else changes (D6 acceptance).
 
-## ADR-024 — Codebook v0.1.0 adopted for the pilot (2026-09-25)
+## ADR-024 — Codebook v0.1.0 adopted for the pilot (2026-09-25) — items 1 and 3 amended by ADR-039
 Context: M4-T1 produced docs/methodology/codebook.md and schemas/codebook/v0.1.0.json. It hasn't been tested on coded data yet.
 Decisions (all v0, calibrated in the M4 pilot; any change needs a semver bump plus a changelog entry, R6.3):
 1. **Two event layers.** `burst` and `quiet` are computed from the filtered star series (onset rule from outcome-model §2.1; burst end 3 d, merge gap 7 d, minimum quiet 7 d). `prep`, `launch`, `relaunch` and `pivot` are coded from evidence. This avoids having to agree on where events start and end. To reverse: code all six and add them as core fields.
