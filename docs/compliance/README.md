@@ -45,7 +45,7 @@ Pack version: 0.1 · 2026-09-25 · Task M3-T2. All sources cited were accessed o
   - CB-08 data-subject request tooling
   - CB-12 published notice
   - CB-13 honouring explicit refusals
-- **Code status:** several capture-layer controls (pseudonymisation at ingest in `connectors/base.py`, `ConnectorGapError`, the bot drop, `velocity.py`, the `retention_class` and `deletion_state` fields) are M1 work that is **not yet merged to `main`**. The pack labels them "I (M1, pending merge)". GH Archive capture runs locally in development only; there is no production capture (ADR-022).
+- **Code status:** the capture-layer controls (pseudonymisation at ingest in `connectors/base.py`, `ConnectorGapError`, the bot drop, `velocity.py`, the `retention_class` and `deletion_state` fields, CB-04 raw purge) are merged to `main` and labelled "I". GH Archive capture runs locally in development only; there is no production capture (ADR-022).
 - **LLM:**
   - "Zero-retention" (PRD §10) is achievable only with `api` plus an Anthropic ZDR agreement.
   - `subscription` mode runs under the Consumer Terms: no DPA, no ZDR, training exceptions, and a "no commercial or business purposes" sentence (LQ-1, LQ-2). It stays limited to the owner's own use with training switched off.
@@ -62,3 +62,4 @@ Update the pack when a source is added, when a platform's or Anthropic's terms c
 ## Changelog
 - 2026-09-25: v0.1. LIA, DPIA, retention policy, privacy notice, legal-review questions and this index created (M3-T2). terms-memos.md unchanged apart from a link to this index.
 - 2026-09-25 — fixes after verifier M3 round 1: person-level-source pre-conditions now point to ADR-022 (CB-01, 02, 03, 06, 08, 12, 13); uncommitted M1 controls labelled "I (M1, pending merge)"; CB-07 marked implemented.
+- 2026-09-25 — M1 capture core merged at `ec79762`; "I (M1, pending merge)" labels changed to "I".

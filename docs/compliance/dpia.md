@@ -166,12 +166,12 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 
 ## 6. Measures, mapped to controls
 
-**I** = implemented and on `main` (evidence cited). **I (M1, pending merge)** = implemented in the uncommitted M1 capture work, not yet merged to `main`. **P** = planned (backlog id, §9). **O** = operator action.
+**I** = implemented and on `main` (evidence cited). **I** = implemented in the uncommitted M1 capture work, not yet merged to `main`. **P** = planned (backlog id, §9). **O** = operator action.
 
 | Risk | Measures | Status |
 |---|---|---|
 | R1 | Keyed HMAC-SHA256 pseudonyms (`src/pigtail/pseudonymize.py`). | I |
-| | Pseudonymisation at ingest with a per-platform namespace (`src/pigtail/connectors/base.py` `records()`, `github` namespace in `connectors/gharchive.py`). The LLM-path redactor uses one `generic` namespace for @mentions ([lia.md](lia.md) S9). | I (M1, pending merge) |
+| | Pseudonymisation at ingest with a per-platform namespace (`src/pigtail/connectors/base.py` `records()`, `github` namespace in `connectors/gharchive.py`). The LLM-path redactor uses one `generic` namespace for @mentions ([lia.md](lia.md) S9). | I |
 | | Key ≥ 16 characters, required, and stored apart from the data (`Pseudonymizer.__init__`; `build_client` refuses to start without it). | I |
 | | The key is backed up separately from data backups. | O (H1) |
 | | Key rotation and escrow procedure; the key is never placed in DB dumps. | P CB-09 |
@@ -182,8 +182,8 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | | Hold A4 until LQ-8 is answered or CB-14 is in place. | P |
 | R4 | Retention job: 24 months for `person_level_24m`, then aggregate or delete. | P CB-01 |
 | | Minimise GH Archive raw dumps (hash + re-fetch). | P CB-04 |
-| | Retention fields exist (`evidence.retention_class`, `migrations/0001_capture_v0.sql`, `src/pigtail/capture/models.py`). | I (M1, pending merge) |
-| R5 | Deletion sync per source ([retention-policy.md](retention-policy.md) §4); `deletion_state` field (`migrations/0001_capture_v0.sql`). | I (M1, pending merge) (field) / P CB-02 |
+| | Retention fields exist (`evidence.retention_class`, `migrations/0001_capture_v0.sql`, `src/pigtail/capture/models.py`). | I |
+| R5 | Deletion sync per source ([retention-policy.md](retention-policy.md) §4); `deletion_state` field (`migrations/0001_capture_v0.sql`). | I (field) / P CB-02 |
 | | Bluesky is not enabled before CB-02. | P (gate) |
 | R6 | Redaction before every call on both backends (`src/pigtail/llm/client.py`, ADR-006). | I |
 | | Closed output schemas (`src/pigtail/llm/types.py`). | I |
@@ -283,3 +283,4 @@ These are for the orchestrator to add to `ops/BACKLOG.md`. "Blocks" says which p
 ## Changelog
 - 2026-09-25: v0.1 created (M3-T2).
 - 2026-09-25 — fixes after verifier M3 round 1: uncommitted M1 controls relabelled "I (M1, pending merge)" (§6 R1, R4, R5); CB-07 marked implemented (§2.3 D9, §2.5, §6 R6 and R11, §9); §7 and the §9 "Blocks" column aligned with ADR-022 and with capture running in local development only.
+- 2026-09-25 — M1 capture core merged at `ec79762`; "I (M1, pending merge)" labels changed to "I".

@@ -10,19 +10,19 @@
 
 All URLs were accessed on 2026-09-25.
 
-**Status legend:** **I** = implemented in code on `main` (file cited). **I (M1, pending merge)** = implemented in the uncommitted M1 capture work, not yet merged to `main`. **P** = planned (backlog id). **O** = operator procedure.
+**Status legend:** **I** = implemented in code on `main` (file cited). **I** = implemented in the uncommitted M1 capture work, not yet merged to `main`. **P** = planned (backlog id). **O** = operator procedure.
 
 ---
 
 ## 1. Retention classes
 
-The class is recorded on every evidence record: `evidence.retention_class` in `src/pigtail/capture/models.py` and `migrations/0001_capture_v0.sql` (**I (M1, pending merge)**).
+The class is recorded on every evidence record: `evidence.retention_class` in `src/pigtail/capture/models.py` and `migrations/0001_capture_v0.sql` (**I**).
 
 | Class | What it covers | Retention | At the end of the period | Status |
 |---|---|---|---|---|
-| `person_level_24m` | Raw snapshots and parsed records that contain or derive from data about identifiable people: GH Archive hourly dumps, posts, comments, pseudonymised actor rows, spread-graph nodes and edges, account reach | **24 months from `fetched_at`** (from the capture time, not the content's date) | **Aggregate or delete.** Raw bytes are deleted. Pseudonymised rows are deleted or rolled up into counts with no pseudonym. The evidence record keeps `content_hash`, `url`, `source`, `fetched_at`, `terms_basis` and the coded facts that carry no person identifier, and `deletion_state` is set to `raw_dropped`. | Field: I (M1, pending merge). Job: **P (CB-01)** |
+| `person_level_24m` | Raw snapshots and parsed records that contain or derive from data about identifiable people: GH Archive hourly dumps, posts, comments, pseudonymised actor rows, spread-graph nodes and edges, account reach | **24 months from `fetched_at`** (from the capture time, not the content's date) | **Aggregate or delete.** Raw bytes are deleted. Pseudonymised rows are deleted or rolled up into counts with no pseudonym. The evidence record keeps `content_hash`, `url`, `source`, `fetched_at`, `terms_basis` and the coded facts that carry no person identifier, and `deletion_state` is set to `raw_dropped`. | Field: I. Job: **P (CB-01)** |
 | `project_level` | Data about repos and packages: stars, downloads, releases, dependents, pricing pages, Wayback captures of project pages | **No time limit** (PRD §10) | Kept. **Exception:** `owner/repo` names of repos owned by personal accounts are personal data. They are kept internally but never published without consent or the public-figure rule (CB-20, LQ-7). | I (policy) |
-| `derived_aggregate` | Counts and statistics with no person identifier (e.g. `repo_hourly_activity`) | No time limit | Kept. Must stay non-identifying (cell size rule for public outputs, CB-14). | I (M1, pending merge) (`migrations/0002_repo_hourly_activity.sql`) |
+| `derived_aggregate` | Counts and statistics with no person identifier (e.g. `repo_hourly_activity`) | No time limit | Kept. Must stay non-identifying (cell size rule for public outputs, CB-14). | I (`migrations/0002_repo_hourly_activity.sql`) |
 
 **Why 24 months:** outcomes are scored up to T+365 (R3.1). The universe covers a trailing 24 months (R4.1). Matched losers are selected after outcomes are known. See [lia.md](lia.md) §3. A shorter period is allowed per source when the terms require it (§4).
 
@@ -37,10 +37,10 @@ The class is recorded on every evidence record: `evidence.retention_class` in `s
 
 | Store | Content | Retention | Deletion mechanism | Status |
 |---|---|---|---|---|
-| Snapshot store (S3 bucket or `PIGTAIL_DATA_DIR/snapshots`; `src/pigtail/capture/snapshots.py`) | Raw bytes plus `.meta.json` sidecar, content-addressed | Per the class of the **longest-living** evidence record that references the hash | Delete the object and its sidecar only when no live evidence record still needs the raw bytes. Content addressing means one blob can back several evidence records. | Store: I (M1, pending merge). Retention: **P (CB-01)**. No delete method exists yet. |
-| Postgres `evidence` | Metadata, hash, terms basis | Kept for as long as its coded facts are used. After the raw copy is dropped, `deletion_state` is `raw_dropped` or `deleted_upstream`. | Update the state; delete the row if it is still person-level after aggregation | Field: I (M1, pending merge) (`migrations/0001_capture_v0.sql`). Job: P |
+| Snapshot store (S3 bucket or `PIGTAIL_DATA_DIR/snapshots`; `src/pigtail/capture/snapshots.py`) | Raw bytes plus `.meta.json` sidecar, content-addressed | Per the class of the **longest-living** evidence record that references the hash | Delete the object and its sidecar only when no live evidence record still needs the raw bytes. Content addressing means one blob can back several evidence records. | Store: I. Retention: **P (CB-01)**. No delete method exists yet. |
+| Postgres `evidence` | Metadata, hash, terms basis | Kept for as long as its coded facts are used. After the raw copy is dropped, `deletion_state` is `raw_dropped` or `deleted_upstream`. | Update the state; delete the row if it is still person-level after aggregation | Field: I (`migrations/0001_capture_v0.sql`). Job: P |
 | Postgres case, actor and edge tables (M5) | Pseudonymised records | 24 months | Delete, or roll up into aggregates | P |
-| Postgres `repo_hourly_activity`, `gharchive_hours` | Aggregates, scan log | No limit | — | I (M1, pending merge) (`migrations/0002_repo_hourly_activity.sql`) |
+| Postgres `repo_hourly_activity`, `gharchive_hours` | Aggregates, scan log | No limit | — | I (`migrations/0002_repo_hourly_activity.sql`) |
 | `llm_cache` (`src/pigtail/llm/store.py`) | Coded outputs, including **verbatim quoted spans** (R7.1) and pseudonyms. Keyed on a hash of the redacted input. | **24 months, and never longer than the evidence it was derived from** | TTL plus purge when the source evidence is deleted or dropped. Needs `evidence_id` links on each cache row. | **P (CB-05)**. Today there is no TTL and no link. |
 | `llm_usage`, `llm_pause_log` | Ledger: backend, job, model, token counts. No content. | 24 months (cost audit) | Delete | P |
 | Anthropic (LLM provider) | Redacted inputs and outputs | Outside pigtail's control. See §6. | — | — |
@@ -68,7 +68,7 @@ The key (`PSEUDONYM_KEY`) is the "additional information" of GDPR Art. 4(5). Who
 
 ## 4. Deletion sync (R1.5), per source
 
-The field `evidence.deletion_state` (`present | deleted_upstream | raw_dropped`) exists in `migrations/0001_capture_v0.sql` (**I (M1, pending merge)**). The sync jobs are **P (CB-02)**. **No source with a deletion duty may be enabled before its sync job exists and has been tested.**
+The field `evidence.deletion_state` (`present | deleted_upstream | raw_dropped`) exists in `migrations/0001_capture_v0.sql` (**I**). The sync jobs are **P (CB-02)**. **No source with a deletion duty may be enabled before its sync job exists and has been tested.**
 
 On an upstream deletion, pigtail:
 1. marks the evidence `deleted_upstream`;
@@ -141,3 +141,4 @@ Review this policy when a source is added, when a platform's terms change, at H2
 ## Changelog
 - 2026-09-25: v0.1 created (M3-T2).
 - 2026-09-25 — fixes after verifier M3 round 1: uncommitted M1 controls relabelled "I (M1, pending merge)" (§1, §2 snapshot store, evidence and `repo_hourly_activity` rows, §4); CB-07 marked implemented (§2 Logs row, §6).
+- 2026-09-25 — M1 capture core merged at `ec79762`; "I (M1, pending merge)" labels changed to "I".
