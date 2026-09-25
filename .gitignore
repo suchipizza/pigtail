@@ -1,0 +1,9 @@
+.env
+*.env
+ops/sessions/
+data/
+snapshots/
+*.jsonl.gz
+__pycache__/
+.venv/
+node_modules/
