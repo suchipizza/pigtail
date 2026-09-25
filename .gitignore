@@ -15,3 +15,5 @@ coverage.xml
 *.sqlite3
 dist/
 raw/
+ui/dist/
+*.tsbuildinfo

@@ -209,3 +209,21 @@ Decision:
 5. **G3:** repos on the watch list are detected within ~1–2 h. Repos outside it depend on Search and HN picking them up first; this is stated as a limitation.
 Nothing in the PRD is relaxed. R1.1's thresholds are unchanged; only the data source changes. R3.3 fake-star filtering is limited by data availability, and every window reports it.
 How to reverse: If GH Archive or OpenDigger is cleared with verified coverage ≥ 0.95 (sampled from the universe or star-history, not from the mirror itself), it may become the primary screen again through a new ADR.
+
+## ADR-033 — Unattended runtime: scheduler, health and alerts (2026-09-25)
+1. **A stdlib loop, not APScheduler.** State lives in the existing `runs` table (`scheduler.<job>` records), so no new dependency or migration is needed, a restart loses nothing, and `pigtail health` reads the same state from any process.
+2. **One Postgres advisory lock per job.** After taking the lock the job must still be due, so two schedulers never repeat work. Runs left "running" by a killed scheduler are marked abandoned and retried.
+3. **Jobs run in child processes** that install the log-safety filter before any job code runs (CB-18b for scheduled jobs). Retries back off exponentially, capped at the job's interval.
+4. **Alerts stay on the host** (`PIGTAIL_DATA_DIR/alerts/`, mode 0600), with optional SMTP. Only a sanitized summary (rule, severity, counts, times) goes to `ops/ALERTS.md`, via `pigtail alerts export`. WORK_ORDER M1 says alerts go to `ops/ALERTS.md`, but the repo is public, so alert details stay local.
+5. **`/healthz` returns 503 only when the loop is dead or the database is unreachable.** Job failures and doctor warnings raise alerts instead of restarts.
+6. **The GH Archive scan window** runs from midnight two days back to now − 2 h, so the scheduler catches up after up to 2 days of downtime.
+7. **Mention capture** is skipped (logged, not failed) unless the HN person-level flags and the ADR-022 flag are set. Run records store case ids, never repo names.
+How to reverse: Replace the loop with APScheduler behind the same job config; move alert delivery elsewhere.
+
+## ADR-034 — D1 preview app: access, audit and what it shows (2026-09-25)
+1. **The private, operator-only UI shows repo `full_name`, including personal-account owners.** ADR-022's "no personal-account repos named in any output" and DPIA R14/CB-20 are read as covering **public** outputs. The private app is behind operator authentication (R13.3). Public mode (D2) must still suppress them.
+2. **The audit log stores no IP addresses.** It keeps a keyed hash of the address cut to its network (IPv4 /24, IPv6 /48), just enough to rate-limit logins and spot brute force. The key comes from the password hash, so it changes with the password. Rows expire after `LOG_RETENTION_DAYS`. Uvicorn's access log is off by default.
+3. **Snapshots are served raw to the logged-in operator.** They are sandboxed (a CSP with no scripts or external requests; gzip dumps download instead of opening), the hash is re-checked, the view is audited, and dropped or deleted-upstream content returns 410. They are not redacted: the operator is the controller's own staff, and redaction would break hash verification.
+4. **Sessions are stored server-side in Postgres, as hashes only.** Logout and expiry happen on the server (12 h absolute, 120 min idle).
+5. **All reads go through a pool that Postgres forces into read-only mode** (R14.2).
+How to reverse: Per item, through an ADR (for 1: suppress personal-account repos in the private UI as well).

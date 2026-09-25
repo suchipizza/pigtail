@@ -67,5 +67,21 @@ PSEUDONYM_KEY=… uv run pigtail capture scan --start 2026-09-20T00 --end 2026-0
 - Tests marked `db` / `s3` use the compose services and skip if they are unreachable
   (`PIGTAIL_REQUIRE_DB=1` makes them fail instead; CI sets it).
 
+## Web app (M1-T12, D1 preview)
+- API: `src/pigtail/api/` (FastAPI). Queries in `queries.py` run on a pool whose sessions are
+  read-only at the server (`default_transaction_read_only=on`); only `ui_sessions` and
+  `ui_audit_log` are written, through a second pool. Every number returned carries the evidence
+  id(s) it came from (R13.2); source text goes through `guard_text()`; never return handles or
+  person-level fields (HN `author`).
+- UI: `ui/` (TypeScript strict, React, Vite, pnpm; no component library, hand-rolled SVG charts).
+  ```bash
+  pnpm --dir ui install
+  pnpm --dir ui dev          # Vite on 127.0.0.1:5173, proxies /api to `pigtail ui serve` on :8080
+  pnpm --dir ui lint && pnpm --dir ui typecheck && pnpm --dir ui test && pnpm --dir ui build
+  ```
+- Tests: `tests/integration/test_api_d1.py` (seeded synthetic DB: auth, audit, 410s, hash
+  verification, no handles in JSON, 5,000-item budget), `tests/unit/test_ui_auth.py`,
+  `ui/src/ui.test.tsx`.
+
 ## Public-repo rules
 Fixtures are synthetic or pseudonymized and must be listed in `tests/fixtures/MANIFEST.md`. No raw records, snapshots, handles or secrets in git, including commit messages.

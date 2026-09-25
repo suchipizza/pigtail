@@ -729,12 +729,21 @@ def build_parser() -> argparse.ArgumentParser:
     ds.add_argument("--source", action="append", choices=("hn",), help="default: all")
     ds.add_argument("--dry-run", action="store_true", help="report only; change nothing")
     ds.add_argument("--limit", type=int, help="max items to re-check per source")
-    ds.set_defaults(func=cmd_deletion_sync, _need_key=False)
+    # needs the key: the HN connector requires a pseudonymizer even for store-nothing checks
+    ds.set_defaults(func=cmd_deletion_sync, _need_key=True)
 
     doc = sub.add_parser("doctor", help="privacy/encryption preconditions (DPIA CB-03)")
     doc.add_argument("--strict", action="store_true", help="exit 1 on warnings too")
     doc.add_argument("--json", action="store_true")
     doc.set_defaults(func=cmd_doctor)
+
+    from pigtail.scheduler.cli import add_commands as add_scheduler_commands
+
+    add_scheduler_commands(sub)  # `pigtail scheduler|health|alerts` (M1-T21)
+
+    from pigtail.api.cli import add_parser as add_ui_parser
+
+    add_ui_parser(sub)  # `pigtail ui hash-password|serve` (M1-T12, D1 preview)
 
     for stage, milestone in PENDING_STAGES.items():
         sp = sub.add_parser(stage, help=f"(not yet implemented; {milestone})")

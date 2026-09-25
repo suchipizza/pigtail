@@ -45,3 +45,13 @@ def test_capture_scan_requires_env(monkeypatch):
 def test_other_stages_still_pending(capsys):
     assert main(["score"]) == 2
     assert "M5" in capsys.readouterr().err
+
+
+def test_cb02_deletion_sync_requires_pseudonym_key(monkeypatch, capsys):
+    """Without PSEUDONYM_KEY, deletion-sync fails with a clear usage error, not a crash."""
+    from pigtail.cli import main
+
+    monkeypatch.delenv("PSEUDONYM_KEY", raising=False)
+    rc = main(["privacy", "deletion-sync", "--dry-run"])
+    assert rc != 0
+    assert "PSEUDONYM_KEY" in capsys.readouterr().err

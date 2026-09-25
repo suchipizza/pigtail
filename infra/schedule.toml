@@ -1,0 +1,65 @@
+# pigtail unattended schedule (M1-T21). Read by `pigtail scheduler run`; override the path with
+# PIGTAIL_SCHEDULE. Durations: 90s, 5m, 2h, 1d. Intervals under 1 minute are refused (TM-04).
+# Each job runs `pigtail <command>` in a child process, holds a Postgres advisory lock while it
+# runs (no overlap), retries failures with exponential backoff (retry_base x 2^n, capped at
+# `every`, for `max_retries` failures in a row), and writes a `runs` record `scheduler.<job>`.
+
+[scheduler]
+tick = "15s"          # how often the loop looks for due jobs
+alert_every = "5m"    # how often alert rules are evaluated
+
+[alerts]
+stale_factor = 3          # job_stale: no success for 3x the job's interval
+consecutive_failures = 3  # job_failing
+disk_percent = 80         # disk_high: PIGTAIL_DATA_DIR volume usage
+repeat = "6h"             # re-notify a still-firing alert at most this often
+
+# HN front-page ranks: project-level only, on by default (ADR-031.1). Rank history cannot be
+# backfilled, so this is the job that must never stop.
+[jobs.hn_ranks]
+command = ["capture", "hn-ranks", "--once"]
+every = "5m"
+timeout = "4m"
+retry_base = "1m"
+requires = ["hn_ranks"]
+
+# GH Archive velocity scan (R1.1). Limited value for breakout detection (ADR-028) but cheap.
+# Scans [midnight UTC `catchup_days` before, now - lag); complete days already scanned are skipped.
+[jobs.gharchive_scan]
+kind = "gharchive_scan"
+every = "1h"
+timeout = "50m"
+lag = "2h"
+catchup_days = 2
+retry_base = "5m"
+
+# Retention purge (CB-01, CB-04, CB-05, CB-18).
+[jobs.retention_purge]
+command = ["retention", "purge"]
+every = "1d"
+timeout = "2h"
+retry_base = "10m"
+
+# Deletion sync (CB-02, R1.5). Runs even while HN collection is off (checks store nothing).
+[jobs.deletion_sync]
+command = ["privacy", "deletion-sync"]
+every = "1d"
+timeout = "2h"
+retry_base = "10m"
+
+# Raw GH Archive dump purge (CB-04). Retention purge covers this too; kept as a separate, cheap job.
+[jobs.purge_raw]
+command = ["capture", "purge-raw"]
+every = "1d"
+timeout = "1h"
+retry_base = "10m"
+
+# HN mentions for live cases opened within `window` (R1.2). Person-level: skipped (and logged)
+# unless PIGTAIL_ENABLE_HN=1 and PIGTAIL_ADR022_PERSON_SOURCES_OK=1 (ADR-022, ADR-031.2).
+[jobs.hn_mentions]
+kind = "hn_mentions"
+every = "3h"
+timeout = "1h"
+window = "48h"
+since_before_open = "14d"
+retry_base = "10m"

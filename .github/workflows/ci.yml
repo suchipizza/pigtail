@@ -53,6 +53,32 @@ jobs:
         # Smoke tests against real backends skip here: no Claude login and no API key in CI.
         run: uv run pytest -q --cov=pigtail --cov-report=term-missing
 
+  ui:
+    # M1-T12: the private web app (ui/, TypeScript strict + React + Vite).
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4  # version from ui/package.json "packageManager"
+        with:
+          package_json_file: ui/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Types (tsc strict)
+        run: pnpm typecheck
+      - name: Tests (vitest)
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+
   compose:
     runs-on: ubuntu-latest
     steps:
@@ -64,3 +90,16 @@ jobs:
           docker compose up -d --wait db objectstore
           docker compose run --rm objectstore-init
           docker compose down -v
+      - name: scheduler smoke (M1-T21; image builds, /healthz answers, no external fetches)
+        run: |
+          {
+            echo "PSEUDONYM_KEY=$(openssl rand -hex 24)"
+            echo "PIGTAIL_CONNECTOR_HN_RANKS_ENABLED=false"
+            echo "PIGTAIL_CONNECTOR_GHARCHIVE_ENABLED=false"
+          } > .env
+          docker compose build --build-arg PIGTAIL_CODE_COMMIT=${{ github.sha }} scheduler
+          docker compose up -d --wait --wait-timeout 180 scheduler
+          curl -fsS http://127.0.0.1:8787/healthz | python3 -m json.tool | head -40
+          docker compose exec -T scheduler pigtail health || true
+          docker compose down -v
+          rm -f .env

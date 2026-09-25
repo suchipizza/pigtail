@@ -3,10 +3,12 @@ Seeded by the orchestrator in M0 from docs/WORK_ORDER.md §4. Format: `- [ ] [ID
 Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (diagnosis inline).
 
 ## Now
+- [ ] [M1-T25] D1 follow-ups: browser check (operator), p95 benchmark at 5,000 evidence items, generated TS types, streaming hash check for large snapshots, live refresh, audit-log reader
+- [ ] [M1-T26] External liveness check for the scheduler (a dead scheduler can't alert itself)
 - [ ] [M1-T24] Implement ADR-032: watch-list GraphQL snapshots, Search sweeps, HN→repo screen, star-history client (baseline, confirmation, scoring, backfill), per-repo events polling for tracked cases; case coverage fields — needs GITHUB_TOKEN (H1) for live runs; build and test on fixtures now
 - [ ] [M3-T6] Update outcome-model spec §1 stars to ADR-032 (star-history, net, day boundaries); verifier check
 - [ ] [M1-T16] (revised) Validation plan M1–M7 from detection-replan §8, run with the project token
-- [ ] [M1-T21] Scheduler: long-running `hn-ranks --loop`, daily `deletion-sync`, mentions for new cases within 48 h (R1.2); deploy when the host exists (H1)
+- [x] [M1-T21] Scheduler, health, alerts, Docker/systemd (ADR-033) — was: Scheduler: long-running `hn-ranks --loop`, daily `deletion-sync`, mentions for new cases within 48 h (R1.2); deploy when the host exists (H1)
 - [ ] [M1-T22] Front-page minutes (`att.hn_frontpage_minutes`) from rank observations, handling polling gaps
 - [ ] [M1-T23] HN follow-ups: clear `hn_story` titles for stories deleted upstream; a repo opt-out should also reach mentions of repos not in `repos`; `pigtail doctor` reports HN and ADR-022 flags; live check of Algolia
 - [ ] [M3-T5] Compliance docs: CB-02 status (HN implemented; Bluesky pending) — retention-policy §4, DPIA
@@ -27,7 +29,7 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [ ] [M1-T9] Announced-launch watchlist — R1.3 — M1-T2, M2-T2
 - [ ] [M1-T10] Replay: rebuild stored records from snapshots — PRD §5.5 — M1-T3..T7 — replay reproduces records
 - [ ] [M1-T11] Scheduler + health checks + alerting to ops/ALERTS.md; deploy to host — WO M1 — H1 host VM — 7 consecutive days of scans
-- [ ] [M1-T12] D1 preview: operator login, /cases, /cases/:id timeline + evidence tabs, "uncoded preview" label — D1 — M1-T3 — D1 preview criteria
+- [x] [M1-T12] D1 preview built (API + login + audit + UI; ADR-034); browser check by operator pending — was: D1 preview: operator login, /cases, /cases/:id timeline + evidence tabs, "uncoded preview" label — D1 — M1-T3 — D1 preview criteria
 - [x] [M1-T14] HN rank poller (`capture hn-ranks`), live-checked (ADR-031) — was: HN front-page rank polling (own rank history; cannot be backfilled later) — R1.2, §8.1 front-page minutes, lit. review open issue 1 — M1-T2 — polls every ≤ 5 min, snapshots stored
 - [ ] [M1-T15] Confirm whether GH Archive records un-stars; define "net stars" for R1.1 accordingly — R1.1 — M1-T3
 - [ ] [M1-T16] Star coverage check: GH Archive vs GitHub stargazers API on a sample; stargazer confirmation for candidate cases; recalibrate R1.1 thresholds — R1.1, ADR-009 — M1-T3, GITHUB_TOKEN
@@ -61,7 +63,7 @@ Feature-specific:
 
 ## Next
 - [x] [M3-T4] Compliance docs' CB statuses updated (ADR-030)
-- [ ] [CB-18b] Install RedactingFilter in every CLI command/service (currently `capture scan` only)
+- [~] [CB-18b] RedactingFilter: all scheduled jobs + `capture scan`; open: other manual CLI commands
 - [x] [LQ-27] Added to legal-review-questions (with LQ-28 OpenDigger, LQ-29 stargazer identities) — was: Add legal question: after an erasure, replay briefly re-processes the erased person's data before dropping it at ingest (ADR-030.1) — acceptable?
 - [ ] [M5-T1] Coding prompts must include the codebook P1 instruction (ignore personal characteristics); verifier checks it — codebook §12, DPIA R9
 - [ ] [M2-T3] Fake-star method: select, reproduce on a sample, document validation — R3.3 — M2-T1

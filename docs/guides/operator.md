@@ -21,6 +21,191 @@ API mode: use zero data retention or a data processing agreement with Anthropic 
 ## Services
 `docker compose up -d --wait` starts Postgres and S3-compatible object storage (SeaweedFS). Point `S3_ENDPOINT` at a private bucket in production. Default hosting region: EU or Switzerland.
 
+## Running unattended (M1-T21)
+Long-running jobs run on the host and must not depend on an agent session (WORK_ORDER §2). The
+scheduler (`pigtail scheduler run`) is one small process that:
+- runs the jobs in `infra/schedule.toml` (override with `PIGTAIL_SCHEDULE`), each in a child
+  process with a timeout;
+- holds one Postgres advisory lock per job, so runs never overlap, even with two schedulers on one
+  database;
+- retries failures with exponential backoff (`retry_base` × 2ⁿ, capped at the interval);
+- writes a `run` record `scheduler.<job>` for every attempt (the command also writes its own, e.g.
+  `capture.hn_ranks`). Those records are the scheduler's only state, so restarts lose nothing. A
+  run left `running` by a killed scheduler is closed as failed ("abandoned") and retried;
+- serves `/healthz` and `/livez` (port `PIGTAIL_HEALTH_PORT`, default 8787, bound to
+  `PIGTAIL_HEALTH_BIND`, default 127.0.0.1) and evaluates alert rules every 5 minutes.
+
+| Job | Command | Every | Notes |
+|---|---|---|---|
+| `hn_ranks` | `capture hn-ranks --once` | 5 min | project-level, on by default (ADR-031.1) |
+| `gharchive_scan` | `capture scan --start <midnight −2 d> --end <now −2 h>` | 1 h | complete days already scanned are skipped; catches up after ≤ 2 days of downtime (ADR-028: limited value, cheap) |
+| `retention_purge` | `retention purge` | 1 d | CB-01, CB-04, CB-05, CB-18 |
+| `deletion_sync` | `privacy deletion-sync` | 1 d | CB-02; needs `PSEUDONYM_KEY` |
+| `purge_raw` | `capture purge-raw` | 1 d | CB-04 |
+| `hn_mentions` | `capture mentions --repo … --since <opened −14 d>` per live case opened in the last 48 h | 3 h | person-level: **skipped and logged** unless `PIGTAIL_ENABLE_HN=1` *and* `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` (ADR-022) |
+
+A job whose connector is disabled (`PIGTAIL_CONNECTOR_<NAME>_ENABLED=false`) is skipped, not
+failed: its run record has `counts.skipped = 1` and the reason in `config.skipped`. Set
+`enabled = false` in the schedule to drop a job entirely. `pigtail scheduler plan` shows each
+job's next due time and what it would run now; `pigtail scheduler run --once` runs whatever is due
+once and exits (for cron-only hosts or debugging).
+
+### With Docker Compose
+```bash
+cp .env.example .env            # set PSEUDONYM_KEY, S3_*, SNAPSHOT_BACKEND=s3 for production, SMTP_URL/ALERT_EMAIL
+docker compose up -d --wait db objectstore && docker compose run --rm objectstore-init
+docker compose up -d --build scheduler
+curl -s http://127.0.0.1:8787/healthz | python3 -m json.tool
+docker compose exec scheduler pigtail health
+docker compose logs -f scheduler
+```
+The `scheduler` service uses the repo's `Dockerfile` (python:3.12-slim + uv, locked
+dependencies, non-root uid 10001, read-only root filesystem, all capabilities dropped,
+`restart: unless-stopped`). Its `PIGTAIL_DATA_DIR` is the `app-data` volume (`/data`): local
+snapshots (if `SNAPSHOT_BACKEND=local`), the LLM cache and `alerts/`. It reads `.env`, but
+`DATABASE_URL` and `S3_ENDPOINT` point at the compose services (`db`, `objectstore`); set
+`COMPOSE_DATABASE_URL` / `COMPOSE_S3_ENDPOINT` to use external ones. Build with
+`--build-arg PIGTAIL_CODE_COMMIT=$(git rev-parse HEAD)` (or export `PIGTAIL_CODE_COMMIT` before
+`docker compose build`) so run records carry the code commit. `docker compose stop` gives
+running jobs 2 minutes to finish.
+
+### With systemd (no Docker)
+`infra/systemd/pigtail-scheduler.service` runs the same command from a checkout in
+`/opt/pigtail` (`uv sync --locked --no-dev`), as user `pigtail`, with its environment in
+`/etc/pigtail/pigtail.env` (mode 0600, root-owned) and `PIGTAIL_DATA_DIR=/var/lib/pigtail`. It
+runs `pigtail db migrate` before starting, restarts on failure and is sandboxed
+(`ProtectSystem=strict`, `NoNewPrivileges`, no capabilities). Install steps are in the unit
+file's header. Check it with `systemctl status pigtail-scheduler`, `journalctl -u
+pigtail-scheduler` and `curl -s 127.0.0.1:8787/healthz`. Set journald retention to 12 months
+or less (`MaxRetentionSec=1year`, CB-18).
+
+### Health
+```bash
+uv run pigtail health            # per job: last success, lag, failures; DB, S3, disk, deletion SLA, doctor
+uv run pigtail health --json     # same as /healthz's body
+uv run pigtail health --history 7d
+```
+- A job is **stale** when it has had no success for 3× its interval; that and 3 consecutive
+  failures mark it FAIL. `pigtail health` exits 1 when anything is FAIL.
+- `/healthz` returns the same JSON. Its HTTP status is 503 only when the scheduler loop has stopped
+  ticking or the database is unreachable, because restarting the container fixes neither job
+  failures nor doctor warnings. Those show in the body (`"status": "fail"`) and raise alerts.
+  `/livez` only checks the loop.
+
+**M1 acceptance: 7 consecutive days of scans.** `pigtail health --history 7d` prints one line
+per UTC day: whether it is a complete scan day, GH Archive hours covered (out of 24, counting
+hours GH Archive itself is missing), HN rank polls (288 expected at 5 minutes), and scheduler
+runs per job (succeeded/failed/skipped). The last line gives the number of consecutive complete
+scan days, today excluded. A day is complete when all 24 hours were scanned and at least one
+scheduled `gharchive_scan` run succeeded that day. The criterion is met when that number is
+≥ 7; `--json` gives the same data for the verifier.
+
+### Alerts
+Every 5 minutes the scheduler evaluates these rules (thresholds under `[alerts]` in the schedule):
+
+| Rule | Fires when |
+|---|---|
+| `job_stale` | no success for more than 3× the job's interval |
+| `job_failing` | 3 or more consecutive failures |
+| `db_down` | database unreachable, or the run log can't be read |
+| `s3_down` | snapshot bucket unreachable (`SNAPSHOT_BACKEND=s3`) |
+| `disk_high` | `PIGTAIL_DATA_DIR` volume more than 80% full |
+| `doctor` | any `pigtail doctor` check at WARN or FAIL |
+| `deletion_sla` | deletion-sync re-checks, or detected deletions, more than 7 days overdue (CB-02) |
+
+Alerts go to `PIGTAIL_DATA_DIR/alerts/` on the host: `ALERTS.md` (readable, append-only),
+`alerts.jsonl` (structured) and `state.json` (dedupe). The files are mode 0600 and are **never
+committed**. Messages hold job names, check names, counts and times only, and are passed through
+the CB-18 scrubber anyway. An alert is written when it starts firing, again at most every 6 hours
+while it keeps firing (`repeat`), and once when it resolves. If `SMTP_URL` and `ALERT_EMAIL` are
+set, each batch is also e-mailed:
+- `SMTP_URL`: `smtp://host[:25]` (STARTTLS if offered), `smtp+starttls://user:pass@host:587`, or
+  `smtps://user:pass@host:465`. Login without TLS is refused except to localhost.
+- `ALERT_EMAIL`: a comma-separated list of recipients.
+- `ALERT_EMAIL_FROM`: optional sender (default: the first recipient).
+
+E-mail is best effort: the file is always written first. On a host without the scheduler, run
+`pigtail alerts check` from cron.
+
+**Copying alerts into the repo.** `ops/ALERTS.md` is public. An agent session copies only a
+sanitized summary there:
+```bash
+uv run pigtail alerts export --to ops/ALERTS.md --since 7d
+```
+The export keeps rule, subject (job or check name; anything else becomes `redacted`),
+severity, whether the alert is still firing, counts, and first and last times. It has no message
+text. Review the diff before committing.
+
+## Web app (D1 preview)
+The Forensics Explorer preview (M1-T12): `/cases` and `/cases/:id` with the **Timeline** and
+**Evidence** tabs on captured data. Everything is labelled **uncoded preview**: events are raw
+captures; burst/launch labels, triggers and mechanisms arrive with coding (M5). One process serves
+the read-only API (R14.2) and the built UI.
+
+**Private by default (R13.3, DPIA CB-19).** The app refuses to start without an operator password
+hash, every `/api` route needs a session, and there is no public API explorer.
+
+1. Create the password hash (the password itself is never stored):
+   ```bash
+   uv run pigtail ui hash-password          # prompts twice; prints an argon2id hash
+   export PIGTAIL_OPERATOR_PASSWORD_HASH='$argon2id$v=19$…'   # single quotes: the hash contains `$`
+   ```
+   In `.env`, also single-quote it so Compose doesn't interpolate the `$`.
+2. Build the UI once (Node 22 and pnpm; `corepack enable` provides pnpm), then serve:
+   ```bash
+   pnpm --dir ui install --frozen-lockfile && pnpm --dir ui build
+   uv run pigtail ui serve --host 127.0.0.1 --port 8080   # runs migrations, then serves
+   ```
+   Or with Docker: `docker compose up -d --build ui` (image `infra/ui/Dockerfile`; published on
+   `127.0.0.1:8080` only; reads local snapshots from the `app-data` volume, read-only).
+3. Open http://127.0.0.1:8080 and log in.
+
+Settings (environment): `PIGTAIL_UI_SESSION_HOURS` (absolute session lifetime, default 12),
+`PIGTAIL_UI_IDLE_MINUTES` (default 120), `PIGTAIL_UI_SECURE_COOKIE` (`auto` by default: the
+cookie is `Secure` unless the app is reached on a loopback host; set `1` behind a TLS proxy),
+`PIGTAIL_UI_DIST` (built UI directory). Database and snapshot settings are the capture ones
+(`DATABASE_URL`, `SNAPSHOT_BACKEND`, `S3_*`, `PIGTAIL_DATA_DIR`).
+
+**Remote access.** Keep the bind on loopback. To reach it from elsewhere, use an SSH tunnel
+(`ssh -L 8080:127.0.0.1:8080 host`) or a TLS reverse proxy; with a proxy, start with
+`--proxy-headers --forwarded-allow-ips <proxy ip>` so login rate limiting sees real clients, and
+set `PIGTAIL_UI_SECURE_COOKIE=1`. Never expose it on a public address without TLS.
+
+**What is logged (CB-19).** `ui_audit_log` records login success, failure and rate-limit events,
+logouts, and every snapshot view (time, route, HTTP status, evidence id, content hash, a 16-char
+session-hash prefix). It stores **no IP address**: the client is a keyed hash of the truncated
+address (IPv4 /24, IPv6 /48), used only to rate-limit logins (5 failures per client network and
+30 overall per 15 minutes) and to spot brute force. The key derives from the password hash, so it
+rotates with the password. Rows older than `LOG_RETENTION_DAYS` (max 365) are deleted at each
+login. uvicorn access logs, which would contain IPs, are off unless `--access-log` is given.
+Read the log with SQL, e.g. `SELECT at, event, evidence_id FROM ui_audit_log ORDER BY at DESC`.
+
+**What the pages show.**
+- `/cases`: filters (status, opened date range), sort by recency or 48 h velocity, and a "Live
+  now" strip of open cases by velocity (a placeholder until triggers are coded).
+- `/cases/:id`: detection metrics with the 48 hourly buckets and GH Archive dumps behind them, the
+  **coverage caveat** (ADR-028: GH Archive under-captures stars, so counts are a lower bound;
+  unscanned hours are unknown, not zero), and two tabs:
+  - **Timeline**: time-aligned lanes for GitHub stars (raw vs bot/lockstep-filtered), forks,
+    HN front-page rank (best rank per bucket; shaded band = ranks 1–30) with mention markers,
+    and captured evidence. Zoom with the range buttons or by dragging across the chart; buckets
+    switch between hours and days. Every point opens its evidence (a daily bucket lists its
+    hourly dumps). A table view is available.
+  - **Evidence**: every evidence record behind the case (case- and repo-linked items, HN stories,
+    mentions and rank polls, GH Archive hours with repo activity), sortable by capture time,
+    source, reliability, retention class and state, with a one-click **Open snapshot**.
+- `/evidence/:id`: the record, its retention rule and due date, and what references it.
+
+**Snapshots.** "Open snapshot" streams the raw bytes after re-checking their SHA-256; a mismatch
+is refused (500) and audited. Snapshots open in a new tab under a sandboxing CSP (no scripts, no
+external requests); gzip dumps download. Raw snapshots can contain handles and text: they are the
+private evidence itself, so treat the screen and any downloads accordingly. When the bytes are
+gone the API answers **410** with the reason: `raw_dropped` (retention; hash, URL and fetch time
+are kept, replay can re-fetch) or `deleted_upstream` (deletion sync, CB-02). JSON responses never
+contain handles: HN authors are not returned, and titles and URLs pass the identifier scrubber
+(`@handle` → `@[handle]`, `github.com/<login>` → `[profile:github]`); titles of stories deleted
+upstream are hidden.
+
 ## Privacy operations
 These commands implement the code side of the retention policy and the DPIA controls
 (`docs/compliance/retention-policy.md`, `docs/compliance/dpia.md` §9). They need
@@ -182,7 +367,11 @@ uv run pigtail privacy requests                                       # request 
   Archive retention that is up to about 720 hourly dumps, so expect minutes to hours.
 
 ### Log hygiene (CB-18)
-`pigtail capture scan` installs `pigtail.logsafe.RedactingFilter` on its logging (other commands and services don't yet: CB-18 follow-up). The filter replaces
+`pigtail capture scan`, `capture hn-ranks`, `capture mentions`, the scheduler (`pigtail scheduler
+run`) and **every job the scheduler starts** install `pigtail.logsafe.RedactingFilter` (scheduled
+jobs run through `python -m pigtail.scheduler.child`, which installs it before any job code runs;
+the scheduler scrubs captured job output again). Other commands run by hand don't yet (CB-18
+follow-up). The filter replaces
 handles, e-mails, profile URLs and DIDs with placeholders and truncates long payloads. `runs.error`
 goes through the same scrubber. When you add a service, call `pigtail.logsafe.configure_logging()`
 or `install()` on its handlers.

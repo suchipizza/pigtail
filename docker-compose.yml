@@ -1,5 +1,5 @@
 # pigtail stack (PRD §10 self-hosting). M0 skeleton: Postgres + S3-compatible object storage.
-# App services (collectors, API, UI, scheduler) are added in M1/M5.
+# App services: `scheduler` (M1-T21); API/UI are added separately.
 name: pigtail
 
 services:
@@ -58,6 +58,80 @@ services:
       --bucket $$S3_BUCKET --server-side-encryption-configuration
       '{\"Rules\":[{\"ApplyServerSideEncryptionByDefault\":{\"SSEAlgorithm\":\"AES256\"}}]}'; fi"
 
+  scheduler:
+    # Unattended runtime (M1-T21): capture, retention, deletion sync, /healthz, alerts.
+    # Same image as other app services (Dockerfile at the repo root). docs/guides/operator.md
+    # "Running unattended".
+    build:
+      context: .
+      args:
+        PIGTAIL_CODE_COMMIT: ${PIGTAIL_CODE_COMMIT:-}
+    image: pigtail-app:local
+    command: ["pigtail", "scheduler", "run"]
+    init: true
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Inside the compose network; override with COMPOSE_DATABASE_URL / COMPOSE_S3_ENDPOINT
+      # to use external services.
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://${POSTGRES_USER:-pigtail}:${POSTGRES_PASSWORD:-pigtail}@db:5432/${POSTGRES_DB:-pigtail}}
+      S3_ENDPOINT: ${COMPOSE_S3_ENDPOINT:-http://objectstore:9000}
+      PIGTAIL_DATA_DIR: /data
+      PIGTAIL_HEALTH_BIND: 0.0.0.0
+      PIGTAIL_HEALTH_PORT: "8787"
+    depends_on:
+      db: {condition: service_healthy}
+    volumes: [app-data:/data]
+    ports: ["127.0.0.1:8787:8787"]  # /healthz on the host's loopback only
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    stop_grace_period: 2m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8787/healthz', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  ui:
+    # Private web app (M1-T12, D1 preview): read-only API + built UI in one process, behind
+    # operator login (R13.3). Needs PIGTAIL_OPERATOR_PASSWORD_HASH (`pigtail ui hash-password`);
+    # in .env, single-quote it so `$` is not interpolated. docs/guides/operator.md "Web app".
+    build:
+      context: .
+      dockerfile: infra/ui/Dockerfile
+      args:
+        PIGTAIL_CODE_COMMIT: ${PIGTAIL_CODE_COMMIT:-}
+    image: pigtail-ui:local
+    init: true
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://${POSTGRES_USER:-pigtail}:${POSTGRES_PASSWORD:-pigtail}@db:5432/${POSTGRES_DB:-pigtail}}
+      S3_ENDPOINT: ${COMPOSE_S3_ENDPOINT:-http://objectstore:9000}
+      PIGTAIL_DATA_DIR: /data
+    depends_on:
+      db: {condition: service_healthy}
+    volumes: ["app-data:/data:ro"]  # local snapshots are only read
+    ports: ["127.0.0.1:8080:8080"]  # host loopback only; put TLS in front for remote access
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/healthz', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
 volumes:
   db-data:
   snapshots:
+  app-data:  # PIGTAIL_DATA_DIR of the app services: local snapshots, LLM cache, alerts/

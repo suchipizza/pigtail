@@ -1,0 +1,21 @@
+# Keep secrets, data and local tooling out of the build context (the repo is public; so is the image).
+.git
+.github
+.env
+*.env
+data/
+snapshots/
+raw/
+ops/sessions/
+.venv/
+**/__pycache__/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+*.sqlite3
+*.jsonl.gz
+ui/node_modules/
+node_modules/
+dist/

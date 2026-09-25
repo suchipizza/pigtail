@@ -1,0 +1,54 @@
+# pigtail scheduler as a systemd service (M1-T21), for hosts without Docker.
+# Install (see docs/guides/operator.md "Running unattended"):
+#   sudo useradd --system --home-dir /var/lib/pigtail --shell /usr/sbin/nologin pigtail
+#   sudo install -d -o root -g root /opt/pigtail && (checkout + `uv sync --locked --no-dev`)
+#   sudo install -m 0600 -o root -g root /dev/null /etc/pigtail/pigtail.env   # then fill it in
+#   sudo cp infra/systemd/pigtail-scheduler.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now pigtail-scheduler
+#   curl -s http://127.0.0.1:8787/healthz
+[Unit]
+Description=pigtail scheduler (capture, retention, deletion sync, health, alerts)
+Documentation=https://github.com/suchipizza/pigtail/blob/main/docs/guides/operator.md
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=simple
+User=pigtail
+Group=pigtail
+WorkingDirectory=/opt/pigtail
+# DATABASE_URL, PSEUDONYM_KEY, S3_*, SMTP_URL, ALERT_EMAIL, ... (never in git; mode 0600)
+EnvironmentFile=/etc/pigtail/pigtail.env
+Environment=PIGTAIL_DATA_DIR=/var/lib/pigtail
+Environment=PIGTAIL_HEALTH_BIND=127.0.0.1
+Environment=PIGTAIL_HEALTH_PORT=8787
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/opt/pigtail/.venv/bin/pigtail db migrate
+ExecStart=/opt/pigtail/.venv/bin/pigtail scheduler run
+Restart=always
+RestartSec=10
+# SIGTERM stops the loop; running jobs get up to 2 minutes to finish, then are killed (the next
+# start marks their run records as abandoned and retries them).
+KillMode=mixed
+TimeoutStopSec=120
+
+# Hardening
+StateDirectory=pigtail
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/pigtail
+
+[Install]
+WantedBy=multi-user.target
