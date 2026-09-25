@@ -36,14 +36,15 @@
   "anchor": {
     "launch_lookback_days": 30,
     "announced_burst_record_window_days": 90,
-    "burst_onset_rule": "earliest hour in the 48h detection window with filtered stars > mu_h + 3*sqrt(mu_h) (mu_h + 1 if mu_h == 0); else window start",
+    "burst_onset_rule": "earliest hour in the 48h detection window with net star gain (hourly public-count snapshots) > mu_h + 3*sqrt(mu_h) (mu_h + 1 if mu_h == 0); else window start. Where only star-history days exist: same rule on endpoint days, precision day (ADR-032; spec §2.1)",
     "tie_rule": "T_launch == T_burst -> anchor_type launch; equal launch timestamps -> lowest evidence_id"
   },
   "burst_detection": {
     "id": "velocity-v0",
     "min_net_stars_48h": 100,
     "sigma": 3,
-    "baseline_days": 30
+    "baseline_days": 30,
+    "basis": "public net star count: hourly GraphQL stargazerCount snapshots, confirmed with star-history daily counts; the bot filter is a confirmation step recording bot_filter_basis and coverage_ratio (ADR-032.2; spec §2.1)"
   },
   "fake_star_filter": {
     "id": "starscout-v0",
@@ -66,7 +67,7 @@
     365
   ],
   "windows": {
-    "flow": "[T, T+k) UTC, hourly resolution",
+    "flow": "[T, T+k) UTC, hourly resolution; stars: the k star-history endpoint days starting at the day containing T (day-precision anchors: the day with T's UTC date), no splitting of day buckets (spec §1.2)",
     "pre_anchor_baseline_days": 30,
     "stock_tolerance": {
       "min_days": 1,
@@ -100,9 +101,35 @@
   "star_series": {
     "class_series_variant": "starscout_filtered",
     "sensitivity_series_variant": "raw",
-    "primary_source": "github_stargazers_api",
+    "primary_source": "github_star_history",
+    "primary_source_note": "GET /repos/{owner}/{repo}/stargazers/history: daily net counts of current stargazers, back to creation, no identities (TM-33; ADR-032.3, superseding ADR-012's stargazers API)",
+    "day_boundary": {
+      "config": "star_history_day_tz",
+      "default": "America/Los_Angeles",
+      "status": "inferred, not documented by GitHub; confirm across DST 2026-11-01 (detection-replan §8 M2)",
+      "recorded_per_observation": [
+        "tz",
+        "tz_status",
+        "window_offset_hours",
+        "first_day",
+        "last_day"
+      ]
+    },
     "fallback_source": "gharchive",
+    "fallback_condition": "only where star-history cannot serve the window; coverage_ratio measured against star-history day counts; tag estimated, lower_bound true; OpenDigger is never a scoring series (TM-32)",
     "gharchive_min_coverage_ratio": 0.9,
+    "coverage_reference": "github_star_history",
+    "filtered_variants": {
+      "bases": [
+        "repo_events",
+        "gharchive",
+        "none"
+      ],
+      "basis_if_tm32_cleared": "opendigger",
+      "unavailable": "unknown, never imputed (ADR-032.3)",
+      "class_eligible_if": "event data covers every day of the window, no window overflow, and coverage_ratio >= gharchive_min_coverage_ratio (spec §1.2, §5.3)",
+      "verification_tag": "estimated"
+    },
     "velocity_rolling_days": 7,
     "peak_window_days": [
       7,
@@ -330,6 +357,7 @@
   },
   "changelog": [
     "2026-09-25: v0.1.0 draft (M3-T1).",
-    "2026-09-25 — fixes after verifier M3 round 1: added burst_detection (PRD R1.1 defaults; spec §2.1) and fake_star_filter (StarScout lockstep parameters, campaign-level removal; spec §4). They record parameters the spec already fixed; no threshold, input or class changed, so the version stays provisional 0.1.0."
+    "2026-09-25 — fixes after verifier M3 round 1: added burst_detection (PRD R1.1 defaults; spec §2.1) and fake_star_filter (StarScout lockstep parameters, campaign-level removal; spec §4). They record parameters the spec already fixed; no threshold, input or class changed, so the version stays provisional 0.1.0.",
+    "2026-09-25 — M3-T6, ADR-032 (supersedes ADR-012): star_series.primary_source github_stargazers_api -> github_star_history, with primary_source_note, day_boundary, fallback_condition, coverage_reference and filtered_variants; windows.flow and anchor.burst_onset_rule reworded for endpoint days and net public counts; burst_detection.basis added. No threshold number, class input symbol, class rule or precedence changed; gharchive_min_coverage_ratio stays 0.9 and is also used as the class-eligibility gate for identity-level event data. Version stays provisional 0.1.0 (reasons in spec changelog). The class series (starscout_filtered) is unchanged; see spec O11."
   ]
 }

@@ -28,7 +28,7 @@ WP248 rev.01 lists nine criteria and says processing that meets **two** of them 
 |---|---|---|
 | 1. Evaluation or scoring, including profiling | Projects are scored (outcome classes). Accounts are ranked by reach in burst-to-trigger attribution (R5.5). | **Partly**: projects yes, and accounts in Tier 2 and Tier 3 cases |
 | 2. Automated decision with legal or similar effect | None | No |
-| 3. Systematic monitoring ("including data collected through networks") | Continuous capture of GH Archive and, later, the Bluesky Jetstream (R1.1, R1.2) | **Yes** |
+| 3. Systematic monitoring ("including data collected through networks") | Continuous capture of GH Archive and, later, the Bluesky Jetstream (R1.1, R1.2); planned polling of who stars tracked repos every 15–60 min (per-repo Events API, ADR-032, D12) | **Yes** |
 | 4. Sensitive or highly personal data | Not sought. May be present incidentally in free text. | Low |
 | 5. Large scale | GH Archive covers all public GitHub activity, so millions of people | **Yes** |
 | 6. Matching or combining datasets | GitHub, HN, Bluesky and registries are joined per case | **Yes** |
@@ -89,6 +89,10 @@ private UI (operator auth) ◀── all of the above                      publi
 | D9 | **Operational logs and ledgers** | run records (`runs.error`, counts), LLM usage ledger, pause log | Internal | Postgres, SQLite | Should contain no personal data. `BackendError` messages no longer echo CLI output: they carry only the exit code, `subtype` and `api_error_status` (`src/pigtail/llm/subscription.py` `parse()`; tested by `test_cb07_error_message_does_not_echo_output` in `tests/unit/test_subscription_backend.py`) (CB-07, implemented). `runs.error` is scrubbed of handles, e-mails, profile URLs and DIDs and truncated (`src/pigtail/capture/runs.py` → `pigtail.logsafe.scrub`; CB-18, partly implemented). | 12 months (policy, [retention-policy.md](retention-policy.md)). `runs.error` text is cleared after `LOG_RETENTION_DAYS` (max 365) and the LLM ledger after 24 months by `pigtail retention purge` (I). Container and system logs: rotation is an operator duty (P, CB-18). | Operator |
 | D10 | **Pseudonym key** | `PSEUDONYM_KEY` | Operator | Host environment / secrets manager, backed up separately (H1) | Secret | For the life of the dataset | Operator only |
 | D11 | **Manual entries** | press citations (TM-31), careers facts (TM-29) | Operator | Postgres | Organisation-level. Investors are named as organisations only. | `project_level` | Operator |
+| D12 | **Stargazer events for tracked repos** (ADR-032.2; **planned, M1-T24; not built**) | `WatchEvent` actor login and id, repo, time. The raw per-repo response also holds that repo's other recent public events (pushes, issues, PRs, with actors and payload text). | Per-repo Events API (TM-33 under TM-02; actor use pending LQ-29), only for repos with an open case, tracked repos or repos above the pre-threshold, polled every 15–60 min | Raw response: snapshot store, bytes dropped after parse (P, CB-23). Parsed: `WatchEvent`s only, actor as a pseudonym, in a registered person-level table (ADR-030.5). Aggregates (bot-removed counts, lockstep flags, `coverage_ratio`, `bot_filter_basis`) on the case. | Raw → pseudonymised → aggregate | **New class, ≤ 30 days** for raw bytes and pseudonymised star rows (TM-33; P, CB-22); aggregates `derived_aggregate` | Operator |
+| D13 | **Star counts** (star-history endpoint, watch-list `stargazerCount` snapshots) | daily and hourly net star counts per repo | TM-33, TM-02 (ADR-032) | Postgres, snapshot store | Project-level; **no personal data** | `project_level` | Operator; aggregates may be public |
+
+**Not processed:** the OpenDigger GH-event mirror (TM-32) is a GAP pending LQ-28 and off by default (ADR-032.1); no connector exists. Enabling it would add a D1-like pool of person-level event data at much higher capture and needs a DPIA update first. (The M1-T18 research streamed its files once on 2026-09-25, kept no identities and deleted the files after the analysis; `docs/research/detection-replan.md` §7.) The GitHub stargazers API is no longer used (restricted by GitHub on 2026-06-30; ADR-012 superseded by ADR-032).
 
 **Hosting:** the default region is the EU or Switzerland (PRD §10). The current compose file binds Postgres and object storage to `127.0.0.1` only (`docker-compose.yml`).
 
@@ -161,6 +165,7 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | R12 | **Function creep by self-hosters** | Someone uses pigtail for people-tracking or lead generation. | 2 | 3 | **High** |
 | R13 | **Backups outlive deletions** | Restoring a backup re-introduces purged or deleted data. | 2 | 2 | Medium |
 | R14 | **Maintainer identity in project-level data** | `owner/repo` is kept without a time limit and names a person, joined to outcome classes. | 3 | 1 | Medium |
+| R15 | **Rebuilding stargazer lists against GitHub's restriction (D12)** | GitHub limited stargazer lists to admins and collaborators on 2026-06-30 because they were "misused to collect user data for spam activities" (TM-33; LQ-29). Per-repo `WatchEvent`s still show who starred. Without controls, polling them would rebuild those lists (in plain logins, kept indefinitely, across many repos), expose people to the spam and outreach harm GitHub named, go against users' post-restriction expectations, and could be read as circumventing the restriction (ToS §H, AUP). Even with controls, 30 days of pseudonymised star rows for a repo are a partial pseudonymised stargazer list. | 3 | 2 | **High** |
 
 ---
 
@@ -214,6 +219,15 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | R12 | Purpose limits in the operator guide and README. No person search in the UI. Controller duties explained to self-hosters. | P CB-21 |
 | R13 | Encrypted backups, 35-day rotation, deletions replayed after a restore (tombstone log). | P CB-17 |
 | R14 | In public outputs, suppress or aggregate repos owned by personal accounts unless they are public-figure projects or the owner consents. | P CB-20 |
+| R15 | Scope: per-repo events only for repos with an open case, tracked repos (R17.4) or repos above the pre-threshold; never a general sweep. | P (M1-T24) |
+| | Cadence: no faster than `X-Poll-Interval` (every 15–60 min, ETag); one operator token, no pooling (ADR-032.4). | P (M1-T24) |
+| | Pseudonymise `actor` at ingest with the keyed HMAC (`github` namespace); bot logins dropped before hashing. | I (pseudonymiser, S1, S3) / P (applied in the new connector, M1-T24) |
+| | Minimise at parse: keep only `WatchEvent` actor pseudonym, repo and time; drop the raw response bytes right after parse (hash and URL kept, `raw_dropped`), as ADR-031.1 does for HN items. | P CB-23 |
+| | Retention: a ≤ 30-day class for D12 raw bytes and pseudonymised star rows, enforced by `pigtail retention purge` and rejected at startup if set longer; the table registered in `PERSON_TABLES` so erasure reaches it (ADR-030.5). After 30 days only aggregates remain. | P CB-22 |
+| | No-list guard: identities used only for bot and lockstep flags; no stargazer list is built, shown in the UI, exported or published; no cross-repo stargazer graph beyond the tracked set (LQ-29 default). | P CB-23 / P CB-14 (outputs) |
+| | Record per case: `bot_filter_basis` and `coverage_ratio`, so the filter's data use is auditable. | P (M1-T24) |
+| | Gate: on the conservative reading, the ADR-022 person-level hold applies (flag `PIGTAIL_ADR022_PERSON_SOURCES_OK`, `person_level_hold = True`), plus CB-22 and CB-23 (proposed ADR-022 amendment). | P (proposal) |
+| | Legal: LQ-29 (proportionality after GitHub's restriction; circumvention reading). If answered against, stop D12 and keep the filtered series `unknown`. | Open (H2) |
 
 ---
 
@@ -235,6 +249,7 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | R12 | Medium (outside the controller's control) | Medium |
 | R13 | Low | Medium (no backups defined) |
 | R14 | Low | Low (nothing is published) |
+| R15 | Low–medium (a 30-day pseudonymised partial list remains internally; LQ-29 open) | n/a (not built, connector does not exist) → becomes **High** if enabled before CB-22 and CB-23 |
 
 **Assessment.** With the planned measures in place, no **high** residual risk remains, so prior consultation (GDPR Art. 36(1) / FADP Art. 23(1)) is not required. The lawyer should confirm this (LQ-11).
 
@@ -281,6 +296,8 @@ These are for the orchestrator to add to `ops/BACKLOG.md`. "Blocks" says which p
 | CB-19 | Private UI authentication, role-based access and an audit log of snapshot views | UI (D1) | engineer |
 | CB-20 | Public outputs: suppress repos owned by personal accounts and matched losers unless the owner consents or the project is a public-figure project | D2 public mode / M9 | engineer |
 | CB-21 | Operator guide section "Your duties as controller": adopt the LIA and DPIA, publish a notice, subscription restrictions, training and telemetry opt-outs, purpose limits | Release (M9); any third-party self-hosting | compliance |
+| CB-22 | **Proposed (ADR-032, TM-33).** A ≤ 30-day retention class for per-repo stargazer events (raw bytes and pseudonymised star rows), purged daily by `pigtail retention purge`, longer values rejected at startup, table registered in `PERSON_TABLES`; after expiry only aggregates remain. Tested. | Per-repo event polling (D12, A1b) | engineer (with M1-T24) |
+| CB-23 | **Proposed (ADR-032, TM-33).** Parse minimisation and no-list guard for per-repo events: parse only `WatchEvent` actor pseudonym, repo and time; drop raw bytes after parse; no API, UI view, export or report that lists a repo's stargazers; no cross-repo stargazer graph beyond the tracked set. Tested. | Per-repo event polling (D12, A1b) | engineer (with M1-T24) |
 
 ## Changelog
 - 2026-09-25: v0.1 created (M3-T2).
@@ -289,3 +306,4 @@ These are for the orchestrator to add to `ops/BACKLOG.md`. "Blocks" says which p
 - 2026-09-25 — fixes after verifier M3 round 2: CB-04 marked partly implemented (30-day purge + verified re-fetch; drop-after-parse and minimal-parse fallback still planned); stale 'pending merge' conditions removed.
 - 2026-09-25 — fixes after verifier M3 round 3: CB-11 marked implemented (codebook v0.1.0 §12); LQ-25 updated for CB-04 partly implemented.
 - 2026-09-25 — CB statuses updated after privacy-controls merge (ADR-030): CB-01, CB-05, CB-08, CB-13 marked implemented and CB-03, CB-06, CB-18 partly implemented (§2.2, §2.3 D7 and D9, §4, §5, §6, §7, §9); rectification recorded as not built; §9 renamed "Control backlog and status".
+- 2026-09-25 — M3-T7, ADR-032: WP248 criterion 3 mentions per-repo stargazer polling; §2.3 adds D12 (stargazer events for tracked repos, planned, ≤ 30 days) and D13 (star counts, no personal data), and records OpenDigger (TM-32) as not processed and the stargazers API as no longer used; §5 adds R15 (rebuilding stargazer lists against GitHub's 2026-06-30 restriction, LQ-29); §6 and §7 add its measures (all planned: M1-T24, CB-22, CB-23) and residual risk; §9 adds proposed controls CB-22 and CB-23. ADR-022 lists unchanged; an amendment is proposed to the orchestrator.

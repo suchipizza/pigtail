@@ -6,7 +6,9 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [ ] [M1-T25] D1 follow-ups: browser check (operator), p95 benchmark at 5,000 evidence items, generated TS types, streaming hash check for large snapshots, live refresh, audit-log reader
 - [ ] [M1-T26] External liveness check for the scheduler (a dead scheduler can't alert itself)
 - [ ] [M1-T24] Implement ADR-032: watch-list GraphQL snapshots, Search sweeps, HN→repo screen, star-history client (baseline, confirmation, scoring, backfill), per-repo events polling for tracked cases; case coverage fields — needs GITHUB_TOKEN (H1) for live runs; build and test on fixtures now
-- [ ] [M3-T6] Update outcome-model spec §1 stars to ADR-032 (star-history, net, day boundaries); verifier check
+- [x] [M3-T6] Outcome spec updated to ADR-032 (star-history, day mapping)
+- [x] [M3-T7] LIA/DPIA: per-repo events (A1b, D12/D13, R15), OpenDigger not processed
+- [ ] [M3-T8] Apply ADR-035: thresholds v0.2.0 (new file, keep v0.1.0), spec §5, dated amendments to both pre-registrations, fix stargazers-API references in schemas/v0/case.schema.json (+example) and codebook depends_on_adrs; verifier check of M3-T6..T8
 - [ ] [M1-T16] (revised) Validation plan M1–M7 from detection-replan §8, run with the project token
 - [x] [M1-T21] Scheduler, health, alerts, Docker/systemd (ADR-033) — was: Scheduler: long-running `hn-ranks --loop`, daily `deletion-sync`, mentions for new cases within 48 h (R1.2); deploy when the host exists (H1)
 - [ ] [M1-T22] Front-page minutes (`att.hn_frontpage_minutes`) from rank observations, handling polling gaps
@@ -52,6 +54,8 @@ Before enabling Bluesky, HN or V2EX:
 - [x] [CB-08] Data-subject requests (`pigtail privacy request access|erasure`); follow-up: rectification
 - [x] [CB-13] Opt-out list enforced at ingest + purge (`pigtail privacy optout`)
 Feature-specific:
+- [ ] [CB-22] `person_level_30d` retention class + purge for per-repo events (ADR-036) — in M1-T24
+- [ ] [CB-23] Per-repo events: keep star/fork only, drop raw at parse, no stargazer list anywhere (ADR-036) — in M1-T24
 - [x] [CB-05] LLM cache expiry (24 months) + evidence links + purge
 - [ ] [CB-10] Account reach stored in bands
 - [x] [CB-11] Codebook privacy rules (codebook v0.1.0 §12)

@@ -104,7 +104,7 @@ How to reverse: Change n or the fallback order through a new thresholds version.
 Decision: `schemas/outcome-thresholds/v0.1.0.json` (provisional). Classes are checked in this order: winner, short_lived, attention_only, slow_riser, plateau, unclassified. A zero value never counts as "top". An unknown input blocks a class only when it could change the result. Business metrics are excluded from classes. "Matched loser" is a matching role, separate from the `plateau` class. Only the M4 pilot may calibrate the thresholds, and it freezes them as v1.0.0. Any later change needs an ADR and a held-out re-run on a 30% hash split (salt `pigtail-outcome-holdout-v1`).
 How to reverse: A new thresholds version plus an ADR.
 
-## ADR-020 — The fake-star filter removes stars at campaign level (2026-09-25)
+## ADR-020 — The fake-star filter removes stars at campaign level (2026-09-25) — default series for classes amended by ADR-035
 Options: Remove every star from a flagged account; or remove them only for repos StarScout flags as targeted by a campaign.
 Decision: Campaign level. The low-activity signature also matches legitimate new users, and the campaign rule is the paper's own guard against false positives. Classes are computed on the filtered series, then re-run on the raw series, and any flip is flagged.
 How to reverse: Remove stars at account level.
@@ -227,3 +227,17 @@ How to reverse: Replace the loop with APScheduler behind the same job config; mo
 4. **Sessions are stored server-side in Postgres, as hashes only.** Logout and expiry happen on the server (12 h absolute, 120 min idle).
 5. **All reads go through a pool that Postgres forces into read-only mode** (R14.2).
 How to reverse: Per item, through an ADR (for 1: suppress personal-account repos in the private UI as well).
+
+## ADR-035 — Outcome classes use the raw star-history series; thresholds v0.2.0 (amends ADR-020; made before any outcome data exists) (2026-09-25)
+Context: Under ADR-032, `starscout_filtered` and `bot_filtered` need stargazer identities, which exist only for repos polled from before T (or through GH Archive's ~2%). With outcome-thresholds v0.1.0 classing on the filtered series, almost every retrospective case would be `unclassified:missing_data`, and the pilot couldn't classify its cases (outcome-model O11).
+Options: (a) keep v0.1.0 (pilot can't run); (b) mix series per case (one cell would compare two different series); (c) class on `raw` star-history for every case, with the filtered series as a pre-registered sensitivity analysis where eligible, and a flag on class flips.
+Decision: (c). Thresholds bump to **v0.2.0**. v1.0.0 stays reserved for the pilot freeze; before 1.0.0, a change to a class input bumps the minor version. ADR-020's default changes accordingly. Cases where the filtered series is available and the class flips are flagged, and known fake-star campaigns (StarScout campaign flag) are reported per stratum. Both pre-registrations get dated amendments stating that no outcome data had been seen. PRD R3.3 still holds: raw and filtered series are both stored wherever they can be computed.
+How to reverse: Class on the filtered series again once per-repo event coverage makes it available for ≥ 90% of cases (thresholds version bump plus a held-out re-run if after the pilot freeze).
+
+## ADR-036 — ADR-022 applies to per-repo GitHub events, plus two controls (amends ADR-022) (2026-09-25)
+Context: Per-repo event polling (ADR-032, TM-33) is a person-level source other than GH Archive. DPIA R15: it could rebuild stargazer lists that GitHub restricted on 2026-06-30.
+Decision: Per-repo events fall under ADR-022's full person-level preconditions (CB-01, 02, 03, 06, 08, 12, 13) and additionally need:
+- **CB-22:** a `person_level_30d` retention class with purge (≤ 30 days);
+- **CB-23:** keep only star and fork events at parse, drop the raw bytes immediately (hash kept), and never build or export a per-repo stargazer list.
+The connector stays off (`PIGTAIL_ENABLE_GITHUB_EVENTS=0` plus the ADR-022 flag) until then, and LQ-29 may stop it altogether. Until it runs, the bot-filter confirmation and the filtered series going forward stay `unavailable`, which ADR-035 makes non-blocking for classes.
+How to reverse: Drop the per-repo events source entirely (the bot filter stays unavailable) or lift the hold after H2 answers LQ-29.
