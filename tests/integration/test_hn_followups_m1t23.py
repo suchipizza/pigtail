@@ -162,7 +162,7 @@ def test_m1_t23_name_optout_purges_existing_hn_data_and_reapplies(capture_db, tm
     res = requests.optout_repo_name(db, store, platform="github", full_name="org-a/repo-1", pz=pz)
     c = res.counts
     assert c["names_matched"] == 1 and c["mention_rows_deleted"] == 5
-    assert c["story_rows_cleared"] == 1 and c["watchlist_deactivated"] == 1
+    assert c["story_rows_cleared"] == 1 and c["watchlist_rows_deleted"] == 1
     assert c["evidence_deleted"] == len(mention_evs)
     assert db.conn.execute("SELECT count(*) FROM hn_mention").fetchone() == (0,)
     assert not any(store.exists(h) for _i, h in mention_evs)
@@ -170,9 +170,10 @@ def test_m1_t23_name_optout_purges_existing_hn_data_and_reapplies(capture_db, tm
         "SELECT title, url, repo_full_name, repo_id FROM hn_story WHERE item_id = 9000001"
     ).fetchone()
     assert story == (None, None, None, None)
+    # CB-13c: the watch-list row is deleted (the keyed refusal-list entry is the tombstone)
     assert db.conn.execute(
-        "SELECT active, deactivated_reason FROM watchlist WHERE full_name = 'org-a/repo-1'"
-    ).fetchone() == (False, "opted_out")
+        "SELECT count(*) FROM watchlist WHERE full_name = 'org-a/repo-1'"
+    ).fetchone() == (0,)
     other = db.conn.execute("SELECT title FROM hn_story WHERE item_id = 9000004").fetchone()
     assert other == ("Repo-2: synthetic project",)  # other repos untouched
     log = dict(
@@ -181,10 +182,10 @@ def test_m1_t23_name_optout_purges_existing_hn_data_and_reapplies(capture_db, tm
             " AND action IN ('rows_deleted', 'fields_cleared') GROUP BY 1"
         ).fetchall()
     )
-    assert log == {"hn_mention": 5, "hn_story": 1}
+    assert log == {"hn_mention": 5, "hn_story": 1, "watchlist": 1}
     # re-applying the list (e.g. after a restore) is idempotent: nothing more to remove
     totals = requests.reapply_refusals(db, store, pz)
-    for k in ("mention_rows_deleted", "story_rows_cleared", "watchlist_deactivated"):
+    for k in ("mention_rows_deleted", "story_rows_cleared", "watchlist_rows_deleted"):
         assert totals[f"repo_name_{k}"] == 0
 
 

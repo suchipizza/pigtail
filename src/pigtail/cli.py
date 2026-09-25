@@ -533,19 +533,25 @@ def _privacy(fn: Any) -> Any:
     return wrapped
 
 
-@_privacy
-def cmd_retention_purge(args: argparse.Namespace, ctx: _Ctx) -> int:
-    """CB-01 (+ CB-04, CB-05, CB-18): purge person-level data past its retention."""
-    from pigtail.capture.runs import RunRecorder
-    from pigtail.privacy.retention import RetentionConfig, purge
+def _retention_cfg(s: Any) -> Any:
+    from pigtail.privacy.retention import RetentionConfig
 
-    s = ctx.settings
-    cfg = RetentionConfig(
+    return RetentionConfig(
         person_level_days=s.person_level_retention_days,
         gharchive_raw_days=s.gharchive_raw_retention_days,
         log_days=s.log_retention_days,
         github_events_days=s.github_events_retention_days,
     )
+
+
+@_privacy
+def cmd_retention_purge(args: argparse.Namespace, ctx: _Ctx) -> int:
+    """CB-01 (+ CB-04, CB-05, CB-18): purge person-level data past its retention."""
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.privacy.retention import purge
+
+    s = ctx.settings
+    cfg = _retention_cfg(s)
     config = {
         "dry_run": args.dry_run,
         "person_level_days": cfg.person_level_days,
@@ -830,6 +836,143 @@ def cmd_export_jsonl(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_backup_create(args: argparse.Namespace) -> int:
+    """CB-17: encrypted backup (pg_dump + snapshot manifest) to `--out`, outside any git tree."""
+    import os
+    from pathlib import Path
+
+    from pigtail.capture.db import CaptureDB
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.config import Settings
+    from pigtail.privacy.backup import RECIPIENT_ENV, BackupError, create
+
+    s = Settings.from_env()
+    if not s.database_url:
+        print("DATABASE_URL is not set", file=sys.stderr)
+        return 2
+    db = CaptureDB.connect(s.database_url)
+    try:
+        # the run config holds no output path and no recipient
+        with RunRecorder(
+            "backup.create", {"snapshot_backend": s.snapshot_backend}, sink=db.upsert_run
+        ) as run:
+            try:
+                res = create(
+                    db,
+                    s.database_url,
+                    Path(args.out),
+                    recipient=os.environ.get(RECIPIENT_ENV),
+                    snapshot_backend=s.snapshot_backend,
+                )
+            except BackupError as e:
+                run.incr("refused")
+                print(str(e), file=sys.stderr)
+                return 2
+            run.incr("bytes", res.bytes)
+            run.incr("snapshot_hashes", res.snapshot_hashes)
+    finally:
+        db.close()
+    print(json.dumps({"run_id": run.id, **res.to_dict()}, indent=2))
+    return 0
+
+
+def cmd_backup_restore(args: argparse.Namespace) -> int:
+    """CB-17: restore a backup into DATABASE_URL, then re-apply every deletion."""
+    import os
+    from pathlib import Path
+
+    from pigtail.capture.db import CaptureDB
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.capture.snapshots import build_store
+    from pigtail.config import Settings
+    from pigtail.llm.store import LLMStore
+    from pigtail.privacy.backup import IDENTITY_ENV, BackupError, restore
+    from pigtail.privacy.requests import reapply_refusals
+    from pigtail.privacy.retention import purge
+    from pigtail.pseudonymize import Pseudonymizer
+
+    s = Settings.from_env()
+    if not s.database_url:
+        print("DATABASE_URL is not set", file=sys.stderr)
+        return 2
+    if not s.pseudonym_key:
+        print("PSEUDONYM_KEY is not set: the opt-out list cannot be re-applied", file=sys.stderr)
+        return 2
+    if not args.yes:
+        print(
+            "restore REPLACES the database at DATABASE_URL (stop the scheduler first);"
+            " re-run with --yes",
+            file=sys.stderr,
+        )
+        return 2
+    pz = Pseudonymizer(s.pseudonym_key)
+    store = build_store(s)
+    llm = LLMStore(s.data_dir / "llm.sqlite3", retention_days=s.llm_cache_retention_days)
+    runs: dict[str, str] = {}
+
+    def reapply(db: CaptureDB) -> dict[str, int]:
+        with RunRecorder("privacy.optout_purge", {"after": "restore"}, sink=db.upsert_run) as r:
+            runs["optout_purge"] = r.id
+            return reapply_refusals(db, store, pz, llm_store=llm, run=r)
+
+    def retention(db: CaptureDB) -> dict[str, Any]:
+        with RunRecorder("retention.purge", {"after": "restore"}, sink=db.upsert_run) as r:
+            runs["retention_purge"] = r.id
+            rep = purge(db, store, cfg=_retention_cfg(s), llm_store=llm, run=r).to_dict()
+        rep["dropped_hashes"] = len(rep["dropped_hashes"])
+        return rep
+
+    try:
+        res = restore(
+            Path(args.input),
+            s.database_url,
+            store,
+            reapply=reapply,
+            retention=retention,
+            identity=args.identity or os.environ.get(IDENTITY_ENV),
+            llm_store=llm,
+        )
+    except BackupError as e:
+        print(str(e), file=sys.stderr)
+        return 1
+    db = CaptureDB.connect(s.database_url)
+    try:
+        config = {"backup_created_at": res.manifest.get("created_at")}
+        with RunRecorder("backup.restore", config, sink=db.upsert_run) as run:
+            for k, v in {
+                **res.replay,
+                **{f"carried.{k}": v for k, v in res.carried.items()},
+            }.items():
+                run.incr(k, v)
+    finally:
+        db.close()
+    out = {"run_id": run.id, "runs": runs, **res.to_dict()}
+    if res.carry_over_source != "live":
+        print(
+            f"warning: no live database to carry over from ({res.carry_over_source}): deletions"
+            " and opt-outs recorded after this backup was taken are not in it. Re-run"
+            " `pigtail privacy optout add` for any you know of.",
+            file=sys.stderr,
+        )
+    print(json.dumps(out, indent=2, default=str))
+    return 0
+
+
+def cmd_backup_prune(args: argparse.Namespace) -> int:
+    """CB-17: delete backups older than 35 days (retention-policy §2)."""
+    from pathlib import Path
+
+    from pigtail.privacy.backup import BackupError, prune
+
+    try:
+        res = prune(Path(args.dir), days=args.days, dry_run=args.dry_run)
+    except BackupError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    print(json.dumps(res.to_dict(), indent=2))
+    return 0
+
+
 def _add_subject_args(p: argparse.ArgumentParser, repos: bool) -> None:
     from pigtail.pseudonymize import PLATFORM_NAMESPACES
 
@@ -964,6 +1107,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="also export pseudonymous person-level tables (refused inside any git work tree)",
     )
     ej.set_defaults(func=cmd_export_jsonl)
+
+    bk = sub.add_parser("backup", help="encrypted backups and restore (DPIA CB-17)")
+    bk_sub = bk.add_subparsers(dest="backup_command", required=True)
+    bc = bk_sub.add_parser(
+        "create", help="pg_dump + snapshot manifest, encrypted to BACKUP_RECIPIENT (age or gpg)"
+    )
+    bc.add_argument("--out", required=True, help="output directory (never inside a git tree)")
+    bc.set_defaults(func=cmd_backup_create)
+    br = bk_sub.add_parser(
+        "restore", help="replace the database with a backup, then re-apply all deletions"
+    )
+    br.add_argument("--in", dest="input", required=True, help="backup file (.age or .gpg)")
+    br.add_argument("--identity", help="age identity file (default: $BACKUP_IDENTITY)")
+    br.add_argument("--yes", action="store_true", help="confirm: the database is replaced")
+    br.set_defaults(func=cmd_backup_restore)
+    bp = bk_sub.add_parser("prune", help="delete backups older than 35 days")
+    bp.add_argument("--dir", required=True, help="backup directory")
+    bp.add_argument("--days", type=int, default=35, help="keep this many days (max 35)")
+    bp.add_argument("--dry-run", action="store_true", help="list only; delete nothing")
+    bp.set_defaults(func=cmd_backup_prune)
 
     from pigtail.scheduler.cli import add_commands as add_scheduler_commands
 

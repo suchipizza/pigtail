@@ -542,7 +542,7 @@ uv run pigtail privacy optout add --platform github --repo-id 123456 # a project
 uv run pigtail privacy optout add --platform github --repo owner/name   # also if not in the DB
 uv run pigtail privacy optout list
 uv run pigtail privacy optout remove --platform github --handle -
-uv run pigtail privacy optout purge     # re-apply the whole list, e.g. after a backup restore
+uv run pigtail privacy optout purge     # re-apply the whole list (backup restore does this)
 uv run pigtail privacy optout rekey     # CB-13b: convert pre-0009 unkeyed name entries
 ```
 - **Handles are never stored.** A handle is pseudonymized at once with `PSEUDONYM_KEY` in the
@@ -574,11 +574,93 @@ uv run pigtail privacy optout rekey     # CB-13b: convert pre-0009 unkeyed name 
   - For a person, this drops the raw snapshots that contain their records (whole snapshots;
     replay re-downloads them and drops the person at ingest), person-level rows, and LLM cache
     rows derived from those snapshots or mentioning the pseudonym.
-  - For a repo, it deletes the repo's hourly aggregates, cases, linked evidence (raw bytes
-    first) and the `repos` row. By name it also deletes HN mention rows and their snapshots,
-    clears the title, url and repo link of rank-poller stories (the rank history keeps only the
-    item id), clears Show HN screen links and deactivates the watch-list entry (`opted_out`).
+  - For a repo (CB-13c), it removes **every row keyed to the repo in every table**, matched by
+    id, GitHub id and each `owner/name` pigtail associates with the id (renames included). The
+    tables are listed in `REPO_TABLES` (`src/pigtail/privacy/deletion.py`); a test fails when a
+    new table has a repo key column that isn't registered there.
+
+    | Rows | What happens |
+    |---|---|
+    | GH Archive hourly aggregates, GitHub count snapshots, star history (daily rows and fetch log), per-repo events (actors, polls, daily aggregates), detection agreement, settle-lag schedule and observations, ETag cache rows of its API pages | deleted |
+    | Watch-list entries | deleted (the refusal-list entry is the tombstone; a plain-text row would show which repos opted out) |
+    | HN mention rows | deleted, with their snapshots unless another repo's mention uses the same one |
+    | Rank-poller stories, Show HN screen rows | kept without title, url and repo link (the rank history keeps only the item id) |
+    | Evidence linked to the repo, its cases or its per-repo API pages | raw bytes dropped first, then the rows and derived LLM cache rows |
+    | Cases, then the `repos` row | deleted |
+
+    Opting out by name also resolves the repo's ids (from `repos` and the watch list), adds them
+    to the list and purges by id. Snapshots shared with other repos are **kept**: GraphQL count
+    batches (100 repos each), GH Archive dumps (purged after 30 days anyway; replay drops the
+    repo at ingest) and HN front pages. Only the rows derived from them for this repo go.
   - Opt-outs are logged in the request log as `objection`.
+
+### Backups and restore (CB-17)
+Backups are encrypted, kept 35 days, and a restore re-applies every deletion made after the
+backup was taken (retention policy §2, §5).
+```bash
+export BACKUP_RECIPIENT=age1...        # public key only: age (preferred) or a gpg fingerprint
+uv run pigtail backup create --out /srv/pigtail-backups
+uv run pigtail backup prune --dir /srv/pigtail-backups            # deletes files > 35 days old
+BACKUP_IDENTITY=/secure/age-key.txt \
+  uv run pigtail backup restore --in /srv/pigtail-backups/pigtail-backup-20260925T030000Z.age --yes
+```
+**Setup.**
+- Install `age` (`apt install age`, `brew install age`) and the PostgreSQL client tools of the
+  server's major version (`postgresql-client-16`: `pg_dump`, `pg_restore`, `psql`). They are
+  not in the app image. Run the commands on the host, or anywhere that can reach the database.
+- Generate the key pair **off the host**: `age-keygen -o pigtail-backup.key`, and set
+  `BACKUP_RECIPIENT` to the public key it prints (`age1…`). The host needs only the public key.
+  Keep the identity file with the owner and in a second safe place. Without it the backups
+  can't be read. gpg works too: set `BACKUP_RECIPIENT` to the full fingerprint of a key whose
+  public half is in the host keyring. A value that isn't an age or SSH recipient selects gpg.
+- The backup key is **not** `PSEUDONYM_KEY`. That key is backed up separately (retention policy
+  §3) and never goes into a data backup.
+- Schedule `backup create` and `backup prune` daily (cron or a systemd timer). The
+  object-storage replica or versioning of the snapshot bucket needs the same 35-day expiry.
+
+**`backup create`** writes one file, `pigtail-backup-<UTC time>.age` (or `.gpg`), mode 0600,
+with a consistent `pg_dump` of the database and a manifest (creation time, applied migrations,
+`deletion_log` size, and the hashes of every `present` snapshot). The raw snapshot bytes aren't
+in it: they live in the bucket and its replicas. Nothing is written unencrypted. `pg_dump`
+streams straight into `age`/`gpg`. The command refuses to run without `BACKUP_RECIPIENT`, and
+refuses an output directory inside any git working tree. `pg_dump` must be at least the
+server's major version. The run record (`backup.create`) holds no path and no key. The LLM
+cache (`PIGTAIL_DATA_DIR/llm.sqlite3`) is not backed up; it is a cache.
+
+**`backup restore --in FILE --yes`** *replaces* the database at `DATABASE_URL`. Stop the
+scheduler first. It needs `PSEUDONYM_KEY` and, for age, the identity file (`--identity` or
+`BACKUP_IDENTITY`; gpg uses its keyring). Steps:
+1. Read the live database's `deletion_log`, opt-out list and request log, plus the run records
+   they reference, before anything changes.
+2. Decrypt and restore the dump with `pg_restore | psql` in **one transaction** that drops and
+   recreates schema `public`. The transaction commits only if decryption, `pg_restore` and
+   `psql` all succeed, so a wrong key or a truncated file changes nothing.
+3. Apply pending migrations, then write back the carried-over tombstones, opt-outs and requests.
+   Opt-outs are only added: an opt-out removed after the backup comes back and must be removed
+   again.
+4. Replay the tombstones. Every `raw_dropped` hash is deleted from the snapshot store again (the
+   bucket may have been restored too). Evidence fetched before the tombstone moves back to
+   `raw_dropped` (or `deleted_upstream`), and every `evidence_deleted` row is deleted again. A
+   hash is kept only if a present capture newer than the tombstone still needs it. Upstream
+   items behind a `deleted_upstream` tombstone become due at once, so the next
+   `privacy deletion-sync` removes their rows.
+5. Re-apply the whole opt-out list (`privacy optout purge`).
+6. Run the retention purge (`retention purge`).
+
+The JSON output reports each step (`carried`, `replay`, `refusals`, `retention`). Run records:
+`backup.restore`, `privacy.optout_purge`, `retention.purge`. Run `privacy deletion-sync`
+afterwards.
+
+**If the live database is gone** (the output says `carry_over_source` is `unreachable` or
+`empty`, with a warning), the tombstones and opt-outs recorded after the backup are lost with
+it. Steps 4–6 still apply everything the backup itself knows, plus the time limits. Re-enter any
+opt-outs and erasures received since the backup from the request channel's records (retention
+policy §5), then run `privacy optout purge`. Restore the **newest** backup to keep this gap
+small.
+
+**`backup prune --dir DIR`** deletes pigtail backup files older than 35 days (`--days` can only
+shorten this) and partial files older than a day. `--dry-run` only lists them. Other files in
+the directory are never touched.
 
 ### Data-subject requests (CB-08)
 ```bash

@@ -9,6 +9,11 @@ retention purge (by `time_column`) and erasure (by `pseudonym_column`) reach the
 `hn_mention` (M1-T4), `upstream_items` (deletion sync, CB-02; migration 0005) and
 `repo_event_actor` (GitHub per-repo events, M1-T24; TM-33; capped at 30 days by `retention_days`,
 CB-22). M5 tables (actors, edges, posts) must register here too.
+
+`REPO_TABLES` (CB-13c) is the matching registry for a project owner's opt-out: every column that
+keys a row to a repository (by `<host>:<id>`, by GitHub id, by `owner/name`, or by an API URL of
+the repo) and what `pigtail.privacy.requests.purge_repo` does with those rows. A test introspects
+the schema and fails when a repo-keyed column is not registered here.
 """
 
 from __future__ import annotations
@@ -72,6 +77,85 @@ PERSON_TABLES: tuple[PersonTable, ...] = (
         retention_days=30,
         retention_class="person_level_30d",
     ),
+)
+
+
+RepoMatch = Literal["id", "host_id", "name", "url"]
+RepoAction = Literal["delete", "clear", "evidence", "final"]
+
+
+@dataclass(frozen=True)
+class RepoTable:
+    """A column keying rows to a repository, and what a repo opt-out does with them (CB-13c).
+
+    `match`: `id` = `<host>:<id>` (`repos.id`); `host_id` = GitHub numeric id (GitHub only);
+    `name` = normalized `owner/name` (compared lowercase); `url` = GitHub API URL of the repo
+    (`/repos/<owner>/<name>` and below).
+    `action`: `delete` rows; `clear` = keep the row but null the repo link and content
+    (`clear_sql`, e.g. the HN rank history keeps the item id); `evidence` = deleted through
+    `_delete_evidence` (raw bytes first, then rows and derived LLM cache); `final` = deleted
+    after the evidence (rows other tables reference: `cases`, `repos`).
+    """
+
+    table: str
+    column: str
+    match: RepoMatch
+    action: RepoAction
+    count_key: str = ""
+    clear_sql: str = ""
+
+    @property
+    def key(self) -> str:
+        if self.count_key:
+            return self.count_key
+        return f"{self.table}_rows_{'cleared' if self.action == 'clear' else 'deleted'}"
+
+
+_HN_STORY_CLEAR = (
+    "title = NULL, url = NULL, repo_full_name = NULL, repo_id = NULL,"
+    " content_cleared_at = COALESCE(content_cleared_at, now())"
+)
+
+# Order matters: rows are removed in this order (evidence ids are collected before any delete).
+REPO_TABLES: tuple[RepoTable, ...] = (
+    # GH Archive hourly aggregates (M1-T3)
+    RepoTable("repo_hourly_activity", "repo_host_id", "host_id", "delete", "hourly_rows_deleted"),
+    RepoTable("repo_hourly_activity", "repo_name", "name", "delete", "hourly_rows_deleted"),
+    # GitHub detection v1 (M1-T24): counts, star history, events, agreement, watch list
+    RepoTable("repo_count_snapshot", "repo_host_id", "host_id", "delete"),
+    RepoTable("repo_star_daily", "repo_host_id", "host_id", "delete"),
+    RepoTable("star_history_fetch", "repo_host_id", "host_id", "delete"),
+    RepoTable("repo_event_actor", "repo_host_id", "host_id", "delete"),
+    RepoTable("repo_event_poll", "repo_host_id", "host_id", "delete"),
+    RepoTable("repo_event_daily_agg", "repo_host_id", "host_id", "delete"),
+    RepoTable("detection_agreement", "repo_host_id", "host_id", "delete"),
+    RepoTable("watchlist", "repo_host_id", "host_id", "delete", "watchlist_rows_deleted"),
+    RepoTable("watchlist", "full_name", "name", "delete", "watchlist_rows_deleted"),
+    # settle-lag collection (K2, M4-T4)
+    RepoTable("star_history_settle_obs", "repo_host_id", "host_id", "delete"),
+    RepoTable("settle_lag_schedule", "repo_host_id", "host_id", "delete"),
+    # ETag cache of per-repo GitHub API pages (url and etag only)
+    RepoTable("github_http_cache", "url", "url", "delete"),
+    # HN (M1-T4, M1-T14, M1-T23): mentions are deleted; the rank history and the Show HN screen
+    # keep the item id but lose the repo link (and a story its title and url)
+    RepoTable("hn_mention", "repo_id", "id", "delete", "mention_rows_deleted"),
+    RepoTable("hn_mention", "repo_full_name", "name", "delete", "mention_rows_deleted"),
+    RepoTable("hn_story", "repo_id", "id", "clear", "story_rows_cleared", _HN_STORY_CLEAR),
+    RepoTable("hn_story", "repo_full_name", "name", "clear", "story_rows_cleared", _HN_STORY_CLEAR),
+    RepoTable(
+        "hn_show_screen",
+        "repo_full_name",
+        "name",
+        "clear",
+        "show_rows_cleared",
+        clear_sql="repo_full_name = NULL",
+    ),
+    # evidence linked to the repo, its cases or its per-repo API pages; then cases and the repo
+    RepoTable("evidence", "repo_id", "id", "evidence", "evidence_deleted"),
+    RepoTable("evidence", "url", "url", "evidence", "evidence_deleted"),
+    RepoTable("cases", "repo_id", "id", "final", "cases_deleted"),
+    RepoTable("repos", "host_id", "host_id", "final", "repos_deleted"),
+    RepoTable("repos", "full_name", "name", "final", "repos_deleted"),
 )
 
 

@@ -14,13 +14,17 @@ discarded: it is never written to the database, the request log, the deletion lo
   person-level rows are deleted, and LLM cache rows derived from those snapshots or mentioning
   the pseudonym are deleted. Project-level aggregates with no pseudonym are kept
   (retention-policy.md §5).
-- `purge_repo()`: a project owner's opt-out. Deletes the repo's aggregates, cases and linked
-  evidence (raw bytes first), and its `repos` row.
+- `purge_repo()`: a project owner's opt-out (CB-13, CB-13c). Deletes or clears every row keyed
+  to the repo in the tables registered in `deletion.REPO_TABLES` (GH Archive hourly rows, GitHub
+  counts, star history, events, detection agreement, watch list, settle-lag rows, the ETag
+  cache, HN mentions and links, cases, linked evidence with raw bytes first, and the `repos`
+  row), matched by id, GitHub id and every `owner/name` pigtail associates with the id.
 - `purge_repo_name()` (M1-T23): the same opt-out matched by normalized `owner/name`, which also
   reaches data about repos not in `repos`: HN mentions (rows and their snapshots), story titles
-  and urls from the rank poller (the rank history keeps only the item id), Show HN screen links
-  and watch-list entries. The refusal list holds only a keyed hash of the name
-  (`suppression.repo_name_key`, HMAC with `PSEUDONYM_KEY`, CB-13b).
+  and urls from the rank poller (the rank history keeps only the item id), Show HN screen links,
+  watch-list entries (deleted; the refusal list is the tombstone) and per-repo API pages. The
+  refusal list holds only a keyed hash of the name (`suppression.repo_name_key`, HMAC with
+  `PSEUDONYM_KEY`, CB-13b).
 - `rekey_unkeyed_names()` (CB-13b): converts legacy unkeyed name entries (before migration 0009)
   to keyed ones for every name found in local data; the rest stay matched until re-added.
 
@@ -50,8 +54,10 @@ from pigtail.connectors.registry import CONNECTORS
 from pigtail.privacy import suppression
 from pigtail.privacy.deletion import (
     PERSON_TABLES,
+    REPO_TABLES,
     DeletionLog,
     PersonTable,
+    RepoTable,
     delete_person_rows,
     drop_raw,
 )
@@ -422,6 +428,180 @@ def _delete_evidence(
             log.write("cache_purged", "llm_cache", rows=n)
 
 
+def _repo_names_for_id(db: CaptureDB, repo_key: str, host_id: int | None) -> set[str]:
+    """Every `owner/name` pigtail associates with a repo id (lowercase): `repos.full_name` and,
+    for GitHub, watch-list names and GH Archive names (renames included)."""
+    rows = db.conn.execute("SELECT full_name FROM repos WHERE id = %s", (repo_key,)).fetchall()
+    if host_id is not None:
+        rows += db.conn.execute(
+            "SELECT full_name FROM watchlist WHERE repo_host_id = %(h)s"
+            " UNION SELECT DISTINCT repo_name FROM repo_hourly_activity WHERE repo_host_id = %(h)s",
+            {"h": host_id},
+        ).fetchall()
+    return {str(r[0]).lower() for r in rows if r[0]}
+
+
+def _url_prefixes(names: Iterable[str]) -> list[str]:
+    """Lowercase GitHub API URL prefixes of `names` (`/repos/o/n`, then `/` or `?`)."""
+    from pigtail.connectors.github import API
+
+    out = []
+    for n in sorted(names):
+        base = f"{API}/repos/{n}".lower()
+        out += [base + "/", base + "?"]
+    return out
+
+
+def _url_cond(column: str, names: Iterable[str]) -> tuple[sql.Composable, dict[str, Any]]:
+    names = sorted(names)
+    col = sql.Identifier(column)
+    exact = [f"{p[:-1]}" for p in _url_prefixes(names)[::2]]
+    cond = sql.SQL(
+        "(lower({c}) = ANY(%(url_exact)s) OR EXISTS (SELECT 1 FROM unnest(%(url_prefix)s::text[])"
+        " AS p(x) WHERE starts_with(lower({c}), p.x)))"
+    ).format(c=col)
+    return cond, {"url_exact": exact, "url_prefix": _url_prefixes(names)}
+
+
+def _repo_cond(
+    t: RepoTable, key: str | None, host_id: int | None, names: Sequence[str]
+) -> tuple[sql.Composable, dict[str, Any]] | None:
+    """The WHERE condition selecting `t`'s rows of this repo, or None if nothing to match."""
+    col = sql.Identifier(t.column)
+    if t.match == "id":
+        if key is None:
+            return None
+        return sql.SQL("{} = %(key)s").format(col), {"key": key}
+    if t.match == "host_id":
+        if host_id is None:
+            return None
+        return sql.SQL("{} = %(host_id)s").format(col), {"host_id": host_id}
+    if not names:
+        return None
+    if t.match == "name":
+        return sql.SQL("lower({}) = ANY(%(names)s)").format(col), {"names": list(names)}
+    return _url_cond(t.column, names)
+
+
+def _repo_evidence(
+    db: CaptureDB, key: str | None, host_id: int | None, names: Sequence[str]
+) -> list[tuple[str, str]]:
+    """Evidence `(id, content_hash)` of one repo (CB-13c): linked by `repo_id` or through its
+    cases; per-repo GitHub API pages (by URL, and pages behind its star-history rows); HN
+    mention snapshots of the repo that no other repo's mention uses. Shared snapshots (GraphQL
+    count batches, GH Archive dumps, HN front pages) stay: they hold every other repo too."""
+    parts: list[sql.Composable] = []
+    params: dict[str, Any] = {"key": key, "host_id": host_id, "names": list(names)}
+    if key is not None:
+        parts.append(
+            sql.SQL(
+                "SELECT id FROM evidence WHERE repo_id = %(key)s"
+                " OR case_id IN (SELECT id FROM cases WHERE repo_id = %(key)s)"
+            )
+        )
+    if host_id is not None:
+        for table in ("repo_star_daily", "star_history_settle_obs"):
+            parts.append(
+                sql.SQL(
+                    "SELECT t.evidence_id FROM {t} t WHERE t.repo_host_id = %(host_id)s"
+                    " AND t.evidence_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM {t} o"
+                    " WHERE o.evidence_id = t.evidence_id AND o.repo_host_id <> %(host_id)s)"
+                ).format(t=sql.Identifier(table))
+            )
+    if names:
+        cond, p = _url_cond("url", names)
+        params |= p
+        parts.append(sql.SQL("SELECT id FROM evidence WHERE ") + cond)
+    mention = sql.SQL(
+        "(m.repo_full_name = ANY(%(names)s)"
+        + (" OR m.repo_id = %(key)s" if key is not None else "")
+        + ")"
+    )
+    other = sql.SQL(
+        "(o.repo_full_name <> ALL(%(names)s)"
+        + (" AND o.repo_id IS DISTINCT FROM %(key)s" if key is not None else "")
+        + ")"
+    )
+    parts.append(
+        sql.SQL(
+            "SELECT e.id FROM hn_mention m JOIN evidence e"
+            " ON e.id IN (m.evidence_id, m.item_evidence_id) WHERE {m} AND NOT EXISTS ("
+            " SELECT 1 FROM hn_mention o WHERE {o} AND e.id IN (o.evidence_id, o.item_evidence_id))"
+        ).format(m=mention, o=other)
+    )
+    q = sql.SQL("SELECT id, content_hash FROM evidence WHERE id IN ({}) ORDER BY id").format(
+        sql.SQL(" UNION ").join(parts)
+    )
+    return [(str(i), str(h)) for i, h in db.conn.execute(q, params).fetchall()]
+
+
+def _purge_repo_rows(
+    db: CaptureDB,
+    store: SnapshotStore,
+    log: DeletionLog,
+    counts: dict[str, int],
+    *,
+    key: str | None,
+    host_id: int | None,
+    names: Iterable[str],
+    llm_store: LLMStore | None,
+    tables: Sequence[RepoTable],
+) -> None:
+    """Remove or clear every registered repo-keyed row of one repo (CB-13c, `REPO_TABLES`)."""
+    names = sorted({n.lower() for n in names})
+    evs = _repo_evidence(db, key, host_id, names)
+    final: list[RepoTable] = []
+    for t in tables:
+        if t.action == "evidence":
+            continue
+        if t.action == "final":
+            final.append(t)
+            continue
+        got = _repo_cond(t, key, host_id, names)
+        if got is None:
+            continue
+        cond, params = got
+        if t.table == "github_http_cache" and evs:
+            cond = sql.SQL("({} OR evidence_id = ANY(%(ev_ids)s))").format(cond)
+            params = {**params, "ev_ids": [e[0] for e in evs]}
+        if t.action == "delete":
+            q = sql.SQL("DELETE FROM {} WHERE ").format(sql.Identifier(t.table)) + cond
+            action: Any = "rows_deleted"
+        else:
+            q = (
+                sql.SQL("UPDATE {} SET {} WHERE ").format(
+                    sql.Identifier(t.table), sql.SQL(t.clear_sql)
+                )
+                + cond
+            )
+            action = "fields_cleared"
+        n = db.conn.execute(q, params).rowcount
+        counts[t.key] = counts.get(t.key, 0) + n
+        if n:
+            log.write(action, t.table, rows=n)
+    _delete_evidence(db, store, evs, log, counts, llm_store)
+    for t in final:
+        got = _repo_cond(t, key, host_id, names)
+        if got is None:
+            continue
+        cond, params = got
+        if t.table == "repos" and t.match == "host_id":
+            host = (key or "").partition(":")[0]
+            cond = sql.SQL("({} AND host = %(host)s)").format(cond)
+            params = {**params, "host": host}
+        elif t.table == "repos" and t.match == "name":
+            continue  # a repo with a known id is purged by id (purge_repo_name resolves ids)
+        q = sql.SQL("DELETE FROM {} WHERE ").format(sql.Identifier(t.table)) + cond
+        n = db.conn.execute(q, params).rowcount
+        counts[t.key] = counts.get(t.key, 0) + n
+        if n:
+            log.write("rows_deleted", t.table, rows=n)
+
+
+def _zero_counts(tables: Sequence[RepoTable], *extra: str) -> dict[str, int]:
+    return dict.fromkeys((*extra, *(t.key for t in tables), "evidence_deleted"), 0)
+
+
 def purge_repo(
     db: CaptureDB,
     store: SnapshotStore,
@@ -429,37 +609,20 @@ def purge_repo(
     log: DeletionLog,
     *,
     llm_store: LLMStore | None = None,
+    tables: Sequence[RepoTable] = REPO_TABLES,
 ) -> dict[str, int]:
-    """Remove an opted-out project (CB-13): aggregates, cases, linked evidence, repo row."""
-    host, _, host_id = repo_key.partition(":")
-    counts = {"hourly_rows_deleted": 0, "evidence_deleted": 0, "cases_deleted": 0}
-    if host == "github":
-        n = db.conn.execute(
-            "DELETE FROM repo_hourly_activity WHERE repo_host_id = %s", (int(host_id),)
-        ).rowcount
-        counts["hourly_rows_deleted"] = n
-        if n:
-            log.write("rows_deleted", "repo_hourly_activity", rows=n)
-        for table in ("star_history_settle_obs", "settle_lag_schedule"):  # K2 (M4-T4)
-            n = db.conn.execute(
-                sql.SQL("DELETE FROM {} WHERE repo_host_id = %s").format(sql.Identifier(table)),
-                (int(host_id),),
-            ).rowcount
-            if n:
-                log.write("rows_deleted", table, rows=n)
-    evs = db.conn.execute(
-        "SELECT id, content_hash FROM evidence WHERE repo_id = %(r)s"
-        " OR case_id IN (SELECT id FROM cases WHERE repo_id = %(r)s) ORDER BY id",
-        {"r": repo_key},
-    ).fetchall()
-    _delete_evidence(db, store, evs, log, counts, llm_store)
-    n = db.conn.execute("DELETE FROM cases WHERE repo_id = %s", (repo_key,)).rowcount
-    counts["cases_deleted"] = n
-    if n:
-        log.write("rows_deleted", "cases", rows=n)
-    n = db.conn.execute("DELETE FROM repos WHERE id = %s", (repo_key,)).rowcount
-    if n:
-        log.write("rows_deleted", "repos", rows=n)
+    """Remove an opted-out project (CB-13, CB-13c): every row keyed to it in any table
+    registered in `REPO_TABLES`, by id (`<host>:<id>`), GitHub id, and every `owner/name`
+    pigtail associates with that id (so HN data matched by name goes too). Linked evidence loses
+    its raw bytes first; `cases` and the `repos` row go last. Idempotent."""
+    host, _, hid = repo_key.partition(":")
+    host_id = int(hid) if host == "github" and hid.isdigit() else None
+    counts = _zero_counts(tables)
+    names = _repo_names_for_id(db, repo_key, host_id)
+    _purge_repo_rows(
+        db, store, log, counts, key=repo_key, host_id=host_id, names=names,
+        llm_store=llm_store, tables=tables,
+    )  # fmt: skip
     return counts
 
 
@@ -533,68 +696,44 @@ def purge_repo_name(
     pz: Pseudonymizer,
     host: str = "github",
     llm_store: LLMStore | None = None,
+    tables: Sequence[RepoTable] = REPO_TABLES,
 ) -> dict[str, int]:
-    """M1-T23: remove what pigtail holds about an opted-out repo matched by name (`name_key`:
-    keyed `rk_`, or a legacy unkeyed `rn_` entry, CB-13b).
+    """M1-T23 / CB-13c: remove what pigtail holds about an opted-out repo matched by name
+    (`name_key`: keyed `rk_`, or a legacy unkeyed `rn_` entry, CB-13b).
 
-    HN mention rows and the snapshots they came from (unless another repo's mention still uses
-    the same snapshot), rank-poller story titles, urls and repo links (the rank history keeps
-    the item id only, as at ingest), Show HN screen links, and watch-list entries (deactivated
-    as `opted_out`). A `repos` row with that name is purged by id too, and its id is added to
-    the refusal list so ingest by id drops it as well.
+    Every repo id known for that name (`repos`, and the GitHub watch list) is added to the
+    refusal list by id and purged with `purge_repo`. Then the rows matched by name alone are
+    removed: HN mention rows and the snapshots they came from (unless another repo's mention
+    still uses the same snapshot), rank-poller story titles, urls and repo links (the rank history
+    keeps the item id only, as at ingest), Show HN screen links, watch-list entries, GH Archive
+    hourly rows, per-repo GitHub API pages and their ETag cache rows.
     """
-    counts: dict[str, int] = {
-        "names_matched": 0,
-        "mention_rows_deleted": 0,
-        "story_rows_cleared": 0,
-        "show_rows_cleared": 0,
-        "watchlist_deactivated": 0,
-        "evidence_deleted": 0,
-    }
+    counts = _zero_counts(tables, "names_matched")
     for name in names_for_key(db, name_key, _keyer(name_key, pz, host), host):
         counts["names_matched"] += 1
-        evs = db.conn.execute(
-            """
-            SELECT DISTINCT e.id, e.content_hash FROM hn_mention m
-            JOIN evidence e ON e.id IN (m.evidence_id, m.item_evidence_id)
-            WHERE m.repo_full_name = %(n)s AND NOT EXISTS (
-                SELECT 1 FROM hn_mention o WHERE o.repo_full_name <> %(n)s
-                  AND e.id IN (o.evidence_id, o.item_evidence_id))
-            ORDER BY 1
-            """,
-            {"n": name},
-        ).fetchall()
-        n = db.conn.execute("DELETE FROM hn_mention WHERE repo_full_name = %s", (name,)).rowcount
-        counts["mention_rows_deleted"] += n
-        if n:
-            log.write("rows_deleted", "hn_mention", rows=n)
-        _delete_evidence(db, store, evs, log, counts, llm_store)
-        n = db.conn.execute(
-            "UPDATE hn_story SET title = NULL, url = NULL, repo_full_name = NULL, repo_id = NULL,"
-            " content_cleared_at = COALESCE(content_cleared_at, now()) WHERE repo_full_name = %s",
-            (name,),
-        ).rowcount
-        counts["story_rows_cleared"] += n
-        if n:
-            log.write("fields_cleared", "hn_story", rows=n)
-        n = db.conn.execute(
-            "UPDATE hn_show_screen SET repo_full_name = NULL WHERE repo_full_name = %s", (name,)
-        ).rowcount
-        counts["show_rows_cleared"] += n
-        if n:
-            log.write("fields_cleared", "hn_show_screen", rows=n)
-        counts["watchlist_deactivated"] += db.conn.execute(
-            "UPDATE watchlist SET active = false, deactivated_at = now(),"
-            " deactivated_reason = 'opted_out' WHERE lower(full_name) = %s"
-            " AND (active OR deactivated_reason IS DISTINCT FROM 'opted_out')",
-            (name,),
-        ).rowcount
-        for (rid,) in db.conn.execute(
-            "SELECT id FROM repos WHERE host = %s AND lower(full_name) = %s", (host, name)
-        ).fetchall():
-            suppression.add(db, "repo", str(rid), platform=host, reason="objection")
-            for k, v in purge_repo(db, store, str(rid), log, llm_store=llm_store).items():
+        ids = {
+            str(r[0])
+            for r in db.conn.execute(
+                "SELECT id FROM repos WHERE host = %s AND lower(full_name) = %s", (host, name)
+            ).fetchall()
+        }
+        if host == "github":
+            ids |= {
+                f"github:{r[0]}"
+                for r in db.conn.execute(
+                    "SELECT repo_host_id FROM watchlist WHERE lower(full_name) = %s"
+                    " AND repo_host_id IS NOT NULL",
+                    (name,),
+                ).fetchall()
+            }
+        for rid in sorted(ids):
+            suppression.add(db, "repo", rid, platform=host, reason="objection")
+            for k, v in purge_repo(db, store, rid, log, llm_store=llm_store, tables=tables).items():
                 counts["repo_" + k] = counts.get("repo_" + k, 0) + v
+        _purge_repo_rows(
+            db, store, log, counts, key=None, host_id=None, names=[name],
+            llm_store=llm_store, tables=tables,
+        )  # fmt: skip
     return counts
 
 

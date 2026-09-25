@@ -51,7 +51,7 @@ Before production capture on the host:
 - [x] [CB-09] Key rotation runbook (docs/compliance/runbooks/key-rotation.md); tooling gaps CB-25..27
 - [ ] [CB-12] Publish the privacy notice (needs owner placeholders); notice must also cover per-repo star/fork events (16-day retention) before that connector is enabled
 - [x] [CB-16] Breach runbook (docs/compliance/runbooks/breach.md)
-- [ ] [CB-17] Encrypted backups; deletions re-applied after a restore
+- [x] [CB-17] Encrypted backups; restore re-applies deletions (ADR-044); follow-ups CB-17b
 - [~] [CB-18] Log hygiene: redaction filter + `runs.error` scrubbing; open: install filter in all services, log rotation
 Before enabling Bluesky, HN or V2EX:
 - [~] [CB-02] Deletion sync: HN done (`privacy deletion-sync`); Bluesky push source open — R1.5
@@ -59,6 +59,8 @@ Before enabling Bluesky, HN or V2EX:
 - [x] [CB-08] Data-subject requests (`pigtail privacy request access|erasure`); follow-up: rectification
 - [x] [CB-13] Opt-out list enforced at ingest + purge (`pigtail privacy optout`)
 Feature-specific:
+- [ ] [CB-17b] Backup follow-ups: ship deletion_log + opt-outs off host continuously; backup container/scheduler job; doctor checks BACKUP_RECIPIENT and backup age; item-level tombstones for upstream deletions; state that the LLM cache isn't backed up (retention-policy §2)
+- [ ] [CB-34] A snapshot that fails to parse must not abort a person purge (skip + report)
 - [ ] [CB-26] Re-derive pseudonyms and opt-outs under a new key (migration tool)
 - [ ] [CB-27] Dual-key matching during a rotation window
 - [ ] [CB-28] Command to clear the LLM cache
@@ -66,8 +68,8 @@ Feature-specific:
 - [ ] [CB-31] Rotate host alert files (ALERTS.md, alerts.jsonl)
 - [ ] [CB-32] Upper limit for GHARCHIVE_RAW_RETENTION_DAYS in config
 - [ ] [CB-33] Purge ui_audit_log on a schedule, not only at login
-- [ ] [M3-T11] DPIA stale statuses: CB-24 implemented, CB-19 (UI login + audit, ADR-034) implemented, CB-18 filter now on every command (ADR-040.6); LQ-30/31 added
-- [ ] [CB-13c] **Before production:** repo opt-out purge (`purge_repo`) must also delete the repo's rows in the M1-T24 tables (repo_star_daily, repo_count_snapshot, star_history_fetch, repo_event_poll, repo_event_daily_agg, detection_agreement); add a test that enumerates every table with a repo key
+- [ ] [M3-T11] Compliance docs: CB-13c/CB-17 now implemented (ADR-044); DPIA stale statuses: CB-24 implemented, CB-19 (UI login + audit, ADR-034) implemented, CB-18 filter now on every command (ADR-040.6); LQ-30/31 added
+- [x] [CB-13c] REPO_TABLES registry + schema test (ADR-044) — was: **Before production:** repo opt-out purge (`purge_repo`) must also delete the repo's rows in the M1-T24 tables (repo_star_daily, repo_count_snapshot, star_history_fetch, repo_event_poll, repo_event_daily_agg, detection_agreement); add a test that enumerates every table with a repo key
 - [x] [CB-13b] Keyed name opt-outs (ADR-042.1); remaining unkeyed rows are warned about by doctor — was: **Before production:** name opt-outs must use a keyed hash (HMAC with PSEUDONYM_KEY), not unkeyed SHA-256 (ADR-040.4); migrate existing rows
 - [ ] [M1-T29] Title matching for HN front-page minutes (outcome-model A2); per-day lock for GH Archive re-aggregation; batch the first deletion-sync run after migration 0008
 - [x] [CB-24] Raw GitHub search pages dropped at parse (ADR-040)

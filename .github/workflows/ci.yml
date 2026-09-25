@@ -42,9 +42,17 @@ jobs:
       # db- and s3-marked tests must run (not skip) in CI (M1-T20: S3 service below).
       PIGTAIL_REQUIRE_DB: "1"
       PIGTAIL_REQUIRE_S3: "1"
+      # CB-17 backup tests must run (not skip): age + PostgreSQL 16 client tools below
+      PIGTAIL_REQUIRE_BACKUP_TOOLS: "1"
       S3_ENDPOINT: http://localhost:9000
     steps:
       - uses: actions/checkout@v4
+      - name: Backup tools for CB-17 tests (age; pg_dump/pg_restore/psql matching Postgres 16)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q age postgresql-client-16
+          echo /usr/lib/postgresql/16/bin >> "$GITHUB_PATH"
+          age --version && /usr/lib/postgresql/16/bin/pg_dump --version
       - name: Object store for s3-marked tests (SeaweedFS + bucket, exactly as docker-compose.yml)
         # A `services:` container cannot take SeaweedFS's command line, so the compose service
         # itself is started (published on 127.0.0.1:9000, default local credentials).
