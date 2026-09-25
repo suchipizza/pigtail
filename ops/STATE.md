@@ -1,8 +1,9 @@
-status: ACTIVE
+status: BLOCKED
 # ACTIVE | BLOCKED (every remaining task waits on a human gate) | DONE
 
 milestone_focus: M1 (capture), M2 (verification)
 updated: 2026-09-25
+paused_by_owner: 2026-09-25, until the host VM and GITHUB_TOKEN are ready (H1)
 
 | Track | Milestone | Status | Blocker |
 |---|---|---|---|
