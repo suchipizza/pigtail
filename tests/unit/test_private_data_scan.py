@@ -47,3 +47,8 @@ def test_unlisted_fixture_blocked(tmp_path):
     assert scanner.scan([rel], tmp_path)
     write(tmp_path, "tests/fixtures/MANIFEST.md", "| `tests/fixtures/hn/item.json` | synthetic |")
     assert scanner.scan([rel], tmp_path) == []
+
+
+def test_role_addresses_allowed(tmp_path):
+    rel = write(tmp_path, "docs/x.md", "contact hello@platform.example.io or legal@corp.io")
+    assert scanner.scan([rel], tmp_path) == []

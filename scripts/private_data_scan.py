@@ -37,7 +37,10 @@ FORBIDDEN_PATH = re.compile(
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 EMAIL_ALLOW = re.compile(
     r"@(example\.(com|org|net)|[a-z0-9.-]*\.example|users\.noreply\.github\.com)$"
-    r"|^noreply@anthropic\.com$|^(noreply|no-reply|security|privacy)@",
+    r"|^noreply@anthropic\.com$"
+    # Role/organizational addresses published by platforms are not personal data.
+    r"|^(noreply|no-reply|security|privacy|hello|info|support|contact|legal|api|press|abuse"
+    r"|dmca|copyright|help|feedback|partners|developers?)@",
     re.IGNORECASE,
 )
 

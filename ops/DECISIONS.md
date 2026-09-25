@@ -51,3 +51,19 @@ Context: ADR-001 asked for a re-check at M0.
 Finding (https://code.claude.com/docs/en/legal-and-compliance, accessed 2026-09-25): Free/Pro/Max use of Claude Code falls under the Consumer Terms. Running Claude Code inside products or services requires the Commercial Terms, an unmodified binary, and each end user authenticating with their own credentials; the provider may not pay for, resell or intermediate Claude usage for end users.
 Decision: Keep R15.6 as written. The `subscription` backend is for an operator running pigtail for themselves on their own plan, through the unmodified official CLI. Any deployment that serves other users must use `api`. The operator guide says so. Re-check before release (M9).
 How to reverse: n/a (compliance constraint). Revisit if Anthropic's terms change.
+
+## ADR-009 — Don't rely on GH Archive alone for star velocity (2026-09-25)
+Context: The source audit (docs/research/source-matrix.md) found open, unanswered community issues on the gharchive repo (#310, #320). They report event volume dropping after May 2025 and star (WatchEvent) capture at about 10–20% since Feb 2026. These are community reports, not confirmed.
+Options: (a) trust GH Archive; (b) switch star series to the GitHub API only (rate-limited; not feasible for universe-wide scanning); (c) use GH Archive for screening, confirm candidates against the GitHub stargazers API, and record per-case coverage.
+Decision: (c). Detection stays pluggable by source. Every case records a coverage ratio (observed vs reference). The absolute thresholds in R1.1 are read as "observed in GH Archive" until they are recalibrated against measured coverage (M1-T16). The fake-star reproduction (R3.3) must report coverage for its window.
+How to reverse: If coverage is confirmed to be ≥ 95%, drop the confirmation step and keep the coverage field.
+
+## ADR-010 — Source clearances adopted from the M2 source matrix (2026-09-25)
+Context: The source matrix classified 25 sources: 1 cleared, 11 cleared with conditions, 13 gaps.
+Decision: Connectors are built only for CLEARED or CLEARED-WITH-CONDITIONS sources, in the matrix's priority order, and must meet the conditions listed in docs/compliance/terms-memos.md. Wayback and V2EX stay off by default until H2 answers Q5 and Q8. Reddit, YouTube, X, Product Hunt, Lobste.rs, dev.to, Juejin, Zhihu, Bilibili, TrustMRR, Crunchbase (unless the operator brings a licence) and the YC directory are documented gaps (R2.3). Outcome metrics that depend on gap sources are tagged `self_reported` or `unknown` in the M3 outcome model. This is conservative until the legal review; it does not relax any PRD requirement.
+How to reverse: Change a source's clearance after H2 answers; a new ADR per source.
+
+## ADR-011 — Role e-mail addresses allowed by the private-data scan (2026-09-25)
+Context: The source matrix cites a platform's published contact address (hello@…). The scan blocked it as personal data.
+Decision: Generic role addresses (hello@, info@, support@, legal@, …) are allowed; personal addresses are still blocked. Commits are gated on the scan passing (it failed once without gating: see RUNLOG 2026-09-25; no personal data was involved).
+How to reverse: Remove the role-address pattern from `EMAIL_ALLOW`.
