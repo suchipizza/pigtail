@@ -8,6 +8,8 @@ This folder holds pigtail's pre-registered analyses (WORK_ORDER §6: "Pre-regist
 |---|---|---|---|---|
 | [2026-09-25-pilot.md](2026-09-25-pilot.md) | M4 pilot: case selection, double coding, G1 computation, codebook revision, failure handling | WO §4 M4, PRD §9.2, R4.3, R7.2, R7.3, R6.3 | frozen at the commit that adds it | none |
 | [2026-09-25-forecasting-test.md](2026-09-25-forecasting-test.md) | PRD §9.1 test 1 (forecasting), per ADR-026 | PRD §9.1 (1), R3.5, ADR-026 | frozen at the commit that adds it | none |
+| [2026-09-25-pilot-amendment-1.md](2026-09-25-pilot-amendment-1.md) | Amends the pilot (frozen at `3f07692`): `outcome-thresholds 0.2.0` (raw star-history classes); E2/E5, `LSM` and the founder-audience proxy moved off the stargazers list API; campaign flags per stratum | ADR-032, ADR-035, ADR-036 | frozen at the commit that adds it | none |
+| [2026-09-25-forecasting-test-amendment-1.md](2026-09-25-forecasting-test-amendment-1.md) | Amends the forecasting test (frozen at `3f07692`): `raw` star-history target and star features, ADR-032 screens and `t_det`, X3, filtered-series sensitivity | ADR-032, ADR-035, ADR-036 | frozen at the commit that adds it | none |
 
 Add a row for every new file, including amendments and addenda.
 

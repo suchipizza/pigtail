@@ -2,7 +2,7 @@
 
 **Version:** 0.1.0 (semver; see §13 and the CHANGELOG at the end) · **Status:** draft for the M4 pilot. Nothing here has been checked against coded data yet.
 **Task:** M4-T1 · **Requirements:** PRD F5 (R5.1–R5.5), F6 (R6.1–R6.3), F7 (R7.1–R7.4), F9 (R9.1–R9.3), §9.2, §9.3; compliance control CB-11 (docs/compliance/dpia.md §9).
-**ADRs this depends on:** ADR-010 (source clearances), ADR-012 (stars from the stargazers API), ADR-014 (tags and status, nothing imputed), ADR-015 (time anchor T), ADR-017 (provisional categories), ADR-019 (outcome thresholds), ADR-022 (interim privacy holds).
+**ADRs this depends on:** ADR-010 (source clearances), ADR-014 (tags and status, nothing imputed), ADR-015 (time anchor T), ADR-017 (provisional categories), ADR-019 (outcome thresholds), ADR-022 (interim privacy holds), ADR-032 (star series from the star-history endpoint; supersedes ADR-012), ADR-035 (classes on the `raw` star-history series).
 **Machine-readable enums:** `schemas/codebook/v0.1.0.json` (`codebook v0.1.0`). If this document and the JSON disagree, that is a bug. Until it is fixed, the JSON wins for validators and this document wins for meaning.
 **Author role:** `analyst`, working with researcher discipline. `LR [n]` means reference n in `docs/research/literature.md` §8. `SM` means `docs/research/source-matrix.md`. `OM` means `docs/specs/outcome-model.md`.
 **Data version:** none. The codebook comes before any data. No case has been coded and no outcome has been looked at.
@@ -633,3 +633,4 @@ Values with `coder_confidence = low` go to the review queue (R7.3).
   - 12 core fields (C1–C11b) with α variants, of which C3, C4, C9, C11a and C11b are flagged as promotion-deciding;
   - coding, locator, provenance and privacy rules (CB-11).
 - 2026-09-25 — errata (no version bump; codebook not yet used for coding): C7 in the JSON now lists the known/unknown companion statistic, matching §10.2 (the table and JSON had omitted it).
+- 2026-09-25 — errata (no version bump; codebook not yet used for coding), M3-T8: `depends_on_adrs` in the JSON and the ADR list in the header replace ADR-012 (stargazers API, superseded; GitHub closed the stargazer lists on 2026-06-30) with ADR-032 and ADR-035. No code value changes. **Still open, not fixed by this erratum:** §2.1 and §2.3 examples and §3.1–3.2 (`burst | quiet` derivation and required evidence) still name the stargazers API and `starscout_filtered`; the burst derivation's series needs a decision before pilot unitizing (pilot amendment 1, "Not changed").

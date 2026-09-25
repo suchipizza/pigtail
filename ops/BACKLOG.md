@@ -8,7 +8,7 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [ ] [M1-T24] Implement ADR-032: watch-list GraphQL snapshots, Search sweeps, HN→repo screen, star-history client (baseline, confirmation, scoring, backfill), per-repo events polling for tracked cases; case coverage fields — needs GITHUB_TOKEN (H1) for live runs; build and test on fixtures now
 - [x] [M3-T6] Outcome spec updated to ADR-032 (star-history, day mapping)
 - [x] [M3-T7] LIA/DPIA: per-repo events (A1b, D12/D13, R15), OpenDigger not processed
-- [ ] [M3-T8] Apply ADR-035: thresholds v0.2.0 (new file, keep v0.1.0), spec §5, dated amendments to both pre-registrations, fix stargazers-API references in schemas/v0/case.schema.json (+example) and codebook depends_on_adrs; verifier check of M3-T6..T8
+- [x] [M3-T8] ADR-035 applied (thresholds v0.2.0, spec, pre-reg amendment 1 ×2, case schema, codebook errata) — was: Apply ADR-035: thresholds v0.2.0 (new file, keep v0.1.0), spec §5, dated amendments to both pre-registrations, fix stargazers-API references in schemas/v0/case.schema.json (+example) and codebook depends_on_adrs; verifier check of M3-T6..T8
 - [ ] [M1-T16] (revised) Validation plan M1–M7 from detection-replan §8, run with the project token
 - [x] [M1-T21] Scheduler, health, alerts, Docker/systemd (ADR-033) — was: Scheduler: long-running `hn-ranks --loop`, daily `deletion-sync`, mentions for new cases within 48 h (R1.2); deploy when the host exists (H1)
 - [ ] [M1-T22] Front-page minutes (`att.hn_frontpage_minutes`) from rank observations, handling polling gaps
@@ -86,6 +86,7 @@ Feature-specific:
 - [ ] [M5-T0] Citation validator must apply the same deterministic redaction to the snapshot before matching quoted spans (R7.1) — codebook open issue 2
 - [x] [M4-T2] Pilot + forecasting-test pre-registrations committed (ADR-029) — was: Pre-register pilot analyses in docs/preregistration/ (incl. minimum units per core field so thin fields count as unassessed, codebook open issue 3; §9.1 forecasting target M4-T0b) — WO §6 — M4-T1
 - [ ] [M4-T2b] Pre-register threshold calibration (ADR-019) before any class base rate is computed
+- [ ] [M4-T1d] Codebook §3.1–3.2 burst/quiet derivation and §2.1/§2.3 examples: move from stargazers API / starscout_filtered to raw star-history (days); codebook patch version + changelog; must land before pilot unitizing
 - [ ] [M4-T2c] Codebook: add a general `novelty_claim` field (MC-09), in the next minor version
 - [ ] [M4-T3] Pilot (blocked on: HN capture under ADR-022 controls; case pool depends on M1-T18; H1 training-off confirmation or API key): 3 winners + 3 matched losers across ≥ 3 strata; double coding + adjudication; G1 check by verifier — WO M4 — M4-T1, M1 snapshots
 

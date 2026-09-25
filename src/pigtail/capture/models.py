@@ -18,7 +18,9 @@ SCHEMA_VERSION: Literal["v0"] = "v0"
 Trigger = Literal["velocity", "announced", "manual", "analyze"]
 CaseStatus = Literal["live", "pre_launch", "closed"]
 Reliability = Literal["high", "medium", "low", "unknown"]
-RetentionClass = Literal["person_level_24m", "project_level", "derived_aggregate"]
+RetentionClass = Literal[
+    "person_level_24m", "person_level_30d", "project_level", "derived_aggregate"
+]
 DeletionState = Literal["present", "deleted_upstream", "raw_dropped"]
 RunStatus = Literal["running", "succeeded", "failed"]
 BaselineQuality = Literal["full", "partial", "none"]
@@ -52,8 +54,9 @@ class Repo(_Record):
 class Coverage(BaseModel):
     """Completeness of the star series behind a detection (GH Archive may under-capture stars).
 
-    `reference_*` are filled when an independent source (e.g. the GitHub stargazers API) was
-    checked for the same window; otherwise they are null ("unknown", never guessed).
+    `reference_*` are filled when an independent source (since ADR-032 the GitHub star-history
+    endpoint, `reference_source="github_star_history"`) was checked for the same window;
+    otherwise they are null ("unknown", never guessed).
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -89,6 +92,71 @@ class VelocityDetection(BaseModel):
     coverage: Coverage
 
 
+BotFilterState = Literal["pending", "applied", "unavailable"]
+BotFilterSource = Literal["repo_events", "gharchive", "none"]
+
+
+class BotFilterStatus(BaseModel):
+    """Bot/lockstep confirmation of a detection-v1 case (ADR-032.2; replan §6.3).
+
+    `pending`: per-repo events polling is on and will fill this in; `applied`: the heuristics of
+    `pigtail.capture.botfilter` ran on identity-level events for the window; `unavailable`: no
+    identity-level source (events polling off or held by ADR-022). Counts are null until applied.
+    `coverage_ratio` = distinct non-bot stargazers seen in events / star-history net stars for the
+    window (reference = star-history).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    status: BotFilterState
+    source: BotFilterSource
+    version: str
+    updated_at: datetime | None = None
+    stars_seen: int | None = Field(default=None, ge=0)
+    stars_bot: int | None = Field(default=None, ge=0)
+    stars_lockstep: int | None = Field(default=None, ge=0)
+    stars_filtered: int | None = Field(default=None, ge=0)
+    lockstep_hours: int | None = Field(default=None, ge=0)
+    events_from: datetime | None = None
+    window_overflow: bool | None = None
+    coverage_ratio: float | None = Field(default=None, ge=0)
+
+
+class DetectionV1(BaseModel):
+    """Metrics of a detection-v1 case (ADR-032; `pigtail.capture.detection_v1`).
+
+    Same core fields as `VelocityDetection` (so readers of `stars_48h`, `z_score`,
+    `detected_hour`, `baseline_quality` and `coverage.ratio` keep working) plus the data sources,
+    the star-history baseline and the bot-filter confirmation state. `stars_48h` is the net
+    change of the public stargazer count over the window (GraphQL hourly snapshots);
+    `baseline_hours_covered` = baseline days observed x 24.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    rule_version: Literal["detection-v1"]
+    detected_hour: datetime
+    stars_48h: int
+    stars_48h_raw: int
+    forks_48h: int
+    baseline_mean_48h: float = Field(ge=0)
+    baseline_std_48h: float = Field(ge=0)
+    sigma_used: float = Field(gt=0)
+    z_score: float
+    baseline_hours_covered: int = Field(ge=0, le=720)
+    baseline_quality: BaselineQuality
+    threshold_min_stars: int = Field(ge=0)
+    threshold_sigma: float = Field(ge=0)
+    bot_filter_version: str
+    coverage: Coverage
+    data_sources: list[str]
+    window_hours_observed: float = Field(ge=0)
+    baseline_source: str
+    baseline_days_covered: int = Field(ge=0)
+    day_boundary_tz: str
+    bot_filter: BotFilterStatus
+
+
 class Case(_Record):
     id: str = Field(pattern=r"^case_[0-9a-f]{20}$")
     repo_id: str = Field(pattern=r"^[a-z]+:[0-9]+$")
@@ -97,7 +165,7 @@ class Case(_Record):
     trigger: Trigger
     status: CaseStatus
     run_id: str | None = None
-    detection: VelocityDetection | None
+    detection: DetectionV1 | VelocityDetection | None
 
 
 def case_id(repo: str, trigger: str, at: datetime) -> str:

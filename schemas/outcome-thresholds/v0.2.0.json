@@ -1,0 +1,381 @@
+{
+  "schema_version": "v0",
+  "id": "outcome-thresholds",
+  "version": "0.2.0",
+  "status": "provisional",
+  "supersedes": "0.1.0",
+  "created": "2026-09-25",
+  "spec": "docs/specs/outcome-model.md",
+  "decided_by": [
+    "ADR-035 (amends ADR-020)",
+    "ADR-032"
+  ],
+  "requirements": [
+    "R1.1",
+    "R3.1",
+    "R3.3",
+    "R3.4",
+    "R3.5",
+    "PRD §8.2",
+    "PRD §5.3"
+  ],
+  "calibration_policy": {
+    "calibrate_only_in": "M4 pilot, on pilot calibration data, before held-out outcomes are seen",
+    "frozen_as": "1.0.0",
+    "post_outcome_change_requires": [
+      "ADR in ops/DECISIONS.md",
+      "re-run on held-out data",
+      "report results under old and new versions"
+    ],
+    "semver": {
+      "patch": "wording only",
+      "minor": "numeric threshold change; before 1.0.0 also a change of class inputs, class definitions or precedence (1.0.0 is reserved for the M4 pilot freeze; ADR-035)",
+      "major": "from 1.0.0 on: inputs, class definitions or precedence change"
+    }
+  },
+  "holdout": {
+    "method": "sha256(salt + case_id) mod 100 < share_percent",
+    "salt": "pigtail-outcome-holdout-v1",
+    "share_percent": 30
+  },
+  "anchor": {
+    "launch_lookback_days": 30,
+    "announced_burst_record_window_days": 90,
+    "burst_onset_rule": "earliest hour in the 48h detection window with net star gain (hourly public-count snapshots) > mu_h + 3*sqrt(mu_h) (mu_h + 1 if mu_h == 0); else window start. Where only star-history days exist: same rule on endpoint days, precision day (ADR-032; spec §2.1)",
+    "tie_rule": "T_launch == T_burst -> anchor_type launch; equal launch timestamps -> lowest evidence_id"
+  },
+  "burst_detection": {
+    "id": "velocity-v0",
+    "min_net_stars_48h": 100,
+    "sigma": 3,
+    "baseline_days": 30,
+    "basis": "public net star count: hourly GraphQL stargazerCount snapshots, confirmed with star-history daily counts; the bot filter is a confirmation step recording bot_filter_basis and coverage_ratio (ADR-032.2; spec §2.1)"
+  },
+  "fake_star_filter": {
+    "id": "starscout-v0",
+    "n": 50,
+    "m": 10,
+    "delta_t_days": 30,
+    "rho": 0.5,
+    "level": "campaign",
+    "campaign_rule": {
+      "min_fake_stars_in_month": 50,
+      "min_fake_share_in_month": 0.5,
+      "min_fake_share_all_time": 0.1,
+      "comparators": "strictly greater than"
+    }
+  },
+  "observation_points_days": [
+    7,
+    30,
+    90,
+    365
+  ],
+  "windows": {
+    "flow": "[T, T+k) UTC, hourly resolution; stars: the k star-history endpoint days starting at the day containing T (day-precision anchors: the day with T's UTC date), no splitting of day buckets (spec §1.2)",
+    "pre_anchor_baseline_days": 30,
+    "stock_tolerance": {
+      "min_days": 1,
+      "fraction_of_k": 0.1
+    },
+    "settle_lag_days_default": 3
+  },
+  "normalization": {
+    "cell": [
+      "category",
+      "cohort_quarter_utc"
+    ],
+    "adoption_cell_extra": [
+      "primary_ecosystem"
+    ],
+    "percentile_method": "mid_rank: 100 * (n_below + 0.5 * n_equal) / n",
+    "min_cell_n": 30,
+    "fallback_order": [
+      [
+        "category",
+        "calendar_year"
+      ],
+      [
+        "all_categories",
+        "cohort_quarter_utc"
+      ]
+    ],
+    "flag_cell_if_unknown_share_above": 0.5,
+    "taxonomy_version": "categories-v0-provisional"
+  },
+  "star_series": {
+    "class_series_variant": "raw",
+    "class_series_note": "Attention inputs A30, V90 and P30 use the raw star-history series (primary_source) for every case, so every normalization cell compares one series (ADR-035 option c; spec §4, §5.1).",
+    "sensitivity_series": [
+      "bot_filtered",
+      "starscout_filtered"
+    ],
+    "sensitivity": {
+      "eligible_if": "the filtered variant is class-eligible for the window: identity-level event data covers every day of the window, no window overflow, and coverage_ratio >= gharchive_min_coverage_ratio (0.9) against star-history day counts (filtered_variants.class_eligible_if; spec §1.2, §5.3)",
+      "method": "for each eligible case, recompute A30, V90 and P30 on the filtered variant (percentiles within the same cell, over the cases eligible for that variant) and re-run the class rules; ineligible cases are not imputed and are counted as ineligible",
+      "flag_on_class_flip": "sensitive_to_fake_star_filter",
+      "report": "share of cases eligible per variant, and class flip counts and rates, by stratum (category, cohort quarter, entry path)",
+      "campaign_flag_report": "per stratum: counts of StarScout campaign_flag true / false / unknown (fake_star_filter, spec §4); flagged cases stay classed on raw"
+    },
+    "primary_source": "github_star_history",
+    "primary_source_note": "GET /repos/{owner}/{repo}/stargazers/history: daily net counts of current stargazers, back to creation, no identities (TM-33; ADR-032.3, superseding ADR-012's stargazers API)",
+    "day_boundary": {
+      "config": "star_history_day_tz",
+      "default": "America/Los_Angeles",
+      "status": "inferred, not documented by GitHub; confirm across DST 2026-11-01 (detection-replan §8 M2)",
+      "recorded_per_observation": [
+        "tz",
+        "tz_status",
+        "window_offset_hours",
+        "first_day",
+        "last_day"
+      ]
+    },
+    "fallback_source": "gharchive",
+    "fallback_condition": "only where star-history cannot serve the window; coverage_ratio measured against star-history day counts; tag estimated, lower_bound true; OpenDigger is never a scoring series (TM-32)",
+    "gharchive_min_coverage_ratio": 0.9,
+    "coverage_reference": "github_star_history",
+    "filtered_variants": {
+      "bases": [
+        "repo_events",
+        "gharchive",
+        "none"
+      ],
+      "basis_if_tm32_cleared": "opendigger",
+      "unavailable": "unknown, never imputed (ADR-032.3)",
+      "class_eligible_if": "event data covers every day of the window, no window overflow, and coverage_ratio >= gharchive_min_coverage_ratio (spec §1.2, §5.3)",
+      "verification_tag": "estimated"
+    },
+    "velocity_rolling_days": 7,
+    "peak_window_days": [
+      7,
+      30
+    ]
+  },
+  "zero_floor": true,
+  "inputs": {
+    "A30": {
+      "metric": "att.stars",
+      "offset_days": 30,
+      "transform": "cell_percentile"
+    },
+    "AD90": {
+      "metric": "adopt.downloads",
+      "offset_days": 90,
+      "transform": "cell_percentile",
+      "scope": "primary_ecosystem"
+    },
+    "AD365": {
+      "metric": "adopt.downloads",
+      "offset_days": 365,
+      "transform": "cell_percentile",
+      "scope": "primary_ecosystem"
+    },
+    "CM90": {
+      "metric": "comm.returning_external_contributors",
+      "offset_days": 90,
+      "transform": "cell_percentile"
+    },
+    "V90": {
+      "metric": "att.star_velocity_7d",
+      "offset_days": 90,
+      "unit": "stars/day"
+    },
+    "P30": {
+      "metric": "att.star_peak_velocity_30",
+      "offset_days": 30,
+      "unit": "stars/day"
+    },
+    "burst_30": {
+      "definition": "velocity detection with onset in [T, T+30d) or anchor_type burst"
+    },
+    "burst_any": {
+      "definition": "velocity detection with onset in [T-30d, T+90d)"
+    },
+    "launch_signal": {
+      "definition": "case has an anchor (declared launch or burst)"
+    }
+  },
+  "returning_external_contributor": {
+    "min_merged_prs": 2,
+    "min_span_days": 30,
+    "external_excludes_author_association": [
+      "OWNER",
+      "MEMBER",
+      "COLLABORATOR"
+    ],
+    "exclude_bots": "bot-filter-v0",
+    "not_applicable_at_offsets_days": [
+      7,
+      30
+    ]
+  },
+  "classes": [
+    {
+      "name": "winner",
+      "precedence": 1,
+      "final_at_offset_days": 90,
+      "rule": {
+        "all": [
+          {
+            "input": "A30",
+            "op": ">=",
+            "value": 90
+          },
+          {
+            "any": [
+              {
+                "input": "AD90",
+                "op": ">=",
+                "value": 75
+              },
+              {
+                "input": "CM90",
+                "op": ">=",
+                "value": 75
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "short_lived",
+      "precedence": 2,
+      "final_at_offset_days": 90,
+      "rule": {
+        "all": [
+          {
+            "input": "burst_30",
+            "op": "==",
+            "value": true
+          },
+          {
+            "input": "P30",
+            "op": ">",
+            "value": 0
+          },
+          {
+            "input": "V90",
+            "op": "<",
+            "value_expr": "0.10 * P30"
+          },
+          {
+            "input": "AD90",
+            "op": "<",
+            "value": 50,
+            "if_not_applicable_use": {
+              "input": "CM90",
+              "op": "<",
+              "value": 50
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "attention_only",
+      "precedence": 3,
+      "final_at_offset_days": 90,
+      "rule": {
+        "all": [
+          {
+            "input": "A30",
+            "op": ">=",
+            "value": 90
+          },
+          {
+            "not_class": [
+              "winner",
+              "short_lived"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "slow_riser",
+      "precedence": 4,
+      "final_at_offset_days": 365,
+      "rule": {
+        "all": [
+          {
+            "input": "burst_any",
+            "op": "==",
+            "value": false
+          },
+          {
+            "input": "A30",
+            "op": "<",
+            "value": 90
+          },
+          {
+            "input": "AD365",
+            "op": ">=",
+            "value": 75
+          }
+        ]
+      }
+    },
+    {
+      "name": "plateau",
+      "precedence": 5,
+      "provisional_at_offset_days": 90,
+      "final_at_offset_days": 365,
+      "rule": {
+        "all": [
+          {
+            "input": "launch_signal",
+            "op": "==",
+            "value": true
+          },
+          {
+            "not_class": [
+              "winner",
+              "short_lived",
+              "attention_only",
+              "slow_riser"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "unclassified",
+      "precedence": 6,
+      "reasons": [
+        "pending",
+        "small_cohort",
+        "missing_data",
+        "no_anchor"
+      ]
+    }
+  ],
+  "provisional_labels": [
+    {
+      "name": "attention_top_decile",
+      "at_offset_days": 30,
+      "rule": {
+        "input": "A30",
+        "op": ">=",
+        "value": 90
+      },
+      "note": "display only, marked provisional; not a class"
+    }
+  ],
+  "edge_rules": {
+    "comparison": "unrounded values; >= and < inclusive/exclusive as written",
+    "unknown_propagation": "assign a class only if it holds for every possible value of the unknown inputs; otherwise unclassified:missing_data",
+    "not_applicable_adoption": "counts as not qualifying (not unknown)",
+    "business_metrics_in_classes": false,
+    "composite_score": false,
+    "multiple_cases_per_repo": "each case classified on its own T"
+  },
+  "changelog": [
+    "2026-09-25: v0.1.0 draft (M3-T1).",
+    "2026-09-25 — v0.1.0, fixes after verifier M3 round 1: added burst_detection (PRD R1.1 defaults; spec §2.1) and fake_star_filter (StarScout lockstep parameters, campaign-level removal; spec §4). No threshold, input or class changed; version stayed provisional 0.1.0.",
+    "2026-09-25 — v0.1.0, fixes after verifier M3 round 2 (history; this line was missing from the v0.1.0 file, which is kept unchanged as a record): burst_detection.baseline_days (30) and fake_star_filter.campaign_rule (> 50 fake stars in a month, > 50 % fake share in that month, > 10 % of all-time stars; strictly greater than) added, recording values already fixed in spec §2.1 and §4. No threshold changed.",
+    "2026-09-25 — v0.1.0, M3-T6, ADR-032 (supersedes ADR-012): star_series.primary_source github_stargazers_api -> github_star_history, with primary_source_note, day_boundary, fallback_condition, coverage_reference and filtered_variants; windows.flow and anchor.burst_onset_rule reworded for endpoint days and net public counts; burst_detection.basis added. No threshold number or class rule changed; version stayed 0.1.0 (spec changelog).",
+    "2026-09-25 — v0.2.0, M3-T8, ADR-035 (amends ADR-020), made before any outcome data exists: star_series.class_series_variant starscout_filtered -> raw (star-history) for the attention inputs A30, V90, P30; sensitivity_series_variant (raw) replaced by sensitivity_series [bot_filtered, starscout_filtered] with an eligibility rule (full-window event data, no overflow, coverage_ratio >= 0.9), a sensitive_to_fake_star_filter flag on class flips, and a per-stratum report of StarScout campaign flags; supersedes 0.1.0; calibration_policy.semver notes that before 1.0.0 a change of class inputs bumps the minor version. Every threshold number, class rule, precedence, window, anchor, holdout and normalization value is identical to v0.1.0. v0.1.0 is kept unchanged as a historical record."
+  ]
+}

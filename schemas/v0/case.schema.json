@@ -61,13 +61,16 @@
       ]
     },
     "detection": {
-      "description": "Detection metrics; required for velocity cases, null otherwise.",
+      "description": "Detection metrics; required for velocity cases, null otherwise. velocity-v0 (GH Archive) or detection-v1 (ADR-032: GitHub counts + star-history).",
       "oneOf": [
         {
           "type": "null"
         },
         {
           "$ref": "#/$defs/velocity_detection"
+        },
+        {
+          "$ref": "#/$defs/velocity_detection_v1"
         }
       ]
     }
@@ -160,7 +163,7 @@
       }
     },
     "coverage": {
-      "description": "How complete the star series behind this detection is. GH Archive may under-capture WatchEvents; thresholds are 'as observed in <source>'. reference_* are filled when an independent source (e.g. the GitHub stargazers API) was checked.",
+      "description": "How complete the star series behind this detection is. Event sources (GH Archive, per-repo events) may under-capture star events; thresholds are 'as observed in <source>'. reference_* are filled when an independent source was checked for the same window: since ADR-032 the GitHub star-history endpoint (reference_source \"github_star_history\"); records written before ADR-032 may name \"github_stargazers_api\".",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -198,13 +201,233 @@
           "minimum": 0
         },
         "reference_source": {
+          "description": "Identifier of the reference source; free string, null when no reference was checked. Current value: github_star_history (ADR-032).",
           "type": [
             "string",
             "null"
+          ],
+          "examples": [
+            "github_star_history"
           ]
         },
         "ratio": {
           "description": "observed_stars / reference_stars, null when no reference.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "velocity_detection_v1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule_version",
+        "detected_hour",
+        "stars_48h",
+        "stars_48h_raw",
+        "forks_48h",
+        "baseline_mean_48h",
+        "baseline_std_48h",
+        "sigma_used",
+        "z_score",
+        "baseline_hours_covered",
+        "baseline_quality",
+        "threshold_min_stars",
+        "threshold_sigma",
+        "bot_filter_version",
+        "coverage",
+        "data_sources",
+        "window_hours_observed",
+        "baseline_source",
+        "baseline_days_covered",
+        "day_boundary_tz",
+        "bot_filter"
+      ],
+      "properties": {
+        "rule_version": {
+          "const": "detection-v1"
+        },
+        "detected_hour": {
+          "description": "Start of the UTC hour of the count snapshot that crossed the threshold.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "stars_48h": {
+          "description": "Net stargazer-count change over the window (can be negative in principle).",
+          "type": "integer"
+        },
+        "stars_48h_raw": {
+          "type": "integer"
+        },
+        "forks_48h": {
+          "type": "integer"
+        },
+        "baseline_mean_48h": {
+          "type": "number",
+          "minimum": 0
+        },
+        "baseline_std_48h": {
+          "type": "number",
+          "minimum": 0
+        },
+        "sigma_used": {
+          "description": "Denominator actually used for z (after floors).",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "z_score": {
+          "type": "number"
+        },
+        "baseline_hours_covered": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 720
+        },
+        "baseline_quality": {
+          "enum": [
+            "full",
+            "partial",
+            "none"
+          ]
+        },
+        "threshold_min_stars": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "threshold_sigma": {
+          "type": "number",
+          "minimum": 0
+        },
+        "bot_filter_version": {
+          "type": "string"
+        },
+        "coverage": {
+          "$ref": "#/$defs/coverage"
+        },
+        "data_sources": {
+          "description": "Sources behind this detection, e.g. github_graphql_counts, github_star_history.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "window_hours_observed": {
+          "description": "Hours between the two count snapshots used (<= 48; shorter for repos new to the watch list).",
+          "type": "number",
+          "minimum": 0
+        },
+        "baseline_source": {
+          "type": "string"
+        },
+        "baseline_days_covered": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "day_boundary_tz": {
+          "description": "Day boundaries of the star-history endpoint (documented only as not UTC-aligned; inferred US Pacific).",
+          "type": "string"
+        },
+        "bot_filter": {
+          "$ref": "#/$defs/bot_filter"
+        }
+      },
+      "description": "detection-v1 (ADR-032, M1-T24): stars_48h is the net change of the public stargazer count over the window (hourly GraphQL snapshots); baseline from the star-history endpoint (daily, endpoint day labels, not UTC-aligned); baseline_hours_covered = baseline days x 24."
+    },
+    "bot_filter": {
+      "description": "Bot/lockstep confirmation state of a detection-v1 case (ADR-032.2). coverage_ratio = identity-level stars seen / star-history net stars for the window.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "source",
+        "version",
+        "updated_at",
+        "stars_seen",
+        "stars_bot",
+        "stars_lockstep",
+        "stars_filtered",
+        "lockstep_hours",
+        "events_from",
+        "window_overflow",
+        "coverage_ratio"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "pending",
+            "applied",
+            "unavailable"
+          ]
+        },
+        "source": {
+          "enum": [
+            "repo_events",
+            "gharchive",
+            "none"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "stars_seen": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "stars_bot": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "stars_lockstep": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "stars_filtered": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "lockstep_hours": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "events_from": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "window_overflow": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "coverage_ratio": {
           "type": [
             "number",
             "null"
