@@ -71,6 +71,8 @@ Feature-specific:
 - [ ] [CB-21] Operator guide: controller duties
 
 ## Next
+- [ ] [M3-T10] Outcome spec: state μ_h = μ_d/24 in §2.1; point §5.4 and §9 to the calibration pre-registration; H-eval/H-sealed split
+- [ ] [M4-T4] Implement the holdout split rule (H-cal / H-eval / H-sealed) with the pre-registered test vectors; scheduled star-history re-fetches at 1/3/7/14/21 days for the settle_lag calibration
 - [x] [M3-T4] Compliance docs' CB statuses updated (ADR-030)
 - [~] [CB-18b] RedactingFilter: all scheduled jobs + `capture scan`; open: other manual CLI commands
 - [x] [LQ-27] Added to legal-review-questions (with LQ-28 OpenDigger, LQ-29 stargazer identities) — was: Add legal question: after an erasure, replay briefly re-processes the erased person's data before dropping it at ingest (ADR-030.1) — acceptable?
@@ -90,9 +92,9 @@ Feature-specific:
 - [ ] [M4-T1c] Align `reliability` description in schemas/v0/evidence.schema.json with codebook §2.3 anchors — M1 merged; ready
 - [ ] [M5-T0] Citation validator must apply the same deterministic redaction to the snapshot before matching quoted spans (R7.1) — codebook open issue 2
 - [x] [M4-T2] Pilot + forecasting-test pre-registrations committed (ADR-029) — was: Pre-register pilot analyses in docs/preregistration/ (incl. minimum units per core field so thin fields count as unassessed, codebook open issue 3; §9.1 forecasting target M4-T0b) — WO §6 — M4-T1
-- [ ] [M4-T2b] Pre-register threshold calibration (ADR-019) before any class base rate is computed
-- [ ] [M4-T1d] Codebook §3.1–3.2 burst/quiet derivation and §2.1/§2.3 examples: move from stargazers API / starscout_filtered to raw star-history (days); codebook patch version + changelog; must land before pilot unitizing
-- [ ] [M4-T2c] Codebook: add a general `novelty_claim` field (MC-09), in the next minor version
+- [x] [M4-T2b] Threshold-calibration pre-registration written (ADR-039 sealed holdout) — was: Pre-register threshold calibration (ADR-019) before any class base rate is computed
+- [x] [M4-T1d] Done in codebook v0.2.0 (ADR-039) — was: Codebook §3.1–3.2 burst/quiet derivation and §2.1/§2.3 examples: move from stargazers API / starscout_filtered to raw star-history (days); codebook patch version + changelog; must land before pilot unitizing
+- [x] [M4-T2c] `novelty_claim` in codebook v0.2.0 — was: Codebook: add a general `novelty_claim` field (MC-09), in the next minor version
 - [ ] [M4-T3] Pilot (blocked on: HN capture under ADR-022 controls; case pool depends on M1-T18; H1 training-off confirmation or API key): 3 winners + 3 matched losers across ≥ 3 strata; double coding + adjudication; G1 check by verifier — WO M4 — M4-T1, M1 snapshots
 
 ## Later (gated)
