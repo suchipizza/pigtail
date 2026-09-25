@@ -69,7 +69,7 @@ How citations work here: `[n]` points to the numbered entry in §8 ("Citation li
 - **Not verified:** I did not verify how it collects data (sampling, caps on large repos). pigtail should not rely on it as a data source.
 - **pigtail approach:** Build star series from GH Archive `WatchEvent`s. GitHub's docs describe a WatchEvent as "a user stars a repository" [15].
   - GH Archive has archived the public timeline since 2011-02-12, in hourly files and as a BigQuery dataset [16].
-  - GH Archive does **not** record un-stars. GitHub's docs say the `WatchEvent` action "Can only be `started`" [15], and GH Archive mirrors the Events API. So "net stars" cannot be computed from GH Archive alone; treat the series as gross stars and take net counts from the stargazers API.
+  - GH Archive does **not** record un-stars. GitHub's docs say the `WatchEvent` action "Can only be `started`" [15], and GH Archive mirrors the Events API. So "net stars" cannot be computed from GH Archive alone; treat the series as gross stars. Net counts come from the star-history endpoint, which gives daily net counts (ADR-032); the stargazer lists are restricted to admins and collaborators since 2026-06-30, so the stargazers API is no longer used.
 
 ---
 
@@ -374,7 +374,7 @@ Each hypothesis is pre-registrable (R11.1) and states what would falsify it.
 ### 7.3 Open issues
 1. No peer-reviewed causal estimate of HN front-page position on GitHub stars was found. pigtail's R8.1 design would be new. It needs HN rank polling (PRD §8.1 "own rank polling"), which must be in place early. Rank history probably cannot be backfilled: the Algolia API's search hits carry `points`, `num_comments`, `created_at` and a `front_page` tag, but no rank or position field (observed on 2026-09-25; see source matrix §2.3), and the official Firebase API serves only the current `topstories` list [83]. This is our inference from those fields, not a documented statement.
 2. StarScout has no direct precision estimate [20]. pigtail's audit (§2.3 step 4) is the only precision evidence, and it needs private storage of account-level samples. This depends on the compliance pack (M3).
-3. Resolved: GH Archive does not record un-star events, because a `WatchEvent` action "Can only be `started`" [15]. "Net stars" in R1.1 ("≥ 100 net stars") cannot be computed from GH Archive. Net counts need the stargazers API (source matrix §2.1–§2.2).
+3. Resolved: GH Archive does not record un-star events, because a `WatchEvent` action "Can only be `started`" [15]. "Net stars" in R1.1 ("≥ 100 net stars") cannot be computed from GH Archive. Net counts come from the star-history endpoint, which gives daily net counts (ADR-032; source matrix §2.33); the stargazers API is no longer usable, since stargazer lists are restricted to admins and collaborators since 2026-06-30.
 4. The PRD α ≥ 0.70 threshold is below Krippendorff's conventional 0.80 [71] (secondary-source verification). Recommend an ADR.
 5. The Fang et al. 2022 exact identification details are summarized from the authors' slides and CMU news [11][12]. The ACM full text returned HTTP 403, so a verifier with access should confirm them.
 6. The Twitter/X data used in [9] may no longer be affordable. This affects replicating H-L5 on X and is deferred to the source matrix.
@@ -488,3 +488,4 @@ Suggested 10 for the M2 acceptance spot-check. They cover the load-bearing claim
 ## Changelog
 
 - 2026-09-25 — corrections after verifier spot-check M2-T4. §1.3: Mann-Whitney and Cliff's d added from [8]. §1.4: Fang et al. replication package confirmed ([11] slide 20, [81]). §1.6 and §7.3 item 3: the un-star question is resolved from [15]. §2.1: "~20 TB" now cited to [20]. §2.2: the StarScout successor search queries are recorded. §6.2: Gilardi figures attributed to [72], with PubMed [82] and the 2,382-tweet note for [73]. §7.3 item 1: the rank-backfill claim is labelled as inference and sourced. Citations [81]–[83] added.
+- 2026-09-25 — fixes after verifier (ADR-036 alignment): §1.6 and §7.3 item 3 now point net star counts to the star-history endpoint (ADR-032) instead of the stargazers API (restricted since 2026-06-30).

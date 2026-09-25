@@ -117,7 +117,7 @@ The clearance levels mean:
 - (a) Pseudonymise `actor.login` and `actor.id` at ingest. Keep no emails from push payloads.
 - (b) Never sell, export or publish person-level data (AUP §7; PRD non-goals).
 - (c) Keep public outputs aggregate and open access (R13.3).
-- (d) **Do not treat GH Archive star counts as ground truth after 2025-05.** Cross-check with the GitHub stargazers API (source 2), and store a `coverage_ratio` per case. The loss is likely systematic (#310), so do not apply one global correction factor. Flag 2025-10-09 to 2025-10-14 as a near-empty window (#312).
+- (d) **Do not treat GH Archive star counts as ground truth after 2025-05.** ~~Cross-check with the GitHub stargazers API (source 2)~~ *(superseded by ADR-032: the stargazers API is restricted to admins and collaborators since 2026-06-30; the cross-check is now the star-history endpoint `GET /repos/{o}/{r}/stargazers/history` plus the watch-list count snapshots, source 33, TM-33)*, and store a `coverage_ratio` per case. The loss is likely systematic (#310), so do not apply one global correction factor. Flag 2025-10-09 to 2025-10-14 as a near-empty window (#312).
 - (e) Hard stops on BigQuery budget (§10 cost control).
 
 ### 2.2 GitHub REST and GraphQL APIs, TM-02
@@ -762,7 +762,7 @@ Gap sources are not built. Their connector stubs carry only the enable flag, set
 
 1. **R1.1 and R3.3: GH Archive can no longer be the only star signal.**
    - Reported star capture of about 10–20% since February 2026 would break both the ≥ 3σ threshold and fake-star filtering.
-   - Decision: detection uses GH Archive for candidates, then confirms with GitHub stargazers API counts.
+   - ~~Decision: detection uses GH Archive for candidates, then confirms with GitHub stargazers API counts.~~ *Superseded by ADR-032:* candidates come from watch-list count snapshots, Search and HN (GH Archive is a cheap control), and confirmation uses the star-history endpoint, not the stargazers API (restricted since 2026-06-30).
    - Store a per-case `gharchive_coverage_ratio`.
    - Log an ADR, and add a verifier check of star capture on 20 random repos per month.
    - Hypothesis H-S1: GH Archive under-counts stars after 2025-05 by more than 50% for most repos.
@@ -816,3 +816,4 @@ Gap sources are not built. Their connector stubs carry only the enable flag, set
 
 - 2026-09-25 — corrections after verifier spot-check M2-T4. GH Archive: issue #137 answer by the maintainer, #310 root cause and PR #317, #312 drop and recovery, #320 scope of 2 repos. PyPI licence is CC BY 4.0, and the immutability quote applies to `distribution_metadata` only. crates.io access order. "AppView" wording replaced. Internet Archive citation URL. HN Algolia depth and rank-field observation. GitHub ToS D.9 URL. X Developer Agreement section labels. yc-oss/api quote. New audits §2.26–§2.31 (TM-26 to TM-31), with the summary table, gap list, priority order, "Not audited" and implications updated.
 - 2026-09-25 — detection re-plan (ADR-032): rows 32 (OpenDigger mirror, **GAP** pending LQ-28, TM-32) and 33 (GitHub star-history endpoint plus per-repo events, CLEARED-WITH-CONDITIONS, TM-33); §2.32–§2.33 added; §2.2 and row 2 note that stargazer lists are restricted to admins and collaborators since 2026-06-30 (GitHub changelog); OpenDigger moved from "Not audited" to the gap list.
+- 2026-09-25 — fixes after verifier (ADR-036 alignment): §2.1 condition (d) and §5 item 1 marked superseded by ADR-032 (cross-check and confirmation now use the star-history endpoint and watch-list count snapshots, not the stargazers API).

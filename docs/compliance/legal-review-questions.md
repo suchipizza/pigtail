@@ -236,13 +236,13 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 ### LQ-29 · Stargazer identities from events after GitHub restricted stargazer lists · Priority B
 - **Context:**
   - GitHub limited `/repos/{owner}/{repo}/stargazers` and `/subscribers` to admins and collaborators on 2026-06-30, because the lists had "increasingly been misused to collect user data for spam activities which negatively impacts user experience and platform trust" (https://github.blog/changelog/2026-06-30-upcoming-access-restrictions-to-public-api-endpoints-and-ui-views/).
-  - Who starred a repo is still visible in public `WatchEvent`s (`actor`): through the per-repo Events API (TM-33), GH Archive (TM-01) and the OpenDigger mirror (TM-32, a gap).
+  - Who starred (or forked) a repo is still visible in public `WatchEvent`s and `ForkEvent`s (`actor`): through the per-repo Events API (TM-33), GH Archive (TM-01) and the OpenDigger mirror (TM-32, a gap). Pigtail keeps both event types because fork farms are part of the bot and lockstep features (ADR-036).
   - Pigtail uses these identities only for R3.3 / R1.1 bot and lockstep filtering (ADR-027 item 2, ADR-032 item 2): pseudonymised at ingest, aggregates only, never a list.
 - **Question:**
   1. Is processing stargazer identities from events for bot filtering still proportionate under the GDPR Art. 6(1)(f) balancing test (LIA) and FADP Art. 6 and 30–31?
   2. Does GitHub's restriction signal what GitHub users can now reasonably expect (EDPB Guidelines 1/2024 on reasonable expectations), so that the balancing shifts against collecting stargazer identities by other routes?
   3. Could it be read as circumventing GitHub's restriction (ToS §H, AUP), even though the Events API is public and documented?
-- **Default meanwhile:** the TM-33 conditions: only repos with an open case, tracked repos or repos above the pre-threshold; poll within `X-Poll-Interval`; pseudonymise at ingest; person-level event rows kept ≤ 30 days, then aggregates; never rebuild, store or export a stargazer list; cases record `bot_filter_basis` and `coverage_ratio`.
+- **Default meanwhile:** the TM-33 conditions: only repos with an open case, tracked repos or repos above the pre-threshold; poll within `X-Poll-Interval`; pseudonymise at ingest; person-level event rows kept ≤ 30 days, then aggregates; never rebuild, store or export a stargazer list; cases record `bot_filter.basis`, `bot_filter.confirmed` and `bot_filter.coverage_ratio`; the connector stays off (`PIGTAIL_ENABLE_GITHUB_EVENTS`, ADR-036) until CB-22/CB-23 and the ADR-022 preconditions exist.
 - **Blocks:** any wider use of stargazer identities (retention beyond 30 days, cross-repo stargazer graphs, a StarScout-style reproduction on identities beyond the tracked set). The `starscout_filtered` series stays `unknown` where these conditions don't allow the data.
 
 ### LQ-12 (was Q11) · Adequacy of 24-month retention plus pseudonymisation at ingest · Priority A
@@ -365,3 +365,4 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - 2026-09-25 — fixes after verifier M3 round 3: CB-11 marked implemented (codebook v0.1.0 §12); LQ-25 updated for CB-04 partly implemented.
 - 2026-09-25 — CB statuses updated after privacy-controls merge (ADR-030): LQ-6, LQ-10 and LQ-12 defaults now give the status of the ADR-022 pre-conditions; LQ-23 notes CB-13 implemented; LQ-26 notes how erasure is implemented.
 - 2026-09-25 — new questions LQ-27 (replay after an erasure; from the backlog, ADR-030.1), LQ-28 (OpenDigger mirror; TM-32, ADR-032) and LQ-29 (stargazer identities from events after GitHub's 2026-06-30 restriction; TM-33). Mapping table and summary updated.
+- 2026-09-25 — fixes after verifier (ADR-036 alignment): LQ-29 covers fork actors; field names aligned; gate named.

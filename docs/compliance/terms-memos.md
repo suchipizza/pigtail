@@ -557,11 +557,11 @@ AUP §7 applies as in TM-01.
 
 ### TM-33: GitHub star-history endpoint and per-repo Events API
 
-**Decision: CLEARED-WITH-CONDITIONS (under TM-02).** The per-repo `WatchEvent.actor` use is pending LQ-29; the conservative conditions below apply meanwhile.
+**Decision: CLEARED-WITH-CONDITIONS (under TM-02).** The per-repo `WatchEvent.actor` and `ForkEvent.actor` use is pending LQ-29 and held by ADR-036 (`PIGTAIL_ENABLE_GITHUB_EVENTS`, default off, plus the ADR-022 flag); the conservative conditions below apply meanwhile.
 
 **Endpoints**
 - `GET /repos/{owner}/{repo}/stargazers/history`: weekly and daily star counts back to the repo's creation, no identities (https://docs.github.com/en/rest/activity/starring?apiVersion=2026-03-10#get-repository-star-history; announced https://github.blog/changelog/2026-09-04-new-api-endpoint-provides-privacy-safe-star-history-data/). It contains no personal data.
-- `GET /repos/{owner}/{repo}/events`: the latest 300 public events for one repo, including `WatchEvent`s with `actor` (https://docs.github.com/en/rest/activity/events). This is personal data.
+- `GET /repos/{owner}/{repo}/events`: the latest 300 public events for one repo, including `WatchEvent`s and `ForkEvent`s with `actor` (https://docs.github.com/en/rest/activity/events). This is personal data.
 
 **Clauses relied on**
 - TM-02 (ToS §H, rate limits) and TM-01 (AUP §7).
@@ -572,7 +572,8 @@ AUP §7 applies as in TM-01.
 - One operator token; no pooling; no App-plus-PAT doubling (ADR-032 item 4).
 - Poll per-repo events no faster than `X-Poll-Interval` (ADR-032: every 15–60 min), with ETag; star-history at most daily per repo, serial queue, within primary and secondary limits.
 - Per-repo events only for repos with an open case, tracked repos (R17.4) or repos above the pre-threshold.
-- Pseudonymise `actor` at ingest; use identities only for aggregate bot and lockstep flags; never rebuild, store or export a stargazer list; keep person-level event rows at most 30 days, then aggregates only.
+- Parse only `WatchEvent` and `ForkEvent` actors (fork actors are needed for the fork-farm bot and lockstep features and the PRD §8.1 attention metrics); drop the raw response at parse (CB-23).
+- Pseudonymise `actor` at ingest; use identities only for aggregate bot and lockstep flags; never rebuild, store or export a stargazer list; keep person-level event rows at most 30 days (`person_level_30d`, CB-22), then aggregates only.
 
 ---
 
@@ -599,3 +600,4 @@ New questions from TM-32 and TM-33 go straight into `legal-review-questions.md`:
 
 - 2026-09-25 — corrections after verifier spot-check M2-T4. TM-01: issue #137 answer by the maintainer; #310, #312 and PR #317 added. TM-07: CC BY 4.0, and the immutability quote reassigned to `distribution_metadata`. TM-09: access order. TM-13: citation URL. TM-15: section labels §III.A.k and §XIV.B. TM-25: yc-oss/api quote. New memos TM-26 to TM-31. Q6 and Q9 updated; Q12 added.
 - 2026-09-25 — new memos TM-32 (OpenDigger GH-event mirror: GAP pending LQ-28, off by default per ADR-032) and TM-33 (GitHub star-history endpoint and per-repo Events API: cleared with conditions under TM-02; actor use pending LQ-29). Research basis: `docs/research/detection-replan.md`.
+- 2026-09-25 — fixes after verifier (ADR-036 alignment): TM-33 names `WatchEvent` and `ForkEvent` actors (forks for fork-farm bot/lockstep features and the PRD §8.1 attention metrics), the ADR-036 gate and the `person_level_30d` class.
