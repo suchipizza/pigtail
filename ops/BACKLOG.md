@@ -16,7 +16,7 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [x] [M1-T21] Scheduler, health, alerts, Docker/systemd (ADR-033) — was: Scheduler: long-running `hn-ranks --loop`, daily `deletion-sync`, mentions for new cases within 48 h (R1.2); deploy when the host exists (H1)
 - [ ] [M1-T22] Front-page minutes (`att.hn_frontpage_minutes`) from rank observations, handling polling gaps
 - [ ] [M1-T23] HN follow-ups: clear `hn_story` titles for stories deleted upstream; a repo opt-out should also reach mentions of repos not in `repos`; `pigtail doctor` reports HN and ADR-022 flags; live check of Algolia
-- [ ] [M3-T5] Compliance docs: CB-02 status per source (HN implemented; GitHub events met by retention, ADR-038; Bluesky pending); update the 30→16-day wording in the LIA/DPIA text
+- [x] [M3-T5] Compliance docs: CB-02 per source + 16-day wording (ADR-038) — was: CB-02 status per source (HN implemented; GitHub events met by retention, ADR-038; Bluesky pending); update the 30→16-day wording in the LIA/DPIA text
 - [x] [M1-T18] Detection re-plan verified → ADR-032; citation fixes applied; TM-32/33, LQ-27..29 added
 - [ ] [M3-T7] LIA/DPIA: add per-repo events processing (TM-33) and LQ-29 to the balancing test and risk register: evaluate own GitHub event collection (Events API, full paging), candidate screening via Search API / HN / Bluesky / registries + stargazers API, and third-party trend services — feasibility, rate limits, cost, terms; recommendation checked by the verifier — ADR-028, G3, R1.1 — GITHUB_TOKEN (H1) for measurements
 - [ ] [M1-T19] Retry and backfill missing GH Archive hours (404s are only marked missing today)
@@ -47,7 +47,7 @@ Before production capture on the host:
 - [~] [CB-03] Encryption at rest: SeaweedFS SSE via `S3_SSE_KEK` + `pigtail doctor`; open: enable on host, Postgres volume encryption (operator)
 - [~] [CB-04] GH Archive raw-dump minimization: 30-day purge + verified re-fetch done (ADR-027.4); open: drop-after-parse, minimal-parse fallback when upstream disappears
 - [ ] [CB-09] Pseudonym key rotation runbook
-- [ ] [CB-12] Publish the privacy notice (needs owner placeholders)
+- [ ] [CB-12] Publish the privacy notice (needs owner placeholders); notice must also cover per-repo star/fork events (16-day retention) before that connector is enabled
 - [ ] [CB-16] Breach runbook
 - [ ] [CB-17] Encrypted backups; deletions re-applied after a restore
 - [~] [CB-18] Log hygiene: redaction filter + `runs.error` scrubbing; open: install filter in all services, log rotation

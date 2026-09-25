@@ -141,7 +141,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
   2. For the smaller Tier 2 and Tier 3 sets, where pigtail could reply to or mention posters, is individual notice required? We think it would be intrusive and possibly platform spam.
   3. Does a *commercial* operator qualify for the "research or statistical purposes" limb?
   4. Where must the notice be published for it to count?
-- **Default meanwhile:** a public notice only, no individual contact (and no platform posting without H5). Person-level sources beyond GH Archive stay off until the notice is published (CB-12) and the other ADR-022 pre-conditions exist. Status after ADR-030: CB-01, CB-08 and CB-13 implemented; CB-03 and CB-06 partly implemented; CB-02 and CB-12 open.
+- **Default meanwhile:** a public notice only, no individual contact (and no platform posting without H5). Person-level sources beyond GH Archive stay off until the notice is published (CB-12) and the other ADR-022 pre-conditions exist. Status after ADR-030 and ADR-038: CB-01, CB-08 and CB-13 implemented; CB-03 and CB-06 partly implemented; CB-02: HN done / GitHub events met via ADR-038 / Bluesky pending; CB-12 open.
 - **Blocks:** enabling Bluesky, HN and V2EX.
 
 ### LQ-11 · Is this "light" DPIA enough; national lists; prior consultation · Priority B
@@ -237,15 +237,17 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - **Context:**
   - GitHub limited `/repos/{owner}/{repo}/stargazers` and `/subscribers` to admins and collaborators on 2026-06-30, because the lists had "increasingly been misused to collect user data for spam activities which negatively impacts user experience and platform trust" (https://github.blog/changelog/2026-06-30-upcoming-access-restrictions-to-public-api-endpoints-and-ui-views/).
   - Who starred (or forked) a repo is still visible in public `WatchEvent`s and `ForkEvent`s (`actor`): through the per-repo Events API (TM-33), GH Archive (TM-01) and the OpenDigger mirror (TM-32, a gap). Pigtail keeps both event types because fork farms are part of the bot and lockstep features (ADR-036).
-  - Pigtail uses these identities only for R3.3 / R1.1 bot and lockstep filtering (ADR-027 item 2, ADR-032 item 2): pseudonymised at ingest, aggregates only, never a list.
+  - Pigtail uses these identities only for R3.3 / R1.1 bot filtering (ADR-027 item 2, ADR-032 item 2): pseudonymised at ingest, aggregates only, never a list. On per-repo events only the login-based bot rules run; the lockstep rule is not applied (ADR-037.2), so the retained pseudonyms serve de-duplication of stars and forks within a case window.
 - **Question:**
   1. Is processing stargazer identities from events for bot filtering still proportionate under the GDPR Art. 6(1)(f) balancing test (LIA) and FADP Art. 6 and 30–31?
   2. Does GitHub's restriction signal what GitHub users can now reasonably expect (EDPB Guidelines 1/2024 on reasonable expectations), so that the balancing shifts against collecting stargazer identities by other routes?
   3. Could it be read as circumventing GitHub's restriction (ToS §H, AUP), even though the Events API is public and documented?
-  4. GitHub states no deletion duty for this API and pigtail has no deletion sync for it: an un-star or account deletion upstream is reflected only when the ≤ 30-day actor rows expire. Is that expiry an adequate substitute for deletion sync (ADR-022's CB-02) for this source?
+  4. GitHub states no deletion duty for this API and pigtail has no deletion sync for it: an un-star or account deletion upstream is reflected only when the actor rows expire (16 days by default, ceiling 30). Is that expiry an adequate substitute for deletion sync (ADR-022's CB-02) for this source?
+     - *Interim decision (orchestrator, ADR-038, 2026-09-25):* yes, for now: CB-02 is treated as met for this source by the raw drop at parse plus the short expiry, and no GitHub sync source is built. The question stays open; a sync source is added if GitHub or H2 requires one.
   5. Detection v1 applies only the login-based bot rules to per-repo events (ADR-037.2), so the pseudonyms currently serve de-duplication within a case window. Is keeping them for 30 days rather than about 16 days (the 14-day case window plus 48 h) still proportionate?
-- **Default meanwhile:** the TM-33 conditions: only repos with an open case (and, if the operator opts in, repos above the pre-threshold); poll within `X-Poll-Interval`; pseudonymise at ingest; person-level event rows kept ≤ 30 days, then aggregates; never rebuild, store or export a stargazer list; cases record `bot_filter.basis`, `bot_filter.confirmed` and `bot_filter.coverage_ratio`. CB-22 and CB-23 are implemented and tested (M1-T24, ADR-037; [dpia.md](dpia.md) §9). The connector stays off (`PIGTAIL_ENABLE_GITHUB_EVENTS` plus the ADR-022 flag, ADR-036) until the remaining ADR-022 pre-conditions exist (CB-02, CB-12). Until then detection-v1 cases open with `bot_filter` `unavailable` (ADR-037.1).
-- **Blocks:** any wider use of stargazer identities (retention beyond 30 days, cross-repo stargazer graphs, a StarScout-style reproduction on identities beyond the tracked set). The `starscout_filtered` series stays `unknown` where these conditions don't allow the data.
+     - *Interim decision (orchestrator, ADR-038, 2026-09-25):* the default `GITHUB_EVENTS_RETENTION_DAYS` is now 16 (ceiling 30); going above 16 needs a documented purpose. The question stays open: is 16 days proportionate, and would the 30-day ceiling ever be?
+- **Default meanwhile:** the TM-33 conditions: only repos with an open case (and, if the operator opts in, repos above the pre-threshold); poll within `X-Poll-Interval`; pseudonymise at ingest; person-level event rows kept 16 days by default (ceiling 30; ADR-038; the class `person_level_30d` is named after the ceiling), then aggregates; never rebuild, store or export a stargazer list; cases record `bot_filter.basis`, `bot_filter.confirmed` and `bot_filter.coverage_ratio`. CB-22 and CB-23 are implemented and tested (M1-T24, ADR-037; [dpia.md](dpia.md) §9). The connector stays off (`PIGTAIL_ENABLE_GITHUB_EVENTS` plus the ADR-022 flag, ADR-036) until the remaining ADR-022 pre-conditions exist (CB-12 open; CB-03 and CB-06 partly done; CB-02 met for this source via ADR-038). Until then detection-v1 cases open with `bot_filter` `unavailable` (ADR-037.1).
+- **Blocks:** any wider use of stargazer identities (retention beyond the 30-day ceiling, cross-repo stargazer graphs, a StarScout-style reproduction on identities beyond the tracked set). The `starscout_filtered` series stays `unknown` where these conditions don't allow the data.
 
 ### LQ-12 (was Q11) · Adequacy of 24-month retention plus pseudonymisation at ingest · Priority A
 - **Context:** carried over from terms-memos Q11:
@@ -255,7 +257,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - **Question:**
   1. As in Q11.
   2. In addition: is the policy in [retention-policy.md](retention-policy.md) adequate, including the 35-day backups, 12-month logs, 24-month LLM cache and tombstones?
-- **Default meanwhile:** the policy as drafted. No new person-level source until every ADR-022 pre-condition exists (CB-01, CB-02, CB-03, CB-06, CB-08, CB-12, CB-13). Status after ADR-030: CB-01, CB-08 and CB-13 implemented; CB-03 and CB-06 partly implemented; CB-02 and CB-12 open. The 24-month purge, the 24-month LLM cache expiry, 12-month clearing of `runs.error` and the tombstone log (`deletion_log`) are implemented; backups (CB-17) and container-log rotation are not.
+- **Default meanwhile:** the policy as drafted. No new person-level source until every ADR-022 pre-condition exists (CB-01, CB-02, CB-03, CB-06, CB-08, CB-12, CB-13). Status after ADR-030 and ADR-038: CB-01, CB-08 and CB-13 implemented; CB-03 and CB-06 partly implemented; CB-02: HN done / GitHub events met via ADR-038 / Bluesky pending; CB-12 open. The 24-month purge, the 24-month LLM cache expiry, 12-month clearing of `runs.error` and the tombstone log (`deletion_log`) are implemented; backups (CB-17) and container-log rotation are not.
 - **Blocks:** release (M9); person-level sources beyond GH Archive.
 
 ---
@@ -289,7 +291,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - **Question** (as in Q4):
   1. Do YC's public API invitations (the HackerNews/API README, and the Algolia API run with HN) count as "expressly authorized" under the YC Terms of Use? If so, commercial operators may use the API despite the ToU's bans on commercial reproduction and scraping.
   2. Is storing snapshots privately "reproduc[ing] … for commercial purposes"?
-- **Default meanwhile:** API only, private snapshots, no republication of comment text (TM-03, TM-04). Not enabled until every ADR-022 pre-condition for person-level sources exists: CB-01, CB-02, CB-03, CB-06, CB-08, CB-12 and CB-13 (ADR-022 in `ops/DECISIONS.md` is the single authoritative list). Status after ADR-030: CB-01, CB-08 and CB-13 implemented; CB-03 and CB-06 partly implemented; CB-02 and CB-12 open.
+- **Default meanwhile:** API only, private snapshots, no republication of comment text (TM-03, TM-04). Not enabled until every ADR-022 pre-condition for person-level sources exists: CB-01, CB-02, CB-03, CB-06, CB-08, CB-12 and CB-13 (ADR-022 in `ops/DECISIONS.md` is the single authoritative list). Status after ADR-030 and ADR-038: CB-01, CB-08 and CB-13 implemented; CB-03 and CB-06 partly implemented; CB-02: HN done / GitHub events met via ADR-038 / Bluesky pending; CB-12 open.
 - **Blocks:** HN connectors for commercial operators.
 
 ### LQ-15 (was Q5) · Internet Archive · Priority B
@@ -369,3 +371,4 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - 2026-09-25 — new questions LQ-27 (replay after an erasure; from the backlog, ADR-030.1), LQ-28 (OpenDigger mirror; TM-32, ADR-032) and LQ-29 (stargazer identities from events after GitHub's 2026-06-30 restriction; TM-33). Mapping table and summary updated.
 - 2026-09-25 — fixes after verifier (ADR-036 alignment): LQ-29 covers fork actors; field names aligned; gate named.
 - 2026-09-25 — CB-22/23 implemented (M1-T24, ADR-037): LQ-29 default updated (CB-22 and CB-23 done; remaining holds CB-02 and CB-12; cases open with `bot_filter` unavailable) and two sub-questions added (4: ≤ 30-day expiry in place of deletion sync; 5: 30 days now that lockstep is not applied to per-repo events).
+- 2026-09-25 — ADR-038 wording (16-day default; CB-02 per source)
