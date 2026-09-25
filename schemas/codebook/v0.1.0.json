@@ -201,7 +201,7 @@
     {"id": "C4", "field": "category_primary", "unit": "case", "level": "nominal", "alpha": ["nominal"], "promotion_deciding": true},
     {"id": "C5", "field": "module_active.<module>", "unit": "case", "level": "nominal", "alpha": ["nominal_per_module"], "promotion_deciding": false},
     {"id": "C6", "field": "edge_type", "unit": "candidate_pair", "level": "nominal", "alpha": ["nominal"], "promotion_deciding": false},
-    {"id": "C7", "field": "edge_evidence_level", "unit": "candidate_pair", "level": "ordinal", "alpha": ["ordinal"], "promotion_deciding": false},
+    {"id": "C7", "field": "edge_evidence_level", "unit": "candidate_pair", "level": "ordinal", "alpha": ["ordinal", "nominal_known_unknown"], "promotion_deciding": false},
     {"id": "C8", "field": "asset_category", "unit": "asset_instance", "level": "nominal", "alpha": ["nominal"], "promotion_deciding": false},
     {"id": "C9", "field": "trigger_type", "unit": "burst", "level": "nominal", "alpha": ["nominal"], "promotion_deciding": true},
     {"id": "C10", "field": "trigger_confidence", "unit": "burst", "level": "ordinal", "alpha": ["ordinal", "nominal_known_unknown"], "promotion_deciding": false},

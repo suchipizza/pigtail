@@ -63,11 +63,13 @@ Feature-specific:
 - [x] [CB-07] CLI telemetry/error reporting off in the subscription subprocess; BackendError no longer echoes output (2026-09-25)
 - [x] [M4-T0] α threshold decided: gate 0.70 (PRD), 0.80 for `high` confidence (ADR-025)
 - [x] [M4-T1] Codebook v0.1.0 + schemas/codebook/v0.1.0.json (ADR-024/025) (2026-09-25)
-- [ ] [M4-T1b] Seed candidate mechanism cards from practitioner sources (lit. [63][64][65]) so the pilot can code C11a/C11b — M4-T1
+- [x] [M4-T1b] 13 seed candidate mechanism cards (docs/methodology/mechanisms/candidates.md) — was: Seed candidate mechanism cards from practitioner sources (lit. [63][64][65]) so the pilot can code C11a/C11b — M4-T1
 - [ ] [M4-T1c] Align `reliability` description in schemas/v0/evidence.schema.json with codebook §2.3 anchors — after M1 merge
 - [ ] [M5-T0] Citation validator must apply the same deterministic redaction to the snapshot before matching quoted spans (R7.1) — codebook open issue 2
-- [ ] [M4-T2] Pre-register pilot analyses in docs/preregistration/ (incl. minimum units per core field so thin fields count as unassessed, codebook open issue 3; §9.1 forecasting target M4-T0b) — WO §6 — M4-T1
-- [ ] [M4-T3] Pilot: 3 winners + 3 matched losers across ≥ 3 strata; double coding + adjudication; G1 check by verifier — WO M4 — M4-T1, M1 snapshots
+- [x] [M4-T2] Pilot + forecasting-test pre-registrations committed (ADR-029) — was: Pre-register pilot analyses in docs/preregistration/ (incl. minimum units per core field so thin fields count as unassessed, codebook open issue 3; §9.1 forecasting target M4-T0b) — WO §6 — M4-T1
+- [ ] [M4-T2b] Pre-register threshold calibration (ADR-019) before any class base rate is computed
+- [ ] [M4-T2c] Codebook: add a general `novelty_claim` field (MC-09), in the next minor version
+- [ ] [M4-T3] Pilot (blocked on: HN capture under ADR-022 controls; case pool depends on M1-T18; H1 training-off confirmation or API key): 3 winners + 3 matched losers across ≥ 3 strata; double coding + adjudication; G1 check by verifier — WO M4 — M4-T1, M1 snapshots
 
 ## Later (gated)
 - [ ] [M5] Engine v1 — depends on G1

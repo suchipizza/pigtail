@@ -632,3 +632,4 @@ Values with `coder_confidence = low` go to the review queue (R7.3).
   - the category taxonomy adopted unchanged from ADR-017 / OM §3.1, with boundary rules added;
   - 12 core fields (C1–C11b) with α variants, of which C3, C4, C9, C11a and C11b are flagged as promotion-deciding;
   - coding, locator, provenance and privacy rules (CB-11).
+- 2026-09-25 — errata (no version bump; codebook not yet used for coding): C7 in the JSON now lists the known/unknown companion statistic, matching §10.2 (the table and JSON had omitted it).
