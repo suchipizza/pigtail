@@ -5,7 +5,7 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 ## Now
 - [ ] [M1-T27] When GITHUB_TOKEN arrives: validation runs M7 → M3 → M2 → M1 → M4 (detection-replan §8; order and commands in RUNLOG 2026-09-25)
 - [ ] [M1-T28] Case API `detection_hours` should read `repo_count_snapshot` for v1 cases; daily wide-universe sweep (≥ 100 stars); lockstep alternative for events
-- [ ] [M3-T9] Verifier re-check of ADR-032/035/036 docs + case schema bot_filter fields; compliance docs: CB-22/23 now implemented
+- [x] [M3-T9] ADR-032..038 docs + M1-T24 code verified (round 2 PASS @80918ee)
 - [ ] [M1-T25] D1 follow-ups: browser check (operator), p95 benchmark at 5,000 evidence items, generated TS types, streaming hash check for large snapshots, live refresh, audit-log reader
 - [ ] [M1-T26] External liveness check for the scheduler (a dead scheduler can't alert itself)
 - [x] [M1-T24] ADR-032 implemented on fixtures (ADR-037); live runs wait for GITHUB_TOKEN — was: Implement ADR-032: watch-list GraphQL snapshots, Search sweeps, HN→repo screen, star-history client (baseline, confirmation, scoring, backfill), per-repo events polling for tracked cases; case coverage fields — needs GITHUB_TOKEN (H1) for live runs; build and test on fixtures now
