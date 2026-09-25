@@ -23,12 +23,14 @@ Every product LLM call goes through `pigtail.llm.LLMClient`. Never call the SDK 
 from pydantic import BaseModel
 from pigtail.llm import PromptSpec, build_client
 
+
 class Out(BaseModel):
     label: str
 
+
 PROMPT = PromptSpec(id="classify-event", version="1", system="…", template="Classify: {input}")
 res = build_client().complete(PROMPT, text, Out, job="pilot_extraction")
-res.output, res.provenance()   # store the provenance with every coded record (R7.4)
+res.output, res.provenance()  # store the provenance with every coded record (R7.4)
 ```
 - Bump `PromptSpec.version` whenever the prompt text changes. The cache is keyed on it (ADR-006).
 - `job` names route to a backend through `LLM_BACKEND_OVERRIDES` (e.g. `tier2_extraction:api`).
