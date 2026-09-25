@@ -1,10 +1,10 @@
 {
   "schema_version": "v0",
   "id": "mechanism-candidates",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "created": "2026-09-25",
   "spec": "docs/methodology/mechanisms/candidates.md",
-  "codebook_version": "0.1.0",
+  "codebook_version": "0.2.0",
   "requirements": [
     "R9.1",
     "R9.2",
@@ -13,6 +13,10 @@
   ],
   "citation_source": "docs/research/literature.md §8",
   "note": "All cards are candidates with no tested evidence. literature_basis lists reference numbers only; see the .md for what each source reports. Numbers from sources are never effect estimates.",
+  "changelog": [
+    "2026-09-25 — 0.1.0: seed set of 13 candidate cards (M4-T1b).",
+    "2026-09-25 — 0.2.0: MC-09 presence test moved to the case-level novelty_claim field of codebook 0.2.0 (§5.1); MC-09 modules [ai_hype] -> []; file codebook_version 0.1.0 -> 0.2.0 (no other card's fields changed; codebook 0.2.0 keeps every field they use). Pilot amendment 2, B4. No card has been coded against."
+  ],
   "cards": [
     {
       "id": "MC-01",
@@ -717,7 +721,7 @@
     {
       "id": "MC-09",
       "name": "Novelty positioning",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "status": "candidate",
       "recommendable": true,
       "description": "The project positions itself as novel; this attracts attention but comes with lower long-run participation.",
@@ -728,7 +732,7 @@
       "preconditions": [
         {
           "statement": "First-party novelty claim",
-          "test": "ai_hype.novelty_claim has a quoted span (no general field in codebook 0.1.0; outside ai_hype presence is unknown)",
+          "test": "case-level novelty_claim (codebook 0.2.0 §5.1) is present, with its quoted span",
           "origin": "design"
         }
       ],
@@ -743,8 +747,8 @@
         "offsets": "unknown — needs supporting cases"
       },
       "presence_test": {
-        "present": "precondition holds",
-        "absent": "ai_hype active, README and tagline at T captured, no novelty claim",
+        "present": "novelty_claim = present",
+        "absent": "novelty_claim = absent",
         "else": "unknown"
       },
       "outcome_dimensions": [
@@ -783,9 +787,7 @@
       },
       "deciding_field_alpha": "not yet measured (M4-T3 pilot)",
       "sensitivity_flags": [],
-      "modules": [
-        "ai_hype"
-      ],
+      "modules": [],
       "related_hypotheses": [
         "H-L6"
       ],
@@ -797,6 +799,14 @@
           "case_id": null,
           "direction": null,
           "codebook_version": "0.1.0"
+        },
+        {
+          "date": "2026-09-25",
+          "version": "0.2.0",
+          "change": "presence test uses the case-level novelty_claim of codebook 0.2.0 (§5.1) instead of ai_hype.novelty_claim; no longer limited to ai_hype (modules: none). Pilot amendment 2, B4. Made before any C11a unit was cut or any case coded.",
+          "case_id": null,
+          "direction": null,
+          "codebook_version": "0.2.0"
         }
       ]
     },

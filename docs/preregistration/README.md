@@ -10,8 +10,12 @@ This folder holds pigtail's pre-registered analyses (WORK_ORDER §6: "Pre-regist
 | [2026-09-25-forecasting-test.md](2026-09-25-forecasting-test.md) | PRD §9.1 test 1 (forecasting), per ADR-026 | PRD §9.1 (1), R3.5, ADR-026 | frozen at the commit that adds it | none |
 | [2026-09-25-pilot-amendment-1.md](2026-09-25-pilot-amendment-1.md) | Amends the pilot (frozen at `3f07692`): `outcome-thresholds 0.2.0` (raw star-history classes); E2/E5, `LSM` and the founder-audience proxy moved off the stargazers list API; campaign flags per stratum | ADR-032, ADR-035, ADR-036 | frozen at the commit that adds it | none |
 | [2026-09-25-forecasting-test-amendment-1.md](2026-09-25-forecasting-test-amendment-1.md) | Amends the forecasting test (frozen at `3f07692`): `raw` star-history target and star features, ADR-032 screens and `t_det`, X3, filtered-series sensitivity | ADR-032, ADR-035, ADR-036 | frozen at the commit that adds it | none |
+| [2026-09-25-pilot-amendment-2.md](2026-09-25-pilot-amendment-2.md) | Amends the pilot (frozen at `3f07692`; amendment 1 at `2521652`): pins codebook `0.2.0` (burst units from `raw` star-history days; case-level `novelty_claim`, non-core); MC-09 presence test; 0.1.0 → 0.2.0 is not a G1 revision round; selection classes on calibration-split cells, run only after the threshold-calibration pre-registration | M4-T1d, M4-T2c, ADR-032, ADR-035, ADR-019 | frozen at the commit that adds it | none |
+| [2026-09-25-threshold-calibration.md](2026-09-25-threshold-calibration.md) | Outcome-threshold calibration in the M4 pilot: exact split rule with test vectors; held-out set divided into H-eval (20 %) and H-sealed (10 %); calibration split only; `min_cell_n` {30, 50} and per-source `settle_lag` {1, 3, 7, 14} calibrated by class-free rules; all other parameters fixed; OM §9 diagnostics report-only after the freeze; v1.0.0 freeze procedure; post-freeze changes per ADR-019 | M4-T2b, ADR-019, OM §5.4, §9, PRD §8.2, R3.5 | frozen at the commit that adds it; must be pushed before any class or base rate is computed | none |
 
 Add a row for every new file, including amendments and addenda.
+
+**Held-out pools (pointer; changes no frozen file).** Under `2026-09-25-threshold-calibration.md` §1.1, the ADR-019 held-out set (`m < 30`) is divided into **H-eval** (`m < 20`) and **H-sealed** (`20 ≤ m < 30`). H-eval is the held-out pool that the forecasting test (`2026-09-25-forecasting-test.md`, amendment 1) draws from. H-sealed cases are never classed or inspected until a post-freeze threshold change needs its single re-run (calibration §5.3). The forecasting pre-registration is frozen and predates this division, so excluding H-sealed live cases from its evaluation set needs a forecasting-test amendment 2, committed before any evaluation target is computed.
 
 ## Rules
 
@@ -36,3 +40,4 @@ Add a row for every new file, including amendments and addenda.
 
 ## Errata (naming only; no analysis change)
 - 2026-09-25 — `2026-09-25-forecasting-test-amendment-1.md` line 33 uses `bot_filter_confirmed`; the case schema field is `bot_filter.confirmed` (same meaning). Recorded here because the amendment is frozen.
+- 2026-09-25 — `2026-09-25-forecasting-test-amendment-2.md`: the forecasting evaluation excludes H-sealed (ADR-039.5); no outcome data seen.

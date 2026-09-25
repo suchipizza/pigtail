@@ -1,12 +1,12 @@
 # pigtail codebook
 
-**Version:** 0.1.0 (semver; see §13 and the CHANGELOG at the end) · **Status:** draft for the M4 pilot. Nothing here has been checked against coded data yet.
-**Task:** M4-T1 · **Requirements:** PRD F5 (R5.1–R5.5), F6 (R6.1–R6.3), F7 (R7.1–R7.4), F9 (R9.1–R9.3), §9.2, §9.3; compliance control CB-11 (docs/compliance/dpia.md §9).
-**ADRs this depends on:** ADR-010 (source clearances), ADR-014 (tags and status, nothing imputed), ADR-015 (time anchor T), ADR-017 (provisional categories), ADR-019 (outcome thresholds), ADR-022 (interim privacy holds), ADR-032 (star series from the star-history endpoint; supersedes ADR-012), ADR-035 (classes on the `raw` star-history series).
-**Machine-readable enums:** `schemas/codebook/v0.1.0.json` (`codebook v0.1.0`). If this document and the JSON disagree, that is a bug. Until it is fixed, the JSON wins for validators and this document wins for meaning.
+**Version:** 0.2.0 (semver; see §13 and the CHANGELOG at the end) · **Status:** draft for the M4 pilot. Nothing here has been checked against coded data yet. v0.1.0 was never used for coding, unitizing or any derived event.
+**Task:** M4-T1 (v0.1.0); M4-T1d and M4-T2c (v0.2.0) · **Requirements:** PRD F5 (R5.1–R5.5), F6 (R6.1–R6.3), F7 (R7.1–R7.4), F9 (R9.1–R9.3), §9.2, §9.3; compliance control CB-11 (docs/compliance/dpia.md §9).
+**ADRs this depends on:** ADR-010 (source clearances), ADR-014 (tags and status, nothing imputed), ADR-015 (time anchor T), ADR-017 (provisional categories), ADR-019 (outcome thresholds), ADR-022 (interim privacy holds), ADR-027 (√μ baseline floor), ADR-032 (star series from the star-history endpoint; supersedes ADR-012), ADR-035 (classes on the `raw` star-history series).
+**Machine-readable enums:** `schemas/codebook/v0.2.0.json` (`codebook v0.2.0`). `schemas/codebook/v0.1.0.json` is superseded and kept unchanged as a record. If this document and the JSON disagree, that is a bug. Until it is fixed, the JSON wins for validators and this document wins for meaning.
 **Author role:** `analyst`, working with researcher discipline. `LR [n]` means reference n in `docs/research/literature.md` §8. `SM` means `docs/research/source-matrix.md`. `OM` means `docs/specs/outcome-model.md`.
 **Data version:** none. The codebook comes before any data. No case has been coded and no outcome has been looked at.
-**Code commit:** `e4988ec`, read on 2026-09-25. The working tree had uncommitted M1 changes; none of them touch coding.
+**Code commit:** `e4988ec`, read on 2026-09-25 (v0.1.0); `535ddd0` for v0.2.0. The v0.2.0 burst derivation matches `outcome-model.md` §2.1 and the day baseline in `src/pigtail/capture/detection_v1.py` (`daily_baseline`) as of that commit.
 
 ---
 
@@ -42,7 +42,7 @@
 
 | Value | Definition | Typical sources (clearance per ADR-010) |
 |---|---|---|
-| `platform_metric` | A machine-generated count or series about a project, published by the platform that hosts it | Stargazers API (TM-02), registry downloads (TM-07 to TM-11), deps.dev dependents (TM-12), HN points and comment counts (TM-03/04), HN rank polls (TM-04) |
+| `platform_metric` | A machine-generated count or series about a project, published by the platform that hosts it | GitHub star-history daily counts (TM-33 under TM-02; ADR-032.3), hourly watch-list star-count snapshots (GraphQL `stargazerCount`, TM-02; ADR-032.1), registry downloads (TM-07 to TM-11), deps.dev dependents (TM-12), HN points and comment counts (TM-03/04), HN rank polls (TM-04) |
 | `platform_event` | A machine-generated event record | GH Archive event (TM-01), GitHub release, tag or commit record (TM-02) |
 | `project_artifact` | Content the project published on its own channels: the repo, its site, its docs, and accounts or blogs linked *from* the repo or site | README at a commit, release notes, changelog, docs page, project blog post, pricing page (TM-02, TM-29) |
 | `community_post` | A post or comment on a community platform | HN story or comment (TM-03/04), Bluesky post (TM-06, held by ADR-022), V2EX topic or reply (TM-19, off by default) |
@@ -63,8 +63,8 @@ Reliability says **how verifiably this evidence shows the fact it is cited for**
 
 | Level | Ordinal | Operational anchor (every condition must hold) | Examples |
 |---|---|---|---|
-| `high` | 3 | (a) `claim_basis = observed`; (b) captured as raw machine-readable data from the platform that hosts the fact (`capture_mode = api_json`), or as a project artifact fetched at a pinned commit or version; (c) timestamp precision is hour or better where time matters | Stargazers API page with `starred_at`; HN item JSON with `created_at`; a GitHub release record; the README fetched at commit `c` and cited for "the README said X at c" |
-| `medium` | 2 | Any one of: (a) `observed`, but captured as `rendered_html`, `screenshot` or `archive`; (b) data from a secondary aggregator whose method is documented (deps.dev dependents); (c) timestamp precision is only day-level where time matters; (d) `first_party_statement` about the project's own *actions*, such as "we posted X on date D" | A project blog post captured as HTML with a visible date; a Wayback capture of a pricing page; a docs page stating the release date |
+| `high` | 3 | (a) `claim_basis = observed`; (b) captured as raw machine-readable data from the platform that hosts the fact (`capture_mode = api_json`), or as a project artifact fetched at a pinned commit or version; (c) timestamp precision is hour or better where time matters | A star-history API response cited for the star count on the endpoint days it covers; an hourly GraphQL star-count snapshot cited for the count at its capture hour; HN item JSON with `created_at`; a GitHub release record; the README fetched at commit `c` and cited for "the README said X at c" |
+| `medium` | 2 | Any one of: (a) `observed`, but captured as `rendered_html`, `screenshot` or `archive`; (b) data from a secondary aggregator whose method is documented (deps.dev dependents); (c) timestamp precision is only day-level where time matters; (d) `first_party_statement` about the project's own *actions*, such as "we posted X on date D" | A project blog post captured as HTML with a visible date; a Wayback capture of a pricing page; a docs page stating the release date; a star-history day count cited for *when within that day* stars arrived (day precision, condition c) |
 | `low` | 1 | Any one of: (a) `claim_basis = reported`; (b) `first_party_statement` about *results* (users, revenue, growth) that no source verifies; (c) no date, or a date that can't be checked; (d) the snapshot quotes or paraphrases a source that was not itself captured | "Went viral on X" in a comment; a self-reported MRR figure (ADR-021); an undated landing page |
 | `unknown` | — | Not yet assessed, or the assessment isn't possible | — |
 
@@ -75,7 +75,7 @@ Decision rules:
 4. **Relation to the schema.** `schemas/v0/evidence.schema.json` currently describes the levels by capture mode only. This codebook's anchors are the operative definition. The record-level `evidence.reliability` stores the level for `claim_basis = observed`. Each coded item stores its own effective reliability after applying rules 1 and 2. (A schema-description update is listed in the open issues.)
 
 ### 2.4 Manipulation flags (`manipulation_flag`, multi-valued)
-- `fake_star_campaign_suspected`: the repo has a StarScout campaign flag (LR [20]; OM §4). This is a *suspicion*, never proof, and it is never named in a public output (LR §2.1).
+- `fake_star_campaign_suspected`: the repo has a StarScout campaign flag, i.e. `campaign_flag = true` (LR [20]; OM §4). A flag that is `unknown` (no identity-level data, ADR-032.3) does not set it. This is a *suspicion*, never proof, and it is never named in a public output (LR §2.1).
 - `vote_solicitation`: the snapshot shows a request to upvote or comment. Show HN guidelines: "Please don't ask friends to upvote or comment" (LR [65]).
 - `undisclosed_paid_promotion_suspected`: a reported claim of paid promotion that the item does not disclose. This value is always `low` reliability.
 - `disclosed_paid_promotion`: an ad or sponsorship the item itself discloses. This is not a violation, but it confounds effect estimates (LR [64]).
@@ -87,7 +87,7 @@ Decision rules:
 
 ### 3.1 Two layers
 Events sit in two layers that may overlap in time:
-- **Attention layer: `burst | quiet`.** Derived by code from the scoring star series (`starscout_filtered` from the stargazers API, ADR-012, OM §4). The two values split the case window with no gaps. Not double-coded.
+- **Attention layer: `burst | quiet`.** Derived by code from the `raw` star-history series (daily net counts from GitHub's star-history endpoint, on endpoint days; ADR-032.3, ADR-035, OM §1.2), the same series the outcome classes use. Hourly watch-list snapshots refine burst onsets only (§3.2). The two values split the case window with no gaps, except days without series coverage (§3.3). Not double-coded.
 - **Action layer: `prep | launch | relaunch | pivot`.** Coded from evidence. These are things the project did.
 
 The case window is [T − 90 d, T + 365 d] (T per ADR-015). Anything outside the window is recorded only if a rule below needs it (for example a prior launch for `relaunch`).
@@ -96,22 +96,30 @@ Every event records: `id`, `type`, `start`, `end` (null for point events), `time
 
 ### 3.2 `burst` (derived)
 - **Definition.** A period in which star velocity is abnormally high against the repo's own baseline.
-- **Onset.** The detection rule is `velocity-v0`: ≥ 100 filtered stars in 48 h and z ≥ 3 against the 30-day baseline. The onset hour is taken from OM §2.1, unchanged.
-- **End (v0 choice).** The start of the first run of 3 consecutive UTC days on each of which filtered stars are ≤ `μ_d + 3·√μ_d`. `μ_d` is the pre-onset 30-day baseline mean of stars per day; when `μ_d = 0`, use `μ_d + 1`.
-- **Merging (v0 choice).** Two bursts separated by fewer than 7 days are one burst with `multi_peak = true`.
-- **Required evidence.** The stargazers-API snapshot(s) that cover the segment. The locator is a JSON pointer to the counts (§11.2). Also recorded: the series version and `gharchive_coverage_ratio` (ADR-009).
-- **Descriptive attribute `burst_shape`:** `sudden_fast_decay | gradual_build | mixed | unknown`. It follows the exogenous and endogenous relaxation classes of Crane & Sornette (LR [35]). The v0 rule: `sudden_fast_decay` when the peak day falls within 48 h of onset and velocity is below 50% of peak within 7 days; `gradual_build` when the peak is more than 7 days after onset; `mixed` otherwise. This attribute is descriptive only. LR §3.4 warns that fits will be noisy on sparse star series, and H-L3 tests this rather than assuming it.
+- **Series (v0.2.0).** `raw` star-history daily net counts `n(d)` (ADR-032.3), for every case. Filtered series are not used to cut units: they are `unknown` for most windows (ADR-032.3, ADR-035). Hourly watch-list snapshots (ADR-032.1) are used **only** to refine the onset hour (below), never for detection, end, merging or `quiet`, so that every case is segmented on one series at one resolution (the reason OM §1.2 gives for classes).
+- **Days.** `d` is an endpoint day in `star_history_day_tz` (OM §1.2). The case window's days are the 90 endpoint days before the window's first day plus the 365 endpoint days starting at it, where the first day is the one OM §1.2 maps T to (hour-precision T: the day containing T; day-precision T: the day with T's UTC date). A day is used only after it has ended (OM §1.2). Each burst and quiet event records `day_boundary = {tz, tz_status, first_day, last_day}`.
+- **Detection.** `velocity-v0` on endpoint days, as OM §2.1 applies it where only daily data exists: day `d` fires when `n(d−1) + n(d) ≥ 100` and `z ≥ 3`, with the baseline taken from the 30 endpoint days before `d−1`, converted to 48-hour sums, and σ floored at √(baseline mean) (ADR-027 item 3; thresholds JSON `burst_detection`; `daily_baseline` in `src/pigtail/capture/detection_v1.py`). A burst starts at the first firing day that is not already inside a burst. Detection runs over the whole case window, not only for the first burst.
+- **Onset (OM §2.1, exactly).** The 48-hour detection window is endpoint days `d−1` and `d`.
+  - Where hourly count snapshots cover that window: the onset hour is the earliest hour in the window whose net star gain exceeds `μ_h + 3·√μ_h`, where `μ_h` is the baseline mean stars per hour (`μ_h + 1` when `μ_h = 0`). The baseline is daily, so **`μ_h = μ_d / 24`**, with `μ_d` the mean stars per endpoint day over the 30-day detection baseline (orchestrator decision, 2026-09-25; OM §2.1 leaves the conversion implicit, and a follow-up asks OM to state it). DST-switch days of 23 or 25 hours are not corrected (OM §1.2). If no single hour qualifies (a diffuse rise), the onset is the start of the window. Precision `hour`.
+  - Otherwise: the same rule on endpoint days with `μ_d` (baseline mean stars per endpoint day, over the same 30 days). The onset is the start of the first qualifying day among `d−1`, `d`; if neither qualifies, the start of `d−1`. Precision `day`.
+  - **Agreement with T.** The burst whose detection window contains the case's recorded `T_burst` onset (OM §2.1) takes that recorded onset and its precision, so C9/C10 units and the case anchor never disagree.
+  - Onsets computed from GH Archive are kept for audit only (OM §2.1).
+- **End (v0 choice).** The start of the first run of 3 consecutive endpoint days after the onset day on each of which `n(d) ≤ μ_d + 3·√μ_d`. `μ_d` is the mean stars per endpoint day over the burst's detection baseline; when `μ_d = 0`, use `μ_d + 1`. The end has precision `day`.
+- **Merging (v0 choice).** Two bursts separated by fewer than 7 endpoint days are one burst with `multi_peak = true`.
+- **Required evidence.** The star-history snapshot(s) covering the segment and its baseline, with a JSON pointer to each day's count (§11.2). Where the onset was refined, the hourly snapshot records used, with pointers to their counts. Also recorded: `series_variant = raw`, the star-history `metric_version`, `onset_precision`, `day_boundary`, and the series completeness check result (pilot amendment 1, A2). The v0.1.0 attribute `gharchive_coverage_ratio` is dropped: it measured GH Archive against a series that no longer exists, and neither is the burst series now.
+- **Descriptive attribute `burst_shape`:** `sudden_fast_decay | gradual_build | mixed | unknown`. It follows the exogenous and endogenous relaxation classes of Crane & Sornette (LR [35]). The v0 rule: `sudden_fast_decay` when the peak day falls within 48 h of onset and velocity is below 50% of peak within 7 days; `gradual_build` when the peak is more than 7 days after onset; `mixed` otherwise. On endpoint days this reads: peak day index 0 or 1 counted from the onset day; some day with index ≤ 7 below 50% of the peak count; `gradual_build` when the peak day index is > 7. This attribute is descriptive only. LR §3.4 warns that fits will be noisy on sparse star series, and H-L3 tests this rather than assuming it.
 - **Boundary cases.**
-  - A burst caused by a fake-star campaign is still a `burst`. The case carries `manipulation_flag`, and the raw-versus-filtered re-run is flagged (ADR-020).
-  - A download spike without a star spike is not a `burst` in v0.1.0. It is recorded as an exploratory observation.
+  - A burst caused by a fake-star campaign is still a `burst`. The case carries `manipulation_flag` when `campaign_flag = true` (§2.4). Where a filtered variant is class-eligible for the whole case window (OM §1.2), the segmentation may be recomputed on it and the difference reported as exploratory; it never defines units.
+  - A download spike without a star spike is not a `burst`. It is recorded as an exploratory observation.
+  - Star-history counts only **current** stargazers (net, survivor-biased, OM §1.2). A burst whose stars were later un-starred or deleted can shrink below the detection thresholds and then isn't a `burst`. This is a property of the series, recorded as a limitation, not corrected.
 
 ### 3.3 `quiet` (derived)
-- **Definition.** Every maximal interval of at least 7 days inside the case window that is not part of a burst.
+- **Definition.** Every maximal interval of at least 7 endpoint days inside the case window that is not part of a burst.
 - **Attribute:** `phase = pre_first_burst | inter_burst | post_last_burst`.
 - **Required evidence.** The same series as `burst`.
 - **Boundary cases.**
   - An interval shorter than 7 days between bursts has already been merged into the burst (§3.2).
-  - Days whose source coverage is missing (for example a GH Archive hole, ADR-009) are `unknown`, not `quiet`. They split the quiet interval.
+  - Days without series coverage are `unknown`, not `quiet`, and split the quiet interval. Examples: a star-history week the connector couldn't retrieve (pilot amendment 1, A2), or a day that hasn't ended yet. Days before the repo's creation have no series and are neither `burst` nor `quiet`.
 
 ### 3.4 `launch` (coded, point event)
 - **Definition.** The **first** public announcement that is (a) first-party and (b) deliberate, and that presents the project to an audience with the aim of getting attention or users.
@@ -174,9 +182,9 @@ Every event records: `id`, `type`, `start`, `end` (null for point events), `time
 
 ## 4. Spread graph (R5.3)
 
-### 4.1 Status in v0.1.0: community and publication level only
+### 4.1 Status in v0.1.0 and v0.2.0: community and publication level only
 - ADR-022 holds all account-level spread graphs until LQ-8 is answered. LQ-8's default is "community- and publication-level graphs only".
-- So in v0.1.0 the `account` node type is **defined but disabled**. The JSON has `"account_nodes_enabled": false`.
+- So in v0.1.0 and v0.2.0 the `account` node type is **defined but disabled**. The JSON has `"account_nodes_enabled": false`.
 - An item written by an account is attached to the **venue** it appeared in:
   - the community node (for example "Hacker News" or a V2EX node); or
   - for platforms without communities, a platform-level community node (for example "Bluesky, platform-wide").
@@ -230,9 +238,9 @@ Otherwise the edge is `unsupported`. It is stored for review and excluded from s
 - Community nodes carry item-level engagement (HN points and comments) as project-level metrics (OM §1), not as reach bands.
 - A reach band is never used to rank or score an account (§12 P2).
 
-### 4.6 Public-figure exception (conservative; **inactive for natural persons in v0.1.0**)
+### 4.6 Public-figure exception (conservative; **inactive for natural persons in v0.1.0 and v0.2.0**)
 - LQ-7 is open. Its default is: "Only organisations and publications are named, and only in the private UI. No natural person is named in any output."
-- v0.1.0 therefore defines the criteria below but does not apply them to natural persons. Applying them needs the LQ-7 answer plus an ADR.
+- v0.1.0 (and v0.2.0) therefore defines the criteria below but does not apply them to natural persons. Applying them needs the LQ-7 answer plus an ADR.
 - **Proposed criteria for a natural person.** All of the following must hold:
   1. The person speaks in a **professional public-communication role** about software. Examples: a journalist or editor for a publication with a masthead, or an official spokesperson or DevRel speaking *for an organisation*.
   2. The coded activity is part of that public role (FADP Art. 31(2)(f): "public activities").
@@ -287,15 +295,42 @@ Boundary rules:
 - A benchmark stated in the text of a title is coded twice, once as `title` and once as `benchmark_claim`, because it is two assets.
 - An image containing people's faces is recorded by hash only. Its content is not described (§12 P1).
 
+### 5.1 Case-level positioning field: `novelty_claim` (added in 0.2.0; not core)
+MC-09 (novelty positioning) needs a novelty claim on every case. In v0.1.0 the field existed only as an `ai_hype` extra field (§8), so presence outside that module was always `unknown`. From v0.2.0 it is a **case-level field** coded on every case in the coded sample. For `ai_hype` cases, the module's `novelty_claim` is this same value; it is not coded twice.
+
+- **What it codes.** Whether the project, **in its own words at T**, claims to be novel: new in kind, a new approach, or a new combination. It codes the *claim*, not whether the project is in fact novel. Fang et al. link novelty to stars and to lower long-run participation (LR [13], H-L6); whether their novelty measure and a quoted positioning claim are the same construct is **unknown** (candidates.md MC-09).
+- **Inputs (frozen at T, like the category inputs of OM §3.1, so no post-T information leaks in):**
+  1. the repo description at T;
+  2. the README at the last commit before T;
+  3. if the anchor type is `launch`, the evidence record that fixed `T_launch` (OM §2.1).
+- **Values** (nominal):
+  - `present`: at least one input contains a first-party span (≤ 300 characters, §11.2) with an **explicit novelty marker**, for example "the first", "the only", "a new kind of", "novel", "a new approach to", "a new way to", "reimagines", "never been possible before", "for the first time". Hedged claims ("one of the first") count.
+  - `absent`: **every** input listed above was captured and none contains a qualifying span. This is a field rule that allows `absent` from the captured inputs (§0 item 3, §11.3).
+  - `unknown`: otherwise, with a reason (§11.3), for example `no_evidence` when the README at T couldn't be retrieved.
+- **Attribute `novelty_kind`** (multi-valued; only when `present`, otherwise `not_applicable`):
+  - `new_in_kind`: claims that nothing like it existed, or that it is the first or only one, including within a stated scope ("the first open-source X", "the only X for Y");
+  - `new_approach`: claims a new method for an existing task ("a new approach to", "rethinks X from scratch");
+  - `new_combination`: claims novelty from joining existing things, with a novelty marker ("the first X that also does Y", "brings X to Y for the first time"); a span can carry both this and `new_in_kind`;
+  - `other`: a novelty claim that fits none of these (free-text note required).
+- **Not a novelty claim** (code `absent` if nothing else qualifies):
+  - release or version newness ("new in v2", "now supports", "rewritten"): that is relaunch language (§3.6);
+  - alternative positioning ("an open-source alternative to X", "replaces X"): recorded by `alternative_to_positioning` (§8) and `stated_reason = alternative_to_incumbent` (§7.1);
+  - performance or cost superlatives without a novelty marker ("the fastest", "3× faster"): `benchmark_claim` (§5);
+  - generic marketing adjectives ("modern", "next-generation", "powerful", "simple", "blazing fast");
+  - anything a third party says about the project (first-party only; `claim_basis = first_party_statement`, §2.2).
+- **Reliability** follows §2.3. A README fetched at a pinned commit and cited for "the README said X at c" is `high`.
+- **Status.** Not a core field (§10.3). Agreement is reported but doesn't gate G1, and the field can't feed promotion (so MC-09 can't be promoted on it) until a later minor version makes it core and it passes the α gate (§10.4).
+
 ---
 
 ## 6. Trigger attribution for bursts (R5.5)
 
 ### 6.1 Candidates (derived)
-For each burst with onset `t0` (hour precision):
+For each burst with onset `t0` (§3.2; hour or day precision):
 - **Proximal window (v0 choice):** items timestamped in `[t0 − 48 h, t0 + 6 h]`.
   - The +6 h tolerance absorbs day-precision timestamps and hourly binning.
   - The 48 h look-back matches the short windows used in prior HN-launch studies: 3 days in LR [8]; 24 h, 48 h and 7 d in LR [40].
+- **Day-precision onsets (from v0.2.0).** When the onset has precision `day`, `t0` is the start of the onset endpoint day (OM §2.1), and the burst may have started at any hour of that day. The proximal window is then `[t0 − 48 h, end of the onset day + 6 h]`, so items later on the onset day stay candidates. The distal window is unchanged. `time_offset_h` is still measured from `t0`, and every candidate records the onset precision. v0.1.0 assumed hour-precision onsets throughout, because the stargazers API gave per-star timestamps; star-history gives days, so retrospective cases mostly have day-precision onsets.
 - **Distal window:** `[t0 − 7 d, t0 − 48 h)`. Only for publications with a known lag (newsletters, weekly digests) or for items that a proximal item explicitly cites. The rationale for the lag must be quoted.
 - **Candidate items:** every captured item in these windows that mentions the repo (URL, name, or owner/name), plus the project's own `release` records.
 
@@ -334,14 +369,14 @@ Each candidate records:
 The rank-1 candidate's `trigger_type` is the burst's coded trigger (core field C9).
 
 **Attribution confidence (`trigger_confidence`, ordinal):**
-- `high`: the rank-1 candidate meets all of:
+- `high`: the burst onset has precision `hour`, and the rank-1 candidate meets all of:
   - it is in the proximal window, with `t0 − 24 h ≤ time ≤ t0 + 2 h` at hour precision;
   - `links_repo = yes`;
   - band `r3` or above, or `hn_front_page`;
   - no other candidate in the proximal window has an equal or higher band.
 - `medium`: the rank-1 candidate is in the proximal window with `links_repo = yes`, but one of these holds:
   - another candidate has a comparable band (co-triggers: list them all);
-  - the timestamp has only day precision;
+  - the candidate's timestamp or the burst onset has only day precision;
   - or it is outside the ±24 h / +2 h core.
 - `low`: any of:
   - only distal candidates exist;
@@ -433,7 +468,7 @@ How the codebook applies it (these rules add conditions, never remove them):
 
 | Module | Activation criteria (any one suffices unless stated) | Extra fields |
 |---|---|---|
-| `ai_hype` | Primary or secondary category is `ai-apps-agents` or `ml-infra`; **or** the description, topics or README hero at T names an ML model, an LLM, or an agent framework as the core of the product | `model_dependency` (`proprietary_api | open_weights | own_model | mixed | unknown`); `adjacent_model_release` (a model release by a major lab within ±14 days of T, with evidence; the reason for this field is that hype-cycle timing is a known confounder: fake stars are concentrated in AI/LLM, LR [17][20], and see H-L1); `benchmark_claim_present`; `demo_type`; `fake_star_campaign_flag` (from OM §4); `novelty_claim` (quoted span; Fang et al. link novelty to stars and to lower participation, LR [13], H-L6) |
+| `ai_hype` | Primary or secondary category is `ai-apps-agents` or `ml-infra`; **or** the description, topics or README hero at T names an ML model, an LLM, or an agent framework as the core of the product | `model_dependency` (`proprietary_api | open_weights | own_model | mixed | unknown`); `adjacent_model_release` (a model release by a major lab within ±14 days of T, with evidence; the reason for this field is that hype-cycle timing is a known confounder: fake stars are concentrated in AI/LLM, LR [17][20], and see H-L1); `benchmark_claim_present`; `demo_type`; `fake_star_campaign_flag` (from OM §4); `novelty_claim` (from v0.2.0 this is the case-level field of §5.1, coded once per case and shared here) |
 | `b2b_oss_saas` | Evidence dated ≤ T + 90 d of any of: a paid or hosted offering from the same project, a pricing page (OM `biz.pricing_page`), a commercial or dual licence, a "book a demo" or enterprise call-to-action | `business_model` (`open_core | hosted_cloud | dual_license | support_services | none_observed | unknown`); `license_at_T` (SPDX); `license_changes` (events); `readme_cta` (`signup | waitlist | demo | contact_sales | none | unknown`); `launch_week` (bool, per the §3.4 campaign rule; LR [63] is a practitioner source only); `funding_mention` (`self_reported` only, ADR-021) |
 | `chinese_ecosystem` | The README at T is mainly Chinese, or has a Chinese README variant; **or** the project has a V2EX mention in the case window. The location of a person is **never** used (§12 P1). | `bilingual_readme` (bool); `zh_channel_mentions` (**V2EX only**, and only once H2 Q8 clears it: ADR-010, SM §2.19); `unobservable_channels_zh` (always lists Juejin, Zhihu and Bilibili as GAP, SM §2.20–2.22; Gitee is not audited, so `unknown`); `gitee_mirror` (`unknown` unless a first-party artifact states it). **The module reports "insufficient evidence" for channel attribution by default** (SM §5 item 6). No V2EX member is profiled (TM-19 conditions; PIPL note in SM §2.19). |
 | `cli_devtools` | Primary category is `devtools`, **or** the repo at T ships a command-line entry point (an install one-liner, a Homebrew formula, a `bin` entry in npm, a console script in Python, a Cargo binary) | `install_channels` (multi: `brew | cargo | npm | pip | go | docker | curl_sh | binary_release | other`); `terminal_demo_asset` (bool, §5); `alternative_to_positioning` (a quoted "X alternative" or "replaces X" span, or `none`); `shell_integration` (bool); `homebrew_series_available` (coverage, OM) |
@@ -444,7 +479,7 @@ How the codebook applies it (these rules add conditions, never remove them):
 
 ## 9. Category taxonomy (reconciled with ADR-017)
 
-**Decision: adopt the 15 provisional categories of OM §3.1 unchanged**, as `category-taxonomy v0.1.0` inside codebook v0.1.0.
+**Decision: adopt the 15 provisional categories of OM §3.1 unchanged**, as `category-taxonomy v0.1.0` inside codebook v0.1.0 (unchanged in codebook v0.2.0).
 - **No ids are added, removed, merged or split, and no definition changes.** The diff against ADR-017 is empty, so nothing has to be re-normalized (ADR-017's "if it does, every case is normalized again" isn't triggered).
 - **What this codebook adds is only decision rules for the boundaries.** They make the existing definitions easier to apply; they don't redefine them.
 - **Why not revise now:**
@@ -489,7 +524,7 @@ Boundary rules, applied in this order:
 - **Multi-valued fields** (for example module activation, manipulation flags) are split into one binary nominal field per value.
 - **Report the `unknown` rate per field and per coder**, next to α.
 
-### 10.3 Core fields (v0.1.0)
+### 10.3 Core fields (v0.1.0; unchanged in v0.2.0)
 | Id | Field | Unit | Level | α variant | Promotion-deciding (flag for M4-T0) |
 |---|---|---|---|---|---|
 | C1 | `reliability` (effective, per coded item; §2.3) | coded item | ordinal (high > medium > low) | ordinal α, plus nominal α on known/unknown | no |
@@ -505,13 +540,14 @@ Boundary rules, applied in this order:
 | C11a | `mechanism_support.presence` | case × candidate card | nominal | nominal α | **yes**: the prevalence contrast in §9.3 |
 | C11b | `mechanism_support.direction` | case × candidate card | nominal | nominal α | **yes**: supporting and contradicting cases in §9.3 |
 
-**Not core in v0.1.0.** Agreement is still reported for each of these, but none of them gates G1:
+**Not core in v0.1.0 or v0.2.0.** Agreement is still reported for each of these, but none of them gates G1:
 - `phrase` and `benchmark_claim` unitizing;
 - `stated_reason`;
 - `prep_kind`;
 - `pivot_dimension`;
 - `burst_shape` (derived);
-- module extra fields.
+- module extra fields;
+- `novelty_claim` and `novelty_kind` (§5.1, added in 0.2.0).
 
 Consequence: none of these fields may feed promotion until it is promoted to core in a later minor version and passes the gate.
 
@@ -555,7 +591,7 @@ Span rules:
 
 ### 11.4 Provenance on every coded value (R6.3, R7.4)
 Each coded value records:
-- `codebook_version` (for example `0.1.0`);
+- `codebook_version` (for example `0.2.0`);
 - `prompt_id` and `prompt_version`, or `human` for manual passes;
 - `model_id` (for example `claude-opus-5`, ADR-007), or `human`;
 - `llm_backend` (`subscription | api | none`);
@@ -615,6 +651,8 @@ Values with `coder_confidence = low` go to the review queue (R7.3).
   - The denominator is the total number of enum values across the coded enums in `schemas/codebook/<version>.json`: evidence types, event types, edge types, edge evidence levels, the reliability scale, asset categories, trigger types, modules and categories.
   - The numerator is the number of values added, removed or redefined in the last revision round.
   - The verifier computes it with a JSON diff.
+- **Before 1.0.0.** 1.0.0 is reserved for the pilot freeze (next bullet). Before it, a change that would otherwise be major (for example a changed input to a derived field) bumps the **minor** version. It still needs a changelog entry and a dated amendment to the pilot pre-registration that states what data had been seen. This mirrors the outcome-thresholds rule (OM §5.4, ADR-035).
+- **Changes before pilot attempt 1 are not a G1 revision round.** G1's count (above) compares the version going into a revision round with the one coming out of it, and the first round is the revision after attempt 1 (pilot pre-registration §6.7, §7.1). A version adopted before attempt 1 is simply the starting version.
 - **After the pilot, the codebook freezes as v1.0.0.** A later change to a definition that affects promotion needs an ADR and a re-run on held-out cases (the same policy as ADR-019).
 
 ---
@@ -634,3 +672,9 @@ Values with `coder_confidence = low` go to the review queue (R7.3).
   - coding, locator, provenance and privacy rules (CB-11).
 - 2026-09-25 — errata (no version bump; codebook not yet used for coding): C7 in the JSON now lists the known/unknown companion statistic, matching §10.2 (the table and JSON had omitted it).
 - 2026-09-25 — errata (no version bump; codebook not yet used for coding), M3-T8: `depends_on_adrs` in the JSON and the ADR list in the header replace ADR-012 (stargazers API, superseded; GitHub closed the stargazer lists on 2026-06-30) with ADR-032 and ADR-035. No code value changes. **Still open, not fixed by this erratum:** §2.1 and §2.3 examples and §3.1–3.2 (`burst | quiet` derivation and required evidence) still name the stargazers API and `starscout_filtered`; the burst derivation's series needs a decision before pilot unitizing (pilot amendment 1, "Not changed").
+- **0.2.0 (2026-09-25), M4-T1d + M4-T2c.** Written before any coding, unitizing, derived event or outcome data. **No coding, unitizing or burst/quiet derivation ever used v0.1.0**, so there is nothing to re-code. `schemas/codebook/v0.1.0.json` is kept unchanged as a record (SHA-256 `6c955baf…28704`); the new file is `schemas/codebook/v0.2.0.json`.
+  - **(a) Burst and quiet series (M4-T1d; closes the "still open" item of the M3-T8 erratum above).** §3.1–3.3: `burst | quiet` are derived from the `raw` star-history series on endpoint days (ADR-032.3, ADR-035), for every case, instead of `starscout_filtered` from the stargazers API, which no longer exists. Detection is `velocity-v0` on endpoint days, and the onset follows OM §2.1 exactly: the hour where hourly watch-list snapshots cover the 48-hour window, otherwise the day. The hourly baseline is `μ_h = μ_d / 24`. The burst that holds the case's `T_burst` takes the recorded onset. Burst end, merge gap and minimum quiet keep their numbers (3 days, 7 days, 7 days) but count endpoint days instead of UTC days, and use raw instead of filtered counts. `gharchive_coverage_ratio` is dropped from burst evidence. Coverage gaps are now missing star-history days. §6.1 gains a proximal window for day-precision onsets (`[t0 − 48 h, end of onset day + 6 h]`), and §6.3 states that `high` trigger confidence needs an hour-precision onset. v0.1.0 did not define either case, because it assumed hour-precision onsets. §2.1, §2.3 and §2.4 examples now name star-history and the hourly snapshots; no anchor or rule changes.
+  - **(b) `novelty_claim` (M4-T2c; MC-09).** New case-level fields `novelty_claim` (`present | absent`, plus `unknown`) and `novelty_kind` (`new_in_kind | new_approach | new_combination | other`), §5.1. Both are non-core (§10.3). The `ai_hype` extra field of the same name now shares the case value.
+  - **Why this is a minor bump (0.2.0) and not a patch (0.1.1).** Adding a field is minor under §13. Change (a) is not wording-only either: it changes the input series and day basis of a derived field. Strictly, that is the "threshold or window used by derived fields" kind of change §13 calls major, but 1.0.0 is reserved for the pilot freeze, so before 1.0.0 it bumps the minor version (§13, new bullet, as for outcome-thresholds under ADR-035). Doing (a) as 0.1.1 and (b) as 0.2.0 would pin two versions in a row with no coding between them, so both ship together as 0.2.0.
+  - **G1 count.** No enum value in `g1_category_change_denominator` was added, removed or renamed. The denominator stays 79, and the verifier's JSON diff of those nine enums is empty. The new enums are non-core and outside the denominator. The `burst` and `quiet` values keep their definitions ("abnormally high star velocity against the repo's own baseline"; "≥ 7 days not in a burst"); only the series they are derived from changed. G1's "< 10% changed" is measured between revision rounds of the pilot. The pilot hasn't started, so this change isn't a round; v0.2.0 is the version going into attempt 1 (pilot amendment 2).
+  - **Pilot pin:** `docs/preregistration/2026-09-25-pilot-amendment-2.md`.

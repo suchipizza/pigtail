@@ -1,7 +1,7 @@
 # Candidate mechanism cards (seed set v0)
 
 **Task:** M4-T1b · **Written:** 2026-09-25 · **Author role:** `analyst`, working with researcher discipline
-**Requirements:** PRD F9 (R9.1–R9.3), §9.3; codebook `0.1.0` §7 (card schema) and §10 (C11a/C11b).
+**Version:** 0.2.0 (MC-09 changed; see the changelog at the end) · **Requirements:** PRD F9 (R9.1–R9.3), §9.3; codebook `0.2.0` §7 (card schema) and §10 (C11a/C11b).
 **Machine-readable copy:** `schemas/mechanisms/candidates-v0.json`. If this file and the JSON disagree, that is a bug. Until it is fixed, the JSON wins for coding tools and this file wins for meaning (the same rule as the codebook).
 **Data version:** none. No case has been coded against these cards. **Code commit when written:** `4f55e73`.
 **Citations:** `[n]` means reference n in `docs/research/literature.md` §8. Every number quoted here is copied from that review, and the review is the source. Nothing here adds a number the review doesn't state.
@@ -211,18 +211,18 @@ These values apply to **each** card below. The JSON repeats them on every card, 
   - H-L4 is also tested as a forecasting feature: forecasting pre-registration, feature F15, §5.3.
 - **Caveat:** this card risks being tautological, because breadth is partly the outcome itself. It can't be promoted without a testable precondition (PRD §9.3, fourth condition).
 
-### MC-09 — Novelty positioning
+### MC-09 — Novelty positioning (card version 0.2.0)
 - **Description:** the project presents itself as novel, for example new in kind or a new combination. That positioning draws attention, but also comes with lower long-run participation.
 - **What the literature says:** in the Python ecosystem, more novel projects get more stars. The same projects have smaller teams and a higher long-run risk of abandonment [13].
 - **Preconditions:**
-  1. There is a first-party novelty claim [design]. *Test:* the `ai_hype` extra field `novelty_claim` has a quoted span.
-  - Outside `ai_hype`, codebook 0.1.0 has **no field** for novelty claims, so presence there is `unknown` (codebook gap; see open issues).
+  1. There is a first-party novelty claim [design]. *Test:* the case-level `novelty_claim` (codebook 0.2.0 §5.1) is `present`, with its quoted span.
+  - `novelty_claim` is non-core in codebook 0.2.0 (§10.3), so it can't feed promotion until a later minor version makes it core and it passes the α gate.
   - The review doesn't describe how [13] measured novelty. Whether a quoted positioning claim is the same construct is **unknown**.
 - **Required assets:** `tagline` or `title` carrying the claim.
 - **Sequence:** the claim is present at T → `burst`.
-- **Presence test:** `present` if precondition 1 holds. `absent` if the `ai_hype` module is active, the README and tagline at T were captured, and they contain no novelty claim. `unknown` otherwise.
+- **Presence test:** `present` if `novelty_claim = present`; `absent` if `novelty_claim = absent`; `unknown` otherwise.
 - **Outcome dimensions:** attention (expected +), community (expected −, T+90 returning external contributors).
-- **Modules:** `ai_hype` (in v0; the codebook gap limits it to this module).
+- **Modules:** none (not limited to `ai_hype`).
 - **Loser contrast:**
   - *Supports:* among attention winners, novelty-claim cases have lower `CM90` than matched non-novel winners (H-L6), and novelty is more prevalent among attention winners than among matched losers.
   - *Contradicts:* the community difference is null (H-L6 falsified).
@@ -293,7 +293,11 @@ These values apply to **each** card below. The JSON repeats them on every card, 
 ---
 
 ## 3. Open issues
-1. **Codebook gap (MC-09).** Novelty claims can only be coded inside `ai_hype`. A general `novelty_claim` field would be a minor codebook version (codebook §13), which the pilot's revision round may propose.
+1. **Codebook gap (MC-09): closed in codebook 0.2.0**, which adds the case-level `novelty_claim` field (§5.1). The field is still non-core, so MC-09 can't be promoted on it until the field becomes core and passes α (codebook §10.3).
 2. **Held and GAP channels.** MC-01, MC-02, MC-03 and MC-13 depend on HN, and MC-04 and MC-06 on social platforms (held or GAP). Until ADR-022's controls exist, those cards are `unknown` on almost every case. The pilot's C11a units for them are then pipeline-forced and excluded from α (pilot pre-registration §4.5).
 3. **`[design]` thresholds need calibration.** Examples: ≥ 3 days (MC-05), ≥ 2 venues (MC-07), ≥ 3 nodes within 72 h (MC-08), ±7 days (MC-06). They are v0 choices, calibrated in the pilot's revision round. After v1.0.0 they change only under the ADR-019 policy.
 4. **Overlapping cards.** MC-01/MC-02/MC-03 and MC-01/MC-11 overlap. Promotion analyses must report them jointly, so that the same cases aren't counted as independent support.
+
+## Changelog
+- 2026-09-25 — 0.1.0: seed set of 13 candidate cards (M4-T1b).
+- 2026-09-25 — 0.2.0: MC-09's precondition test, presence test and modules now use the case-level `novelty_claim` of codebook 0.2.0 (§5.1) instead of the `ai_hype` extra field, and the card is no longer limited to `ai_hype`. The same text is in `schemas/mechanisms/candidates-v0.json` (MC-09 version 0.2.0, file version 0.2.0). Pilot amendment 2, B4. Made before any C11a unit was cut or any case coded. No other card changed.

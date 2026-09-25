@@ -1,0 +1,290 @@
+{
+  "schema_version": "v0",
+  "id": "codebook",
+  "version": "0.2.0",
+  "status": "draft",
+  "supersedes": "0.1.0",
+  "supersedes_note": "0.1.0 was never used for coding, unitizing or any derived event; schemas/codebook/v0.1.0.json is kept unchanged as a record",
+  "created": "2026-09-25",
+  "spec": "docs/methodology/codebook.md",
+  "requirements": ["R5.1", "R5.2", "R5.3", "R5.4", "R5.5", "R6.1", "R6.2", "R6.3", "R7.1", "R7.2", "R7.4", "R9.1", "R9.2", "PRD §9.2", "PRD §9.3", "CB-10", "CB-11"],
+  "depends_on_adrs": ["ADR-010", "ADR-014", "ADR-015", "ADR-017", "ADR-019", "ADR-022", "ADR-027", "ADR-032", "ADR-035"],
+  "semver_policy": {
+    "patch": "wording, examples, clarifications; no coded value can change",
+    "minor": "new enum value, field, module or core field; existing codes stay valid",
+    "major": "enum value removed, renamed or redefined; or a derived-field threshold/window changes",
+    "before_1_0_0": "1.0.0 is reserved for the pilot freeze (CB §13), so before it a change that would otherwise be major bumps the minor version; it still needs a changelog entry and a dated pilot pre-registration amendment stating what data had been seen (same policy as outcome-thresholds, ADR-035)"
+  },
+
+  "evidence_types": ["platform_metric", "platform_event", "project_artifact", "community_post", "editorial", "archive_capture", "operator_entry"],
+  "capture_modes": ["api_json", "rendered_html", "screenshot", "archive", "operator_entry"],
+  "claim_basis": ["observed", "first_party_statement", "reported"],
+  "reliability_scale": {
+    "level_of_measurement": "ordinal",
+    "levels": [
+      {"value": "high", "ordinal": 3},
+      {"value": "medium", "ordinal": 2},
+      {"value": "low", "ordinal": 1}
+    ],
+    "missing": "unknown",
+    "rules": ["weakest_link", "reported_claim_raised_to_at_most_medium_by_independent_corroboration"]
+  },
+  "manipulation_flags": ["fake_star_campaign_suspected", "vote_solicitation", "undisclosed_paid_promotion_suspected", "disclosed_paid_promotion", "none_observed"],
+  "first_party": ["yes", "no", "unknown"],
+
+  "event_layers": {
+    "attention": {"types": ["burst", "quiet"], "assignment": "derived"},
+    "action": {"types": ["prep", "launch", "relaunch", "pivot"], "assignment": "coded"}
+  },
+  "event_types": ["prep", "launch", "burst", "quiet", "pivot", "relaunch"],
+  "event_type_supported": ["prep", "launch", "relaunch", "pivot", "none"],
+  "event_parameters": {
+    "case_window_days": {"before_T": 90, "after_T": 365},
+    "burst_series": {
+      "detection_and_segmentation": "raw star-history daily net counts (TM-33; ADR-032.3, ADR-035), on endpoint days in star_history_day_tz (OM §1.2), for every case",
+      "onset_refinement": "hourly watch-list stargazerCount snapshots (GraphQL, TM-02; ADR-032.1) only where they cover the 48-hour detection window; never used for detection, end, merging or quiet",
+      "filtered_variants": "not used to define burst or quiet units (unknown for most windows, ADR-032.3); where a filtered variant is class-eligible for the whole case window a re-segmentation may be reported as exploratory"
+    },
+    "burst_detection_rule": "velocity-v0 on endpoint days (OM §2.1; thresholds JSON burst_detection): day d fires when n(d-1) + n(d) >= 100 and z >= 3, baseline = the 30 endpoint days before d-1 converted to 48-hour sums, sigma with the sqrt(mean) floor of ADR-027 item 3; a burst starts at the first firing day not already inside a burst",
+    "burst_onset_rule": "OM §2.1 exactly: where hourly snapshots cover the 48-hour window (endpoint days d-1 and d), onset = earliest hour with net gain > mu_h + 3*sqrt(mu_h) (mu_h + 1 if mu_h == 0), with mu_h = mu_d / 24 (mu_d = mean stars per endpoint day over the 30-day detection baseline), else window start, precision hour; otherwise the same rule on endpoint days d-1, d with mu_d, onset = start of the first qualifying endpoint day, else start of d-1, precision day. The burst containing the case's recorded T_burst onset takes that recorded onset and precision.",
+    "burst_end_rule": "start of first run of 3 consecutive endpoint days (OM §1.2) each with raw star-history stars <= mu_d + 3*sqrt(mu_d) (mu_d + 1 if mu_d == 0), mu_d = mean stars per endpoint day over the burst's detection baseline",
+    "day_boundary_recorded": ["tz", "tz_status", "first_day", "last_day"],
+    "onset_precision": ["hour", "day"],
+    "burst_merge_gap_days": 7,
+    "quiet_min_days": 7,
+    "launch_campaign_days": 14,
+    "relaunch_min_gap_days": 30,
+    "prep_lookback_days": 90,
+    "burst_shape_rule": "sudden_fast_decay: peak <= 48h after onset and < 50% of peak within 7d; gradual_build: peak > 7d after onset; else mixed (on endpoint days: peak day index 0 or 1 from the onset day; a daily count < 50% of the peak within day indices <= 7; gradual_build when the peak day index > 7)"
+  },
+  "case_fields": {
+    "novelty_claim": {
+      "added_in": "0.2.0",
+      "unit": "case",
+      "level": "nominal",
+      "values": ["present", "absent"],
+      "special_values": ["unknown"],
+      "inputs_frozen_at_T": ["repo description at T", "README at the last commit before T", "the evidence record that fixed T_launch, if anchor_type is launch"],
+      "present_requires": "first-party quoted span (<= 300 chars) with an explicit novelty marker, from the inputs",
+      "absent_requires": "every listed input captured and none contains a qualifying span",
+      "not_novelty": ["release or version newness (relaunch language, CB §3.6)", "alternative-to or open-source-version-of positioning", "performance or cost superlatives without a novelty claim (benchmark_claim)", "generic marketing adjectives (modern, next-generation, powerful, simple)", "third-party statements"],
+      "core": false,
+      "spec": "CB §5.1"
+    },
+    "novelty_kind": {
+      "added_in": "0.2.0",
+      "unit": "case",
+      "multi_valued": true,
+      "applies_when": "novelty_claim == present; otherwise not_applicable",
+      "values": ["new_in_kind", "new_approach", "new_combination", "other"],
+      "core": false,
+      "spec": "CB §5.1"
+    }
+  },
+  "burst_shapes": ["sudden_fast_decay", "gradual_build", "mixed", "unknown"],
+  "quiet_phases": ["pre_first_burst", "inter_burst", "post_last_burst"],
+  "launch_modes": ["self_launched", "third_party_discovered", "none_observed"],
+  "prep_kinds": ["readme_overhaul", "demo_asset", "docs_site", "landing_page", "waitlist", "teaser_post", "first_release", "private_beta", "repo_made_public", "other"],
+  "pivot_dimensions": ["category", "target_user", "use_case", "business_model", "license"],
+  "time_precision": ["hour", "day", "unknown"],
+
+  "spread_graph": {
+    "node_types": ["project", "community", "publication", "account"],
+    "account_nodes_enabled": false,
+    "account_nodes_hold": "ADR-022 until LQ-8 answered; lifting requires an ADR plus CB-10 and CB-14",
+    "edge_types": ["published", "redistributed", "cited", "replied"],
+    "edge_type_coded_values": ["published", "redistributed", "cited", "replied", "none"],
+    "edge_evidence_levels": [
+      {"value": "explicit", "ordinal": 3},
+      {"value": "attributed", "ordinal": 2},
+      {"value": "inferred", "ordinal": 1},
+      {"value": "none", "ordinal": 0}
+    ],
+    "supported_threshold": {
+      "min_level": "attributed",
+      "also_requires": ["both endpoint evidence hash-valid and locators verified", "source timestamp precedes target timestamp given precision", "no privacy hold on either endpoint"]
+    },
+    "edge_status": ["supported", "unsupported"],
+    "replied_edge_rule": "only when replier is the project node or the reply links the repo/site; otherwise reply_count on the item",
+    "reach_bands": [
+      {"value": "r0", "range": "unknown"},
+      {"value": "r1", "min": 0, "max": 999},
+      {"value": "r2", "min": 1000, "max": 9999},
+      {"value": "r3", "min": 10000, "max": 99999},
+      {"value": "r4", "min": 100000, "max": null}
+    ],
+    "reach_storage": "band only; exact count discarded at ingest (CB-10)",
+    "public_figure_rule": {
+      "status_natural_persons": "inactive until LQ-7 answered and ADR",
+      "organisations_and_publications": "may be named in private UI only (LQ-7 default)",
+      "criteria_all_required": ["professional public-communication role about software", "coded activity within that public role (FADP Art. 31(2)(f))", "role documented in a cleared-source snapshot", "not a matched-loser maintainer nor personal-account repo owner in the panel", "operator allowlist approval with evidence_id (CB-14)"],
+      "never_sufficient": ["reach band", "verification badge", "being well known"],
+      "public_outputs": "never named (CB-14, CB-20)"
+    }
+  },
+
+  "asset_categories": ["image_screenshot", "image_diagram", "gif_animation", "video_demo", "terminal_recording", "live_demo", "benchmark_claim", "benchmark_chart", "comparison_table", "title", "tagline", "phrase", "readme_section", "install_one_liner", "code_snippet", "link", "launch_post", "logo_brand", "social_proof", "pricing_offer", "other"],
+  "readme_kinds": ["hero_pitch", "quickstart", "feature_list", "why_alternatives", "faq", "badges", "social_proof", "call_to_action", "roadmap", "other"],
+  "link_kinds": ["repo", "docs", "landing_page", "launch_post", "demo", "benchmark_source", "other"],
+  "asset_origin": ["first_party", "third_party", "unknown"],
+  "asset_spread_status": ["reused_by_third_party", "first_party_only", "unknown"],
+
+  "trigger_attribution": {
+    "proximal_window_hours": {"before_onset": 48, "after_onset": 6},
+    "day_precision_onset": {
+      "t0": "start of the onset endpoint day (OM §2.1)",
+      "proximal_window": "[t0 - 48h, end of the onset endpoint day + 6h]",
+      "distal_window": "unchanged: [t0 - 7d, t0 - 48h)",
+      "time_offset_h": "measured from t0; time_precision of the onset recorded on every candidate",
+      "max_trigger_confidence": "medium"
+    },
+    "distal_window": {"from_days_before_onset": 7, "to_hours_before_onset": 48, "requires": "quoted lag rationale or explicit citation by a proximal item"},
+    "high_confidence_core_window_hours": {"before_onset": 24, "after_onset": 2},
+    "high_confidence_requires": "hour-precision onset and hour-precision candidate timestamp",
+    "ranking": ["proximal_before_distal", "links_repo_yes_first", "higher_reach_or_engagement_band_first", "smaller_abs_time_offset_first"],
+    "trigger_types": ["hn_front_page", "hn_post", "community_post", "social_post", "publication_feature", "aggregator_listing", "upstream_mention", "release", "first_party_announcement", "paid_promotion", "manipulation_suspected", "none_observed", "unknown"],
+    "confidence_levels": [
+      {"value": "high", "ordinal": 3},
+      {"value": "medium", "ordinal": 2},
+      {"value": "low", "ordinal": 1}
+    ],
+    "unobservable_channels_default": ["reddit", "x", "youtube", "product_hunt", "lobsters", "devto", "juejin", "zhihu", "bilibili"],
+    "interpretation": "association only; causal claims only via R8.1 event studies"
+  },
+
+  "mechanism_card": {
+    "required_fields": ["id", "name", "version", "status", "description", "participation_motive", "preconditions", "required_assets", "sequence_timing", "outcome_dimensions", "supporting_cases", "contradicting_cases", "loser_contrast", "effect_estimate", "confidence", "applicable_strata", "saturation_trend", "unobservable_channels", "deciding_field_alpha", "sensitivity_flags", "modules", "history"],
+    "status": ["candidate", "promoted"],
+    "confidence": ["low", "medium", "high"],
+    "confidence_rules": {
+      "low": "every candidate; or promoted with an unresolved sensitivity flag",
+      "medium": "promoted per PRD §9.3 but not all high conditions",
+      "high": "promoted AND >=10 supporting winner cases from >=3 strata AND both §9.3 routes (prevalence contrast and event-study 90% CI excludes 0) AND alpha >= 0.80 with CI lower bound >= 0.70 on every promotion-deciding field used AND no sensitivity flag AND every contradicting case explained from coded evidence"
+    },
+    "promotion_rule_prd_9_3": {
+      "all_required": [
+        ">= 5 supporting winner cases from >= 2 strata",
+        "higher prevalence among winners than among their matched losers, OR an event-study effect whose 90% CI excludes zero",
+        "contradicting cases are listed and explained",
+        "preconditions stated in a testable form"
+      ],
+      "otherwise": "candidate",
+      "codebook_additions_never_relaxing": ["fields failing their alpha gate cannot feed promotion", "prevalence excludes unknown; unknown-share gap > 20 pp between sides is flagged", "demotion to candidate recorded in history"]
+    },
+    "outcome_dimensions": ["attention", "adoption", "community", "business"],
+    "saturation_trend": ["rising", "stable", "declining", "insufficient_evidence"],
+    "sensitivity_flags": ["sensitive_to_fake_star_filter", "sensitive_to_threshold_version"],
+    "stated_reasons": ["usefulness", "novelty", "performance", "cost", "alternative_to_incumbent", "open_source_or_self_hostable", "ease_of_use", "humor_or_meme", "other", "unknown"],
+    "support_presence": ["present", "absent", "unknown"],
+    "support_direction": ["supports", "contradicts", "neutral"],
+    "support_strength": ["strong", "weak"]
+  },
+
+  "modules": {
+    "ai_hype": {
+      "activation_any": ["primary or secondary category in [ai-apps-agents, ml-infra]", "description/topics/README hero at T names an ML model, LLM or agent framework as the product core"],
+      "extra_fields": ["model_dependency", "adjacent_model_release", "benchmark_claim_present", "demo_type", "fake_star_campaign_flag", "novelty_claim"],
+      "shared_case_fields": {"novelty_claim": "same value as the case-level novelty_claim (case_fields, CB §5.1); coded once per case, not again by the module"},
+      "enums": {"model_dependency": ["proprietary_api", "open_weights", "own_model", "mixed", "unknown"]},
+      "parameters": {"adjacent_model_release_window_days": 14}
+    },
+    "b2b_oss_saas": {
+      "activation_any": ["paid or hosted offering by the same project with evidence <= T+90d", "pricing page (OM biz.pricing_page)", "commercial or dual licence", "book-a-demo or enterprise CTA"],
+      "extra_fields": ["business_model", "license_at_T", "license_changes", "readme_cta", "launch_week", "funding_mention"],
+      "enums": {
+        "business_model": ["open_core", "hosted_cloud", "dual_license", "support_services", "none_observed", "unknown"],
+        "readme_cta": ["signup", "waitlist", "demo", "contact_sales", "none", "unknown"]
+      }
+    },
+    "chinese_ecosystem": {
+      "activation_any": ["README at T mainly Chinese or has a Chinese README variant", "V2EX mention in the case window"],
+      "never_used": ["location of a person"],
+      "extra_fields": ["bilingual_readme", "zh_channel_mentions", "unobservable_channels_zh", "gitee_mirror"],
+      "coverage_note": "V2EX only, off by default until H2 Q8 (ADR-010); Juejin, Zhihu, Bilibili are GAP; Gitee not audited; default channel-attribution result is 'insufficient evidence'"
+    },
+    "cli_devtools": {
+      "activation_any": ["primary category devtools", "repo at T ships a command-line entry point"],
+      "extra_fields": ["install_channels", "terminal_demo_asset", "alternative_to_positioning", "shell_integration", "homebrew_series_available"],
+      "enums": {"install_channels": ["brew", "cargo", "npm", "pip", "go", "docker", "curl_sh", "binary_release", "other"]}
+    },
+    "corporate_backed": {
+      "activation_any": ["owner is a GitHub organisation identified as company or foundation by a first-party artifact", "README at T states maintenance or sponsorship by an organisation"],
+      "extra_fields": ["backing_type", "org_channel_use", "pre_T_org_member_commit_share", "org_audience_band"],
+      "enums": {"backing_type": ["large_company", "startup", "foundation", "unknown"]}
+    },
+    "relaunch_pivot": {
+      "activation_any": ["timeline has a relaunch or pivot event", "repo age at T > 365 days with evidence of a prior launch", "rename = true"],
+      "extra_fields": ["prior_launch_ref", "gap_days", "change_kinds", "prior_case_outcome_class", "prior_case_id"],
+      "enums": {"change_kinds": ["major_version", "rewrite", "rename", "positioning", "license", "category"]}
+    }
+  },
+
+  "category_taxonomy": {
+    "version": "0.1.0",
+    "source": "ADR-017 / docs/specs/outcome-model.md §3.1",
+    "diff_vs_adr_017": [],
+    "categories": ["ai-apps-agents", "ml-infra", "devtools", "web-frontend", "backend-libs", "data-db", "infra-ops", "security", "self-hosted-apps", "mobile-desktop", "lang-runtime", "crypto-web3", "lists-learning", "media-games-science", "other"],
+    "boundary_rule_order": ["lists-learning pre-pass", "crypto-web3", "ai split (apps vs infra)", "function over deployment mode", "imported vs run", "security by primary purpose", "other requires note"],
+    "review_confidence_below": 0.6,
+    "other_share_review_trigger": 0.10
+  },
+
+  "reliability_gate": {
+    "g1_alpha_min": 0.70,
+    "promotion_deciding_alpha_under_review": {"value": 0.80, "backlog": "M4-T0", "status": "flagged, not decided"},
+    "nominal_unknown_handling": "unknown is a category value",
+    "ordinal_unknown_handling": "unknown treated as missing; companion nominal alpha on known/unknown must also pass",
+    "multi_valued_handling": "split into one binary nominal field per value",
+    "ci": "bootstrap 95%",
+    "min_pairable_units": "set in M4-T2 pre-registration; not assessed = fail"
+  },
+  "core_fields": [
+    {"id": "C1", "field": "reliability", "unit": "coded_item", "level": "ordinal", "alpha": ["ordinal", "nominal_known_unknown"], "promotion_deciding": false},
+    {"id": "C2", "field": "first_party", "unit": "item", "level": "nominal", "alpha": ["nominal"], "promotion_deciding": false},
+    {"id": "C3", "field": "event_type_supported", "unit": "item", "level": "nominal", "alpha": ["nominal"], "promotion_deciding": true},
+    {"id": "C4", "field": "category_primary", "unit": "case", "level": "nominal", "alpha": ["nominal"], "promotion_deciding": true},
+    {"id": "C5", "field": "module_active.<module>", "unit": "case", "level": "nominal", "alpha": ["nominal_per_module"], "promotion_deciding": false},
+    {"id": "C6", "field": "edge_type", "unit": "candidate_pair", "level": "nominal", "alpha": ["nominal"], "promotion_deciding": false},
+    {"id": "C7", "field": "edge_evidence_level", "unit": "candidate_pair", "level": "ordinal", "alpha": ["ordinal", "nominal_known_unknown"], "promotion_deciding": false},
+    {"id": "C8", "field": "asset_category", "unit": "asset_instance", "level": "nominal", "alpha": ["nominal"], "promotion_deciding": false},
+    {"id": "C9", "field": "trigger_type", "unit": "burst", "level": "nominal", "alpha": ["nominal"], "promotion_deciding": true},
+    {"id": "C10", "field": "trigger_confidence", "unit": "burst", "level": "ordinal", "alpha": ["ordinal", "nominal_known_unknown"], "promotion_deciding": false},
+    {"id": "C11a", "field": "mechanism_support.presence", "unit": "case_x_card", "level": "nominal", "alpha": ["nominal"], "promotion_deciding": true},
+    {"id": "C11b", "field": "mechanism_support.direction", "unit": "case_x_card", "level": "nominal", "alpha": ["nominal"], "promotion_deciding": true}
+  ],
+  "non_core_reported_fields": ["phrase", "benchmark_claim", "stated_reason", "prep_kind", "pivot_dimension", "burst_shape", "module_extra_fields", "novelty_claim", "novelty_kind"],
+
+  "coding_rules": {
+    "citation_required": true,
+    "on_citation_failure": "drop value; set unknown with reason citation_failed",
+    "locator_types": ["text_span", "json_pointer", "blob_hash"],
+    "text_span_normalisation": ["unicode_nfc", "whitespace_collapse", "same_deterministic_redaction_both_sides"],
+    "max_quote_chars": 300,
+    "special_values": ["unknown", "not_applicable"],
+    "unknown_reasons": ["no_evidence", "insufficient_evidence", "citation_failed", "coverage_gap", "unobservable_channel", "held", "conflicting_evidence"],
+    "coder_confidence": ["low", "medium", "high"],
+    "coder_passes": ["A", "B", "adjudicator", "human"],
+    "llm_backends": ["subscription", "api", "none"],
+    "provenance_required": ["codebook_version", "prompt_id", "prompt_version", "model_id", "llm_backend", "coder_pass", "run_id", "coded_at", "coder_confidence"],
+    "outcome_masking": "outcome classes hidden from coders except for mechanism_support.direction, coded in a later pass after presence is locked"
+  },
+
+  "privacy_rules_cb_11": {
+    "P1": "no GDPR Art. 9 / FADP Art. 5(c) attributes; no gender, age, nationality or location of individuals",
+    "P2": "no scoring or ranking of natural persons; reach in bands only",
+    "P3": "no cross-platform identity resolution",
+    "P4": "account-level spread graphs held (ADR-022, LQ-8)",
+    "P5": "public-figure rule inactive for natural persons until LQ-7 + ADR",
+    "P6": "no private individual, matched loser or personal-account repo named in any output",
+    "P7": "coded values from person-level evidence inherit person_level_24m",
+    "P8": "no coded values, spans, snapshots or pseudonyms in git"
+  },
+
+  "g1_category_change_denominator_note": "unchanged from 0.1.0 (79 values); case_fields enums (novelty_claim, novelty_kind) are not in the denominator, like other non-core enums. The 0.1.0 -> 0.2.0 change precedes pilot attempt 1 and is not a G1 revision round (pilot pre-registration §6.7; amendment 2).",
+  "g1_category_change_denominator": ["evidence_types", "event_types", "spread_graph.edge_types", "spread_graph.edge_evidence_levels", "reliability_scale.levels", "asset_categories", "trigger_attribution.trigger_types", "modules", "category_taxonomy.categories"],
+
+  "changelog": [
+    {"version": "0.1.0", "date": "2026-09-25", "task": "M4-T1", "change": "initial draft"},
+    {"version": "0.2.0", "date": "2026-09-25", "task": "M4-T1d + M4-T2c", "change": "(a) burst/quiet derivation moved from starscout_filtered stargazers-API series to raw star-history endpoint days (ADR-032, ADR-035), with hourly watch-list snapshots only for onset precision per OM §2.1; burst end on endpoint days; day-precision onsets get a defined trigger window and cannot reach high trigger_confidence; §2.1/§2.3 examples updated. (b) new case-level non-core fields novelty_claim and novelty_kind (MC-09); ai_hype.novelty_claim now shares the case value. No enum value in g1_category_change_denominator added, removed or renamed. Minor bump: (b) adds fields; (a) changes a derived-field input, which before 1.0.0 bumps minor (semver_policy.before_1_0_0). No coding, unitizing or derived event ever used 0.1.0; no outcome data seen. Re-code: none (nothing coded)."}
+  ]
+}
