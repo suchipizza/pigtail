@@ -135,7 +135,7 @@ uv run pigtail privacy requests                                       # request 
   Archive retention that is up to about 720 hourly dumps, so expect minutes to hours.
 
 ### Log hygiene (CB-18)
-pigtail's CLI logging passes through `pigtail.logsafe.RedactingFilter`. The filter replaces
+`pigtail capture scan` installs `pigtail.logsafe.RedactingFilter` on its logging (other commands and services don't yet: CB-18 follow-up). The filter replaces
 handles, e-mails, profile URLs and DIDs with placeholders and truncates long payloads. `runs.error`
 goes through the same scrubber. When you add a service, call `pigtail.logsafe.configure_logging()`
 or `install()` on its handlers.

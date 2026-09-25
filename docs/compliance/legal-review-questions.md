@@ -139,7 +139,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
   2. For the smaller Tier 2 and Tier 3 sets, where pigtail could reply to or mention posters, is individual notice required? We think it would be intrusive and possibly platform spam.
   3. Does a *commercial* operator qualify for the "research or statistical purposes" limb?
   4. Where must the notice be published for it to count?
-- **Default meanwhile:** a public notice only, no individual contact (and no platform posting without H5). Person-level sources beyond GH Archive stay off until the notice is published (CB-12) and the other ADR-022 pre-conditions exist.
+- **Default meanwhile:** a public notice only, no individual contact (and no platform posting without H5). Person-level sources beyond GH Archive stay off until the notice is published (CB-12) and the other ADR-022 pre-conditions exist. Status after ADR-030: CB-01, CB-08 and CB-13 implemented; CB-03 and CB-06 partly implemented; CB-02 and CB-12 open.
 - **Blocks:** enabling Bluesky, HN and V2EX.
 
 ### LQ-11 · Is this "light" DPIA enough; national lists; prior consultation · Priority B
@@ -192,7 +192,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
   - (b) Does case forensics fit Art. 31(2)(e) ("purposes not related to specific persons")? If only partly, is the general overriding-interest balance enough?
   - (c) Personal criminal exposure: Art. 60 and Art. 61 provide fines up to CHF 250,000 on complaint against **private persons** who act wilfully (for example Art. 61(a), disclosure abroad in breach of Art. 16). Given that, what should an individual operator (the owner) do in addition, e.g. subscription-mode disclosure to the US?
   - (d) Is a Record of processing activities (Art. 12) required, or does the Art. 12(5) small-company exception apply?
-- **Default meanwhile:** honour explicit refusals when known (CB-13); api mode for any disclosure abroad at scale (LQ-1); draft a record of processing activities (CB-15).
+- **Default meanwhile:** honour explicit refusals when known (CB-13, implemented: `pigtail privacy optout`, checked at ingest; a platform-level signal such as Bluesky user intents is not consumed yet); api mode for any disclosure abroad at scale (LQ-1); draft a record of processing activities (CB-15).
 - **Blocks:** Bluesky connector (a); release (M9).
 
 ### LQ-24 · Naming projects and maintainers in outcome classes · Priority B
@@ -219,7 +219,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - **Question:**
   1. Once pseudonyms and quoted spans are removed, do non-identifying coded facts (e.g. "a launch post appeared on platform P at time T with reach band B") still count as personal data, or as "content" under Bluesky's guideline?
   2. Can they be kept for research after an erasure request (GDPR Art. 17(3)(d) research exemption)?
-- **Default meanwhile:** on upstream deletion or erasure, delete everything carrying a pseudonym, text or quote. Keep only hash, time, platform and non-identifying coded facts.
+- **Default meanwhile:** on upstream deletion or erasure, delete everything carrying a pseudonym, text or quote. Keep only hash, time, platform and non-identifying coded facts. For erasure this is implemented (CB-08, ADR-030.1): the whole raw snapshot containing the person is dropped (a content-addressed blob cannot be edited), the evidence row keeps hash, URL and fetch time, and replay re-downloads the snapshot and drops the person at ingest.
 - **Blocks:** nothing, as long as the default is applied.
 
 ### LQ-12 (was Q11) · Adequacy of 24-month retention plus pseudonymisation at ingest · Priority A
@@ -230,7 +230,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - **Question:**
   1. As in Q11.
   2. In addition: is the policy in [retention-policy.md](retention-policy.md) adequate, including the 35-day backups, 12-month logs, 24-month LLM cache and tombstones?
-- **Default meanwhile:** the policy as drafted. No new person-level source until every ADR-022 pre-condition exists (CB-01, CB-02, CB-03, CB-06, CB-08, CB-12, CB-13).
+- **Default meanwhile:** the policy as drafted. No new person-level source until every ADR-022 pre-condition exists (CB-01, CB-02, CB-03, CB-06, CB-08, CB-12, CB-13). Status after ADR-030: CB-01, CB-08 and CB-13 implemented; CB-03 and CB-06 partly implemented; CB-02 and CB-12 open. The 24-month purge, the 24-month LLM cache expiry, 12-month clearing of `runs.error` and the tombstone log (`deletion_log`) are implemented; backups (CB-17) and container-log rotation are not.
 - **Blocks:** release (M9); person-level sources beyond GH Archive.
 
 ---
@@ -264,7 +264,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - **Question** (as in Q4):
   1. Do YC's public API invitations (the HackerNews/API README, and the Algolia API run with HN) count as "expressly authorized" under the YC Terms of Use? If so, commercial operators may use the API despite the ToU's bans on commercial reproduction and scraping.
   2. Is storing snapshots privately "reproduc[ing] … for commercial purposes"?
-- **Default meanwhile:** API only, private snapshots, no republication of comment text (TM-03, TM-04). Not enabled until every ADR-022 pre-condition for person-level sources exists: CB-01, CB-02, CB-03, CB-06, CB-08, CB-12 and CB-13 (ADR-022 in `ops/DECISIONS.md` is the single authoritative list).
+- **Default meanwhile:** API only, private snapshots, no republication of comment text (TM-03, TM-04). Not enabled until every ADR-022 pre-condition for person-level sources exists: CB-01, CB-02, CB-03, CB-06, CB-08, CB-12 and CB-13 (ADR-022 in `ops/DECISIONS.md` is the single authoritative list). Status after ADR-030: CB-01, CB-08 and CB-13 implemented; CB-03 and CB-06 partly implemented; CB-02 and CB-12 open.
 - **Blocks:** HN connectors for commercial operators.
 
 ### LQ-15 (was Q5) · Internet Archive · Priority B
@@ -327,3 +327,4 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - 2026-09-25: v0.1 created (M3-T2).
 - 2026-09-25 — fixes after verifier M3 round 1: LQ-6 (and the LQ-10 and LQ-12 defaults) now refer to ADR-022 and its full list of pre-conditions for person-level sources.
 - 2026-09-25 — fixes after verifier M3 round 3: CB-11 marked implemented (codebook v0.1.0 §12); LQ-25 updated for CB-04 partly implemented.
+- 2026-09-25 — CB statuses updated after privacy-controls merge (ADR-030): LQ-6, LQ-10 and LQ-12 defaults now give the status of the ADR-022 pre-conditions; LQ-23 notes CB-13 implemented; LQ-26 notes how erasure is implemented.

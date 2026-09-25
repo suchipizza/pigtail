@@ -52,7 +52,9 @@ Feature-specific:
 - [ ] [CB-21] Operator guide: controller duties
 
 ## Next
-- [ ] [M3-T4] Update compliance docs' CB statuses for CB-01/03/05/06/08/13/18 (ADR-030); verifier check
+- [x] [M3-T4] Compliance docs' CB statuses updated (ADR-030)
+- [ ] [CB-18b] Install RedactingFilter in every CLI command/service (currently `capture scan` only)
+- [ ] [LQ-27] Add legal question: after an erasure, replay briefly re-processes the erased person's data before dropping it at ingest (ADR-030.1) — acceptable?
 - [ ] [M5-T1] Coding prompts must include the codebook P1 instruction (ignore personal characteristics); verifier checks it — codebook §12, DPIA R9
 - [ ] [M2-T3] Fake-star method: select, reproduce on a sample, document validation — R3.3 — M2-T1
 - [x] [M2-T4] Verifier spot-check — round 1 FAIL, round 2 PASS @191c44d (2026-09-25)

@@ -20,7 +20,7 @@ The class is recorded on every evidence record: `evidence.retention_class` in `s
 
 | Class | What it covers | Retention | At the end of the period | Status |
 |---|---|---|---|---|
-| `person_level_24m` | Raw snapshots and parsed records that contain or derive from data about identifiable people: GH Archive hourly dumps, posts, comments, pseudonymised actor rows, spread-graph nodes and edges, account reach | **24 months from `fetched_at`** (from the capture time, not the content's date) | **Aggregate or delete.** Raw bytes are deleted. Pseudonymised rows are deleted or rolled up into counts with no pseudonym. The evidence record keeps `content_hash`, `url`, `source`, `fetched_at`, `terms_basis` and the coded facts that carry no person identifier, and `deletion_state` is set to `raw_dropped`. | Field: I. Job: **P (CB-01)** |
+| `person_level_24m` | Raw snapshots and parsed records that contain or derive from data about identifiable people: GH Archive hourly dumps, posts, comments, pseudonymised actor rows, spread-graph nodes and edges, account reach | **24 months from `fetched_at`** (from the capture time, not the content's date) | **Aggregate or delete.** Raw bytes are deleted. Pseudonymised rows are deleted or rolled up into counts with no pseudonym. The evidence record keeps `content_hash`, `url`, `source`, `fetched_at`, `terms_basis` and the coded facts that carry no person identifier, and `deletion_state` is set to `raw_dropped`. | Field: I. Job: **I (CB-01)**: `pigtail retention purge` (`src/pigtail/privacy/retention.py`), run daily by the operator (**O**). Periods above 730 days are rejected at startup (`src/pigtail/config.py`). Expired pseudonymised rows are deleted; roll-up into counts is not built. |
 | `project_level` | Data about repos and packages: stars, downloads, releases, dependents, pricing pages, Wayback captures of project pages | **No time limit** (PRD §10) | Kept. **Exception:** `owner/repo` names of repos owned by personal accounts are personal data. They are kept internally but never published without consent or the public-figure rule (CB-20, LQ-7). | I (policy) |
 | `derived_aggregate` | Counts and statistics with no person identifier (e.g. `repo_hourly_activity`) | No time limit | Kept. Must stay non-identifying (cell size rule for public outputs, CB-14). | I (`migrations/0002_repo_hourly_activity.sql`) |
 
@@ -38,17 +38,17 @@ The class is recorded on every evidence record: `evidence.retention_class` in `s
 
 | Store | Content | Retention | Deletion mechanism | Status |
 |---|---|---|---|---|
-| Snapshot store (S3 bucket or `PIGTAIL_DATA_DIR/snapshots`; `src/pigtail/capture/snapshots.py`) | Raw bytes plus `.meta.json` sidecar, content-addressed | Per the class of the **longest-living** evidence record that references the hash | Delete the object and its sidecar only when no live evidence record still needs the raw bytes. Content addressing means one blob can back several evidence records. | Store: I. Retention: **P (CB-01)**. `SnapshotStore.delete()` removes the bytes and keeps the `.meta.json` sidecar; `purge_raw()` uses it (CB-04). |
-| Postgres `evidence` | Metadata, hash, terms basis | Kept for as long as its coded facts are used. After the raw copy is dropped, `deletion_state` is `raw_dropped` or `deleted_upstream`. | Update the state; delete the row if it is still person-level after aggregation | Field: I (`migrations/0001_capture_v0.sql`). Job: P |
-| Postgres case, actor and edge tables (M5) | Pseudonymised records | 24 months | Delete, or roll up into aggregates | P |
+| Snapshot store (S3 bucket or `PIGTAIL_DATA_DIR/snapshots`; `src/pigtail/capture/snapshots.py`) | Raw bytes plus `.meta.json` sidecar, content-addressed | Per the class of the **longest-living** evidence record that references the hash | Delete the object and its sidecar only when no live evidence record still needs the raw bytes. Content addressing means one blob can back several evidence records. | Store: I. Retention: **I (CB-01)**: a hash is dropped only when no present record still needs it; shared blobs are reported as `blocked_shared`. `SnapshotStore.delete()` removes the bytes and keeps the `.meta.json` sidecar; `purge_raw()` and the retention purge use it (CB-04, CB-01). Encryption at rest: SeaweedFS SSE-S3 when `S3_SSE_KEK` is set; checked by `pigtail doctor` (**I**, CB-03 partly); enabling it is **O**. |
+| Postgres `evidence` | Metadata, hash, terms basis | Kept for as long as its coded facts are used. After the raw copy is dropped, `deletion_state` is `raw_dropped` or `deleted_upstream`. | Update the state; delete the row if it is still person-level after aggregation | Field: I (`migrations/0001_capture_v0.sql`). Job: I for the state change (`raw_dropped` on retention and erasure, CB-01, CB-08); a repo opt-out deletes the repo's evidence rows (CB-13). Postgres volume encryption: **O** (CB-03) |
+| Postgres case, actor and edge tables (M5) | Pseudonymised records | 24 months | Delete, or roll up into aggregates | Mechanism: I (tables must register in `PERSON_TABLES`, `src/pigtail/privacy/deletion.py`, ADR-030.5; retention and erasure then reach them). Tables: P (M5) |
 | Postgres `repo_hourly_activity`, `gharchive_hours` | Aggregates, scan log | No limit | — | I (`migrations/0002_repo_hourly_activity.sql`) |
-| `llm_cache` (`src/pigtail/llm/store.py`) | Coded outputs, including **verbatim quoted spans** (R7.1) and pseudonyms. Keyed on a hash of the redacted input. | **24 months, and never longer than the evidence it was derived from** | TTL plus purge when the source evidence is deleted or dropped. Needs `evidence_id` links on each cache row. | **P (CB-05)**. Today there is no TTL and no link. |
-| `llm_usage`, `llm_pause_log` | Ledger: backend, job, model, token counts. No content. | 24 months (cost audit) | Delete | P |
+| `llm_cache` (`src/pigtail/llm/store.py`) | Coded outputs, including **verbatim quoted spans** (R7.1) and pseudonyms. Keyed on a hash of the redacted input. | **24 months, and never longer than the evidence it was derived from** | TTL plus purge when the source evidence is deleted or dropped, via `evidence_id` links (`llm_cache_evidence`). | **I (CB-05)**: rows carry `retention_class`, expire after `LLM_CACHE_RETENTION_DAYS` (default and maximum 730) and are never served once expired; `purge_expired()` and `purge_for_evidence()` run in `pigtail retention purge` and on erasure (`src/pigtail/llm/store.py`). |
+| `llm_usage`, `llm_pause_log` | Ledger: backend, job, model, token counts. No content. | 24 months (cost audit) | Delete | I (`purge_ledger()` in `pigtail retention purge`) |
 | Anthropic (LLM provider) | Redacted inputs and outputs | Outside pigtail's control. See §6. | — | — |
-| Logs (application, `runs.error`, container logs) | Must hold no personal data or content | **12 months** | Log rotation | P (CB-18). `BackendError` no longer echoes CLI output, only the exit code, `subtype` and `api_error_status` (`src/pigtail/llm/subscription.py`; tested in `tests/unit/test_subscription_backend.py`): **I (CB-07)**. |
+| Logs (application, `runs.error`, container logs) | Must hold no personal data or content | **12 months** | Log rotation; `runs.error` cleared by the purge | **Partly I (CB-18)**: `pigtail.logsafe.RedactingFilter` redacts handles, e-mails, profile URLs and DIDs and truncates payloads (installed by `capture scan` only so far); `runs.error` is scrubbed on write (`src/pigtail/capture/runs.py`) and cleared after `LOG_RETENTION_DAYS` (max 365). **P**: the filter in every service. **O**: container and system log rotation. `BackendError` no longer echoes CLI output, only the exit code, `subtype` and `api_error_status` (`src/pigtail/llm/subscription.py`; tested in `tests/unit/test_subscription_backend.py`): **I (CB-07)**. |
 | Local Claude Code transcripts (subscription mode) | None | — | The CLI runs with `--no-session-persistence` in a temporary empty directory (`subscription.py`) | I |
 | Git repository (public) | Code and docs only. **Never** personal data. | Permanent (public) | Prevented by the CI private-data scan (`scripts/private_data_scan.py`, ADR-011) | I |
-| Backups | Database dumps and bucket replicas | **35-day rolling** | Expiry. Deletions are re-applied after a restore (§5). | P (CB-17) |
+| Backups | Database dumps and bucket replicas | **35-day rolling** | Expiry. Deletions are re-applied after a restore (§5). | P (CB-17). The tombstone log (`deletion_log`) and `pigtail privacy optout purge` (re-applies the opt-out list) exist (**I**). |
 | Manual entries (TM-29, TM-31) | Organisation-level facts, citations | `project_level` | — | I (policy) |
 
 ---
@@ -76,7 +76,7 @@ On an upstream deletion, pigtail:
 2. deletes the raw bytes (unless another live evidence record needs the same blob, which cannot happen for a deleted item);
 3. deletes the parsed person-level rows and the `llm_cache` rows derived from it;
 4. keeps the hash plus coded facts with no person identifier (R1.5), **unless the source's terms forbid even that**;
-5. writes a tombstone (hash and source id, no content) so the deletion is re-applied after any backup restore.
+5. writes a tombstone (hash and source id, no content) so the deletion is re-applied after any backup restore. The append-only `deletion_log` table exists and accepts `deleted_upstream` as a reason (`migrations/0003_privacy_operations.sql`, **I**); the sync jobs that would write it are P (CB-02).
 
 | Source (memo) | Duty (as stated in the memo) | pigtail rule | Window | Status |
 |---|---|---|---|---|
@@ -97,15 +97,18 @@ On an upstream deletion, pigtail:
 
 - **Channel:** the contact address in [privacy-notice.md](privacy-notice.md).
 - **Identification:** the person gives their platform and handle. Proving account control is needed only for access requests, not for objection or erasure: honouring a false objection harms no one.
-- **Action (CB-08):**
-  1. compute the pseudonym;
-  2. add it to the suppression list, so the person is dropped at ingest from then on;
-  3. purge their raw and parsed person-level data and derived cache rows;
+- **Action (CB-08, CB-13; I: `src/pigtail/privacy/requests.py`, `suppression.py`; commands in `docs/guides/operator.md` "Privacy operations"):**
+  1. compute the pseudonym in the platform's namespace; the handle is never stored;
+  2. add it to the suppression list (`privacy_suppression`, pseudonyms only), so the person is dropped at ingest from then on;
+  3. purge their raw and parsed person-level data and derived cache rows. Raw snapshots containing the person are dropped **whole**, because a content-addressed blob cannot be edited; replay re-downloads the snapshot and drops the person at ingest (ADR-030.1);
   4. keep project-level aggregates, which contain no pseudonym;
-  5. write a tombstone.
+  5. write a tombstone to `deletion_log`, and log the request in `privacy_requests` without handle or pseudonym.
+- **Access:** `pigtail privacy request access` exports everything keyed by the pseudonym to a 0600 JSON file; the operator checks account control first and sends it through a secure channel (**I**, CB-08).
+- **Rectification:** not built (ADR-030.3). Handled manually meanwhile; raw snapshots are not corrected (DPIA §4).
+- **Project owners:** a repo can be opted out by id (`pigtail privacy optout add --repo-id`); its aggregates, cases and linked evidence are deleted (**I**, CB-13).
 - **Deadline:** without undue delay and within one month (GDPR Art. 12(3)).
 - **Objection:** honoured without asking for "grounds". This is a conservative default: GDPR Art. 21(1) would let the controller show "compelling legitimate grounds", and we choose not to rely on that.
-- **Backups:** purged data is not restored. The tombstone log is re-applied after any restore (CB-17).
+- **Backups:** purged data is not restored. The tombstone log is re-applied after any restore (CB-17, P). Meanwhile `pigtail privacy optout purge` re-applies the whole opt-out list and `pigtail retention purge` re-applies the time limits.
 
 ---
 
@@ -113,7 +116,7 @@ On an upstream deletion, pigtail:
 
 | | What pigtail sends | What pigtail keeps | What Anthropic keeps (per Anthropic's published policy, 2026-09-25) |
 |---|---|---|---|
-| **Both backends** | Redacted text: e-mails become `[email]`, phones `[phone]`, and @mentions become pseudonyms (`src/pigtail/llm/client.py`, ADR-006). Plus the versioned prompt and the output schema. | The input **hash** only (not the input), plus the output in `llm_cache` (see §2) | — |
+| **Both backends** | Redacted text: e-mails become `[email]`, phones `[phone]`, GitHub, Bluesky and HN profile URLs `[profile:<platform>:<pseudonym>]`, `did:` identifiers `[did:<pseudonym>]`, and @mentions pseudonyms in the source's namespace (`src/pigtail/pseudonymize.py`, `src/pigtail/llm/client.py`, ADR-006; CB-06 partly implemented: gists, avatar URLs and bare handles in author fields are not yet redacted). Plus the versioned prompt and the output schema. | The input **hash** only (not the input), plus the output in `llm_cache` (see §2) | — |
 | **`api`** | as above | as above | Deleted "within 30 days of receipt or generation" by default. **Zero retention** only under a ZDR agreement per organisation. Flagged content up to 2 years even under ZDR. No training (Commercial Terms). Sources: [privacy center](https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data), [API retention](https://platform.claude.com/docs/en/manage-claude/api-and-data-retention). |
 | **`subscription`** | as above | as above; no local transcripts (`--no-session-persistence`) | Training setting off: 30 days. On: up to 5 years. Flagged: 2 years (scores 7 years). Feedback: 5 years. **No ZDR** for Free, Pro or Max. Source: [privacy center](https://privacy.claude.com/en/articles/10023548-how-long-do-you-store-my-data), [Claude Code data usage](https://code.claude.com/docs/en/data-usage). |
 
@@ -144,3 +147,4 @@ Review this policy when a source is added, when a platform's terms change, at H2
 - 2026-09-25 — fixes after verifier M3 round 1: uncommitted M1 controls relabelled "I (M1, pending merge)" (§1, §2 snapshot store, evidence and `repo_hourly_activity` rows, §4); CB-07 marked implemented (§2 Logs row, §6).
 - 2026-09-25 — M1 capture core merged at `ec79762`; "I (M1, pending merge)" labels changed to "I".
 - 2026-09-25 — fixes after verifier M3 round 2: CB-04 marked partly implemented (30-day purge + verified re-fetch; drop-after-parse and minimal-parse fallback still planned); stale 'pending merge' conditions removed.
+- 2026-09-25 — CB statuses updated after privacy-controls merge (ADR-030): CB-01, CB-05, CB-08, CB-13 implemented and CB-03, CB-06, CB-18 partly implemented (§1, §2, §4, §5, §6); rectification recorded as not built.

@@ -68,7 +68,7 @@ platform APIs ──fetch──▶ snapshot store (raw bytes, SHA-256, private S
                               │             ├─▶ Postgres: evidence, cases, repo_hourly_activity, (later) actors/edges
                               │             └─▶ in-memory per-actor features (never persisted)
                               │
-                              └─text──▶ redactor (e-mail, phone, @mention) ──▶ LLMClient ──▶ Anthropic (api | subscription)
+                              └─text──▶ redactor (e-mail, phone, profile URL, DID, @mention) ──▶ LLMClient ──▶ Anthropic (api | subscription)
                                                                                    │
                                                                                    └─▶ llm_cache (SQLite → Postgres): coded outputs
 private UI (operator auth) ◀── all of the above                      public outputs ◀── aggregates only (after H2 + H4)
@@ -84,9 +84,9 @@ private UI (operator auth) ◀── all of the above                      publi
 | D4 | **Account reach** | follower counts, karma | Same as D3 | Postgres | Pseudonymised (bands planned, CB-10) | `person_level_24m` | Operator |
 | D5 | **Spread-graph nodes and edges** | pseudonym, platform, edge type, evidence level | Derived (R5.3) | Postgres. Not built yet. | Pseudonymised | `person_level_24m` | Operator, private UI |
 | D6 | **LLM inputs** | redacted snapshot text | Derived | Sent to Anthropic. **Not stored by pigtail** except as an input hash (`src/pigtail/llm/client.py`). | Redacted | n/a (in transit) | Anthropic (see §2.5) |
-| D7 | **LLM outputs (cache)** | coded fields, quoted spans (R7.1), provenance | Derived | `llm_cache` table (`src/pigtail/llm/store.py`), under `PIGTAIL_DATA_DIR` | Redacted/pseudonymised. **Quoted spans are verbatim text.** | Currently **none**: no TTL (CB-05) | Operator |
+| D7 | **LLM outputs (cache)** | coded fields, quoted spans (R7.1), provenance | Derived | `llm_cache` table (`src/pigtail/llm/store.py`), under `PIGTAIL_DATA_DIR` | Redacted/pseudonymised. **Quoted spans are verbatim text.** | `person_level_24m`: rows expire after `LLM_CACHE_RETENTION_DAYS` (default and maximum 730) and are never served once expired; rows linked to evidence (`llm_cache_evidence`) are purged with it (CB-05, implemented: `src/pigtail/llm/store.py`) | Operator |
 | D8 | **Project-level data** | repo id, `owner/repo` name, stars, downloads, releases | All cleared sources | Postgres, snapshot store | Project-level. `owner` may be a person's login. | `project_level` (unlimited) | Operator; aggregates may be public |
-| D9 | **Operational logs and ledgers** | run records (`runs.error`, counts), LLM usage ledger, pause log | Internal | Postgres, SQLite | Should contain no personal data. `BackendError` messages no longer echo CLI output: they carry only the exit code, `subtype` and `api_error_status` (`src/pigtail/llm/subscription.py` `parse()`; tested by `test_cb07_error_message_does_not_echo_output` in `tests/unit/test_subscription_backend.py`) (CB-07, implemented). | 12 months (policy, [retention-policy.md](retention-policy.md)) | Operator |
+| D9 | **Operational logs and ledgers** | run records (`runs.error`, counts), LLM usage ledger, pause log | Internal | Postgres, SQLite | Should contain no personal data. `BackendError` messages no longer echo CLI output: they carry only the exit code, `subtype` and `api_error_status` (`src/pigtail/llm/subscription.py` `parse()`; tested by `test_cb07_error_message_does_not_echo_output` in `tests/unit/test_subscription_backend.py`) (CB-07, implemented). `runs.error` is scrubbed of handles, e-mails, profile URLs and DIDs and truncated (`src/pigtail/capture/runs.py` → `pigtail.logsafe.scrub`; CB-18, partly implemented). | 12 months (policy, [retention-policy.md](retention-policy.md)). `runs.error` text is cleared after `LOG_RETENTION_DAYS` (max 365) and the LLM ledger after 24 months by `pigtail retention purge` (I). Container and system logs: rotation is an operator duty (P, CB-18). | Operator |
 | D10 | **Pseudonym key** | `PSEUDONYM_KEY` | Operator | Host environment / secrets manager, backed up separately (H1) | Secret | For the life of the dataset | Operator only |
 | D11 | **Manual entries** | press citations (TM-31), careers facts (TM-29) | Operator | Postgres | Organisation-level. Investors are named as organisations only. | `project_level` | Operator |
 
@@ -134,9 +134,9 @@ Replay stays verifiable, and the largest pool of raw person-level data goes away
 | Right | GDPR | FADP | How pigtail meets it | Status |
 |---|---|---|---|---|
 | Information | Art. 14 (one month); exception in Art. 14(5)(b), "disproportionate effort … in particular for … scientific or historical research purposes or statistical purposes", with "appropriate measures … including making the information publicly available" | Art. 19 (one month after receipt); exception in Art. 20(2)(b), "disproportionate effort" | A public notice ([privacy-notice.md](privacy-notice.md)). No individual notification: millions of GH Archive actors, contact data not held (LQ-10). | Notice drafted; publication **P** (CB-12) |
-| Access | Art. 15 | Art. 25 | The requester gives a handle; we compute the pseudonym with the key and export the records. | **P** (CB-08) |
-| Erasure / objection | Art. 17, Art. 21(1) | Art. 30(2)(b), Art. 32(2) | Suppression list of pseudonyms. Purge from every store. Drop at ingest from then on. | **P** (CB-08) |
-| Rectification | Art. 16 | Art. 32(1) | Coded facts can be marked disputed. Raw snapshots are records of what was public and are not "corrected". | **P** (CB-08) |
+| Access | Art. 15 | Art. 25 | The requester gives a handle; `pigtail privacy request access` computes the pseudonym with the key and exports the parsed records in retained snapshots, person-level rows and LLM cache rows to a 0600 JSON file (`src/pigtail/privacy/requests.py` `access()`). The request log holds no handle and no pseudonym. Evidence whose raw bytes were already dropped cannot be searched for a person. | **I** (CB-08) |
+| Erasure / objection | Art. 17, Art. 21(1) | Art. 30(2)(b), Art. 32(2) | Suppression list of pseudonyms (`privacy_suppression`, pseudonyms only by database CHECK). Purge: whole raw snapshots containing the person, registered person-level rows, and LLM cache rows derived from them or mentioning the pseudonym (`pigtail privacy request erasure`, `pigtail privacy optout add`). Connectors drop the person at ingest from then on (`connectors/base.py`). Tombstones in the append-only `deletion_log`. Project owners can opt a repo out. | **I** (CB-08, CB-13) |
+| Rectification | Art. 16 | Art. 32(1) | Coded facts can be marked disputed. Raw snapshots are records of what was public and are not "corrected". **Not built** (ADR-030.3); handled manually by the operator meanwhile. | **P** (CB-08 follow-up) |
 | Art. 11 | If the controller "is not in a position to identify the data subject" | n/a | Does **not** apply as a blanket excuse: the operator holds the key and can re-compute pseudonyms from a handle. | — |
 
 ---
@@ -150,14 +150,14 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | R1 | **Re-identification from pseudonyms** | Pseudonyms are stable. Quoted text (D7), timestamps, repo and reach can single a person out through a web search. The operator holds the key. A 64-bit truncated HMAC is not reversible without the key, but a key leak reverses every pseudonym by brute force over known handles. | 3 | 2 | **High** |
 | R2 | **Profiling** | Accounts ranked by reach and timing as "triggers". Maintainers' projects classed as `plateau` or `short_lived`. | 2 | 2 | Medium |
 | R3 | **Spread graphs** | A graph of who amplified whom is a social map. If leaked or published it exposes relationships, and it can be used to target influencers. | 2 | 3 | **High** |
-| R4 | **Over-retention of raw data** | Raw dumps (D2) and snapshots hold far more than is used. No purge job exists yet. | 3 | 2 | **High** |
+| R4 | **Over-retention of raw data** | Raw dumps (D2) and snapshots hold far more than is used. Without a purge job they would accumulate (the purge now exists: CB-01, CB-04). | 3 | 2 | **High** |
 | R5 | **Deleted content kept** | A user deletes a post or account upstream and pigtail keeps the raw copy. This breaches the platform terms (TM-06) and the person's expectation. | 3 | 2 | **High** |
-| R6 | **LLM provider processing** | Text leaves the controller. Subscription mode means no DPA, possible training, and retention of up to 5 years. Flagged content is kept even in api mode. The redactor misses names, bare handles, profile URLs and DIDs. | 2 | 2 | Medium |
+| R6 | **LLM provider processing** | Text leaves the controller. Subscription mode means no DPA, possible training, and retention of up to 5 years. Flagged content is kept even in api mode. The redactor misses names, bare handles in author fields, gist and avatar URLs (profile URLs and DIDs are now redacted, CB-06 partly implemented). | 2 | 2 | Medium |
 | R7 | **Public repo leakage** | Handles, snapshots or fixtures are committed to the **public** repo, or appear in commit messages or ops logs. | 2 | 3 | **High** |
-| R8 | **Security breach of private storage** | Unauthorised access to the host, the bucket or backups. There is no encryption at rest in code, and local dev keys are defaults. | 2 | 3 | **High** |
+| R8 | **Security breach of private storage** | Unauthorised access to the host, the bucket or backups. Encryption at rest depends on the operator enabling it (SSE for the bundled SeaweedFS via `S3_SSE_KEK`; an encrypted Postgres volume), and local dev keys are defaults. | 2 | 3 | **High** |
 | R9 | **Incidental special-category data** | Posts reveal views or health. The LLM or the codebook could extract them. | 1 | 3 | Medium |
-| R10 | **Rights not exercisable** | No channel or tooling for access, objection or erasure. People are unaware of the processing. | 3 | 2 | **High** |
-| R11 | **Cache and log persistence** | `llm_cache` has no TTL and is not linked to evidence, so deletion sync and retention miss it. Error messages may carry text. | 3 | 1 | Medium |
+| R10 | **Rights not exercisable** | Without a channel and tooling, access, objection and erasure cannot be exercised (tooling now exists: CB-08, CB-13; no published notice yet: CB-12). People are unaware of the processing. | 3 | 2 | **High** |
+| R11 | **Cache and log persistence** | Without a TTL and evidence links, deletion sync and retention would miss `llm_cache` (both now exist: CB-05). Error messages may carry text (`runs.error` is now scrubbed: CB-18, partly). | 3 | 1 | Medium |
 | R12 | **Function creep by self-hosters** | Someone uses pigtail for people-tracking or lead generation. | 2 | 3 | **High** |
 | R13 | **Backups outlive deletions** | Restoring a backup re-introduces purged or deleted data. | 2 | 2 | Medium |
 | R14 | **Maintainer identity in project-level data** | `owner/repo` is kept without a time limit and names a person, joined to outcome classes. | 3 | 1 | Medium |
@@ -171,7 +171,7 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | Risk | Measures | Status |
 |---|---|---|
 | R1 | Keyed HMAC-SHA256 pseudonyms (`src/pigtail/pseudonymize.py`). | I |
-| | Pseudonymisation at ingest with a per-platform namespace (`src/pigtail/connectors/base.py` `records()`, `github` namespace in `connectors/gharchive.py`). The LLM-path redactor uses one `generic` namespace for @mentions ([lia.md](lia.md) S9). | I |
+| | Pseudonymisation at ingest with a per-platform namespace (`src/pigtail/connectors/base.py` `records()`, `github` namespace in `connectors/gharchive.py`). The LLM-path redactor takes the caller's per-source namespace for @mentions (`LLMClient.complete(namespace=…)`, default `generic`) and always uses the platform's namespace for profile URLs and DIDs ([lia.md](lia.md) S9). | I |
 | | Key ≥ 16 characters, required, and stored apart from the data (`Pseudonymizer.__init__`; `build_client` refuses to start without it). | I |
 | | The key is backed up separately from data backups. | O (H1) |
 | | Key rotation and escrow procedure; the key is never placed in DB dumps. | P CB-09 |
@@ -180,7 +180,7 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | | Matched losers are not named publicly without consent. | P CB-20 |
 | R3 | Graphs only for Tier 2 and Tier 3. Nodes pseudonymised. Private UI only. No public identifying graphs (PRD §4). | P (not built) |
 | | Hold A4 until LQ-8 is answered or CB-14 is in place. | P |
-| R4 | Retention job: 24 months for `person_level_24m`, then aggregate or delete. | P CB-01 |
+| R4 | Retention job: 24 months for `person_level_24m`, then aggregate or delete. `pigtail retention purge` drops the raw bytes of `person_level_24m` evidence older than `PERSON_LEVEL_RETENTION_DAYS` (default and maximum 730; longer values rejected at startup), keeps hash, URL and fetch time (`raw_dropped`), deletes registered person-level rows, writes tombstones to the append-only `deletion_log`, and has a dry run (`src/pigtail/privacy/retention.py`, `migrations/0003_privacy_operations.sql`; `tests/integration/test_privacy_ops.py`). The operator schedules it daily. | I CB-01 / O (schedule) |
 | | Minimise GH Archive raw dumps (hash + re-fetch). | I (partly) CB-04: 30-day purge + verified re-fetch; P: drop-after-parse, minimal-parse fallback |
 | | Retention fields exist (`evidence.retention_class`, `migrations/0001_capture_v0.sql`, `src/pigtail/capture/models.py`). | I |
 | R5 | Deletion sync per source ([retention-policy.md](retention-policy.md) §4); `deletion_state` field (`migrations/0001_capture_v0.sql`). | I (field) / P CB-02 |
@@ -191,24 +191,26 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | | Training opt-out on the operator's Claude account. | O (H1, still open) |
 | | Subscription mode only for the operator's own non-commercial use (ADR-001, ADR-008). | I (policy) |
 | | Telemetry, error-report and feedback opt-outs in the CLI subprocess environment (`PRIVACY_ENV`: `DISABLE_TELEMETRY`, `DISABLE_ERROR_REPORTING`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_FEEDBACK_COMMAND`; `src/pigtail/llm/subscription.py`). | I (CB-07) |
-| | Extend the redactor to profile URLs, DIDs, bare handles in author fields, and signature names. | P CB-06 |
+| | Redactor extensions: GitHub, Bluesky and HN profile URLs → `[profile:<platform>:<pseudonym>]`, `did:plc`/`did:web` → `[did:<pseudonym>]`, per-source @mention namespaces (`src/pigtail/pseudonymize.py`; `tests/unit/test_redaction_cb06.py`). | I CB-06 (partly) |
+| | Still open: gist URLs, avatar URLs, bare handles in author fields, and signature names. | P CB-06 |
 | | `api` mode: sign the DPA (automatic under the Commercial Terms); request ZDR where eligible. | O |
 | R7 | Public repo rules (CLAUDE.md, WORK_ORDER §6). | I |
 | | CI private-data scan (secrets, data paths, personal e-mail addresses, fixture manifest). | I (`scripts/private_data_scan.py`) |
 | | Commits gated on the scan (ADR-011). | I |
 | | The scan does not detect pseudonyms or bare handles in prose. | Residual |
 | R8 | Bind services to localhost. | I (`docker-compose.yml`) |
-| | Encryption at rest for the bucket and DB volumes (required by TM-06). | P CB-03 |
+| | Encryption at rest for the bucket and DB volumes (required by TM-06). Code side: SeaweedFS SSE-S3 when `S3_SSE_KEK` is set (the init job sets bucket default encryption, `docker-compose.yml`); `pigtail doctor` reports bucket encryption and lists Postgres volume encryption as MANUAL (`src/pigtail/privacy/doctor.py`; `tests/unit/test_doctor_cb03.py`). Host side: set the KEK and encrypt the Postgres volume. | I CB-03 (partly) / O (enable on host, Postgres volume) |
 | | Strong credentials in production (defaults only for local dev). | O |
 | | Access control and an audit log on the private UI. | P CB-19 |
 | | Breach runbook: GDPR Art. 33 ("not later than 72 hours" where feasible); FADP Art. 24 ("as quickly as possible"). | P CB-16 |
 | R9 | No Art. 9 attributes in the codebook. Closed schemas. Prompts instruct the model to ignore personal characteristics. | I (schemas); I CB-11 (codebook v0.1.0 §12) |
 | R10 | Public notice with a contact route. | P CB-12 |
-| | Access, objection and erasure tooling. | P CB-08 |
-| | Honour explicit refusals (FADP Art. 30(2)(b)). | P CB-13 |
-| R11 | Give the cache a retention class and evidence links; purge with its source. | P CB-05 |
+| | Access, objection and erasure tooling (`pigtail privacy request access` or `erasure`, `pigtail privacy requests`; `src/pigtail/privacy/requests.py`). Rectification and a separate lookup command are not built. | I CB-08 / P (rectification) |
+| | Honour explicit refusals (FADP Art. 30(2)(b)): opt-out list of pseudonyms and repo ids, checked at ingest, with purge of existing data (`pigtail privacy optout`; `src/pigtail/privacy/suppression.py`, `connectors/base.py`; `tests/unit/test_connector_suppression_cb13.py`). A Bluesky user-intents signal is not consumed yet (no Bluesky connector). | I CB-13 |
+| R11 | Give the cache a retention class and evidence links; purge with its source. Rows expire after 24 months and are not served once expired; `purge_for_evidence()` runs on retention and erasure (`src/pigtail/llm/store.py`; `tests/unit/test_llm_cache_cb05.py`). | I CB-05 |
 | | `BackendError` no longer echoes CLI output (tested in `tests/unit/test_subscription_backend.py`). | I (CB-07) |
-| | No raw handles or text in other logs or `runs.error`; 12-month log retention. | P CB-18 |
+| | No raw handles or text in other logs or `runs.error`; 12-month log retention. `RedactingFilter` and `runs.error` scrubbing exist (`src/pigtail/logsafe.py`, `src/pigtail/capture/runs.py`; `tests/unit/test_logsafe_cb18.py`); `runs.error` is cleared after 12 months by the retention purge. The filter is installed only by `capture scan` today. | I CB-18 (partly) |
+| | Install the filter in every service and CLI command; container and system log rotation (12 months). | P CB-18 / O (rotation) |
 | R12 | Purpose limits in the operator guide and README. No person search in the UI. Controller duties explained to self-hosters. | P CB-21 |
 | R13 | Encrypted backups, 35-day rotation, deletions replayed after a restore (tombstone log). | P CB-17 |
 | R14 | In public outputs, suppress or aggregate repos owned by personal accounts unless they are public-figure projects or the owner consents. | P CB-20 |
@@ -222,21 +224,21 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | R1 | Low–medium (quoted spans remain linkable internally) | **High** |
 | R2 | Low | Low (the relevant features are not built yet) |
 | R3 | Medium (see LQ-8) | n/a (not built; on hold) |
-| R4 | Low | **High** (raw dumps accumulate wherever capture runs; today that is local development only) |
+| R4 | Low | Medium (30-day raw-dump purge and 24-month purge exist; drop-after-parse still open; the purge must be scheduled) |
 | R5 | Low | n/a (no deletion-duty source enabled) → becomes **High** if Bluesky is enabled first |
 | R6 | Low (api) / Medium (subscription) | Medium |
 | R7 | Low | Low–medium |
-| R8 | Low | **Medium–high** (no encryption at rest) |
+| R8 | Low | **Medium–high** (encryption at rest available for the bucket but not yet enabled on a host; Postgres volume encryption is an operator duty) |
 | R9 | Low | Low |
-| R10 | Low | **High** (no notice, no tooling) |
-| R11 | Low | Medium |
+| R10 | Low | **Medium–high** (tooling exists; no published notice, CB-12) |
+| R11 | Low | Low–medium (cache expiry and evidence links done; log filter not in every service) |
 | R12 | Medium (outside the controller's control) | Medium |
 | R13 | Low | Medium (no backups defined) |
 | R14 | Low | Low (nothing is published) |
 
 **Assessment.** With the planned measures in place, no **high** residual risk remains, so prior consultation (GDPR Art. 36(1) / FADP Art. 23(1)) is not required. The lawyer should confirm this (LQ-11).
 
-**Today**, R1, R4, R8 and R10 are high for the GH Archive capture as built. It runs locally in development only; there is no production capture (ADR-022). This is why the ADR-022 production controls (CB-01, CB-03, CB-04, CB-09, CB-12, CB-16, CB-17, CB-18) are **must-fix before the capture layer runs on the production host** (M1 acceptance on the host), and why person-level sources beyond GH Archive stay off until every ADR-022 pre-condition for them exists: CB-01, CB-02, CB-03, CB-06, CB-08, CB-12 and CB-13. ADR-022 (`ops/DECISIONS.md`) is the single authoritative list.
+**Today**, R1 and R8 are high or medium–high and R10 medium–high for the GH Archive capture as built (R4 dropped to medium after CB-01). It runs locally in development only; there is no production capture (ADR-022). This is why the ADR-022 production controls (CB-01, CB-03, CB-04, CB-09, CB-12, CB-16, CB-17, CB-18) are **must-fix before the capture layer runs on the production host** (M1 acceptance on the host), and why person-level sources beyond GH Archive stay off until every ADR-022 pre-condition for them exists: CB-01, CB-02, CB-03, CB-06, CB-08, CB-12 and CB-13. ADR-022 (`ops/DECISIONS.md`) is the single authoritative list. Status (ADR-030): CB-01, CB-08 and CB-13 done; CB-03 and CB-06 partly done; CB-02 and CB-12 open. Of the production controls, CB-01 is done; CB-03, CB-04 and CB-18 are partly done; CB-09, CB-12, CB-16 and CB-17 are open.
 
 ---
 
@@ -252,30 +254,30 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 
 ---
 
-## 9. Backlog: controls required but not implemented
+## 9. Control backlog and status
 
-These are for the orchestrator to add to `ops/BACKLOG.md`. "Blocks" says which processing stays off until the item is done.
+These are for the orchestrator to add to `ops/BACKLOG.md`. "Blocks" says which processing stays off until the item is done. Done and partly done items say so in the "Suggested owner" column.
 
 | ID | Control | Blocks | Suggested owner |
 |---|---|---|---|
-| CB-01 | Retention job: purge or aggregate `person_level_24m` evidence, snapshots and derived pseudonymous rows at 24 months. Dry-run report. Tested. | Production capture on the host (M1 acceptance); any person-level source beyond GH Archive (ADR-022) | engineer |
+| CB-01 | Retention job: purge or aggregate `person_level_24m` evidence, snapshots and derived pseudonymous rows at 24 months. Dry-run report. Tested. | Production capture on the host (M1 acceptance); any person-level source beyond GH Archive (ADR-022) | engineer — **Done 2026-09-25** (`pigtail retention purge`, ADR-030; aggregation is not done: expired rows are deleted) |
 | CB-02 | Deletion-sync framework (R1.5): Bluesky Jetstream delete and account events with raw copy dropped in ≤ 48 h; propagation of the HN `deleted` flag; propagation to snapshots, LLM cache, derived rows and the backup tombstone log | Any person-level source beyond GH Archive (ADR-022): Bluesky, HN, V2EX and Discord connectors | engineer |
-| CB-03 | Encryption at rest for the snapshot bucket (SSE or an encrypted volume) and the Postgres volume. Documented in the operator guide. | Production host; any person-level source beyond GH Archive (ADR-022; also a TM-06 condition for Bluesky) | engineer |
+| CB-03 | Encryption at rest for the snapshot bucket (SSE or an encrypted volume) and the Postgres volume. Documented in the operator guide. | Production host; any person-level source beyond GH Archive (ADR-022; also a TM-06 condition for Bluesky) | engineer — **Partly done 2026-09-25** (SeaweedFS SSE via `S3_SSE_KEK`, `pigtail doctor` check, operator-guide section); open: enabling it on the host and Postgres volume encryption (operator) |
 | CB-04 | Minimise GH Archive raw dumps: keep hash and URL, drop bytes after parse or after ≤ 30 days, replay re-fetches and verifies | Production capture on the host | engineer — **Partly done 2026-09-25** (30-day purge, verified re-fetch); open: drop-after-parse, minimal-parse fallback |
-| CB-05 | Give `llm_cache` a retention class, `evidence_id` links and a TTL of ≤ 24 months; purge with its source | Tier 2 LLM extraction at scale (M5) | engineer |
-| CB-06 | Extend the redactor: profile URLs (github.com/<login>, bsky.app/profile/<handle>, news.ycombinator.com/user?id=), `did:` identifiers, bare handles from known author fields. Add tests. | Any person-level source beyond GH Archive (ADR-022); mention capture (A2) being sent to the LLM | engineer |
+| CB-05 | Give `llm_cache` a retention class, `evidence_id` links and a TTL of ≤ 24 months; purge with its source | Tier 2 LLM extraction at scale (M5) | engineer — **Done 2026-09-25** (24-month expiry, `llm_cache_evidence` links, purge with source; ADR-030) |
+| CB-06 | Extend the redactor: profile URLs (github.com/<login>, bsky.app/profile/<handle>, news.ycombinator.com/user?id=), `did:` identifiers, bare handles from known author fields. Add tests. | Any person-level source beyond GH Archive (ADR-022); mention capture (A2) being sent to the LLM | engineer — **Partly done 2026-09-25** (profile URLs, DIDs, per-source namespaces); open: gists, avatar URLs, bare handles in author fields |
 | CB-07 | Subscription subprocess: set `DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, `DISABLE_FEEDBACK_COMMAND=1` (or `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`). Redact or truncate CLI output in `BackendError` messages. **Done 2026-09-25** (`PRIVACY_ENV` sets all four variables; `BackendError` carries no CLI output). | — (was: subscription-mode coding of person-level text) | engineer |
-| CB-08 | Data-subject tooling: `pigtail privacy lookup|export|suppress|erase <platform> <handle>`. Suppression list checked at ingest. Request log without handles. | Any person-level source beyond GH Archive; publication of the notice | engineer |
+| CB-08 | Data-subject tooling: `pigtail privacy lookup`, `export`, `suppress`, `erase <platform> <handle>` (as planned; see ADR-030.3 for the built names). Suppression list checked at ingest. Request log without handles. | Any person-level source beyond GH Archive; publication of the notice | engineer — **Done 2026-09-25** as `pigtail privacy request access` or `erasure`, `pigtail privacy requests` and `pigtail privacy optout` (ADR-030.3 renamed the commands); rectification and a separate lookup command are not built (follow-up) |
 | CB-09 | Pseudonym-key management runbook: generation, separate backup, rotation (re-pseudonymisation job), never in DB dumps | Production host | engineer + operator |
 | CB-10 | Reach bands for person accounts instead of exact counts | Spread graphs / R5.5 | engineer |
 | CB-11 | Codebook privacy rules: no Art. 9 or FADP Art. 5(c) attributes, no individual scoring, no cross-platform identity resolution, the public-figure rule | Codebook v0 (M4) | analyst — **Done 2026-09-25** (codebook v0.1.0 §12) |
 | CB-12 | Publish the privacy notice (operator site plus a link from the README and the UI), fill in the placeholders, publish the DPIA summary | Any person-level source beyond GH Archive; production host | operator |
-| CB-13 | Honour explicit refusals (a Bluesky user-intents opt-out once adopted; objections received) | Any person-level source beyond GH Archive (ADR-022); Bluesky connector (re-check TM-06) | engineer |
+| CB-13 | Honour explicit refusals (a Bluesky user-intents opt-out once adopted; objections received) | Any person-level source beyond GH Archive (ADR-022); Bluesky connector (re-check TM-06) | engineer — **Done 2026-09-25** (`pigtail privacy optout`, checked at ingest; ADR-030). Re-check TM-06 when the Bluesky connector is built |
 | CB-14 | Output guard: no private individuals named in planner, growth-engine or trend outputs; a public-figure allowlist; a minimum cell size (e.g. k ≥ 10) for public aggregates | Spread graphs (A4), D2 public mode, D3/D4 | engineer |
 | CB-15 | Record of processing activities (GDPR Art. 30 / FADP Art. 12) template for operators | H2 / release | compliance |
 | CB-16 | Breach-response runbook (GDPR Art. 33/34, FADP Art. 24) | Production host | compliance + operator |
 | CB-17 | Backup policy: encrypted, 35-day rotation, deletion tombstones re-applied on restore | Production host | engineer |
-| CB-18 | Log hygiene: no raw handles or text in logs or `runs.error`; 12-month log retention | Production host | engineer |
+| CB-18 | Log hygiene: no raw handles or text in logs or `runs.error`; 12-month log retention | Production host | engineer — **Partly done 2026-09-25** (`RedactingFilter`, `runs.error` scrubbing, 12-month clearing of `runs.error`); open: the filter in all services, log rotation |
 | CB-19 | Private UI authentication, role-based access and an audit log of snapshot views | UI (D1) | engineer |
 | CB-20 | Public outputs: suppress repos owned by personal accounts and matched losers unless the owner consents or the project is a public-figure project | D2 public mode / M9 | engineer |
 | CB-21 | Operator guide section "Your duties as controller": adopt the LIA and DPIA, publish a notice, subscription restrictions, training and telemetry opt-outs, purpose limits | Release (M9); any third-party self-hosting | compliance |
@@ -286,3 +288,4 @@ These are for the orchestrator to add to `ops/BACKLOG.md`. "Blocks" says which p
 - 2026-09-25 — M1 capture core merged at `ec79762`; "I (M1, pending merge)" labels changed to "I".
 - 2026-09-25 — fixes after verifier M3 round 2: CB-04 marked partly implemented (30-day purge + verified re-fetch; drop-after-parse and minimal-parse fallback still planned); stale 'pending merge' conditions removed.
 - 2026-09-25 — fixes after verifier M3 round 3: CB-11 marked implemented (codebook v0.1.0 §12); LQ-25 updated for CB-04 partly implemented.
+- 2026-09-25 — CB statuses updated after privacy-controls merge (ADR-030): CB-01, CB-05, CB-08, CB-13 marked implemented and CB-03, CB-06, CB-18 partly implemented (§2.2, §2.3 D7 and D9, §4, §5, §6, §7, §9); rectification recorded as not built; §9 renamed "Control backlog and status".

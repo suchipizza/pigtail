@@ -29,23 +29,25 @@ Pack version: 0.1 · 2026-09-25 · Task M3-T2. All sources cited were accessed o
 - **DPIA required:** yes. WP248 criteria 3 (systematic monitoring), 5 (large scale) and 6 (combining datasets) are met. With the planned controls in place, no high residual risk remains, so no prior consultation is needed. The lawyer should confirm this (LQ-11).
 - **Legitimate interest:** supported for the velocity scan, mention capture, LLM coding, scoring, the library and planner, and aggregate publication, on condition that the safeguards exist. **Account-level spread graphs are on hold** (LQ-8).
 - **Controls that must exist before the capture layer runs on the production host:**
-  - CB-01 retention job
-  - CB-03 encryption at rest
-  - CB-04 GH Archive raw-dump minimisation
+  - CB-01 retention job (**done**: `pigtail retention purge`)
+  - CB-03 encryption at rest (**partly done**: SeaweedFS SSE via `S3_SSE_KEK` and the `pigtail doctor` check exist; enabling it on the host and encrypting the Postgres volume are operator duties)
+  - CB-04 GH Archive raw-dump minimisation (**partly done**)
   - CB-09 key management
   - CB-12 published notice
   - CB-16 breach runbook
   - CB-17 backups
-  - CB-18 log hygiene
+  - CB-18 log hygiene (**partly done**: redaction filter and `runs.error` scrubbing; open: the filter in every service, log rotation)
 - **Before any person-level source beyond GH Archive** (Bluesky, HN, V2EX, Discord) is enabled, every pre-condition in **ADR-022** (`ops/DECISIONS.md`, the single authoritative list) must exist:
-  - CB-01 retention purge
-  - CB-02 deletion sync
-  - CB-03 encryption at rest
-  - CB-06 identifier redaction before LLM calls (redactor extensions)
-  - CB-08 data-subject request tooling
-  - CB-12 published notice
-  - CB-13 honouring explicit refusals
-- **Code status:** the capture-layer controls (pseudonymisation at ingest in `connectors/base.py`, `ConnectorGapError`, the bot drop, `velocity.py`, the `retention_class` and `deletion_state` fields, CB-04 raw purge) are merged to `main` and labelled "I". GH Archive capture runs locally in development only; there is no production capture (ADR-022).
+  - CB-01 retention purge (**done**)
+  - CB-02 deletion sync (open)
+  - CB-03 encryption at rest (**partly done**, see above)
+  - CB-06 identifier redaction before LLM calls (**partly done**: profile URLs, DIDs and per-source namespaces; open: gists, avatar URLs, bare handles in author fields)
+  - CB-08 data-subject request tooling (**done** for access and erasure; rectification and a separate lookup command are not built)
+  - CB-12 published notice (open)
+  - CB-13 honouring explicit refusals (**done**: `pigtail privacy optout`)
+
+  Status after the privacy-controls merge (`83843ca`, ADR-030): CB-01, CB-08 and CB-13 are done; CB-03 and CB-06 are partly done; CB-02 and CB-12 are open. No person-level source beyond GH Archive may be enabled yet.
+- **Code status:** the capture-layer controls (pseudonymisation at ingest in `connectors/base.py`, `ConnectorGapError`, the bot drop, `velocity.py`, the `retention_class` and `deletion_state` fields, CB-04 raw purge) are merged to `main` and labelled "I". The privacy operations of ADR-030 are merged at `83843ca`: the retention purge (CB-01), LLM cache expiry and evidence links (CB-05), redactor extensions (CB-06, partly), access and erasure requests (CB-08), the opt-out list (CB-13), log scrubbing (CB-18, partly) and the `pigtail doctor` encryption check (CB-03, partly). Code: `src/pigtail/privacy/`, `src/pigtail/logsafe.py`, `src/pigtail/pseudonymize.py`, `src/pigtail/llm/store.py`, `migrations/0003_privacy_operations.sql`; operator commands in `docs/guides/operator.md` "Privacy operations". GH Archive capture runs locally in development only; there is no production capture (ADR-022).
 - **LLM:**
   - "Zero-retention" (PRD §10) is achievable only with `api` plus an Anthropic ZDR agreement.
   - `subscription` mode runs under the Consumer Terms: no DPA, no ZDR, training exceptions, and a "no commercial or business purposes" sentence (LQ-1, LQ-2). It stays limited to the owner's own use with training switched off.
@@ -63,3 +65,4 @@ Update the pack when a source is added, when a platform's or Anthropic's terms c
 - 2026-09-25: v0.1. LIA, DPIA, retention policy, privacy notice, legal-review questions and this index created (M3-T2). terms-memos.md unchanged apart from a link to this index.
 - 2026-09-25 — fixes after verifier M3 round 1: person-level-source pre-conditions now point to ADR-022 (CB-01, 02, 03, 06, 08, 12, 13); uncommitted M1 controls labelled "I (M1, pending merge)"; CB-07 marked implemented.
 - 2026-09-25 — M1 capture core merged at `ec79762`; "I (M1, pending merge)" labels changed to "I".
+- 2026-09-25 — CB statuses updated after privacy-controls merge (ADR-030): CB-01, CB-05, CB-08, CB-13 done; CB-03, CB-06, CB-18 partly done (key conclusions, code status).

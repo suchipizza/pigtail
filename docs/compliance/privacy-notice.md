@@ -53,7 +53,8 @@ We do **not** make decisions about you based on this data, and we do not build p
 
 - Usernames are replaced with **keyed pseudonyms** when processed. The key is stored separately.
 - Original public copies ("snapshots") are kept in **private storage** only, [encrypted at rest].
-- Before any text is sent to an AI model, we remove e-mail addresses and labelled or international-format phone numbers (for example "tel: …" or "+41 …"), and replace @mentions with pseudonyms. Names, other numbers and links to profiles may still be present.
+- Before any text is sent to an AI model, we remove e-mail addresses and labelled or international-format phone numbers (for example "tel: …" or "+41 …"), and replace @mentions, links to GitHub, Bluesky and Hacker News profiles, and Bluesky account identifiers (DIDs) with pseudonyms. Names, other numbers, some other links (for example to GitHub gists or profile pictures) and usernames written without an @ may still be present.
+- Our error records are cleaned of usernames, e-mail addresses and profile links, and their text is deleted after 12 months.
 - Only [operator]'s authorised staff can access the data, through a private, password-protected interface.
 - Anything we publish is **aggregated and anonymous**: statistics and patterns about projects, never your name, posts or connections.
 
@@ -89,11 +90,18 @@ You can, free of charge:
 - **Object** to our use of your data. We will stop and delete it, and we won't ask you to justify your request. We will also stop collecting your future public activity.
 - **Ask for access** to the data we hold about you and a copy of it.
 - **Ask for erasure** or **correction**, or ask us to **restrict** processing.
+- If you maintain a project, **ask us to stop studying it**. We then delete the project's figures and the evidence we linked to it.
 - **Complain** to a data protection authority:
   - in the EU/EEA, the authority where you live or work, or [lead authority];
   - in Switzerland, the Federal Data Protection and Information Commissioner (FDPIC, https://www.edoeb.admin.ch).
 
 **How to exercise them:** write to **[privacy contact]** with the platform and your username (e.g. "Bluesky: @name.bsky.social"). For an access request we may ask you to prove the account is yours, for example by posting a code we send you. For objection or erasure we don't need proof. We reply within **one month**.
+
+**What happens next.** A member of [operator]'s staff handles your request by hand, using pigtail's built-in tools:
+1. Your username is turned into your pseudonym straight away, with the same key we use when we collect data. We don't store the username you give us; our request log keeps only the request type, platform, dates and outcome.
+2. **Access:** we search the stored public copies from that platform, our pseudonymous records and our AI results for your pseudonym, and send you the result as a file through a secure channel. Your username appears in it as a pseudonym, because that is how we store it. Copies older than our retention period have already been reduced to a fingerprint and can no longer be searched.
+3. **Objection or erasure:** we add your pseudonym to our refusal list, so your public activity is dropped when we collect data from then on. We then delete what we already hold: every stored public copy that contains your activity (the whole copy, which may include other people's posts), your pseudonymous records, and AI results derived from them. We keep only a deletion record (a fingerprint and a date, never your data) so that the deletion is applied again if a backup is ever restored. Anonymous totals about projects, which contain no pseudonym, are kept.
+4. **Correction or restriction:** we have no automated tool for these yet, so we handle them case by case. The public copies record what was public at the time and are not corrected, but we can mark facts derived from them as disputed or stop using them.
 
 We cannot find you by your real name or e-mail address alone, because we don't store those. Please tell us your username.
 
@@ -108,4 +116,5 @@ We will post changes here with a new date. Significant changes will also be note
 <!-- Template history (delete when publishing):
 - 2026-09-25: v0.1 draft (M3-T2).
 - 2026-09-25 — fixes after verifier M3 round 1: "not used to train AI models" qualified for subscription mode (flagged content and feedback under the Consumer Terms); phone wording narrowed to labelled or international-format phone numbers.
+- 2026-09-25 — CB statuses updated after privacy-controls merge (ADR-030): "Your rights" now describes the actual request process (CLI-backed, operator-run: CB-08, CB-13; correction handled manually, rectification tooling not built); project-owner opt-out added; AI redaction bullet updated for CB-06 (profile URLs and DIDs; gists, avatar URLs, bare usernames not yet); error-record bullet added (CB-18, partly implemented: only `runs.error` and `capture scan` logs are scrubbed today).
 -->
