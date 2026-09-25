@@ -40,7 +40,7 @@
 ### 1.2 Attention
 
 **A1 `att.stars` — stars gained**
-- Definition: number of stargazers whose star time falls in `[T, T+k)`. Unit: stars. Stored for three variants: `raw`, `bot_filtered` (capture layer `bot-filter-v0`, `src/pigtail/capture/botfilter.py`), `starscout_filtered` (§4).
+- Definition: number of stargazers whose star time falls in `[T, T+k)`. Unit: stars. Stored for three variants: `raw`, `bot_filtered` (capture layer `bot-filter-v0`, `src/pigtail/capture/botfilter.py`, M1, pending merge: not yet on `main`), `starscout_filtered` (§4).
 - Derived: `att.star_velocity_7d@k` = mean stars/day over `[T+k−7d, T+k)`; `att.star_peak_velocity_30` = max over `d ∈ [T+7d, T+30d]` of the mean stars/day over `[d−7d, d)` (7-day rolling means on daily UTC buckets, so peak and later velocity are comparable).
 - **Primary source (proposed; deviation from PRD §8.1 table, see P1):** GitHub stargazers API with `starred_at` (TM-02, CLEARED-WITH-CONDITIONS; SM §2.2). Depth: whole repo history, but only for **current** stargazers. Tag `verified`.
 - **Fallback:** GH Archive `WatchEvent` (TM-01, CLEARED-WITH-CONDITIONS; public events since 2011-02-12). Allowed for classes only when the case's measured `coverage_ratio` over `[T, T+30)` is ≥ 0.90 (gate in the thresholds JSON); then tag `estimated`, `lower_bound: true`. Below the gate or unmeasured → the class-relevant value is `unknown` (the GH Archive count is still stored as a series for screening).
@@ -53,7 +53,7 @@
 
 **A2 `att.hn_*` — Hacker News**
 - Matching: HN stories whose URL points to the repo URL or the project's own domain, or whose title names the repo (`owner/name` or the project name as recorded at T), with `created_at ∈ [T−7d, T+k)`. The 7-day lead catches the launch post when T is a burst. Matching rules are versioned in the codebook.
-- `att.hn_points@k` = max `points` over matched stories; `att.hn_comments@k` = sum of `num_comments`. Source: HN Algolia (TM-03, CLEARED-WITH-CONDITIONS, pending H2 Q4 for commercial operators). Depth: from 2006-10-09 (observed, SM §2.3). Tag `verified`. Bias: values are **as of fetch**, not as of `T+k`; stories created long before the fetch are treated as final. The ~1,000-hit cap per query (observed, undocumented) requires windowed queries.
+- `att.hn_points@k` = max `points` over matched stories; `att.hn_comments@k` = sum of `num_comments`. Source: HN Algolia (TM-03, CLEARED-WITH-CONDITIONS, pending LQ-6 (was H2 Q4) for commercial operators). Depth: from 2006-10-09 (observed, SM §2.3). Tag `verified`. Bias: values are **as of fetch**, not as of `T+k`; stories created long before the fetch are treated as final. The ~1,000-hit cap per query (observed, undocumented) requires windowed queries.
 - `att.hn_front_page_tag@k` = whether any matched story carries Algolia's `front_page` tag. Tag `verified` as an observed field; its exact semantics are undocumented (SM §2.3), so it is descriptive only.
 - `att.hn_frontpage_minutes@k` = sum over matched stories of polled minutes with rank ≤ 30 in `topstories` within `[T, T+k)`. Source: HN Firebase, own polling at ≤ 1/min (TM-04). **Depth: only from the start of pigtail's live polling.** Rank history cannot be backfilled (LR §7.3 item 1, an inference from the returned fields). Before polling coverage → `unknown`, never 0. The value 30 (one HN page) is an assumption, **unverified** here; it is a config parameter. Polling gaps are recorded as coverage; minutes are a lower bound when coverage < 1 (`estimated`).
 
@@ -101,7 +101,7 @@
 - Reported, not used in classes v0.
 
 **C3 `comm.discord_members`, `comm.slack_members` (stock)**
-- Discord: `approximate_member_count` from the invite endpoint, for invite codes the project itself publishes (TM-27, CLEARED-WITH-CONDITIONS, **off by default until H2 Q12**). No history → only from first snapshot. Tag `estimated` (Discord calls it approximate).
+- Discord: `approximate_member_count` from the invite endpoint, for invite codes the project itself publishes (TM-27, CLEARED-WITH-CONDITIONS, **off by default until LQ-21 (was H2 Q12)**). No history → only from first snapshot. Tag `estimated` (Discord calls it approximate).
 - Slack: GAP (TM-28) → `unknown`; `self_reported` only if the project's admin shares counts.
 - Not used in classes.
 
@@ -111,7 +111,7 @@
 |---|---|---|---|
 | `biz.mrr` | Monthly recurring revenue stated for a date ≤ `T+k` | TrustMRR is a GAP (TM-23). Only a public founder statement in a cleared source (HN, Bluesky, project site via TM-29/TM-13), snapshotted | `self_reported` or `unknown` |
 | `biz.funding` | Disclosed rounds (amount, date, round, investor orgs) announced ≤ `T+k` | Press, operator-entered (TM-31, manual); Launch HN title (TM-03); Crunchbase only with the operator's own licence (TM-24; internal only, never public mode); YC directory GAP (TM-25) | `self_reported`; `verified` only via a licensed Crunchbase record |
-| `biz.pricing_page` | A pricing/paid-plan page on the project's own domain exists at `T+k` | Wayback CDX (TM-13, off by default for commercial operators until H2 Q5); direct fetch under TM-29 conditions | `verified` when a capture ≤ `T+k` shows it. No capture → `unknown` (never `false` from absence). `false` only from a live fetch whose site navigation was captured, and only for that fetch date |
+| `biz.pricing_page` | A pricing/paid-plan page on the project's own domain exists at `T+k` | Wayback CDX (TM-13, off by default for commercial operators until LQ-15 (was H2 Q5)); direct fetch under TM-29 conditions | `verified` when a capture ≤ `T+k` shows it. No capture → `unknown` (never `false` from absence). `false` only from a live fetch whose site navigation was captured, and only for that fetch date |
 | `biz.hiring_hn_posts` | Count of "Who is hiring?" top-level comments matched to the project in months overlapping `[T, T+k)` | HN APIs (TM-30) | `verified` count; 0 is a count of posts, not proof of no hiring |
 | `biz.careers_roles` | Open roles on the project's careers page at `T+k` | TM-29 (per-site check, Wayback first) | `verified` when captured; else `unknown` |
 
@@ -121,7 +121,7 @@ The PRD §8.1 lists MRR as "verified"; under current clearances pigtail **cannot
 
 ### 2.1 Candidate anchors
 - **Declared launch `T_launch`:** the timestamp of a dated evidence record declaring a launch: a Show HN / Launch HN post, a launch post on a cleared source, an announced date on the R1.3 watchlist, or an operator-entered launch with a cited source. Precision is recorded (`hour` if the evidence has a time, else `day` with 00:00 UTC).
-- **First burst `T_burst`:** for the first velocity detection of the case (rule `velocity-v0`, `src/pigtail/capture/velocity.py`: ≥ 100 bot-filtered stars in 48 h and z ≥ 3 against the 30-day baseline), the **onset hour** = the earliest hour `h` in the 48-hour detection window whose filtered stars exceed `μ_h + 3·√μ_h`, where `μ_h` is the baseline mean stars per hour (floor `μ_h + 1` when `μ_h = 0`). If no single hour qualifies (a diffuse rise), onset = start of the 48-hour window. When a stargazers-API series has confirmed the case, onset is recomputed on that series and the GH Archive onset is kept for audit.
+- **First burst `T_burst`:** for the first velocity detection of the case (rule `velocity-v0`, `src/pigtail/capture/velocity.py` (M1, pending merge: not yet on `main`): ≥ 100 bot-filtered stars in 48 h and z ≥ 3 against the 30-day baseline, the PRD R1.1 defaults; recorded as `burst_detection` in the thresholds JSON. GH Archive has no un-star events, so R1.1's "net stars" are the stars observed), the **onset hour** = the earliest hour `h` in the 48-hour detection window whose filtered stars exceed `μ_h + 3·√μ_h`, where `μ_h` is the baseline mean stars per hour (floor `μ_h + 1` when `μ_h = 0`). If no single hour qualifies (a diffuse rise), onset = start of the 48-hour window. When a stargazers-API series has confirmed the case, onset is recomputed on that series and the GH Archive onset is kept for audit.
 
 ### 2.2 Choosing T (per case)
 1. Velocity case with a declared launch in `[T_burst − 30d, T_burst]` → `T = T_launch` (anchor type `launch`). If several, the earliest.
@@ -193,7 +193,7 @@ The **quarterly cohort** is the UTC calendar quarter containing T (e.g. `2026Q1`
 
 ## 4. Fake-star filtering (R3.3)
 
-- **Method:** StarScout (He et al., ICSE 2026), the current reference method; no peer-reviewed successor was found (LR §2.1–2.2). Reproduced with the authors' local DuckDB pipeline at a pinned commit, parameters pinned in a versioned config: low-activity signature; lockstep (CopyCatch) n = 50, m = 10, Δt = 30 d, ρ = 0.5; campaign post-processing: a month with > 50 fake stars and > 50 % fake share, and fake stars > 10 % of all-time stars (LR §2.1, §2.3).
+- **Method:** StarScout (He et al., ICSE 2026), the current reference method; no peer-reviewed successor was found (LR §2.1–2.2). Reproduced with the authors' local DuckDB pipeline at a pinned commit, parameters pinned in a versioned config: low-activity signature; lockstep (CopyCatch) n = 50, m = 10, Δt = 30 d, ρ = 0.5; campaign post-processing: a month with > 50 fake stars and > 50 % fake share, and fake stars > 10 % of all-time stars (LR §2.1, §2.3). The lockstep parameters and the campaign-level removal rule are recorded as `fake_star_filter` (`starscout-v0`) in the thresholds JSON.
 - **Series stored (all three, always):** `raw`, `bot_filtered`, `starscout_filtered`.
 - **Filtered series definition:** for a repo **with** a StarScout campaign flag, remove stars from all accounts flagged by either signature on that repo; for a repo **without** a campaign flag, `starscout_filtered = bot_filtered`. Account-level flags alone are not used to remove stars, because the low-activity signature also matches legitimate new users; the campaign post-processing is the paper's own false-positive control (P9).
 - **Applying flags to the API series:** stargazers from the API are pseudonymised with the same keyed hash as GH Archive actors, so flags computed on GH Archive can be joined to API stargazers.
@@ -225,6 +225,15 @@ The **quarterly cohort** is the UTC calendar quarter containing T (e.g. `2026Q1`
 5. **`plateau`** (provisional at T+90, final at T+365): `launch_signal` and none of the above.
 6. **`unclassified`** with a reason: `pending`, `small_cohort`, `missing_data`, `no_anchor`.
 
+**"Adoption is flat" (short_lived).** PRD §8.2 does not define "flat". v0 operationalises it as **below the cell median**: `AD90 < 50` (primary-ecosystem downloads percentile at T+90), with `CM90 < 50` in its place when adoption is `not_applicable`. "Flat" is therefore relative to the cohort cell, not a zero or near-zero growth rule; an absolute rule would depend on ecosystem-specific download noise (mirrors, CI). The value 50 is provisional and is on the pilot calibration list (§9 item 2).
+
+**Why `attention_only` does not require `burst_30`.** PRD §8.2 describes attention_only as "a burst without adoption or community follow-through". v0 reads "a burst" as the attention leg of `winner` (`A30 ≥ 90`, top decile of 30-day filtered stars in the cell) and does **not** also require a `velocity-v0` detection (`burst_30`), for three reasons:
+1. With the same attention leg, attention_only is exactly "winner's attention without winner's follow-through", so the classes partition the top-attention cases cleanly.
+2. `velocity-v0` runs on GH Archive, which under-captures stars since 2025-05 (ADR-009), and uses an absolute 100-star floor that is not cohort-relative. Requiring it would make the class depend on GH Archive coverage and on the case's entry path (velocity vs declared launch).
+3. A top-decile case without a detected burst (for example a launch-anchored diffuse rise) would otherwise fall to `plateau`, whose PRD definition is "never reached the winner threshold". That case did reach the attention leg.
+
+`burst_30` is stored on every class record. The pilot reports the share of `attention_only` cases without `burst_30` and re-runs the class results with the stricter "`burst_30` required" variant (§9 item 11). Adopting that variant would be a major version change (class definition).
+
 `plateau` is a class. Being a **matched loser** is a role in matching (R4.3), not a class: a winner's matched loser may be `plateau`, `attention_only`, `short_lived` or `slow_riser`. Business metrics play no part in any class.
 
 ### 5.3 Edge rules
@@ -237,6 +246,7 @@ The **quarterly cohort** is the UTC calendar quarter containing T (e.g. `2026Q1`
 - **Right-censoring.** Before T+90 matures, every case is `unclassified:pending`, except that a T+30 provisional label `attention_top_decile` (`A30 ≥ 90`) may be shown, clearly marked provisional. `plateau` becomes final only at T+365 (slow_riser check).
 - **Percentile unavailable** (cell below 30 at every fallback level) → `unclassified:small_cohort`.
 - **Coverage gate.** GH Archive stars feed `A30`, `V90`, `P30` only if `coverage_ratio ≥ 0.90` for the window; otherwise those inputs are `unknown`.
+- **Why 0.90 here and 0.95 in ADR-012.** The two numbers gate different decisions. The 0.90 gate is **per case and per window**: it decides whether a GH Archive count may stand in as a *fallback* input when the primary API series is unavailable (e.g. truncated), and such a value is always tagged `estimated`, `lower_bound: true`, so the residual loss is visible on the record. ADR-012's 0.95 is a **global** threshold on the coverage that M1-T16 measures across the archive, and it decides whether GH Archive becomes the *primary* source for **every** scored case and cohort. That switch gives up the API as a cross-check, and GH Archive's loss is burst-correlated (ADR-009), so a residual loss biases `A30` downward for exactly the bursty cases the classes separate. A higher bar is warranted, and the gap between 0.90 and 0.95 also keeps the primary source from flipping on measurement noise near a single threshold. The per-case 0.90 gate still applies if GH Archive becomes primary. 0.90 is calibrated in the pilot (§9 item 5); 0.95 changes only by ADR.
 - **Several cases per repo.** Each case is classified on its own T.
 - **Recording.** Every class record stores `outcome_thresholds_version`, the SHA-256 of the thresholds JSON, the inputs with their tags, the normalization cells used, the universe version and the run id.
 
@@ -257,9 +267,9 @@ pigtail computes **no composite outcome score**: no weighted sum, index, or sing
 | Metric | Primary source (TM) | Clearance | Depth | Tag | Fallback / when gap | In classes v0 |
 |---|---|---|---|---|---|---|
 | `att.stars` | GitHub stargazers API (TM-02) | CWC | Full history, current stargazers only; 40k cap unverified | verified | GH Archive (TM-01, CWC, since 2011-02-12; unreliable from 2025-05) if coverage ≥ 0.90 → estimated; else unknown | yes (`A30`, `V90`, `P30`) |
-| `att.hn_points`, `att.hn_comments` | HN Algolia (TM-03) | CWC (H2 Q4) | Since 2006-10-09 (observed) | verified (as of fetch) | unknown | no |
-| `att.hn_front_page_tag` | HN Algolia (TM-03) | CWC (H2 Q4) | Since 2006-10-09 | verified (semantics undocumented) | unknown | no |
-| `att.hn_frontpage_minutes` | HN Firebase polling (TM-04) | CWC (H2 Q4) | Live only | verified / estimated if polling gaps | unknown before polling | no |
+| `att.hn_points`, `att.hn_comments` | HN Algolia (TM-03) | CWC (LQ-6) | Since 2006-10-09 (observed) | verified (as of fetch) | unknown | no |
+| `att.hn_front_page_tag` | HN Algolia (TM-03) | CWC (LQ-6) | Since 2006-10-09 | verified (semantics undocumented) | unknown | no |
+| `att.hn_frontpage_minutes` | HN Firebase polling (TM-04) | CWC (LQ-6) | Live only | verified / estimated if polling gaps | unknown before polling | no |
 | `att.reddit_reach` | Reddit (TM-05) | GAP | — | unknown | unknown | no |
 | `att.bsky_*` | Bluesky Jetstream + search (TM-06) | CWC | Live; search depth unverified | verified | unknown | no |
 | `adopt.downloads` npm | npm API (TM-08) | CLEARED | Daily since 2015-01-10 | verified (noisy) | unknown | yes |
@@ -271,12 +281,12 @@ pigtail computes **no composite outcome score**: no weighted sum, index, or sing
 | `adopt.dependents` | deps.dev (TM-12) | CWC | BigQuery snapshots, start unverified; npm/Cargo/Maven/PyPI only | verified | GitHub dependents page GAP (TM-26) → unknown | no |
 | `comm.returning_external_contributors` | GitHub API PRs (TM-02) | CWC | Full history | verified | GH Archive (TM-01) merged-PR events — to be checked (M3-T0) → estimated | yes (`CM90`) |
 | `comm.external_activity` | GitHub API (TM-02) | CWC | Full history | verified | GH Archive (TM-01) → estimated | no |
-| `comm.discord_members` | Discord invite API (TM-27) | CWC, off until H2 Q12 | Live only | estimated | unknown | no |
+| `comm.discord_members` | Discord invite API (TM-27) | CWC, off until LQ-21 | Live only | estimated | unknown | no |
 | `comm.slack_members` | none (TM-28) | GAP | — | unknown | self_reported via project admin | no |
 | `biz.mrr` | TrustMRR (TM-23) | GAP | — | unknown | self_reported from cleared sources | no |
 | `biz.funding` | Press, manual (TM-31) | CWC (manual) | Operator-entered | self_reported | Crunchbase BYO licence (TM-24) → verified, internal only; YC directory GAP | no |
-| `biz.pricing_page` | Wayback CDX (TM-13) | CWC, off for commercial until H2 Q5 | Since 1996, per URL | verified | Direct fetch per TM-29; else unknown | no |
-| `biz.hiring_hn_posts` | HN APIs (TM-30) | CWC (H2 Q4) | Monthly since 2011 | verified | unknown | no |
+| `biz.pricing_page` | Wayback CDX (TM-13) | CWC, off for commercial until LQ-15 | Since 1996, per URL | verified | Direct fetch per TM-29; else unknown | no |
+| `biz.hiring_hn_posts` | HN APIs (TM-30) | CWC (LQ-6) | Monthly since 2011 | verified | unknown | no |
 | `biz.careers_roles` | Careers pages (TM-29) | CWC per site | Via Wayback, per URL | verified | unknown | no |
 
 CWC = CLEARED-WITH-CONDITIONS.
@@ -297,7 +307,7 @@ CWC = CLEARED-WITH-CONDITIONS.
 ## 9. What the M4 pilot must calibrate
 
 1. Base rates of each class under v0.1.0 on the pilot universe, and whether `winner` is ~top-decile-sized as intended.
-2. The attention (90), adoption/community (75), decay (0.10 · P30) and flatness (50) thresholds; the zero floor.
+2. The attention (90), adoption/community (75) and decay (0.10 · P30) thresholds; the "adoption is flat" operationalisation (`AD90 < 50`, below the cell median, with `CM90 < 50` when adoption is `not_applicable`); the zero floor.
 3. The minimum cell size (30) and the fallback hierarchy: cell sizes per (category, quarter) and the share of `small_cohort`.
 4. The T-anchor look-back (30 days) and the burst-onset rule, against human-coded launch dates.
 5. The GH Archive coverage gate (0.90) against measured coverage ratios (ADR-009, M1-T16).
@@ -306,8 +316,10 @@ CWC = CLEARED-WITH-CONDITIONS.
 8. Category taxonomy: coverage, α of the LLM assignment, merge/split of small categories.
 9. Share of `unclassified:missing_data` by category and cohort (a high share means the class system is not usable for that stratum).
 10. The raw vs StarScout-filtered class flip rate.
+11. The `attention_only` burst choice (§5.2): the share of `attention_only` cases without `burst_30`, and the class results with `burst_30` required.
 
 Calibration happens once, on pilot data, and produces `outcome-thresholds v1.0.0` (§5.4).
 
 ## Changelog
 - 2026-09-25 — v0.1.0 draft (M3-T1).
+- 2026-09-25 — fixes after verifier M3 round 1: `botfilter.py` and `velocity.py` marked "M1, pending merge"; H2 Q4/Q5/Q12 references replaced by LQ-6, LQ-15 and LQ-21 (§1.2, §1.4, §1.5, §7); "adoption is flat" (`AD90 < 50`) and the `attention_only` burst choice documented (§5.2) and added to the pilot list (§9 items 2 and 11); ADR-012's 0.95 vs the 0.90 gate explained (§5.3). The thresholds JSON gains `burst_detection` (`velocity-v0`: 100 stars in 48 h, 3σ, per PRD R1.1) and `fake_star_filter` (`starscout-v0`: n = 50, m = 10, Δt = 30 d, ρ = 0.5, campaign level, per §4). These record parameters already fixed in §2.1 and §4; no threshold, input or class changed, so the file stays provisional `outcome-thresholds v0.1.0` and the version number is not bumped.

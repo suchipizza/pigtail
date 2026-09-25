@@ -118,7 +118,7 @@ How to reverse: A source with verifiable MRR is cleared.
 Context: The compliance pack (docs/compliance/dpia.md) concludes a full DPIA is needed. It also found that capture currently has no retention purge, no encryption at rest, no minimization of raw GH Archive dumps, and no published notice or request handling.
 Decision (in force until the listed controls exist and/or H2 answers):
 - No production capture on the host until CB-01 (retention purge), CB-03 (encryption at rest), CB-04 (raw-dump minimization), CB-09 (key rotation runbook), CB-12 (published notice), CB-16 (breach runbook), CB-17 (encrypted backups) and CB-18 (log hygiene) exist. Local development continues.
-- No person-level source beyond GH Archive (Bluesky, HN, V2EX, Discord) until CB-02 (deletion sync), CB-06 (identifier redaction before LLM calls), CB-08 (data-subject request tooling) and CB-13 (honouring refusals) exist.
+- No person-level source beyond GH Archive (Bluesky, HN, V2EX, Discord) until CB-01 (retention purge), CB-02 (deletion sync), CB-03 (encryption at rest), CB-06 (identifier redaction before LLM calls), CB-08 (data-subject request tooling), CB-12 (published notice) and CB-13 (honouring refusals) exist. **This ADR is the single authoritative list**; the compliance docs refer to it (verifier M3 round 1).
 - No account-level spread graphs until LQ-8 is answered.
 - No private individuals, matched losers or personal-account repos named in any output.
 This is stricter than the PRD and doesn't relax any requirement.

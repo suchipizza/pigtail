@@ -55,7 +55,7 @@ EDPB Guidelines 1/2024 require the interest to be lawful, "clearly and precisely
 
 | Interest | Whose | Lawful? | Articulated precisely? | Real and present? |
 |---|---|---|---|---|
-| I1 **Research and statistics** on how open-source projects grow: which mechanisms work, tested against matched losers (PRD §1–2, §9). | Controller, researchers (PRD §3) | Yes. Research and statistics are purposes the GDPR itself recognises (Art. 89) and the FADP names in Art. 31(2)(e). | Yes: the mechanism library, outcome model and matched comparisons (F3, F4, F8, F9). | Yes. Capture runs continuously (M1), and the research purpose depends on evidence that disappears if it isn't captured. |
+| I1 **Research and statistics** on how open-source projects grow: which mechanisms work, tested against matched losers (PRD §1–2, §9). | Controller, researchers (PRD §3) | Yes. Research and statistics are purposes the GDPR itself recognises (Art. 89) and the FADP names in Art. 31(2)(e). | Yes: the mechanism library, outcome model and matched comparisons (F3, F4, F8, F9). | Yes. The capture layer is being built (M1; it runs locally in development only, with no production capture per ADR-022), and the research purpose depends on evidence that disappears if it isn't captured. |
 | I2 **Evidence-based launch planning** for any OSS maintainer (planner D3, analyzer D5). | Third parties: maintainers, DevRel teams | Yes | Yes (F10, F17) | Yes |
 | I3 **Commercial interest of the operator** (e.g. a DevRel team's competitive analysis) | Controller | Yes, subject to the platform terms each connector respects (terms memos) | Yes (PRD §3, "DevRel / GTM team") | Yes when the deployment is commercial, which we assume throughout (terms-memos assumptions). |
 | I4 **Freedom of information and scientific freedom:** open, reproducible methodology and aggregate findings (G5). | Controller, the public | Yes | Yes | Yes |
@@ -80,7 +80,7 @@ The question is whether each category of personal data is necessary for the inte
 
 | Data | Why it is needed | Less intrusive alternative considered | Result |
 |---|---|---|---|
-| **Actor identity for GitHub events (A1)** | Star velocity must count distinct actors per repo-hour. The lockstep fake-star filter (R3.3) needs per-actor features within a window. Returning contributors (§8.1) need a stable actor id across months. | (a) Aggregate counts only: this defeats bot and fake-star filtering. (b) A stable keyed pseudonym instead of the login: **adopted** (`src/pigtail/pseudonymize.py`, `src/pigtail/connectors/base.py` `records()`). Per-actor features are held in memory for one window only and never persisted (`src/pigtail/capture/velocity.py`). Bot logins are dropped without hashing (`src/pigtail/connectors/gharchive.py`). | Necessary in pseudonymised form. **Raw logins in the stored hourly snapshot** go beyond what the analysis needs; they are kept only for replay (PRD §5.5) and integrity. See DPIA R4 and backlog item CB-04. |
+| **Actor identity for GitHub events (A1)** | Star velocity must count distinct actors per repo-hour. The lockstep fake-star filter (R3.3) needs per-actor features within a window. Returning contributors (§8.1) need a stable actor id across months. | (a) Aggregate counts only: this defeats bot and fake-star filtering. (b) A stable keyed pseudonym instead of the login: **adopted** (`src/pigtail/pseudonymize.py`, on `main`; applied at ingest by `src/pigtail/connectors/base.py` `records()`, **I (M1, pending merge)**). Per-actor features are held in memory for one window only and never persisted (`src/pigtail/capture/velocity.py`, **I (M1, pending merge)**). Bot logins are dropped without hashing (`src/pigtail/connectors/gharchive.py`, **I (M1, pending merge)**). | Necessary in pseudonymised form. **Raw logins in the stored hourly snapshot** go beyond what the analysis needs; they are kept only for replay (PRD §5.5) and integrity. See DPIA R4 and backlog item CB-04. |
 | **Post text and author (A2, A3)** | Snapshot-or-drop (PRD §5.1) and the citation validator (R7.1: "quoted span … found in the snapshot") need the original text. Classifying edges (R5.3) needs to know that the same account published and then redistributed. | (a) Store only coded facts: this makes claims unverifiable and breaks replay (PRD §5.5). (b) Pseudonymise the author when parsing: **adopted**. (c) Strip identifiers before the LLM call: **adopted** (`src/pigtail/llm/client.py`, ADR-006). | Necessary, with raw text limited to private storage and to 24 months. |
 | **Engagement and reach of accounts (A4)** | Burst-to-trigger attribution (R5.5) ranks triggers by timing and reach. | Use reach buckets (e.g. log bands) instead of exact follower counts: **planned** (CB-10). | Necessary in coarsened form. |
 | **Spread graph linking accounts (A4)** | Needed for the mechanism evidence ("who redistributed what"). | Graphs at community or publication level only: this loses the redistribution mechanism for individual influencers. The adopted compromise is pseudonymised nodes, private-only graphs, and no public release of graphs that identify people (PRD §4). | Necessary for Tier 2 and Tier 3 cases only (≈ 300 repos), not for the Tier 1 universe. |
@@ -125,22 +125,22 @@ Conclusion: aggregate research and project-level forensics sit within reasonable
 - **Scale:** A1 covers every public GitHub event, so millions of people. A2–A4 cover people who mention roughly 300 Tier 2 repos (G2).
 
 ### 4.4 Safeguards that tip the balance
-Status: **I** = implemented (file cited), **P** = planned (backlog id in [dpia.md](dpia.md) §9).
+Status: **I** = implemented and on `main` (file cited), **I (M1, pending merge)** = implemented in the uncommitted M1 capture work but not yet merged to `main`, **P** = planned (backlog id in [dpia.md](dpia.md) §9).
 
 | # | Safeguard | Status |
 |---|---|---|
-| S1 | Keyed HMAC-SHA256 pseudonyms, per platform namespace, at parse. The key is stored separately. | I: `src/pigtail/pseudonymize.py`, `src/pigtail/connectors/base.py` |
+| S1 | Keyed HMAC-SHA256 pseudonyms, per platform namespace, at parse. The key is stored separately. | Partly I: the pseudonymiser `src/pigtail/pseudonymize.py` is on `main`. Pseudonymisation at ingest (`src/pigtail/connectors/base.py` `records()`, namespace `github` in `gharchive.py`) is **I (M1, pending merge)**. |
 | S2 | Direct identifiers (e-mail, phone, @mentions) are stripped before **every** LLM call, on both backends. | I: `src/pigtail/llm/client.py` (`complete()`, line 88), ADR-006. Gaps: names, bare handles and profile URLs are not stripped (CB-06). |
-| S3 | Bot logins are dropped. Per-actor features are never persisted. | I: `gharchive.py`, `velocity.py` |
+| S3 | Bot logins are dropped. Per-actor features are never persisted. | I (M1, pending merge): `src/pigtail/connectors/gharchive.py`, `src/pigtail/capture/velocity.py` |
 | S4 | No public release of person-level data, raw snapshots or identifying spread graphs. The app is private by default. | I (policy): PRD §4, R13.3. The CI private-data scan is I (`scripts/private_data_scan.py`). App authentication is P (UI not built). |
-| S5 | Raw person-level data is retained 24 months, then aggregated or deleted. | P: fields exist (`evidence.retention_class`, migration 0001). The purge job is CB-01. |
-| S6 | Deletion sync where platforms require it, and as a courtesy for HN `deleted`. | P: `evidence.deletion_state` exists. The sync job is CB-02. |
+| S5 | Raw person-level data is retained 24 months, then aggregated or deleted. | P. The fields are I (M1, pending merge): `evidence.retention_class` in `migrations/0001_capture_v0.sql` and `src/pigtail/capture/models.py`. The purge job is CB-01. |
+| S6 | Deletion sync where platforms require it, and as a courtesy for HN `deleted`. | P. The field `evidence.deletion_state` is I (M1, pending merge) (`migrations/0001_capture_v0.sql`). The sync job is CB-02. |
 | S7 | Right to object honoured unconditionally (suppression list), without asking for "grounds". | P: CB-08 |
 | S8 | Public privacy notice (Art. 14 / FADP Art. 19) with an opt-out route. | P: [privacy-notice.md](privacy-notice.md) drafted; publication is CB-12. |
-| S9 | No cross-platform identity resolution. The pseudonym namespace per platform makes linking harder by construction. | I (namespaces). The codebook rule is P (CB-11). |
+| S9 | No cross-platform identity resolution. At ingest, the pseudonym namespace per platform makes linking harder by construction. **Limitation:** the LLM-path redactor (`build_client` in `src/pigtail/llm/client.py` → `Pseudonymizer.strip_identifiers`) replaces @mentions with pseudonyms in a single `generic` namespace, whatever the platform. The same handle mentioned on two platforms therefore gets the same pseudonym in LLM inputs and cached outputs, and that pseudonym differs from the ingest one. | Ingest namespaces: I (M1, pending merge). LLM-path redaction: not namespaced (per-source namespace to be added with CB-06). The codebook rule is P (CB-11). |
 | S10 | No Art. 9 attributes are coded. Output schemas are closed. | I (closed schemas) / P (codebook rule) |
 | S11 | LLM provider: `api` mode under the Commercial Terms and DPA (processor, no training). `subscription` mode requires the training opt-out (H1) and redaction first. | I (redaction, routing) / operator action (H1) / open legal question (LQ-1, LQ-2) |
-| S12 | Connectors run only when their terms clearance is met. Gap sources cannot be enabled. | I: `ConnectorGapError` in `src/pigtail/connectors/base.py` |
+| S12 | Connectors run only when their terms clearance is met. Gap sources cannot be enabled. | I (M1, pending merge): `ConnectorGapError` in `src/pigtail/connectors/base.py` |
 | S13 | Explicit refusals are honoured (FADP Art. 30(2)(b); e.g. a Bluesky user-intents opt-out once adopted, TM-06). | P: CB-13 |
 | S14 | Reach is stored in bands, not exact counts, for person accounts. | P: CB-10 |
 | S15 | Growth-engine and planner outputs never tell users to contact a named private individual. Individuals may be named only under the public-figure rule, and only in the private UI. | P: CB-14, LQ-7 |
@@ -154,9 +154,9 @@ For **A4 (spread graphs of accounts)** the balance is **narrow**. It holds only 
 - (iii) S7 (objection) and S15 (no outreach targeting of private individuals) are implemented;
 - (iv) the lawyer confirms the profiling analysis (LQ-8).
 
-**Before S5, S6, S7 and S8 are implemented, the conservative default is:**
-- A1 may continue, because it is already running under TM-01 conditions and H2 "does not block collection under the documented safeguards" (WORK_ORDER §5).
-- **No person-level source beyond GH Archive (Bluesky, HN, V2EX) is enabled** until CB-01, CB-02, CB-03 and CB-08 are implemented.
+**Until the ADR-022 controls exist, the conservative default is:**
+- A1 may continue **running locally in development only; there is no production capture (ADR-022)**. Production capture on the host waits for the ADR-022 production controls (CB-01, CB-03, CB-04, CB-09, CB-12, CB-16, CB-17, CB-18) and for the M1 safeguards (S1 at ingest, S3, S12) to be merged to `main`. H2 "does not block collection under the documented safeguards" (WORK_ORDER §5).
+- **No person-level source beyond GH Archive (Bluesky, HN, V2EX, Discord) is enabled** until every pre-condition in **ADR-022** exists: CB-01 (retention purge, S5), CB-02 (deletion sync, S6), CB-03 (encryption at rest), CB-06 (identifier redaction before LLM calls, S2 extensions), CB-08 (data-subject request tooling, S7), CB-12 (published notice, S8) and CB-13 (honouring refusals, S13). ADR-022 is the single authoritative list.
 - **No spread graph (A4) is built** until LQ-8 is answered or CB-14 is implemented.
 - **Nothing is published (A7)** until H2 and H4.
 
@@ -183,8 +183,8 @@ For **A4 (spread graphs of accounts)** the balance is **narrow**. It holds only 
 
 This LIA supports Art. 6(1)(f) GDPR and Art. 31(1) FADP **only while all of the following hold**:
 1. The connector's terms memo decision is CLEARED or CLEARED-WITH-CONDITIONS and its conditions are implemented.
-2. S1, S2, S3, S4 and S12 are active, as they are today.
-3. For any person-level source other than GH Archive: S5, S6, S7 and S8 are implemented and published first.
+2. S1, S2, S3, S4 and S12 are active. S2 and S4 are on `main` today; S1 at ingest, S3 and S12 are I (M1, pending merge) and must be merged before any capture beyond local development.
+3. For any person-level source other than GH Archive: every ADR-022 pre-condition (CB-01, CB-02, CB-03, CB-06, CB-08, CB-12, CB-13) is implemented, and the notice published, first.
 4. For spread graphs: condition 3 plus S14 and S15.
 5. Any change of purpose (training, marketing, sale, identity resolution, public person-level outputs) triggers a new LIA.
 6. Review this LIA at every milestone that adds a source, at H2, and at least every 12 months.
@@ -193,9 +193,13 @@ This LIA supports Art. 6(1)(f) GDPR and Art. 31(1) FADP **only while all of the 
 
 | Activity | Outcome |
 |---|---|
-| A1 velocity scan | **Proceed** under the current safeguards. Add CB-04 (minimise raw dumps) before M1 acceptance on the host. |
-| A2 mention capture (Bluesky, HN, V2EX) | **Proceed only after** CB-01, CB-02, CB-03 and CB-08 are implemented and the notice is published (CB-12). |
+| A1 velocity scan | **Proceed locally in development only.** Production capture on the host only after the ADR-022 production controls (including CB-04, minimise raw dumps) exist and the M1 safeguards are merged. |
+| A2 mention capture (Bluesky, HN, V2EX) | **Proceed only after** every ADR-022 pre-condition exists: CB-01, CB-02, CB-03, CB-06, CB-08, CB-12 and CB-13. |
 | A3 LLM coding | **Proceed** in `api` mode with the DPA. In `subscription` mode, proceed only for the owner's own non-commercial use after the training opt-out (H1), pending LQ-1 and LQ-2. |
 | A4 spread graphs | **Hold** until LQ-8 is answered or CB-14 is implemented. |
 | A5, A6 | **Proceed.** |
 | A7 publication | **Blocked** until H2 and H4 (unchanged). |
+
+## Changelog
+- 2026-09-25: v0.1 created (M3-T2).
+- 2026-09-25 — fixes after verifier M3 round 1: uncommitted M1 controls relabelled "I (M1, pending merge)" (§3, §4.4 S1/S3/S5/S6/S12); §4.5 A1 is local development only (ADR-022); person-level-source pre-conditions aligned with ADR-022 (§4.5, §6, §7); S9 corrected (LLM-path redaction uses one `generic` namespace).

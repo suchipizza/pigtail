@@ -139,7 +139,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
   2. For the smaller Tier 2 and Tier 3 sets, where pigtail could reply to or mention posters, is individual notice required? We think it would be intrusive and possibly platform spam.
   3. Does a *commercial* operator qualify for the "research or statistical purposes" limb?
   4. Where must the notice be published for it to count?
-- **Default meanwhile:** a public notice only, no individual contact (and no platform posting without H5). Person-level sources beyond GH Archive stay off until the notice is published (CB-12).
+- **Default meanwhile:** a public notice only, no individual contact (and no platform posting without H5). Person-level sources beyond GH Archive stay off until the notice is published (CB-12) and the other ADR-022 pre-conditions exist.
 - **Blocks:** enabling Bluesky, HN and V2EX.
 
 ### LQ-11 · Is this "light" DPIA enough; national lists; prior consultation · Priority B
@@ -230,7 +230,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - **Question:**
   1. As in Q11.
   2. In addition: is the policy in [retention-policy.md](retention-policy.md) adequate, including the 35-day backups, 12-month logs, 24-month LLM cache and tombstones?
-- **Default meanwhile:** the policy as drafted. No new person-level source until CB-01 and CB-02 exist.
+- **Default meanwhile:** the policy as drafted. No new person-level source until every ADR-022 pre-condition exists (CB-01, CB-02, CB-03, CB-06, CB-08, CB-12, CB-13).
 - **Blocks:** release (M9); person-level sources beyond GH Archive.
 
 ---
@@ -264,7 +264,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - **Question** (as in Q4):
   1. Do YC's public API invitations (the HackerNews/API README, and the Algolia API run with HN) count as "expressly authorized" under the YC Terms of Use? If so, commercial operators may use the API despite the ToU's bans on commercial reproduction and scraping.
   2. Is storing snapshots privately "reproduc[ing] … for commercial purposes"?
-- **Default meanwhile:** API only, private snapshots, no republication of comment text (TM-03, TM-04). Not enabled until CB-01, CB-02, CB-08 and CB-12 exist.
+- **Default meanwhile:** API only, private snapshots, no republication of comment text (TM-03, TM-04). Not enabled until every ADR-022 pre-condition for person-level sources exists: CB-01, CB-02, CB-03, CB-06, CB-08, CB-12 and CB-13 (ADR-022 in `ops/DECISIONS.md` is the single authoritative list).
 - **Blocks:** HN connectors for commercial operators.
 
 ### LQ-15 (was Q5) · Internet Archive · Priority B
@@ -322,3 +322,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 | **A** | LQ-1, LQ-2, LQ-4, LQ-8, LQ-10, LQ-12 | Release (M9); subscription-mode coding at scale; account-level spread graphs; person-level sources beyond GH Archive (until the notice and controls exist) |
 | **B** | LQ-3, LQ-6, LQ-7, LQ-11, LQ-13, LQ-14, LQ-15, LQ-18, LQ-23, LQ-24, LQ-25, LQ-26 | The named source or feature |
 | **C** | LQ-5, LQ-9, LQ-16, LQ-17, LQ-19, LQ-20, LQ-21, LQ-22 | Nothing (the defaults stand) |
+
+## Changelog
+- 2026-09-25: v0.1 created (M3-T2).
+- 2026-09-25 — fixes after verifier M3 round 1: LQ-6 (and the LQ-10 and LQ-12 defaults) now refer to ADR-022 and its full list of pre-conditions for person-level sources.

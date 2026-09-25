@@ -37,14 +37,19 @@ Pack version: 0.1 · 2026-09-25 · Task M3-T2. All sources cited were accessed o
   - CB-16 breach runbook
   - CB-17 backups
   - CB-18 log hygiene
-- **Before any person-level source beyond GH Archive** (Bluesky, HN, V2EX) is enabled, the following are also needed:
+- **Before any person-level source beyond GH Archive** (Bluesky, HN, V2EX, Discord) is enabled, every pre-condition in **ADR-022** (`ops/DECISIONS.md`, the single authoritative list) must exist:
+  - CB-01 retention purge
   - CB-02 deletion sync
-  - CB-06 redactor extensions
-  - CB-08 data-subject tooling
+  - CB-03 encryption at rest
+  - CB-06 identifier redaction before LLM calls (redactor extensions)
+  - CB-08 data-subject request tooling
+  - CB-12 published notice
+  - CB-13 honouring explicit refusals
+- **Code status:** several capture-layer controls (pseudonymisation at ingest in `connectors/base.py`, `ConnectorGapError`, the bot drop, `velocity.py`, the `retention_class` and `deletion_state` fields) are M1 work that is **not yet merged to `main`**. The pack labels them "I (M1, pending merge)". GH Archive capture runs locally in development only; there is no production capture (ADR-022).
 - **LLM:**
   - "Zero-retention" (PRD §10) is achievable only with `api` plus an Anthropic ZDR agreement.
   - `subscription` mode runs under the Consumer Terms: no DPA, no ZDR, training exceptions, and a "no commercial or business purposes" sentence (LQ-1, LQ-2). It stays limited to the owner's own use with training switched off.
-  - CB-07 adds the CLI telemetry opt-outs.
+  - CB-07 is implemented: the CLI subprocess runs with `DISABLE_TELEMETRY`, `DISABLE_ERROR_REPORTING`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` and `DISABLE_FEEDBACK_COMMAND` set, and `BackendError` no longer echoes CLI output (`src/pigtail/llm/subscription.py`, tested in `tests/unit/test_subscription_backend.py`).
 
 ## Not in this pack yet
 - A record of processing activities (CB-15)
@@ -56,3 +61,4 @@ Update the pack when a source is added, when a platform's or Anthropic's terms c
 
 ## Changelog
 - 2026-09-25: v0.1. LIA, DPIA, retention policy, privacy notice, legal-review questions and this index created (M3-T2). terms-memos.md unchanged apart from a link to this index.
+- 2026-09-25 — fixes after verifier M3 round 1: person-level-source pre-conditions now point to ADR-022 (CB-01, 02, 03, 06, 08, 12, 13); uncommitted M1 controls labelled "I (M1, pending merge)"; CB-07 marked implemented.

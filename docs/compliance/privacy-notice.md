@@ -18,7 +18,7 @@ We study **how open-source software projects grow**: which launches, posts and c
 
 - We are interested in **projects**, not in you as a person.
 - We replace usernames with random-looking codes (pseudonyms) as soon as we process the data.
-- We never publish information that identifies you. We don't sell data or use it to advertise to you, and we don't use it to train AI models.
+- We never publish information that identifies you. We don't sell data or use it to advertise to you, and we don't use it to train AI models ourselves. [If the deployment uses the Claude subscription backend, keep:] Our AI provider may, in limited cases, use text we send it for training even though we have switched training off (see "Who receives it").
 
 ## What data we collect, and from where
 
@@ -53,7 +53,7 @@ We do **not** make decisions about you based on this data, and we do not build p
 
 - Usernames are replaced with **keyed pseudonyms** when processed. The key is stored separately.
 - Original public copies ("snapshots") are kept in **private storage** only, [encrypted at rest].
-- Before any text is sent to an AI model, we remove e-mail addresses and phone numbers and replace @mentions with pseudonyms.
+- Before any text is sent to an AI model, we remove e-mail addresses and labelled or international-format phone numbers (for example "tel: …" or "+41 …"), and replace @mentions with pseudonyms. Names, other numbers and links to profiles may still be present.
 - Only [operator]'s authorised staff can access the data, through a private, password-protected interface.
 - Anything we publish is **aggregated and anonymous**: statistics and patterns about projects, never your name, posts or connections.
 
@@ -63,7 +63,7 @@ We do **not** make decisions about you based on this data, and we do not build p
 - **AI model provider (Anthropic).** We use Claude models to classify public posts, for example "is this post a launch announcement?". What is sent is the post text with identifiers removed as described above. How Anthropic handles it depends on how we connect:
   - [Keep one or both, depending on the deployment's `LLM_BACKEND`.]
   - **Through the Anthropic API (our business account).** Anthropic processes the text **on our behalf** under a data processing agreement, does not use it to train models, and by default deletes it within 30 days [or: does not store it, under a zero-data-retention agreement]. Anthropic may keep content flagged for safety review for up to 2 years.
-  - **Through our own Claude subscription (Claude Code).** Anthropic Ireland Limited receives the text under Anthropic's consumer terms and privacy policy (https://www.anthropic.com/legal/privacy). We have switched off the use of our data for model training. Anthropic keeps it for up to 30 days, longer if it is flagged for safety review (up to 2 years). Content that is flagged for safety review may also be used for training even with training switched off.
+  - **Through our own Claude subscription (Claude Code).** Anthropic Ireland Limited receives the text under Anthropic's consumer terms and privacy policy (https://www.anthropic.com/legal/privacy). We have switched off the use of our data for model training. Anthropic keeps it for up to 30 days, longer if it is flagged for safety review (up to 2 years). Even with training switched off, Anthropic's consumer terms allow it to use content that is flagged for safety review, and any feedback submitted to it, to improve its models. We do not submit feedback (the feedback function is disabled in our setup), but we cannot control safety flagging.
 - **Authorities**, only if the law requires it.
 
 We never sell your data or give it to advertisers or data brokers.
@@ -104,3 +104,8 @@ We collect public data about a very large number of people and we don't have the
 ## Changes
 
 We will post changes here with a new date. Significant changes will also be noted in [the project's changelog / our website].
+
+<!-- Template history (delete when publishing):
+- 2026-09-25: v0.1 draft (M3-T2).
+- 2026-09-25 — fixes after verifier M3 round 1: "not used to train AI models" qualified for subscription mode (flagged content and feedback under the Consumer Terms); phone wording narrowed to labelled or international-format phone numbers.
+-->

@@ -86,7 +86,7 @@ private UI (operator auth) ◀── all of the above                      publi
 | D6 | **LLM inputs** | redacted snapshot text | Derived | Sent to Anthropic. **Not stored by pigtail** except as an input hash (`src/pigtail/llm/client.py`). | Redacted | n/a (in transit) | Anthropic (see §2.5) |
 | D7 | **LLM outputs (cache)** | coded fields, quoted spans (R7.1), provenance | Derived | `llm_cache` table (`src/pigtail/llm/store.py`), under `PIGTAIL_DATA_DIR` | Redacted/pseudonymised. **Quoted spans are verbatim text.** | Currently **none**: no TTL (CB-05) | Operator |
 | D8 | **Project-level data** | repo id, `owner/repo` name, stars, downloads, releases | All cleared sources | Postgres, snapshot store | Project-level. `owner` may be a person's login. | `project_level` (unlimited) | Operator; aggregates may be public |
-| D9 | **Operational logs and ledgers** | run records (`runs.error`, counts), LLM usage ledger, pause log | Internal | Postgres, SQLite | Should contain no personal data. `BackendError` messages can carry up to 500 characters of CLI output (`src/pigtail/llm/subscription.py` line 121), which may include model text (CB-07). | 12 months (policy, [retention-policy.md](retention-policy.md)) | Operator |
+| D9 | **Operational logs and ledgers** | run records (`runs.error`, counts), LLM usage ledger, pause log | Internal | Postgres, SQLite | Should contain no personal data. `BackendError` messages no longer echo CLI output: they carry only the exit code, `subtype` and `api_error_status` (`src/pigtail/llm/subscription.py` `parse()`; tested by `test_cb07_error_message_does_not_echo_output` in `tests/unit/test_subscription_backend.py`) (CB-07, implemented). | 12 months (policy, [retention-policy.md](retention-policy.md)) | Operator |
 | D10 | **Pseudonym key** | `PSEUDONYM_KEY` | Operator | Host environment / secrets manager, backed up separately (H1) | Secret | For the life of the dataset | Operator only |
 | D11 | **Manual entries** | press citations (TM-31), careers facts (TM-29) | Operator | Postgres | Organisation-level. Investors are named as organisations only. | `project_level` | Operator |
 
@@ -108,7 +108,7 @@ private UI (operator auth) ◀── all of the above                      publi
 | Retention at Anthropic | Default: deleted "within 30 days of receipt or generation" ([privacy center](https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data)). ZDR is available by agreement per organisation, not per request ([API retention](https://platform.claude.com/docs/en/manage-claude/api-and-data-retention)). Flagged content may be kept up to 2 years even under ZDR. | Training off: 30 days. Training on: up to 5 years. Flagged content: 2 years; classifier scores: 7 years; feedback: 5 years ([privacy center](https://privacy.claude.com/en/articles/10023548-how-long-do-you-store-my-data)). **ZDR is not available** for consumer plans (API retention page: "What ZDR does not cover … Claude Free, Pro, and Max plans, including … Claude Code"). |
 | Commercial use | Allowed | The Consumer Terms (EEA/CH) say: "You agree that you will not use our Services for any commercial or business purposes". The sentence sits in the liability section; its scope is LQ-2. ADR-008 already limits subscription mode to operator self-use. |
 | Transfers | DPA: EU SCCs (Modules Two and Three), UK Addendum, Swiss addendum. The US is adequate for DPF-certified organisations (EU: [Commission list](https://commission.europa.eu/law/law-topic/data-protection/international-dimension-data-protection/adequacy-decisions_en); CH: [Federal Council, 14 Aug 2024](https://www.admin.ch/gov/en/start/documentation/media-releases/media-releases-federal-council.msg-id-102054.html), in force 15 September 2024). Whether Anthropic is DPF-certified: **unknown**, not checked. | Anthropic Ireland, then onward processing by Anthropic in the US under Anthropic's own safeguards (Privacy Policy: standard contractual clauses and adequacy decisions). |
-| pigtail controls | Redaction before every call (ADR-006). Closed output schemas. | Same, plus: no tools (`--tools ""`), an empty temporary working directory, `--no-session-persistence` (no local transcripts), API credential variables stripped. **Missing:** telemetry, error-report and feedback opt-outs in the subprocess environment. Claude Code sends error reports to a third-party service by default for Pro and Max sign-ins ([data usage](https://code.claude.com/docs/en/data-usage)) (CB-07). |
+| pigtail controls | Redaction before every call (ADR-006). Closed output schemas. | Same, plus: no tools (`--tools ""`), an empty temporary working directory, `--no-session-persistence` (no local transcripts), API credential variables stripped. Telemetry, error-report and feedback opt-outs are set in the subprocess environment (`PRIVACY_ENV` in `src/pigtail/llm/subscription.py`: `DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`, `DISABLE_FEEDBACK_COMMAND=1`), because Claude Code otherwise sends error reports to a third-party service by default for Pro and Max sign-ins ([data usage](https://code.claude.com/docs/en/data-usage)). CLI output is not echoed in error messages (CB-07, implemented). These opt-outs do not change what Anthropic itself keeps for the model requests (see the rows above). |
 
 ---
 
@@ -166,11 +166,12 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 
 ## 6. Measures, mapped to controls
 
-**I** = implemented (evidence cited). **P** = planned (backlog id, §9). **O** = operator action.
+**I** = implemented and on `main` (evidence cited). **I (M1, pending merge)** = implemented in the uncommitted M1 capture work, not yet merged to `main`. **P** = planned (backlog id, §9). **O** = operator action.
 
 | Risk | Measures | Status |
 |---|---|---|
-| R1 | Keyed HMAC-SHA256 pseudonyms, per-platform namespace (`src/pigtail/pseudonymize.py`). | I |
+| R1 | Keyed HMAC-SHA256 pseudonyms (`src/pigtail/pseudonymize.py`). | I |
+| | Pseudonymisation at ingest with a per-platform namespace (`src/pigtail/connectors/base.py` `records()`, `github` namespace in `connectors/gharchive.py`). The LLM-path redactor uses one `generic` namespace for @mentions ([lia.md](lia.md) S9). | I (M1, pending merge) |
 | | Key ≥ 16 characters, required, and stored apart from the data (`Pseudonymizer.__init__`; `build_client` refuses to start without it). | I |
 | | The key is backed up separately from data backups. | O (H1) |
 | | Key rotation and escrow procedure; the key is never placed in DB dumps. | P CB-09 |
@@ -181,15 +182,15 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | | Hold A4 until LQ-8 is answered or CB-14 is in place. | P |
 | R4 | Retention job: 24 months for `person_level_24m`, then aggregate or delete. | P CB-01 |
 | | Minimise GH Archive raw dumps (hash + re-fetch). | P CB-04 |
-| | Retention fields exist (`evidence.retention_class`, migration `0001_capture_v0.sql`). | I |
-| R5 | Deletion sync per source ([retention-policy.md](retention-policy.md) §4); `deletion_state` field. | I (field) / P CB-02 |
+| | Retention fields exist (`evidence.retention_class`, `migrations/0001_capture_v0.sql`, `src/pigtail/capture/models.py`). | I (M1, pending merge) |
+| R5 | Deletion sync per source ([retention-policy.md](retention-policy.md) §4); `deletion_state` field (`migrations/0001_capture_v0.sql`). | I (M1, pending merge) (field) / P CB-02 |
 | | Bluesky is not enabled before CB-02. | P (gate) |
 | R6 | Redaction before every call on both backends (`src/pigtail/llm/client.py`, ADR-006). | I |
 | | Closed output schemas (`src/pigtail/llm/types.py`). | I |
 | | Subscription mode: no tools, empty working directory, no session persistence, API credential variables stripped (`subscription.py`). | I |
 | | Training opt-out on the operator's Claude account. | O (H1, still open) |
 | | Subscription mode only for the operator's own non-commercial use (ADR-001, ADR-008). | I (policy) |
-| | Telemetry, error-report and feedback opt-outs in the CLI subprocess environment. | P CB-07 |
+| | Telemetry, error-report and feedback opt-outs in the CLI subprocess environment (`PRIVACY_ENV`: `DISABLE_TELEMETRY`, `DISABLE_ERROR_REPORTING`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_FEEDBACK_COMMAND`; `src/pigtail/llm/subscription.py`). | I (CB-07) |
 | | Extend the redactor to profile URLs, DIDs, bare handles in author fields, and signature names. | P CB-06 |
 | | `api` mode: sign the DPA (automatic under the Commercial Terms); request ZDR where eligible. | O |
 | R7 | Public repo rules (CLAUDE.md, WORK_ORDER §6). | I |
@@ -205,7 +206,9 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | R10 | Public notice with a contact route. | P CB-12 |
 | | Access, objection and erasure tooling. | P CB-08 |
 | | Honour explicit refusals (FADP Art. 30(2)(b)). | P CB-13 |
-| R11 | Give the cache a retention class and evidence links; purge with its source; redact error text. | P CB-05, CB-07, CB-18 |
+| R11 | Give the cache a retention class and evidence links; purge with its source. | P CB-05 |
+| | `BackendError` no longer echoes CLI output (tested in `tests/unit/test_subscription_backend.py`). | I (CB-07) |
+| | No raw handles or text in other logs or `runs.error`; 12-month log retention. | P CB-18 |
 | R12 | Purpose limits in the operator guide and README. No person search in the UI. Controller duties explained to self-hosters. | P CB-21 |
 | R13 | Encrypted backups, 35-day rotation, deletions replayed after a restore (tombstone log). | P CB-17 |
 | R14 | In public outputs, suppress or aggregate repos owned by personal accounts unless they are public-figure projects or the owner consents. | P CB-20 |
@@ -219,7 +222,7 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 | R1 | Low–medium (quoted spans remain linkable internally) | **High** |
 | R2 | Low | Low (the relevant features are not built yet) |
 | R3 | Medium (see LQ-8) | n/a (not built; on hold) |
-| R4 | Low | **High** (raw dumps are accumulating now) |
+| R4 | Low | **High** (raw dumps accumulate wherever capture runs; today that is local development only) |
 | R5 | Low | n/a (no deletion-duty source enabled) → becomes **High** if Bluesky is enabled first |
 | R6 | Low (api) / Medium (subscription) | Medium |
 | R7 | Low | Low–medium |
@@ -233,7 +236,7 @@ Likelihood (L) and severity (S) are rated 1–3 (1 = remote or minimal, 2 = poss
 
 **Assessment.** With the planned measures in place, no **high** residual risk remains, so prior consultation (GDPR Art. 36(1) / FADP Art. 23(1)) is not required. The lawyer should confirm this (LQ-11).
 
-**Today**, R1, R4, R8 and R10 are high for the GH Archive capture already running. This is why CB-01, CB-03, CB-04, CB-09 and CB-12 are **must-fix before the capture layer runs on the production host** (M1 acceptance on the host), and why the person-level sources beyond GH Archive stay off until CB-02 and CB-08 are also in place.
+**Today**, R1, R4, R8 and R10 are high for the GH Archive capture as built. It runs locally in development only; there is no production capture (ADR-022). This is why the ADR-022 production controls (CB-01, CB-03, CB-04, CB-09, CB-12, CB-16, CB-17, CB-18) are **must-fix before the capture layer runs on the production host** (M1 acceptance on the host), and why person-level sources beyond GH Archive stay off until every ADR-022 pre-condition for them exists: CB-01, CB-02, CB-03, CB-06, CB-08, CB-12 and CB-13. ADR-022 (`ops/DECISIONS.md`) is the single authoritative list.
 
 ---
 
@@ -255,19 +258,19 @@ These are for the orchestrator to add to `ops/BACKLOG.md`. "Blocks" says which p
 
 | ID | Control | Blocks | Suggested owner |
 |---|---|---|---|
-| CB-01 | Retention job: purge or aggregate `person_level_24m` evidence, snapshots and derived pseudonymous rows at 24 months. Dry-run report. Tested. | Production capture on the host (M1 acceptance); any new person-level source | engineer |
-| CB-02 | Deletion-sync framework (R1.5): Bluesky Jetstream delete and account events with raw copy dropped in ≤ 48 h; propagation of the HN `deleted` flag; propagation to snapshots, LLM cache, derived rows and the backup tombstone log | Bluesky, HN and V2EX connectors | engineer |
-| CB-03 | Encryption at rest for the snapshot bucket (SSE or an encrypted volume) and the Postgres volume. Documented in the operator guide. | Production host; Bluesky (TM-06 condition) | engineer |
+| CB-01 | Retention job: purge or aggregate `person_level_24m` evidence, snapshots and derived pseudonymous rows at 24 months. Dry-run report. Tested. | Production capture on the host (M1 acceptance); any person-level source beyond GH Archive (ADR-022) | engineer |
+| CB-02 | Deletion-sync framework (R1.5): Bluesky Jetstream delete and account events with raw copy dropped in ≤ 48 h; propagation of the HN `deleted` flag; propagation to snapshots, LLM cache, derived rows and the backup tombstone log | Any person-level source beyond GH Archive (ADR-022): Bluesky, HN, V2EX and Discord connectors | engineer |
+| CB-03 | Encryption at rest for the snapshot bucket (SSE or an encrypted volume) and the Postgres volume. Documented in the operator guide. | Production host; any person-level source beyond GH Archive (ADR-022; also a TM-06 condition for Bluesky) | engineer |
 | CB-04 | Minimise GH Archive raw dumps: keep hash and URL, drop bytes after parse or after ≤ 30 days, replay re-fetches and verifies | Production capture on the host | engineer |
 | CB-05 | Give `llm_cache` a retention class, `evidence_id` links and a TTL of ≤ 24 months; purge with its source | Tier 2 LLM extraction at scale (M5) | engineer |
-| CB-06 | Extend the redactor: profile URLs (github.com/<login>, bsky.app/profile/<handle>, news.ycombinator.com/user?id=), `did:` identifiers, bare handles from known author fields. Add tests. | Mention capture (A2) being sent to the LLM | engineer |
-| CB-07 | Subscription subprocess: set `DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, `DISABLE_FEEDBACK_COMMAND=1` (or `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`). Redact or truncate CLI output in `BackendError` messages. | Subscription-mode coding of person-level text | engineer |
+| CB-06 | Extend the redactor: profile URLs (github.com/<login>, bsky.app/profile/<handle>, news.ycombinator.com/user?id=), `did:` identifiers, bare handles from known author fields. Add tests. | Any person-level source beyond GH Archive (ADR-022); mention capture (A2) being sent to the LLM | engineer |
+| CB-07 | Subscription subprocess: set `DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, `DISABLE_FEEDBACK_COMMAND=1` (or `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`). Redact or truncate CLI output in `BackendError` messages. **Done 2026-09-25** (`PRIVACY_ENV` sets all four variables; `BackendError` carries no CLI output). | — (was: subscription-mode coding of person-level text) | engineer |
 | CB-08 | Data-subject tooling: `pigtail privacy lookup|export|suppress|erase <platform> <handle>`. Suppression list checked at ingest. Request log without handles. | Any person-level source beyond GH Archive; publication of the notice | engineer |
 | CB-09 | Pseudonym-key management runbook: generation, separate backup, rotation (re-pseudonymisation job), never in DB dumps | Production host | engineer + operator |
 | CB-10 | Reach bands for person accounts instead of exact counts | Spread graphs / R5.5 | engineer |
 | CB-11 | Codebook privacy rules: no Art. 9 or FADP Art. 5(c) attributes, no individual scoring, no cross-platform identity resolution, the public-figure rule | Codebook v0 (M4) | analyst |
 | CB-12 | Publish the privacy notice (operator site plus a link from the README and the UI), fill in the placeholders, publish the DPIA summary | Any person-level source beyond GH Archive; production host | operator |
-| CB-13 | Honour explicit refusals (a Bluesky user-intents opt-out once adopted; objections received) | Bluesky connector (re-check TM-06) | engineer |
+| CB-13 | Honour explicit refusals (a Bluesky user-intents opt-out once adopted; objections received) | Any person-level source beyond GH Archive (ADR-022); Bluesky connector (re-check TM-06) | engineer |
 | CB-14 | Output guard: no private individuals named in planner, growth-engine or trend outputs; a public-figure allowlist; a minimum cell size (e.g. k ≥ 10) for public aggregates | Spread graphs (A4), D2 public mode, D3/D4 | engineer |
 | CB-15 | Record of processing activities (GDPR Art. 30 / FADP Art. 12) template for operators | H2 / release | compliance |
 | CB-16 | Breach-response runbook (GDPR Art. 33/34, FADP Art. 24) | Production host | compliance + operator |
@@ -276,3 +279,7 @@ These are for the orchestrator to add to `ops/BACKLOG.md`. "Blocks" says which p
 | CB-19 | Private UI authentication, role-based access and an audit log of snapshot views | UI (D1) | engineer |
 | CB-20 | Public outputs: suppress repos owned by personal accounts and matched losers unless the owner consents or the project is a public-figure project | D2 public mode / M9 | engineer |
 | CB-21 | Operator guide section "Your duties as controller": adopt the LIA and DPIA, publish a notice, subscription restrictions, training and telemetry opt-outs, purpose limits | Release (M9); any third-party self-hosting | compliance |
+
+## Changelog
+- 2026-09-25: v0.1 created (M3-T2).
+- 2026-09-25 — fixes after verifier M3 round 1: uncommitted M1 controls relabelled "I (M1, pending merge)" (§6 R1, R4, R5); CB-07 marked implemented (§2.3 D9, §2.5, §6 R6 and R11, §9); §7 and the §9 "Blocks" column aligned with ADR-022 and with capture running in local development only.
