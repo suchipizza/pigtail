@@ -278,7 +278,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - **Question:**
   1. As in Q11.
   2. In addition: is the policy in [retention-policy.md](retention-policy.md) adequate, including the 35-day backups, 12-month logs, 24-month LLM cache and tombstones?
-- **Default meanwhile:** the policy as drafted. No new person-level source until every ADR-022 pre-condition exists (CB-01, CB-02, CB-03, CB-06, CB-08, CB-12, CB-13). Status after ADR-030 and ADR-038: CB-01, CB-08 and CB-13 implemented; CB-03 and CB-06 partly implemented; CB-02: HN done / GitHub events met via ADR-038 / Bluesky pending; CB-12 open. The 24-month purge, the 24-month LLM cache expiry, 12-month clearing of `runs.error` and the tombstone log (`deletion_log`) are implemented; backups (CB-17) and container-log rotation are not.
+- **Default meanwhile:** the policy as drafted. No new person-level source until every ADR-022 pre-condition exists (CB-01, CB-02, CB-03, CB-06, CB-08, CB-12, CB-13). Status after ADR-030 and ADR-038: CB-01, CB-08 and CB-13 implemented; CB-03 and CB-06 partly implemented; CB-02: HN done / GitHub events met via ADR-038 / Bluesky pending; CB-12 open. The 24-month purge, the 24-month LLM cache expiry, 12-month clearing of `runs.error` and the tombstone log (`deletion_log`) are implemented; encrypted backups whose restore re-applies deletions (CB-17, ADR-044) are implemented; container-log rotation is an operator duty.
 - **Blocks:** release (M9); person-level sources beyond GH Archive.
 
 ---
@@ -394,3 +394,4 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - 2026-09-25 — CB-22/23 implemented (M1-T24, ADR-037): LQ-29 default updated (CB-22 and CB-23 done; remaining holds CB-02 and CB-12; cases open with `bot_filter` unavailable) and two sub-questions added (4: ≤ 30-day expiry in place of deletion sync; 5: 30 days now that lockstep is not applied to per-repo events).
 - 2026-09-25 — ADR-038 wording (16-day default; CB-02 per source)
 - 2026-09-25 — LQ-30 (objections after a key change; from the CB-09 runbook) and LQ-31 (breach notification: authority, key-only leaks, informing data subjects; from the CB-16 runbook) added; summary updated.
+- 2026-09-25 — backup status updated (CB-17 implemented).

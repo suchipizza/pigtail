@@ -51,7 +51,7 @@ Roles to fill in: incident lead **[name, phone]**; controller decision-maker **[
 - **LLM cache** (`llm.sqlite3`): coded outputs and verbatim quoted spans.
 - **Access-request files** (`PIGTAIL_DATA_DIR/requests/*.json`) and **person-level JSONL exports**: a person's data in one file.
 - **UI audit log**: operator-staff events, keyed network hash, no IP address.
-- **Backups** of all of the above (planned, CB-17).
+- **Backups** of all of the above: encrypted Postgres dumps (`pigtail backup create`, CB-17, ADR-044); snapshot bytes rely on bucket replicas; the LLM cache is not backed up.
 
 ### 1.2 Typical pigtail scenarios
 | # | Scenario | Type |
@@ -107,7 +107,7 @@ Stop the exposure first. Preserve evidence (logs, audit rows, the offending comm
 - Revoke access: rotate the credentials involved (§4.3); end all UI sessions with `DELETE FROM ui_sessions;` (sessions are server-side; `check_session()` in `src/pigtail/api/auth.py` finds no row and refuses).
 - Stop the affected jobs: `docker compose stop app ui` or `systemctl stop pigtail-scheduler`.
 - Close the hole (bucket policy, firewall, exposed port). Postgres, the object store, the health port and the UI bind to `127.0.0.1` in `docker-compose.yml`; check that no one changed that.
-- For availability breaches (S5): restore from backup, then re-apply deletions (`pigtail privacy optout purge`, `pigtail retention purge`; retention-policy §5). Backups are not built yet (**P CB-17**).
+- For availability breaches (S5): restore from backup, then re-apply deletions (`pigtail privacy optout purge`, `pigtail retention purge`; retention-policy §5). `pigtail backup restore --in FILE --yes` restores and re-applies deletions itself (CB-17, ADR-044.3).
 
 ### 4.2 Personal data in the public repository (S1)
 The repo is public, so assume the content was copied the moment it was pushed.
@@ -280,7 +280,7 @@ Contact: [privacy contact]. You can also complain to a data protection authority
 ## Tooling gaps found while writing this runbook
 - **CB-30:** no alert from the UI audit log (repeated `login_failure`/`login_rate_limited`, any `snapshot_integrity_failure`, logins at unusual times).
 - **CB-25:** an accidental `PSEUDONYM_KEY` change is not detected ([key-rotation.md](key-rotation.md) §6).
-- **CB-17** (existing): no backups, so availability breaches cannot be repaired from pigtail tooling yet.
+- **CB-17b** (follow-up): deletions made after the last backup are lost if the live database is lost too; ship `deletion_log` and opt-outs off the host continuously.
 - **CB-31:** the host alert files (`ALERTS.md`, `alerts.jsonl`) grow without rotation (`_write()` appends; no pruning in `src/pigtail/scheduler/alerts.py`). They hold no data-subject data by design, but need a 12-month rotation like other logs (CB-18).
 
 ## Open questions for the lawyer
@@ -288,3 +288,4 @@ Contact: [privacy contact]. You can also complain to a data protection authority
 
 ## Changelog
 - 2026-09-25: v0.1 created (CB-16). Statements about pigtail checked against `main`; CB-30 and CB-31 proposed; LQ-31 raised.
+- 2026-09-25 — backups built (CB-17, ADR-044): restore and follow-up lines updated.

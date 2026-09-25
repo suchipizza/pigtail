@@ -35,7 +35,7 @@
 |---|---|---|---|---|
 | **[Hosting provider]** (VM, disks) | Processor (GDPR Art. 28; FADP Art. 9) | All | **[EU / CH]** (PRD §10 default) | Contract with processor terms required (O) |
 | **[Object-storage provider]** (if not the bundled SeaweedFS on the same host) | Processor | Snapshots (A1, A1b, A1c, A2, A2b) | **[EU / CH]** | Private bucket, default encryption, TLS (`pigtail doctor`) |
-| **[Backup target]** | Processor | A10 | **[EU / CH]** | Planned (CB-17) |
+| **[Backup target]** | Processor | A10 | **[EU / CH]** | Receives age- or gpg-encrypted backup files only (CB-17, I); the operator stores them off the host |
 | **[E-mail provider]** (`SMTP_URL`, optional) | Processor | A9 alerts | **[...]** | Alerts hold no data-subject data (§A9) |
 | **Anthropic, `api` backend** | Processor under the Commercial Terms, which incorporate the DPA ("Customer is the controller and Anthropic is Customer's processor"; DPIA §2.5) | A3 | United States | Default deletion within 30 days; ZDR only by agreement (retention policy §6). Contracting Anthropic entity: **[from your agreement]** |
 | **Anthropic, `subscription` backend** | **Unclear** (LQ-1): Consumer Terms, counterparty for EEA and Swiss consumers Anthropic Ireland, Limited; no DPA | A3 | Ireland, onward to the United States | Owner's own non-commercial use only (ADR-008, ADR-023). Training must be off (H1). No ZDR. |
@@ -56,14 +56,14 @@ Details, status and evidence: [dpia.md](dpia.md) §6 (measures per risk) and §9
 - **Minimisation:** raw bytes dropped right after parsing for HN items, per-repo events and GitHub search pages (`drop_after_parse`, `src/pigtail/privacy/deletion.py`; CB-23, CB-24) (I); GH Archive raw dumps purged after 30 days (CB-04) (I).
 - **Retention limits** enforced by `pigtail retention purge`, periods above policy rejected at startup (`src/pigtail/config.py`) (CB-01, CB-22) (I).
 - **Encryption at rest:** bucket SSE via `S3_SSE_KEK` or provider encryption, checked by `pigtail doctor` (I, partly); Postgres and `PIGTAIL_DATA_DIR` volume encryption (O) (CB-03).
-- **Access control:** services bound to `127.0.0.1` (`docker-compose.yml`); private UI behind an argon2id password, server-side sessions, audit log without IP addresses (ADR-034; `src/pigtail/api/auth.py`) (I).
+- **Access control:** services bound to `127.0.0.1` (`docker-compose.yml`); private UI behind an argon2id password, server-side sessions, audit log without IP addresses (CB-19, ADR-034; `src/pigtail/api/auth.py`) (I); role-based access not built, one operator account (P CB-19).
 - **Redaction before LLM calls** (CB-06, partly) and CLI telemetry opt-outs (CB-07) (I).
-- **Log hygiene:** redacting log filter in every CLI command and scheduled job; `runs.error` scrubbed and cleared after 12 months (CB-18) (I, partly: container log rotation is O).
+- **Log hygiene:** redacting log filter in every CLI command and scheduled job (ADR-040.6); `runs.error` scrubbed and cleared after 12 months (CB-18) (I); container and system log rotation on the host (O); alert-file rotation (P CB-31).
 - **Public-repo protection:** CI private-data scan and gitleaks (`scripts/private_data_scan.py`, `.github/workflows/ci.yml`) (I).
-- **Rights and refusals:** access, erasure and opt-out tooling (CB-08, CB-13) (I); deletion sync for HN (CB-02) (I).
+- **Rights and refusals:** access, erasure and opt-out tooling (CB-08, CB-13), keyed repo-name opt-outs (CB-13b, ADR-042.1) and a repo purge covering every repo-keyed table (CB-13c, ADR-044.1) (I); deletion sync for HN (CB-02) (I).
 - **Monitoring:** host alerts and `pigtail doctor` (ADR-033) (I).
 - **Incident response:** [breach runbook](runbooks/breach.md) (CB-16) (documentation done).
-- **Backups:** encrypted, 35-day rotation, deletions re-applied on restore (CB-17) (**P**).
+- **Backups:** encrypted to `BACKUP_RECIPIENT` (age, gpg fallback), 35-day pruning, deletions re-applied on restore (`pigtail backup create|restore|prune`; CB-17, ADR-044.2–3) (I); scheduling and off-host storage (O); continuous off-host shipping of `deletion_log` and opt-outs, and a backup container or scheduler job (P, CB-17 follow-ups). The LLM cache is not backed up.
 
 ---
 
@@ -163,7 +163,7 @@ Not active. Blocked until H2 and H4 ([lia.md](lia.md) §7). No personal data by 
 | Transfers | None beyond hosting |
 | Retention | Sessions: 12 h absolute, 120 min idle. Audit rows: `LOG_RETENTION_DAYS` (default and maximum 365), deleted **at each login** (`create_session()`, `src/pigtail/api/auth.py`). If nobody logs in, old rows are not deleted; `pigtail retention purge` does not cover this table (**P CB-33**). uvicorn access logs off by default |
 | Security | argon2id password hash; HttpOnly SameSite=Strict cookie; rate limits; read-only database pool (ADR-034.5) |
-| Status | I |
+| Status | I (CB-19 login and audit log; role-based access P) |
 
 ### A9 · Alerts, run records and logs
 | Field | Value |
@@ -183,13 +183,13 @@ Not active. Blocked until H2 and H4 ([lia.md](lia.md) §7). No personal data by 
 |---|---|
 | Purpose | Restore after loss (GDPR Art. 32(1)(c)); portable project data (PRD §7) |
 | Data subjects | Everyone in A1–A9 |
-| Personal data | Database dumps and bucket copies (planned); JSONL exports (project-level by default; person-level tables only with `--include-person-level`, never `repo_event_actor`, UI sessions or the audit log; ADR-042.4) |
+| Personal data | Encrypted database dumps (every Postgres table: pseudonymous rows, refusal list, request log, UI audit log) and bucket replicas of snapshots; not the LLM cache (SQLite under `PIGTAIL_DATA_DIR`); JSONL exports (project-level by default; person-level tables only with `--include-person-level`, never `repo_event_actor`, UI sessions or the audit log; ADR-042.4) |
 | Source | pigtail stores |
 | Recipients | **[Backup target]** (processor) |
 | Transfers | **[...]** |
-| Retention | Backups: 35-day rolling (policy; **P CB-17**). Person-level exports: delete when done (operator guide "JSONL export") (O) |
-| Security | Encrypted backups kept apart from `PSEUDONYM_KEY` and `S3_SSE_KEK` (key-rotation runbook §2); exports refused inside any git working tree for person-level data, files 0600 (I) |
-| Status | Backups **P** (CB-17): no backup tooling exists. Exports I |
+| Retention | Backups: 35-day rolling (`pigtail backup prune`, I CB-17; the operator schedules it, O). Person-level exports: delete when done (operator guide "JSONL export") (O) |
+| Security | Backups encrypted as one stream to `BACKUP_RECIPIENT`; unencrypted output and output inside a git working tree refused; files 0600; restore re-applies every deletion (ADR-044.2–3; `src/pigtail/privacy/backup.py`) (I). Backups kept apart from `PSEUDONYM_KEY`, `S3_SSE_KEK` and the age identity (key-rotation runbook §2) (O); exports refused inside any git working tree for person-level data, files 0600 (I) |
+| Status | Backups I (CB-17; follow-ups P: continuous off-host shipping of `deletion_log` and opt-outs, backup container or scheduler job). Exports I |
 
 ### A11 · Data-subject requests and the refusal list
 | Field | Value |
@@ -208,3 +208,4 @@ Not active. Blocked until H2 and H4 ([lia.md](lia.md) §7). No personal data by 
 
 ## Changelog
 - 2026-09-25: v0.1 created (CB-15). Activities A1, A1b, A1c, A2a, A2b, A3, A7, A8, A9, A10, A11; each checked against `main`. Gaps recorded as CB-31 (alert-file rotation), CB-32 (cap on `GHARCHIVE_RAW_RETENTION_DAYS`) and CB-33 (UI audit-log purge without logins).
+- 2026-09-25 — status sync (M3-T11): §2.1 backup target and §2.3 measures updated (CB-17 backups I with follow-ups; CB-18 I with host rotation O; CB-13b/CB-13c; CB-19 role-based access P); A8 status notes role-based access open; A10 backups implemented, LLM cache not in backups.

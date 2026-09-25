@@ -33,15 +33,17 @@ Pack version: 0.1 · 2026-09-25 · Task M3-T2. All sources cited were accessed o
 ## Key conclusions (draft)
 - **DPIA required:** yes. WP248 criteria 3 (systematic monitoring), 5 (large scale) and 6 (combining datasets) are met. With the planned controls in place, no high residual risk remains, so no prior consultation is needed. The lawyer should confirm this (LQ-11).
 - **Legitimate interest:** supported for the velocity scan, mention capture, LLM coding, scoring, the library and planner, and aggregate publication, on condition that the safeguards exist. **Account-level spread graphs are on hold** (LQ-8).
-- **Controls that must exist before the capture layer runs on the production host:**
-  - CB-01 retention job (**done**: `pigtail retention purge`)
-  - CB-03 encryption at rest (**partly done**: SeaweedFS SSE via `S3_SSE_KEK` and the `pigtail doctor` check exist; enabling it on the host and encrypting the Postgres volume are operator duties)
-  - CB-04 GH Archive raw-dump minimisation (**partly done**)
-  - CB-09 key management (**runbook done**: [runbooks/key-rotation.md](runbooks/key-rotation.md); rotation tooling CB-25…CB-27 open, so the key is rotated only after a compromise)
-  - CB-12 published notice
-  - CB-16 breach runbook (**documentation done**: [runbooks/breach.md](runbooks/breach.md); the operator fills in roles and contacts)
-  - CB-17 backups
-  - CB-18 log hygiene (**partly done**: redaction filter and `runs.error` scrubbing; open: the filter in every service, log rotation)
+- **Controls that must exist before the capture layer runs on the production host** (ADR-022 as amended by ADR-043, `ops/DECISIONS.md`; status table in [dpia.md](dpia.md) §7):
+  - CB-01 retention job (**✓ done**: `pigtail retention purge`)
+  - CB-03 encryption at rest (**partial**: SeaweedFS SSE via `S3_SSE_KEK` and the `pigtail doctor` check exist; enabling SSE on the host and encrypting the Postgres volume are operator duties)
+  - CB-04 GH Archive raw-dump minimisation (**partial**: 30-day purge and verified re-fetch; drop-after-parse and minimal-parse fallback open)
+  - CB-09 key management (**documented**: [runbooks/key-rotation.md](runbooks/key-rotation.md); rotation tooling CB-25…CB-27 open, so the key is rotated only after a compromise)
+  - CB-12 published notice (**open**: the owner fills in the controller details)
+  - CB-16 breach runbook (**documented**: [runbooks/breach.md](runbooks/breach.md); the operator fills in roles and contacts)
+  - CB-17 encrypted backups (**✓ done**, ADR-044.2–3: `pigtail backup create|restore|prune`, restore re-applies deletions; follow-ups open: continuous off-host shipping of `deletion_log` and opt-outs, a backup container or scheduler job; the LLM cache is not in backups)
+  - CB-18 log hygiene (**✓ done**: redacting filter on every CLI command and scheduled job, ADR-040.6, plus `runs.error` scrubbing; host log rotation is an operator duty)
+  - CB-25 key-change detection (**open**, in progress; added by ADR-043)
+  - CB-29 secret hygiene: the `ui` service without `PSEUDONYM_KEY`, key masked in `repr()` (**open**, in progress; required before production by ADR-043)
 - **Before any person-level source beyond GH Archive** (Bluesky, HN, V2EX, Discord) is enabled, every pre-condition in **ADR-022** (`ops/DECISIONS.md`, the single authoritative list) must exist:
   - CB-01 retention purge (**done**)
   - CB-02 deletion sync (per source: **HN done**, `pigtail privacy deletion-sync --source hn`; **GitHub per-repo events met** by short retention plus the raw drop at parse, no sync source, ADR-038; **GH Archive**: raw purge ≤ 30 days and replay drops opted-out persons; **Bluesky pending**, no connector yet)
@@ -49,11 +51,11 @@ Pack version: 0.1 · 2026-09-25 · Task M3-T2. All sources cited were accessed o
   - CB-06 identifier redaction before LLM calls (**partly done**: profile URLs, DIDs and per-source namespaces; open: gists, avatar URLs, bare handles in author fields)
   - CB-08 data-subject request tooling (**done** for access and erasure; rectification and a separate lookup command are not built)
   - CB-12 published notice (open)
-  - CB-13 honouring explicit refusals (**done**: `pigtail privacy optout`)
+  - CB-13 honouring explicit refusals (**done**: `pigtail privacy optout`; repo opt-outs by name as keyed hashes, CB-13b, ADR-042.1; the repo purge reaches every repo-keyed table in `REPO_TABLES`, CB-13c, ADR-044.1)
 
   Status after the privacy-controls merge (`83843ca`, ADR-030) and ADR-038: CB-01, CB-08 and CB-13 are done; CB-03 and CB-06 are partly done; CB-02: HN done / GitHub events met via ADR-038 / Bluesky pending; CB-12 is open. No person-level source beyond GH Archive may be enabled yet.
-- **Code status:** the capture-layer controls (pseudonymisation at ingest in `connectors/base.py`, `ConnectorGapError`, the bot drop, `velocity.py`, the `retention_class` and `deletion_state` fields, CB-04 raw purge) are merged to `main` and labelled "I". The privacy operations of ADR-030 are merged at `83843ca`: the retention purge (CB-01), LLM cache expiry and evidence links (CB-05), redactor extensions (CB-06, partly), access and erasure requests (CB-08), the opt-out list (CB-13), log scrubbing (CB-18, partly) and the `pigtail doctor` encryption check (CB-03, partly). Code: `src/pigtail/privacy/`, `src/pigtail/logsafe.py`, `src/pigtail/pseudonymize.py`, `src/pigtail/llm/store.py`, `migrations/0003_privacy_operations.sql`; operator commands in `docs/guides/operator.md` "Privacy operations". GH Archive capture runs locally in development only; there is no production capture (ADR-022).
-- **GitHub detection v1 (M1-T24, ADR-037):** the project-level `github` connector (watch-list GraphQL counts, search sweeps, star-history) runs once `GITHUB_TOKEN` is set; search pages are kept as `person_level_24m` because they embed owner objects. The person-level `github_events` connector (per-repo star and fork events) is built with **CB-22** (`person_level_30d`, named after its 30-day ceiling: `GITHUB_EVENTS_RETENTION_DAYS` is 16 days by default (ceiling 30; ADR-038), daily purge) and **CB-23** (only `WatchEvent`/`ForkEvent`, raw pages dropped at parse with hash and tombstone kept, no stargazer-list path; tested), but stays **off by default** (`PIGTAIL_ENABLE_GITHUB_EVENTS` plus the ADR-022 flag; ADR-036) until CB-12 exists (CB-03 and CB-06 partly done). There is no GitHub deletion-sync source; CB-02 for this source is met by the 16-day expiry plus the raw drop at parse (ADR-038), and LQ-29 items 4–5 stay open for the lawyer. Detection-v1 cases open with `bot_filter` `unavailable` meanwhile (ADR-037.1).
+- **Code status:** the capture-layer controls (pseudonymisation at ingest in `connectors/base.py`, `ConnectorGapError`, the bot drop, `velocity.py`, the `retention_class` and `deletion_state` fields, CB-04 raw purge) are merged to `main` and labelled "I". The privacy operations of ADR-030 are merged at `83843ca`: the retention purge (CB-01), LLM cache expiry and evidence links (CB-05), redactor extensions (CB-06, partly), access and erasure requests (CB-08), the opt-out list (CB-13), log scrubbing (CB-18, partly) and the `pigtail doctor` encryption check (CB-03, partly). Code: `src/pigtail/privacy/`, `src/pigtail/logsafe.py`, `src/pigtail/pseudonymize.py`, `src/pigtail/llm/store.py`, `migrations/0003_privacy_operations.sql`; operator commands in `docs/guides/operator.md` "Privacy operations". Since then (M3-T11 status sync): the redacting log filter runs on every CLI command and scheduled job (CB-18, ADR-040.6); raw GitHub search pages are dropped at parse (CB-24, ADR-040.5); name opt-outs are keyed (CB-13b, ADR-042.1) and the repo purge covers every repo-keyed table (CB-13c, ADR-044.1); encrypted backups with deletion-preserving restore exist (CB-17, ADR-044.2–3); the private UI has an operator login and an audit log (CB-19, ADR-034; role-based access open). GH Archive capture runs locally in development only; there is no production capture (ADR-022).
+- **GitHub detection v1 (M1-T24, ADR-037):** the project-level `github` connector (watch-list GraphQL counts, search sweeps, star-history) runs once `GITHUB_TOKEN` is set; search pages are classed `person_level_24m` because they embed owner objects, but their raw bytes are dropped right after parsing (CB-24). The person-level `github_events` connector (per-repo star and fork events) is built with **CB-22** (`person_level_30d`, named after its 30-day ceiling: `GITHUB_EVENTS_RETENTION_DAYS` is 16 days by default (ceiling 30; ADR-038), daily purge) and **CB-23** (only `WatchEvent`/`ForkEvent`, raw pages dropped at parse with hash and tombstone kept, no stargazer-list path; tested), but stays **off by default** (`PIGTAIL_ENABLE_GITHUB_EVENTS` plus the ADR-022 flag; ADR-036) until CB-12 exists (CB-03 and CB-06 partly done). There is no GitHub deletion-sync source; CB-02 for this source is met by the 16-day expiry plus the raw drop at parse (ADR-038), and LQ-29 items 4–5 stay open for the lawyer. Detection-v1 cases open with `bot_filter` `unavailable` meanwhile (ADR-037.1).
 - **LLM:**
   - "Zero-retention" (PRD §10) is achievable only with `api` plus an Anthropic ZDR agreement.
   - `subscription` mode runs under the Consumer Terms: no DPA, no ZDR, training exceptions, and a "no commercial or business purposes" sentence (LQ-1, LQ-2). It stays limited to the owner's own use with training switched off.
@@ -61,7 +63,7 @@ Pack version: 0.1 · 2026-09-25 · Task M3-T2. All sources cited were accessed o
 
 ## Not in this pack yet
 - A signed controller version of any document: every file here is a template or the owner's draft until H2.
-- Tooling for key rotation (CB-25…CB-29) and backups (CB-17); see [dpia.md](dpia.md) §9.
+- Tooling for key rotation (CB-25…CB-29) and the backup follow-ups (off-host shipping of `deletion_log` and opt-outs, a backup container or scheduler job); see [dpia.md](dpia.md) §9.
 
 ## Maintenance
 Update the pack when a source is added, when a platform's or Anthropic's terms change, when H2 answers arrive, and at least every 12 months. Every change goes in the changelog below.
@@ -76,3 +78,4 @@ Update the pack when a source is added, when a platform's or Anthropic's terms c
 - 2026-09-25 — ADR-038 wording (16-day default; CB-02 per source)
 - 2026-09-25 — backlog count CB-01…CB-24 (CB-24 added, ADR-038).
 - 2026-09-25 — CB-09, CB-15, CB-16, CB-21: added ropa.md, controller-duties.md, runbooks/key-rotation.md and runbooks/breach.md; operator guide links to them; key conclusions updated (CB-09 runbook and CB-16 documentation done); backlog count CB-01…CB-33 (CB-25…CB-33 added); LQ-30 and LQ-31 added.
+- 2026-09-25 — status sync (M3-T11): key conclusions list every ADR-022 production precondition as amended by ADR-043 with its status (CB-17 and CB-18 done, CB-25 and CB-29 added); CB-13 notes CB-13b and CB-13c; code status adds CB-18, CB-24, CB-13b, CB-13c, CB-17 and CB-19; "Not in this pack yet" updated.

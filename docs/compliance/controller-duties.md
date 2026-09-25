@@ -65,13 +65,13 @@ uv run pigtail privacy requests                                       # request 
 
 ---
 
-## 4. Retention and deletion sync (built: CB-01, CB-02 for HN, CB-22)
+## 4. Retention and deletion sync (built: CB-01, CB-02 for HN, CB-17 restore, CB-22)
 
 - Keep the scheduler's `retention_purge` and `purge_raw` jobs (daily, `infra/schedule.toml`) running, or run `pigtail retention purge` daily from cron.
 - The limits are hard caps: person-level 24 months, per-repo events 16 days by default (ceiling 30), LLM cache 24 months, run error text 12 months; higher values are refused at startup (`src/pigtail/config.py`). Exception: `GHARCHIVE_RAW_RETENTION_DAYS` has no cap in code yet (**P CB-32**); leave it at 30 or lower.
 - With HN mentions enabled, keep the daily `deletion_sync` job on. A `deletion_sla` alert means an upstream deletion is more than 7 days overdue: act on it.
-- After any restore from backup, re-apply deletions: `pigtail privacy optout purge`, then `pigtail retention purge` (retention policy §5). Tombstone replay from `deletion_log` is planned with backups (**P CB-17**).
-- Rotate container and system logs at 12 months yourself (journald or logrotate). The host alert files are not rotated by pigtail yet (**P CB-31**); prune them yourself.
+- Restore only with `pigtail backup restore`: it carries the live `deletion_log`, opt-out list and request log over, replays every tombstone, re-applies the opt-out list and runs the retention purge (CB-17, ADR-044.3; retention policy §5). If you restore any other way, run `pigtail privacy optout purge`, then `pigtail retention purge`. If the live database was lost too, deletions made after the last backup are lost: re-enter them from your request records.
+- pigtail's own log records go through the redacting filter on every command and scheduled job (CB-18, ADR-040.6). Rotate container and system logs at 12 months yourself (journald or logrotate). The host alert files are not rotated by pigtail yet (**P CB-31**); prune them yourself.
 
 ---
 
@@ -79,8 +79,8 @@ uv run pigtail privacy requests                                       # request 
 
 - **Encryption at rest** (CB-03): enable bucket encryption (`S3_SSE_KEK` for the bundled SeaweedFS, or provider SSE); put the Postgres volume and `PIGTAIL_DATA_DIR` on encrypted disks. `doctor` reports what it can and marks the rest MANUAL.
 - **`PSEUDONYM_KEY`**: generate, store and back up exactly as in [runbooks/key-rotation.md](runbooks/key-rotation.md) §2. Keep it apart from data backups. Do not rotate it on a schedule until the rotation tooling exists (CB-25 to CB-27).
-- **Backups** (CB-17, **planned**, no tooling): until pigtail ships a backup job, you design your own. Minimum: encrypted, 35-day rotation, stored apart from both keys, in the EU or Switzerland, deletions re-applied after any restore. Record it in the RoPA (A10).
-- **Private UI:** keep it on loopback; use an SSH tunnel or a TLS reverse proxy; use a strong password (`pigtail ui hash-password`). Review `ui_audit_log` weekly; there is no automatic alert from it yet (**P CB-30**).
+- **Backups** (CB-17, built: `pigtail backup create --out DIR`, `pigtail backup prune --dir DIR`, `pigtail backup restore --in FILE --yes`; `src/pigtail/privacy/backup.py`, ADR-044). Set `BACKUP_RECIPIENT` (an age public key; gpg as fallback); output is always encrypted and refused inside a git working tree. **Your part:** install `pg_dump` 16 and age on the host (the app image has neither), schedule create and prune yourself (no scheduler job yet), keep the age identity (`BACKUP_IDENTITY`) apart from the backups and from `PSEUDONYM_KEY`, store copies off the host in the EU or Switzerland, and give the bucket replicas the same 35-day expiry (snapshot bytes are not in the dump). The LLM cache (`PIGTAIL_DATA_DIR`) is not backed up. Until `deletion_log` and opt-outs are shipped off the host continuously (CB-17 follow-up, **P**), keep your request records so you can re-enter deletions. Record it in the RoPA (A10).
+- **Private UI:** keep it on loopback; use an SSH tunnel or a TLS reverse proxy; use a strong password (`pigtail ui hash-password`). There is one operator account and no role-based access (CB-19 remainder, **P**): everyone with the password sees everything, so give it only to staff who need full access. Review `ui_audit_log` weekly; there is no automatic alert from it yet (**P CB-30**).
 - **Public repo:** never commit data, `.env` files, exports or alert files. The CI private-data scan and gitleaks catch many mistakes, not all (they do not detect pseudonyms or bare handles in prose).
 - **Breaches:** follow [runbooks/breach.md](runbooks/breach.md). GDPR: notify the supervisory authority within 72 hours of becoming aware unless no risk is likely (Art. 33(1)). FADP: notify the FDPIC "as quickly as possible" if high risk is likely (Art. 24(1)). Document every breach.
 
@@ -124,3 +124,4 @@ Review this checklist, your LIA, DPIA, RoPA and notice when you enable a source,
 
 ## Changelog
 - 2026-09-25: v0.1 created (CB-21). Linked from `docs/guides/operator.md` ("Your duties as controller").
+- 2026-09-25 — status sync (M3-T11): §4 restore re-applies deletions (CB-17) and the log filter runs on every command and job (CB-18); §5 backups built (CB-17, ADR-044) with the operator's remaining duties and follow-ups; §5 private UI has no role-based access (CB-19).
