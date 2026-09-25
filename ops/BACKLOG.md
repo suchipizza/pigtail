@@ -25,7 +25,9 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 
 ## Next
 - [ ] [M2-T3] Fake-star method: select, reproduce on a sample, document validation — R3.3 — M2-T1
-- [~] [M2-T4] Verifier spot-check — round 1 FAIL (fixable; no fabrication); corrections in progress, then re-check
+- [x] [M2-T4] Verifier spot-check — round 1 FAIL, round 2 PASS @191c44d (2026-09-25)
+- [ ] [M2-T5] Minor source-matrix follow-ups: Algolia earliest-item wording, cite yc-oss README, add #312 notes (Events API cache; merged-PR events) — verifier round 2 optional
+- [ ] [M3-T0] Check whether GH Archive still records merged PRs (PullRequestEvent closed+merged) on a sample of real hours; if not, the §8.1 "returning external contributors" metric needs the GitHub API — §8.1 — M1-T3
 - [ ] [M3-T1] Outcome model spec → docs/specs/outcome-model.md; versioned class thresholds — §8, R3.5 — M2-T2
 - [ ] [M3-T2] Compliance pack: LIA, light DPIA, retention policy, privacy notice, legal-review questions; raise H2 — §10 — M2-T2
 - [ ] [M4-T0] ADR: stricter α ≥ 0.80 for promotion-deciding fields (lit. review open issue 4; stricter than PRD §9.2, not a relaxation) — decide before pilot pre-registration
