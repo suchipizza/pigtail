@@ -413,7 +413,11 @@ def cmd_report_hn_frontpage(args: argparse.Namespace) -> int:
         return 2
     db = CaptureDB(conn)
     try:
-        refused = suppression.load(db)
+        try:
+            refused = suppression.load(db)
+        except suppression.MissingNameKey as e:
+            print(str(e), file=sys.stderr)
+            return 2
         row = db.conn.execute(
             "SELECT id FROM repos WHERE host = 'github' AND lower(full_name) = %s", (name,)
         ).fetchone()
@@ -640,6 +644,7 @@ def cmd_optout_add(args: argparse.Namespace, ctx: _Ctx) -> int:
                 ctx.store,
                 platform=args.platform,
                 repo_key=key,
+                pz=ctx.pz,
                 full_name=name,
                 llm_store=ctx.llm_store,
                 run=run,
@@ -651,6 +656,7 @@ def cmd_optout_add(args: argparse.Namespace, ctx: _Ctx) -> int:
                 ctx.store,
                 platform=args.platform,
                 full_name=name,
+                pz=ctx.pz,
                 llm_store=ctx.llm_store,
                 run=run,
                 purge=not args.no_purge,
@@ -682,8 +688,9 @@ def cmd_optout_remove(args: argparse.Namespace, ctx: _Ctx) -> int:
         if key is not None:
             ok = suppression.remove(ctx.db, "repo", key)
         if args.repo:
-            nk = suppression.repo_name_key(_repo_name(args), args.platform)
+            nk = suppression.repo_name_key(_repo_name(args), ctx.pz, args.platform)
             ok = suppression.remove(ctx.db, "repo_name", nk) or ok
+            ok = suppression.remove_legacy_name(ctx.db, _repo_name(args), args.platform) or ok
     else:
         p = suppression.subject_pseudonym(ctx.pz, args.platform, _read_handle(args.handle))
         ok = suppression.remove(ctx.db, "pseudonym", p)
@@ -696,6 +703,28 @@ def cmd_optout_list(_args: argparse.Namespace, ctx: _Ctx) -> int:
     from pigtail.privacy import suppression
 
     print(json.dumps(suppression.entries(ctx.db), indent=2, default=str))
+    return 0
+
+
+@_privacy
+def cmd_optout_rekey(_args: argparse.Namespace, ctx: _Ctx) -> int:
+    """CB-13b: convert legacy unkeyed repo-name entries to keyed ones where the name is known."""
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.privacy.requests import rekey_unkeyed_names
+
+    assert ctx.pz is not None
+    with RunRecorder("privacy.optout_rekey", {}, sink=ctx.db.upsert_run) as run:
+        counts = rekey_unkeyed_names(ctx.db, ctx.pz)
+        for k, v in counts.items():
+            run.incr(k, v)
+    if counts["remaining"]:
+        print(
+            f"{counts['remaining']} legacy name opt-out(s) could not be converted: their names are"
+            " not in local data. They stay matched; re-add each one with"
+            " `pigtail privacy optout add --repo owner/name` (CB-13b).",
+            file=sys.stderr,
+        )
+    print(json.dumps({"run_id": run.id, **counts}))
     return 0
 
 
@@ -759,6 +788,45 @@ def cmd_privacy_requests(_args: argparse.Namespace, ctx: _Ctx) -> int:
     from pigtail.privacy.requests import requests_log
 
     print(json.dumps(requests_log(ctx.db), indent=2, default=str))
+    return 0
+
+
+def cmd_export_jsonl(args: argparse.Namespace) -> int:
+    """M1-T20 (PRD §7): JSONL export of the database, one file per entity."""
+    from pathlib import Path
+
+    from pigtail.capture.db import CaptureDB
+    from pigtail.capture.runs import RunRecorder, git_commit
+    from pigtail.config import Settings
+    from pigtail.export.jsonl import ExportError, export_jsonl
+
+    s = Settings.from_env()
+    if not s.database_url:
+        print("DATABASE_URL is not set", file=sys.stderr)
+        return 2
+    tables = [t for group in (args.tables or []) for t in group.split(",") if t]
+    # the run config holds no output path (it can name the operator's home directory)
+    config = {"tables": tables or "all", "include_person_level": args.include_person_level}
+    db = CaptureDB.connect(s.database_url)
+    try:
+        with RunRecorder("export.jsonl", config, sink=db.upsert_run) as run:
+            try:
+                res = export_jsonl(
+                    s.database_url,
+                    Path(args.out),
+                    tables=tables or None,
+                    include_person_level=args.include_person_level,
+                    code_commit=git_commit(),
+                )
+            except ExportError as e:
+                run.incr("refused")
+                print(str(e), file=sys.stderr)
+                return 2
+            for t, info in res.tables.items():
+                run.incr(f"rows.{t}", int(info["rows"]))
+    finally:
+        db.close()
+    print(json.dumps({"run_id": run.id, "out": str(res.out_dir), **res.to_dict()}, indent=2))
     return 0
 
 
@@ -860,6 +928,9 @@ def build_parser() -> argparse.ArgumentParser:
     opt_sub.add_parser("purge", help="re-apply the whole list to existing data").set_defaults(
         func=cmd_optout_purge
     )
+    opt_sub.add_parser(
+        "rekey", help="convert legacy unkeyed repo-name entries to keyed hashes (CB-13b)"
+    ).set_defaults(func=cmd_optout_rekey)
     req = priv_sub.add_parser("request", help="data-subject request (CB-08)")
     req.add_argument("type", choices=("access", "erasure"))
     _add_subject_args(req, repos=False)
@@ -879,6 +950,20 @@ def build_parser() -> argparse.ArgumentParser:
     doc.add_argument("--strict", action="store_true", help="exit 1 on warnings too")
     doc.add_argument("--json", action="store_true")
     doc.set_defaults(func=cmd_doctor)
+
+    exp = sub.add_parser("export", help="exports of the database (M1-T20, PRD §7)")
+    exp_sub = exp.add_subparsers(dest="export_command", required=True)
+    ej = exp_sub.add_parser("jsonl", help="one JSONL file per entity, deterministic order")
+    ej.add_argument("--out", required=True, help="output directory (never inside the repo)")
+    ej.add_argument(
+        "--tables", nargs="+", help="tables to export (space or comma separated; default: all)"
+    )
+    ej.add_argument(
+        "--include-person-level",
+        action="store_true",
+        help="also export pseudonymous person-level tables (refused inside any git work tree)",
+    )
+    ej.set_defaults(func=cmd_export_jsonl)
 
     from pigtail.scheduler.cli import add_commands as add_scheduler_commands
 

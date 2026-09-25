@@ -89,11 +89,66 @@ PSEUDONYM_KEY=… uv run pigtail capture scan --start 2026-09-20T00 --end 2026-0
   fetch method call `Connector.parse_failed(f, e)`, which hands the page to the
   `parse_failure_sink` the capture job set (`unparseable_sink(...)`) and returns `ParseFailed`.
   Record failures as counts only (`<source>.parse_failed.<Type>`), never the exception message.
-- **Repo opt-outs by name (M1-T23).** Besides `<host>:<id>`, the refusal list holds
-  `repo_name_key(owner/name)` hashes; check `Suppressions.name_suppressed(full_name)` wherever a
-  repo is known only by name (HN stories, mentions, watch-list nominations).
+- **Repo opt-outs by name (M1-T23, CB-13b).** Besides `<host>:<id>`, the refusal list holds
+  keyed `repo_name_key(owner/name, pz)` hashes (`rk_…`: HMAC-SHA256 with `PSEUDONYM_KEY`,
+  namespace `repo_name`). Check `Suppressions.name_suppressed(full_name)` wherever a repo is known
+  only by name (HN stories, mentions, watch-list nominations). `suppression.load(db, pz)` binds
+  the key (default: `PSEUDONYM_KEY` from the environment) and raises `MissingNameKey` when keyed
+  entries exist but no key does. Never write an unkeyed hash: `legacy_repo_name_key` exists only
+  to match and convert rows from before migration 0009 (`repo_name_unkeyed`), and the database
+  refuses new ones.
+- **settle_lag collection (M4-T4, K2).** `capture/settle_lag.py`, `capture github settle-lag`,
+  job `gh_settle_lag`. Schedule rows are `settle_lag_schedule`. Every fetch version goes to the
+  append-only `star_history_settle_obs` table; `repo_star_daily` keeps only the latest. Only
+  repos whose cases are all in the calibration split are enrolled.
 - Tests marked `db` / `s3` use the compose services and skip if they are unreachable
-  (`PIGTAIL_REQUIRE_DB=1` makes them fail instead; CI sets it).
+  (`PIGTAIL_REQUIRE_DB=1` / `PIGTAIL_REQUIRE_S3=1` make them fail instead). CI sets both and
+  starts the compose `objectstore` (SeaweedFS) and `objectstore-init` services for the python
+  job (M1-T20).
+
+## Holdout split and the H-sealed guard (M4-T4)
+`pigtail.analysis.split` implements the threshold-calibration pre-registration §1.1 exactly:
+`m = int(sha256("pigtail-outcome-holdout-v1" + case_id), 16) % 100`. `m >= 30` is
+`calibration`, `m < 20` is `h_eval`, and `20 <= m < 30` is `h_sealed`. The case id is used as
+stored. The published test vectors are `split.TEST_VECTORS` and live in
+`tests/unit/test_split_m4t4.py`. Never reimplement the rule elsewhere.
+
+Every function that computes a class, a percentile, a provisional label or an outcome summary
+must run its case ids through the guard:
+```python
+from pigtail.analysis.split import PgUnsealLog, UnsealToken, sealed_guard
+
+
+@sealed_guard("outcome_classes")
+def outcome_classes(case_ids, *, unseal_token=None, unseal_log=None, thresholds_frozen=False): ...
+
+
+outcome_classes(ids)  # raises SealedCaseError / HeldOutCaseError for held-out ids
+outcome_classes(
+    ids,
+    thresholds_frozen=True,
+    unseal_token=UnsealToken("ADR-0NN", "§5.3 re-run"),
+    unseal_log=PgUnsealLog(conn),
+)  # a §5.3 re-run only
+```
+- H-sealed cases need an `UnsealToken` that names an ADR present in `ops/DECISIONS.md`, plus an
+  `UnsealLog`. The unseal is written to the append-only `holdout_unseal_log` table *before* the
+  computation runs.
+- H-eval cases are refused until `outcome-thresholds 1.0.0` is frozen (`thresholds_frozen=True`),
+  and no token lifts that.
+- Before the freeze, use `calibration_only(ids)` to drop held-out cases before any observation
+  is read.
+
+## JSONL export (M1-T20)
+`pigtail.export.jsonl`: one file per table. It fails closed on tables missing from
+`TABLE_LEVELS` (`project` / `person` / `never`). **Every new migration that creates a table must
+classify it** (`tests/integration/test_export_jsonl_m1t20.py` checks this). Person-level tables
+are `person` or `never`; anything that would list a repo's stargazers is `never`.
+
+## External liveness (M1-T26)
+`pigtail.scheduler.liveness`: the scheduler calls `write_heartbeat` each tick through the
+`Scheduler(heartbeat=...)` hook, and `pigtail health --liveness-file PATH|-` checks it.
+Operator setup: docs/guides/operator.md, "External liveness check".
 
 ## Web app (M1-T12, D1 preview)
 - API: `src/pigtail/api/` (FastAPI). Queries in `queries.py` run on a pool whose sessions are
@@ -107,6 +162,11 @@ PSEUDONYM_KEY=… uv run pigtail capture scan --start 2026-09-20T00 --end 2026-0
   pnpm --dir ui dev          # Vite on 127.0.0.1:5173, proxies /api to `pigtail ui serve` on :8080
   pnpm --dir ui lint && pnpm --dir ui typecheck && pnpm --dir ui test && pnpm --dir ui build
   ```
+- Case detail `detection_hours` (M1-T28) depends on `detection_hours_source`. For
+  `gharchive` (velocity-v0 cases) it holds the 48 GH Archive hours. For `github_counts`
+  (detection-v1 cases) it holds the `repo_count_snapshot` rows over the coverage window, each
+  with `stars_delta` and its evidence id. For `null` (no detection) it is empty. The UI type is
+  a discriminated union (`ui/src/api.ts`).
 - Tests: `tests/integration/test_api_d1.py` (seeded synthetic DB: auth, audit, 410s, hash
   verification, no handles in JSON, 5,000-item budget), `tests/unit/test_ui_auth.py`,
   `ui/src/ui.test.tsx`.

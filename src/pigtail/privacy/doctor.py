@@ -1,5 +1,8 @@
 """`pigtail doctor`: startup checks for the privacy controls (DPIA CB-03, CB-01, CB-05, CB-13).
 
+`optout_name_keys` (CB-13b) warns while repo-name opt-outs from before migration 0009 are still
+stored as unkeyed hashes (see `pigtail.privacy.suppression`).
+
 Encryption at rest (CB-03) can be checked from inside pigtail only for the S3 bucket
 (`GetBucketEncryption`). Postgres volume encryption and the local snapshot directory depend on
 the host's disk or volume encryption, which a database client cannot see; those checks report
@@ -226,6 +229,8 @@ def run_checks(
         out.append(Check("database", "fail", "DATABASE_URL is not set"))
     elif db_check:
         out.append(_db_check(s.database_url))
+        if (legacy := _legacy_optout_check(s.database_url)) is not None:
+            out.append(legacy)
     out.append(
         Check(
             "postgres_volume_encryption",
@@ -284,6 +289,28 @@ def _db_check(url: str) -> Check:
     if pending:
         return Check("database", "warn", f"pending migrations {pending} (pigtail db migrate)")
     return Check("database", "ok", "reachable, migrations up to date")
+
+
+def _legacy_optout_check(url: str) -> Check | None:
+    """CB-13b: repo-name opt-outs still stored as unkeyed hashes (before migration 0009)."""
+    import psycopg
+
+    try:
+        with psycopg.connect(url, connect_timeout=5) as c:
+            row = c.execute(
+                "SELECT count(*) FROM privacy_suppression WHERE kind = 'repo_name_unkeyed'"
+            ).fetchone()
+    except psycopg.Error:
+        return None  # not migrated yet / unreachable: reported by the `database` check
+    n = int(row[0]) if row else 0
+    if n == 0:
+        return Check("optout_name_keys", "ok", "repo-name opt-outs use the keyed hash")
+    return Check(
+        "optout_name_keys",
+        "warn",
+        f"{n} repo-name opt-out(s) still use the unkeyed hash (CB-13b; still matched): run "
+        f"`pigtail privacy optout rekey`, then re-add any left with `optout add --repo` ({GUIDE})",
+    )
 
 
 def exit_code(checks: list[Check], strict: bool = False) -> int:

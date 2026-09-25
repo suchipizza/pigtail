@@ -299,7 +299,7 @@ def test_cb08_erasure_purges_and_suppresses(ingested, pz, tmp_path):
     assert state(db, fetched[1].evidence) == "present"
     assert llm.cache_get("k_mention") is None and llm.cache_get("k_hour") is None
     assert llm.cache_get("k_other") is not None
-    assert p in suppression.load(db).pseudonyms
+    assert p in suppression.load(db, pz).pseudonyms
     entry = suppression.entries(db)[0]
     assert (entry["reason"], entry["request_id"]) == ("erasure", res.request_id)
     logs = log_rows(db)
@@ -310,7 +310,7 @@ def test_cb08_erasure_purges_and_suppresses(ingested, pz, tmp_path):
     )
     assert after.outcome == "no_data"
     conn = GHArchiveConnector(
-        store=store, pseudonymizer=pz, env={}, suppression=suppression.load(db)
+        store=store, pseudonymizer=pz, env={}, suppression=suppression.load(db, pz)
     )
     data = (FIX / "2026-09-20-0.json.gz").read_bytes()
     assert all(r["actor"] != p for r in conn.records(data, fetched[0].meta))
@@ -323,7 +323,7 @@ def test_cb08_erasure_purges_and_suppresses(ingested, pz, tmp_path):
     assert "user0001" not in dump
 
 
-def test_cb13_optout_repo_purges_project_rows(capture_db, tmp_path):
+def test_cb13_optout_repo_purges_project_rows(capture_db, tmp_path, pz):
     db = capture_db
     store = LocalSnapshotStore(tmp_path / "snapshots")
     db.conn.execute(
@@ -352,7 +352,7 @@ def test_cb13_optout_repo_purges_project_rows(capture_db, tmp_path):
     llm = LLMStore(":memory:")
     llm.cache_put("k", {"q": 1}, "m", evidence_id=ev.id)
     res = requests.optout_repo(
-        db, store, platform="github", repo_key="github:1000009", llm_store=llm
+        db, store, platform="github", repo_key="github:1000009", pz=pz, llm_store=llm
     )
     assert {
         "suppression_added": 1,
@@ -365,7 +365,7 @@ def test_cb13_optout_repo_purges_project_rows(capture_db, tmp_path):
     assert not store.exists(ev.content_hash)
     assert db.conn.execute("SELECT count(*) FROM repos").fetchone() == (0,)
     assert db.conn.execute("SELECT count(*) FROM repo_hourly_activity").fetchone() == (1,)
-    assert "github:1000009" in suppression.load(db).repos
+    assert "github:1000009" in suppression.load(db, pz).repos
 
 
 def test_cb13_reapply_refusals_after_restore(ingested, pz):

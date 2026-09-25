@@ -10,6 +10,7 @@
 | `star-history`     | core          | hourly (`--candidates`)        |
 | `detect-v1`        | core (refresh)| hourly                         |
 | `repo-events`      | core          | every 15 min, off by default   |
+| `settle-lag`       | core          | hourly (K2 re-fetches, M4-T4)  |
 | `budget`           | none          | manual                         |
 
 Every command that calls GitHub exits 2 without `GITHUB_TOKEN`. `repo-events` also exits 2 unless
@@ -34,6 +35,7 @@ JOB_CAP_DEFAULTS = {
     "star-history": {"core": 400},
     "detect-v1": {"core": 200},
     "repo-events": {"core": 1600},
+    "settle-lag": {"core": 200},
 }
 
 
@@ -339,6 +341,20 @@ def cmd_repo_events(args: argparse.Namespace) -> int:
     return _run("repo-events", args, body)
 
 
+def cmd_settle_lag(args: argparse.Namespace) -> int:
+    """K2 settle_lag collection (M4-T4): star-history re-fetches at +1/3/7/14/21 days."""
+
+    def body(s: Any, db: Any, run: Any) -> dict[str, Any]:
+        from pigtail.capture.settle_lag import SettleLagConfig, collect
+        from pigtail.privacy import suppression
+
+        conn = _github(s, db, run, _budget(db, "settle-lag", {"core": args.max_requests}))
+        cfg = SettleLagConfig(max_repos=args.max_repos)
+        return collect(conn, db, suppression.load(db), cfg=cfg, run=run).to_dict()
+
+    return _run("settle-lag", args, body)
+
+
 def cmd_budget(args: argparse.Namespace) -> int:
     def body(s: Any, db: Any, run: Any) -> dict[str, Any]:
         from pigtail.connectors.github_budget import BudgetConfig
@@ -429,6 +445,13 @@ def add_commands(cap_sub: Any) -> None:
     p.add_argument("--prethreshold", action="store_true", help="also repos above 30 stars/24 h")
     p.add_argument("--max-requests", type=int, help="core requests for this run (default 1600)")
     p.set_defaults(func=cmd_repo_events)
+
+    p = sub.add_parser(
+        "settle-lag", help="star-history re-fetches at +1/3/7/14/21 days (K2, M4-T4)"
+    )
+    p.add_argument("--max-repos", type=int, default=100, help="repos enrolled at a time")
+    p.add_argument("--max-requests", type=int, help="core requests for this run (default 200)")
+    p.set_defaults(func=cmd_settle_lag)
 
     p = sub.add_parser("budget", help="GitHub budget ledger (replan §8 M7)")
     p.add_argument("--hours", type=int, default=24)

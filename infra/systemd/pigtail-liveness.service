@@ -1,0 +1,38 @@
+# External liveness check for the pigtail scheduler (M1-T26). Runs from its own timer
+# (pigtail-liveness.timer), not from the scheduler, so a dead scheduler (or a dead host, when run
+# from a second host) still raises a `scheduler_dead` alert: host-local alert files under
+# $PIGTAIL_DATA_DIR/alerts/liveness/ and e-mail when SMTP_URL and ALERT_EMAIL are set.
+# Install (see docs/guides/operator.md "External liveness check"):
+#   sudo cp infra/systemd/pigtail-liveness.service infra/systemd/pigtail-liveness.timer \
+#       /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now pigtail-liveness.timer
+#   systemctl list-timers pigtail-liveness.timer
+# Exit status 1 (stale heartbeat) marks this unit failed, which is expected while it alerts.
+[Unit]
+Description=pigtail scheduler liveness check (heartbeat age)
+Documentation=https://github.com/suchipizza/pigtail/blob/main/docs/guides/operator.md
+
+[Service]
+Type=oneshot
+User=pigtail
+Group=pigtail
+WorkingDirectory=/opt/pigtail
+# SMTP_URL, ALERT_EMAIL, ... (never in git; mode 0600). DATABASE_URL is not needed.
+EnvironmentFile=/etc/pigtail/pigtail.env
+Environment=PIGTAIL_DATA_DIR=/var/lib/pigtail
+# Same host: read the heartbeat file the scheduler writes every tick (15 s by default).
+ExecStart=/opt/pigtail/.venv/bin/pigtail health --liveness-file /var/lib/pigtail/liveness.json --max-age 5m --alert
+# Second host instead (replace ExecStart; key-only SSH to a read-only account on the first host):
+# ExecStart=/bin/sh -c 'ssh -o BatchMode=yes -o ConnectTimeout=20 pigtail-ro@scheduler-host \
+#     cat /var/lib/pigtail/liveness.json | /opt/pigtail/.venv/bin/pigtail health \
+#     --liveness-file - --max-age 5m --alert'
+TimeoutStartSec=2min
+
+# Hardening
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/var/lib/pigtail

@@ -199,6 +199,12 @@ class Pseudonymizer:
         norm = f"{namespace}:{handle.strip().lstrip('@').lower()}".encode()
         return "p_" + hmac.new(self._key, norm, hashlib.sha256).hexdigest()[:16]
 
+    def keyed_hex(self, value: str, namespace: str) -> str:
+        """Full HMAC-SHA256 hex of `namespace:value` (no normalization: the caller normalizes).
+
+        Used for keyed lookup keys that are not handles, e.g. repo-name opt-outs (CB-13b)."""
+        return hmac.new(self._key, f"{namespace}:{value}".encode(), hashlib.sha256).hexdigest()
+
     def strip_identifiers(self, text: str, namespace: str = "generic") -> str:
         """Redact e-mails, phones, profile URLs, DIDs and @mentions before an LLM call (CB-06).
 

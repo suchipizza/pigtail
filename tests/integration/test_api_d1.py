@@ -470,6 +470,70 @@ def test_r13_2_case_detection_numbers_trace_to_evidence(env):
     assert client.get("/api/cases/NOT-AN-ID").status_code == 404
 
 
+def test_m1_t28_v1_case_detection_hours_read_count_snapshots(env):
+    """M1-T28: a detection-v1 case's hours come from `repo_count_snapshot`, not GH Archive."""
+    client, seed, db = env
+    start = T0 + timedelta(days=1)
+    snaps = [(0, 1000, 50), (1, 1030, 51), (24, 1080, 53), (48, 1150, 55)]  # hours, stars, forks
+    evs = []
+    for h, stars, forks in snaps:
+        evs.append(
+            _evidence(
+                db,
+                seed,
+                f"gq{h}",
+                source="github",
+                url="https://api.github.com/graphql",
+                data=f'{{"h": {h}}}'.encode(),
+                fetched_at=start + timedelta(hours=h),
+            )
+        )
+        db.conn.execute(
+            "INSERT INTO repo_count_snapshot (repo_host_id, observed_at, stars, forks,"
+            " evidence_id) VALUES (1000002, %s, %s, %s, %s)",
+            (start + timedelta(hours=h), stars, forks, evs[-1]),
+        )
+    # a snapshot outside the window is not part of the case
+    db.conn.execute(
+        "INSERT INTO repo_count_snapshot (repo_host_id, observed_at, stars, forks)"
+        " VALUES (1000002, %s, 900, 40)",
+        (start - timedelta(hours=5),),
+    )
+    end = start + timedelta(hours=48)
+    det = {
+        "rule_version": "detection-v1",
+        "detected_hour": end.isoformat(),
+        "stars_48h": 150,
+        "coverage": {
+            "source": "github_graphql_counts",
+            "window_start": start.isoformat(),
+            "window_end": end.isoformat(),
+            "observed_stars": 150,
+            "reference_stars": 148,
+            "reference_source": "github_star_history",
+            "ratio": 1.0135,
+        },
+    }
+    case3 = "case_00000000000000000003"
+    db.conn.execute(
+        "INSERT INTO cases (id, repo_id, opened_at, trigger, status, detection)"
+        " VALUES (%s, 'github:1000002', %s, 'velocity', 'live', %s)",
+        (case3, end + timedelta(hours=1), json.dumps(det)),
+    )
+    login(client)
+    body = client.get(f"/api/cases/{case3}").json()
+    assert body["detection_hours_source"] == "github_counts"
+    hours = body["detection_hours"]
+    assert [h["stars"] for h in hours] == [1000, 1030, 1080, 1150]
+    assert [h["stars_delta"] for h in hours] == [None, 30, 50, 70]
+    assert sum(h["stars_delta"] or 0 for h in hours) == body["detection"]["stars_48h"]
+    assert [h["evidence_id"] for h in hours] == evs  # every number traces to its snapshot
+    # the v0 case still reads GH Archive hours
+    v0 = client.get(f"/api/cases/{CASE1}").json()
+    assert v0["detection_hours_source"] == "gharchive" and len(v0["detection_hours"]) == 48
+    assert client.get(f"/api/cases/{CASE2}").json()["detection_hours_source"] is None
+
+
 def test_r13_2_timeline_lanes_link_every_point_to_evidence(env):
     client, seed, _ = env
     login(client)

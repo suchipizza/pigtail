@@ -11,6 +11,7 @@ Usage: `pigtail db migrate` or `python -m pigtail.db.migrate [DATABASE_URL]`.
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import re
 import sys
@@ -19,6 +20,7 @@ from pathlib import Path
 
 import psycopg
 
+log = logging.getLogger("pigtail.db.migrate")
 _FILE = re.compile(r"^(\d{4})_[a-z0-9_]+\.sql$")
 _LOCK_ID = 0x9197A11  # arbitrary, constant advisory-lock key for pigtail migrations
 
@@ -73,11 +75,18 @@ def discover(directory: Path) -> list[Migration]:
     return out
 
 
+def _log_notice(diag: psycopg.errors.Diagnostic) -> None:
+    """Migration `RAISE WARNING`s (e.g. CB-13b in 0009) reach the operator's log."""
+    if diag.severity_nonlocalized in ("WARNING", "ERROR"):
+        log.warning("migration: %s", diag.message_primary)
+
+
 def migrate(conninfo: str, directory: Path | None = None) -> list[str]:
     """Apply pending migrations; return the versions applied by this call."""
     migrations = discover(directory or default_migrations_dir())
     applied_now: list[str] = []
     with psycopg.connect(conninfo, autocommit=True) as conn:
+        conn.add_notice_handler(_log_notice)
         conn.execute("SELECT pg_advisory_lock(%s)", (_LOCK_ID,))
         try:
             conn.execute(_BOOTSTRAP)

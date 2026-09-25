@@ -68,6 +68,7 @@ class Scheduler:
         clock: Callable[[], datetime] = utcnow,
         code_commit: str | None = None,
         on_alert_tick: Callable[[], None] | None = None,
+        heartbeat: Callable[[datetime, datetime, int], None] | None = None,
     ) -> None:
         self.cfg = cfg
         self.store = store
@@ -77,6 +78,8 @@ class Scheduler:
         self.clock = clock
         self.code_commit = code_commit if code_commit is not None else git_commit()
         self.on_alert_tick = on_alert_tick
+        self.heartbeat = heartbeat  # (now, started_at, ticks): external liveness (M1-T26)
+        self.ticks = 0
         self.started_at = clock()
         self.last_tick_at: datetime | None = None
         self.last_loop_error: str | None = None
@@ -171,6 +174,8 @@ class Scheduler:
         """
         now = self.clock()
         self.last_tick_at = now
+        self.ticks += 1
+        self._beat(now)
         try:
             due = self.due_jobs(now)
             self.last_loop_error = None
@@ -194,6 +199,14 @@ class Scheduler:
                 fut.add_done_callback(self._releaser(spec.name))
         self._maybe_alert(now, background=executor is not None)
         return out
+
+    def _beat(self, now: datetime) -> None:
+        if self.heartbeat is None:
+            return
+        try:
+            self.heartbeat(now, self.started_at, self.ticks)
+        except Exception as e:  # a full disk must not stop the loop; the checker will alert
+            log.warning("heartbeat write failed: %s", type(e).__name__)
 
     def _releaser(self, name: str) -> Callable[[Future[Outcome]], None]:
         return lambda _f: self._release(name)

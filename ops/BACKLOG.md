@@ -7,7 +7,7 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [ ] [M1-T28] Case API `detection_hours` should read `repo_count_snapshot` for v1 cases; daily wide-universe sweep (≥ 100 stars); lockstep alternative for events
 - [x] [M3-T9] ADR-032..038 docs + M1-T24 code verified (round 2 PASS @80918ee)
 - [ ] [M1-T25] D1 follow-ups: browser check (operator), p95 benchmark at 5,000 evidence items, generated TS types, streaming hash check for large snapshots, live refresh, audit-log reader
-- [ ] [M1-T26] External liveness check for the scheduler (a dead scheduler can't alert itself)
+- [x] [M1-T26] External liveness check (ADR-042.5)
 - [x] [M1-T24] ADR-032 implemented on fixtures (ADR-037); live runs wait for GITHUB_TOKEN — was: Implement ADR-032: watch-list GraphQL snapshots, Search sweeps, HN→repo screen, star-history client (baseline, confirmation, scoring, backfill), per-repo events polling for tracked cases; case coverage fields — needs GITHUB_TOKEN (H1) for live runs; build and test on fixtures now
 - [x] [M3-T6] Outcome spec updated to ADR-032 (star-history, day mapping)
 - [x] [M3-T7] LIA/DPIA: per-repo events (A1b, D12/D13, R15), OpenDigger not processed
@@ -20,7 +20,7 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [x] [M1-T18] Detection re-plan verified → ADR-032; citation fixes applied; TM-32/33, LQ-27..29 added
 - [ ] [M3-T7] LIA/DPIA: add per-repo events processing (TM-33) and LQ-29 to the balancing test and risk register: evaluate own GitHub event collection (Events API, full paging), candidate screening via Search API / HN / Bluesky / registries + stargazers API, and third-party trend services — feasibility, rate limits, cost, terms; recommendation checked by the verifier — ADR-028, G3, R1.1 — GITHUB_TOKEN (H1) for measurements
 - [x] [M1-T19] GH Archive backfill (ADR-040) — was: Retry and backfill missing GH Archive hours (404s are only marked missing today)
-- [ ] [M1-T20] JSONL export alongside the DB (PRD §7); S3 service in CI; handles inside free text; run error-text redaction; batched detect() for backfills
+- [x] [M1-T20] JSONL export + S3 in CI (ADR-042.4); still open: handles inside free text; run error-text redaction; batched detect() for backfills
 - [x] [M2-T1] Literature review → docs/research/literature.md (80 citations; recommends StarScout for R3.3) — pending verifier spot-check M2-T4
 - [x] [M2-T2] Source matrix + terms memos (25 sources: 12 cleared incl. conditions, 13 gaps) — pending verifier spot-check M2-T4
 - [x] [M1-T1] Capture schema v0 (`evidence`, `case`, `repo`, `run`) as JSON Schemas + Postgres migrations; content-addressed snapshot store (SHA-256) on S3 — R1.4, §7 — M0 — examples + validation tests; forward-only tested migrations
@@ -57,7 +57,8 @@ Before enabling Bluesky, HN or V2EX:
 - [x] [CB-08] Data-subject requests (`pigtail privacy request access|erasure`); follow-up: rectification
 - [x] [CB-13] Opt-out list enforced at ingest + purge (`pigtail privacy optout`)
 Feature-specific:
-- [ ] [CB-13b] **Before production:** name opt-outs must use a keyed hash (HMAC with PSEUDONYM_KEY), not unkeyed SHA-256 (ADR-040.4); migrate existing rows
+- [ ] [CB-13c] **Before production:** repo opt-out purge (`purge_repo`) must also delete the repo's rows in the M1-T24 tables (repo_star_daily, repo_count_snapshot, star_history_fetch, repo_event_poll, repo_event_daily_agg, detection_agreement); add a test that enumerates every table with a repo key
+- [x] [CB-13b] Keyed name opt-outs (ADR-042.1); remaining unkeyed rows are warned about by doctor — was: **Before production:** name opt-outs must use a keyed hash (HMAC with PSEUDONYM_KEY), not unkeyed SHA-256 (ADR-040.4); migrate existing rows
 - [ ] [M1-T29] Title matching for HN front-page minutes (outcome-model A2); per-day lock for GH Archive re-aggregation; batch the first deletion-sync run after migration 0008
 - [x] [CB-24] Raw GitHub search pages dropped at parse (ADR-040)
 - [x] [CB-23b] Unparseable person-level pages dropped immediately (ADR-040)
@@ -75,7 +76,7 @@ Feature-specific:
 ## Next
 - [x] [M3-T10] Outcome spec updated (μ_h, calibration pointer, H-sealed cells, HN minutes; ADR-041) — was: state μ_h = μ_d/24 in §2.1; point §5.4 and §9 to the calibration pre-registration; §3.3 note that after the freeze H-sealed is excluded from cell populations (ADR-039.5)
 - [ ] [M4-T5] Day-zone check after the 2026-11-01 DST change before unitizing bursts for the pilot
-- [ ] [M4-T4] Implement the holdout split rule (H-cal / H-eval / H-sealed) with the pre-registered test vectors; scheduled star-history re-fetches at 1/3/7/14/21 days for the settle_lag calibration
+- [x] [M4-T4] Split rule + guard + settle-lag collection (ADR-042) — was: Implement the holdout split rule (H-cal / H-eval / H-sealed) with the pre-registered test vectors; scheduled star-history re-fetches at 1/3/7/14/21 days for the settle_lag calibration
 - [x] [M3-T4] Compliance docs' CB statuses updated (ADR-030)
 - [x] [CB-18b] RedactingFilter on every CLI command and scheduled job
 - [x] [LQ-27] Added to legal-review-questions (with LQ-28 OpenDigger, LQ-29 stargazer identities) — was: Add legal question: after an erasure, replay briefly re-processes the erased person's data before dropping it at ingest (ADR-030.1) — acceptable?

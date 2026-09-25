@@ -6,9 +6,21 @@ The list (`privacy_suppression`, migration 0003) holds only:
   by the requester is pseudonymized immediately with `PSEUDONYM_KEY` in the platform's namespace
   and never stored; a CHECK constraint rejects anything that is not a pseudonym;
 - **repo ids** (`<host>:<host_id>`, as in `repos.id`) of projects whose owner opted out;
-- **repo name keys** (`rn_<32 hex>`, M1-T23): SHA-256 of `<host>:<owner/name>` (normalized,
-  lowercase). They let an opt-out reach data about a repo that is not (yet) in `repos`, such as
-  HN stories and mentions, matched by name. The name itself is not stored.
+- **repo name keys** (`rk_<32 hex>`, kind `repo_name`; M1-T23, CB-13b): keyed HMAC-SHA256 with
+  `PSEUDONYM_KEY` of the normalized, lowercase `owner/name` in namespace `repo_name`
+  (`repo_name.<host>` for hosts other than GitHub). They let an opt-out reach data about a repo
+  that is not (yet) in `repos`, such as HN stories and mentions, matched by name. The name itself
+  is not stored, and without the key the hash cannot be reversed by a dictionary of public repo
+  names (ADR-040.4).
+- **legacy unkeyed name keys** (`rn_<32 hex>`, kind `repo_name_unkeyed`): entries written before
+  migration 0009 as an unkeyed SHA-256 of `<host>:<owner/name>`. Their names cannot be recovered
+  in SQL, so 0009 keeps them (still matched, so the opt-out keeps working) instead of dropping
+  them; the database refuses new ones. `pigtail privacy optout rekey` converts every entry whose
+  name is found in local data; re-adding a name (`optout add --repo`) converts it too; `pigtail
+  doctor` warns while any are left.
+
+Name matching needs the key: `load()` takes the `Pseudonymizer` (or reads `PSEUDONYM_KEY`) and
+fails closed (`MissingNameKey`) when keyed entries exist but no key is available.
 
 Connectors load the list once (`load()`) and drop matching records at ingest
 (`pigtail.connectors.base.Connector.records`). Existing data is purged by
@@ -18,8 +30,10 @@ Connectors load the list once (`load()`) and drop matching records at ingest
 from __future__ import annotations
 
 import hashlib
+import os
 import re
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from pigtail.pseudonymize import PLATFORM_NAMESPACES, PSEUDONYM_RE, Pseudonymizer
@@ -27,10 +41,19 @@ from pigtail.pseudonymize import PLATFORM_NAMESPACES, PSEUDONYM_RE, Pseudonymize
 if TYPE_CHECKING:
     from pigtail.capture.db import CaptureDB
 
-Kind = Literal["pseudonym", "repo", "repo_name"]
+Kind = Literal["pseudonym", "repo", "repo_name", "repo_name_unkeyed"]
 Reason = Literal["objection", "erasure"]
 REPO_KEY_RE = re.compile(r"^[a-z]+:[0-9]+$")
-REPO_NAME_KEY_RE = re.compile(r"^rn_[0-9a-f]{32}$")
+REPO_NAME_KEY_RE = re.compile(r"^rk_[0-9a-f]{32}$")
+LEGACY_REPO_NAME_KEY_RE = re.compile(r"^rn_[0-9a-f]{32}$")
+NAME_KEY_NAMESPACE = "repo_name"
+KEY_ENV = "PSEUDONYM_KEY"
+
+
+class MissingNameKey(RuntimeError):
+    """Keyed repo-name opt-outs exist but no `PSEUDONYM_KEY` is available to match them."""
+
+
 _FULL_NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38})/[a-z0-9._-]{1,100}$")
 
 
@@ -45,10 +68,24 @@ def normalize_repo_name(full_name: str) -> str:
     return n
 
 
-def repo_name_key(full_name: str, host: str = "github") -> str:
-    """Refusal-list key of a repo name (M1-T23): `rn_` + 32 hex of SHA-256(`host:owner/name`)."""
+def name_key_namespace(host: str = "github") -> str:
+    return NAME_KEY_NAMESPACE if host == "github" else f"{NAME_KEY_NAMESPACE}.{host}"
+
+
+def repo_name_key(full_name: str, pz: Pseudonymizer, host: str = "github") -> str:
+    """Refusal-list key of a repo name (M1-T23, CB-13b): `rk_` + 32 hex of
+    HMAC-SHA256(`PSEUDONYM_KEY`, `repo_name:<owner/name>`), name normalized and lowercase."""
+    return "rk_" + pz.keyed_hex(normalize_repo_name(full_name), name_key_namespace(host))[:32]
+
+
+def legacy_repo_name_key(full_name: str, host: str = "github") -> str:
+    """The pre-0009 **unkeyed** key (`rn_` + SHA-256(`host:owner/name`)). Only for matching and
+    converting legacy entries; never written (the database refuses new ones, CB-13b)."""
     digest = hashlib.sha256(f"{host}:{normalize_repo_name(full_name)}".encode()).hexdigest()
     return "rn_" + digest[:32]
+
+
+NameKeyFn = Callable[[str, str], str]  # (full_name, host) -> rk_ key
 
 
 @dataclass(frozen=True)
@@ -57,17 +94,29 @@ class Suppressions:
 
     pseudonyms: frozenset[str] = frozenset()
     repos: frozenset[str] = frozenset()
-    repo_names: frozenset[str] = frozenset()  # repo_name_key() values
+    repo_names: frozenset[str] = frozenset()  # repo_name_key() values (keyed, rk_)
+    legacy_repo_names: frozenset[str] = frozenset()  # legacy_repo_name_key() values (rn_)
+    name_key: NameKeyFn | None = field(default=None, compare=False, repr=False)
 
     def __bool__(self) -> bool:
-        return bool(self.pseudonyms or self.repos or self.repo_names)
+        return bool(self.pseudonyms or self.repos or self.repo_names or self.legacy_repo_names)
 
     def name_suppressed(self, full_name: str | None, host: str = "github") -> bool:
-        """True if `owner/name` is on the list by name (M1-T23). Unparseable names: False."""
-        if not full_name or not self.repo_names:
+        """True if `owner/name` is on the list by name (M1-T23, CB-13b). Unparseable: False.
+
+        Raises `MissingNameKey` if keyed entries exist but no key was given (fail closed)."""
+        if not full_name or not (self.repo_names or self.legacy_repo_names):
             return False
         try:
-            return repo_name_key(full_name, host) in self.repo_names
+            if self.legacy_repo_names and (
+                legacy_repo_name_key(full_name, host) in self.legacy_repo_names
+            ):
+                return True
+            if not self.repo_names:
+                return False
+            if self.name_key is None:
+                raise MissingNameKey("repo-name opt-outs need PSEUDONYM_KEY to be matched (CB-13b)")
+            return self.name_key(full_name, host) in self.repo_names
         except ValueError:
             return False
 
@@ -87,12 +136,35 @@ def subject_pseudonym(pz: Pseudonymizer, platform: str, handle: str) -> str:
     return pz.pseudonym(handle, platform_namespace(platform))
 
 
-def load(db: CaptureDB) -> Suppressions:
+def name_keyer(pz: Pseudonymizer) -> NameKeyFn:
+    """`(full_name, host) -> repo_name_key(...)` bound to `pz`."""
+    return lambda full_name, host: repo_name_key(full_name, pz, host)
+
+
+def _pseudonymizer_from_env() -> Pseudonymizer | None:
+    key = os.environ.get(KEY_ENV, "")
+    try:
+        return Pseudonymizer(key) if key else None
+    except ValueError:
+        return None
+
+
+def load(db: CaptureDB, pz: Pseudonymizer | None = None) -> Suppressions:
+    """The refusal list. Repo-name entries are matched with `pz` (default: `PSEUDONYM_KEY` from
+    the environment); keyed entries without any key raise `MissingNameKey` (fail closed)."""
     rows = db.conn.execute("SELECT kind, value FROM privacy_suppression").fetchall()
+    names = frozenset(v for k, v in rows if k == "repo_name")
+    pz = pz or _pseudonymizer_from_env()
+    if names and pz is None:
+        raise MissingNameKey(
+            f"{len(names)} repo-name opt-out(s) need PSEUDONYM_KEY to be matched (CB-13b)"
+        )
     return Suppressions(
         pseudonyms=frozenset(v for k, v in rows if k == "pseudonym"),
         repos=frozenset(v for k, v in rows if k == "repo"),
-        repo_names=frozenset(v for k, v in rows if k == "repo_name"),
+        repo_names=names,
+        legacy_repo_names=frozenset(v for k, v in rows if k == "repo_name_unkeyed"),
+        name_key=name_keyer(pz) if pz is not None else None,
     )
 
 
@@ -103,6 +175,8 @@ def _check(kind: Kind, value: str) -> None:
         raise ValueError("repo opt-outs are stored as '<host>:<numeric id>'")
     if kind == "repo_name" and not REPO_NAME_KEY_RE.match(value):
         raise ValueError("repo name opt-outs are stored as repo_name_key() hashes, never names")
+    if kind == "repo_name_unkeyed":
+        raise ValueError("unkeyed repo-name hashes are legacy (CB-13b); use repo_name_key()")
 
 
 def add(
@@ -130,6 +204,22 @@ def remove(db: CaptureDB, kind: Kind, value: str) -> bool:
         "DELETE FROM privacy_suppression WHERE kind = %s AND value = %s", (kind, value)
     )
     return cur.rowcount == 1
+
+
+def remove_legacy_name(db: CaptureDB, full_name: str, host: str = "github") -> bool:
+    """Drop the legacy unkeyed entry for `owner/name`, if any (after the keyed one is added)."""
+    cur = db.conn.execute(
+        "DELETE FROM privacy_suppression WHERE kind = 'repo_name_unkeyed' AND value = %s",
+        (legacy_repo_name_key(full_name, host),),
+    )
+    return cur.rowcount == 1
+
+
+def legacy_count(db: CaptureDB) -> int:
+    row = db.conn.execute(
+        "SELECT count(*) FROM privacy_suppression WHERE kind = 'repo_name_unkeyed'"
+    ).fetchone()
+    return int(row[0]) if row else 0
 
 
 def entries(db: CaptureDB) -> list[dict[str, Any]]:

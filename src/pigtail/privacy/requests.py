@@ -19,8 +19,10 @@ discarded: it is never written to the database, the request log, the deletion lo
 - `purge_repo_name()` (M1-T23): the same opt-out matched by normalized `owner/name`, which also
   reaches data about repos not in `repos`: HN mentions (rows and their snapshots), story titles
   and urls from the rank poller (the rank history keeps only the item id), Show HN screen links
-  and watch-list entries. The refusal list holds only a hash of the name
-  (`suppression.repo_name_key`).
+  and watch-list entries. The refusal list holds only a keyed hash of the name
+  (`suppression.repo_name_key`, HMAC with `PSEUDONYM_KEY`, CB-13b).
+- `rekey_unkeyed_names()` (CB-13b): converts legacy unkeyed name entries (before migration 0009)
+  to keyed ones for every name found in local data; the rest stay matched until re-added.
 
 Every request writes a `privacy_requests` row (id, type, platform, dates, outcome, counts; no
 handle and no pseudonym) and runs inside a `RunRecorder`. Deletions write tombstones to
@@ -32,7 +34,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -438,6 +440,13 @@ def purge_repo(
         counts["hourly_rows_deleted"] = n
         if n:
             log.write("rows_deleted", "repo_hourly_activity", rows=n)
+        for table in ("star_history_settle_obs", "settle_lag_schedule"):  # K2 (M4-T4)
+            n = db.conn.execute(
+                sql.SQL("DELETE FROM {} WHERE repo_host_id = %s").format(sql.Identifier(table)),
+                (int(host_id),),
+            ).rowcount
+            if n:
+                log.write("rows_deleted", table, rows=n)
     evs = db.conn.execute(
         "SELECT id, content_hash FROM evidence WHERE repo_id = %(r)s"
         " OR case_id IN (SELECT id FROM cases WHERE repo_id = %(r)s) ORDER BY id",
@@ -454,8 +463,10 @@ def purge_repo(
     return counts
 
 
-def names_for_key(db: CaptureDB, name_key: str, host: str = "github") -> list[str]:
-    """Normalized repo names stored anywhere pigtail keeps them whose `repo_name_key` is
+def names_for_key(
+    db: CaptureDB, name_key: str, keyer: Callable[[str], str], host: str = "github"
+) -> list[str]:
+    """Normalized repo names stored anywhere pigtail keeps them whose key (`keyer(name)`) is
     `name_key` (the refusal list holds only the hash, M1-T23)."""
     rows = db.conn.execute(
         """
@@ -470,11 +481,47 @@ def names_for_key(db: CaptureDB, name_key: str, host: str = "github") -> list[st
     out = set()
     for (n,) in rows:
         try:
-            if suppression.repo_name_key(n, host) == name_key:
+            if keyer(n) == name_key:
                 out.add(suppression.normalize_repo_name(n))
         except ValueError:
             continue
     return sorted(out)
+
+
+def _keyer(name_key: str, pz: Pseudonymizer, host: str) -> Callable[[str], str]:
+    """The key function matching `name_key`'s kind: keyed (`rk_`) or legacy unkeyed (`rn_`)."""
+    if suppression.LEGACY_REPO_NAME_KEY_RE.match(name_key):
+        return lambda n: suppression.legacy_repo_name_key(n, host)
+    return lambda n: suppression.repo_name_key(n, pz, host)
+
+
+def rekey_unkeyed_names(db: CaptureDB, pz: Pseudonymizer) -> dict[str, int]:
+    """CB-13b: replace legacy unkeyed name entries with keyed ones where the name is known.
+
+    A legacy entry's name is recovered only by matching names pigtail already holds (HN, watch
+    list, repos); the keyed entry keeps the platform, reason and request id. Entries whose name
+    is not found stay (still matched) until the operator re-adds the name."""
+    counts = {"converted": 0, "remaining": 0}
+    rows = db.conn.execute(
+        "SELECT value, platform, reason, request_id FROM privacy_suppression"
+        " WHERE kind = 'repo_name_unkeyed' ORDER BY added_at, value"
+    ).fetchall()
+    for value, platform, reason, request_id in rows:
+        names = names_for_key(db, value, _keyer(value, pz, platform), platform)
+        if not names:
+            counts["remaining"] += 1
+            continue
+        for name in names:
+            suppression.add(
+                db, "repo_name", suppression.repo_name_key(name, pz, platform),
+                platform=platform, reason=reason, request_id=request_id,
+            )  # fmt: skip
+        db.conn.execute(
+            "DELETE FROM privacy_suppression WHERE kind = 'repo_name_unkeyed' AND value = %s",
+            (value,),
+        )
+        counts["converted"] += 1
+    return counts
 
 
 def purge_repo_name(
@@ -483,10 +530,12 @@ def purge_repo_name(
     name_key: str,
     log: DeletionLog,
     *,
+    pz: Pseudonymizer,
     host: str = "github",
     llm_store: LLMStore | None = None,
 ) -> dict[str, int]:
-    """M1-T23: remove what pigtail holds about an opted-out repo matched by name.
+    """M1-T23: remove what pigtail holds about an opted-out repo matched by name (`name_key`:
+    keyed `rk_`, or a legacy unkeyed `rn_` entry, CB-13b).
 
     HN mention rows and the snapshots they came from (unless another repo's mention still uses
     the same snapshot), rank-poller story titles, urls and repo links (the rank history keeps
@@ -502,7 +551,7 @@ def purge_repo_name(
         "watchlist_deactivated": 0,
         "evidence_deleted": 0,
     }
-    for name in names_for_key(db, name_key, host):
+    for name in names_for_key(db, name_key, _keyer(name_key, pz, host), host):
         counts["names_matched"] += 1
         evs = db.conn.execute(
             """
@@ -555,6 +604,7 @@ def optout_repo(
     *,
     platform: str,
     repo_key: str,
+    pz: Pseudonymizer,
     full_name: str | None = None,
     llm_store: LLMStore | None = None,
     run: RunRecorder | None = None,
@@ -576,20 +626,23 @@ def optout_repo(
             row = db.conn.execute("SELECT full_name FROM repos WHERE id = %s", (repo_key,))
             got = row.fetchone()
             full_name = str(got[0]) if got else None
-        name_key = suppression.repo_name_key(full_name, platform) if full_name else None
-        if name_key is not None:
+        name_key = suppression.repo_name_key(full_name, pz, platform) if full_name else None
+        if name_key is not None and full_name is not None:
             counts["name_suppression_added"] = int(
                 suppression.add(
                     db, "repo_name", name_key, platform=platform, reason="objection",
                     request_id=rid,
                 )
             )  # fmt: skip
+            counts["legacy_name_replaced"] = int(
+                suppression.remove_legacy_name(db, full_name, platform)
+            )
         if purge:
             log = DeletionLog(db, "objection", run_id=run.id if run else None, request_id=rid)
             counts |= purge_repo(db, store, repo_key, log, llm_store=llm_store)
             if name_key is not None:  # HN data matched by name (M1-T23)
                 by_name = purge_repo_name(
-                    db, store, name_key, log, host=platform, llm_store=llm_store
+                    db, store, name_key, log, pz=pz, host=platform, llm_store=llm_store
                 )
                 counts |= {f"name_{k}": v for k, v in by_name.items()}
         _finish_request(db, rid, "completed", counts)
@@ -605,23 +658,30 @@ def optout_repo_name(
     *,
     platform: str,
     full_name: str,
+    pz: Pseudonymizer,
     llm_store: LLMStore | None = None,
     run: RunRecorder | None = None,
     purge: bool = True,
 ) -> RequestResult:
     """M1-T23: opt out a repo that is not in `repos`, by normalized `owner/name` (stored only
-    as `repo_name_key`), then purge what is held about it by name."""
-    name_key = suppression.repo_name_key(full_name, platform)  # ValueError on a bad name
+    as the keyed `repo_name_key`, CB-13b), then purge what is held about it by name. A legacy
+    unkeyed entry for the same name is replaced."""
+    name_key = suppression.repo_name_key(full_name, pz, platform)  # ValueError on a bad name
     rid = new_request_id()
     _log_request(db, rid, "objection", platform, run)
     try:
         added = suppression.add(
             db, "repo_name", name_key, platform=platform, reason="objection", request_id=rid
         )
-        counts: dict[str, int] = {"suppression_added": int(added)}
+        counts: dict[str, int] = {
+            "suppression_added": int(added),
+            "legacy_name_replaced": int(suppression.remove_legacy_name(db, full_name, platform)),
+        }
         if purge:
             log = DeletionLog(db, "objection", run_id=run.id if run else None, request_id=rid)
-            counts |= purge_repo_name(db, store, name_key, log, host=platform, llm_store=llm_store)
+            counts |= purge_repo_name(
+                db, store, name_key, log, pz=pz, host=platform, llm_store=llm_store
+            )
         _finish_request(db, rid, "completed", counts)
     except BaseException:
         _finish_request(db, rid, "failed", {})
@@ -647,7 +707,7 @@ def reapply_refusals(
     for e in suppression.entries(db):
         if e["kind"] == "pseudonym":
             by_platform.setdefault(e["platform"], set()).add(e["value"])
-        elif e["kind"] == "repo_name":
+        elif e["kind"] in ("repo_name", "repo_name_unkeyed"):
             names.append((e["value"], e["platform"]))
         else:
             repos.append(e["value"])
@@ -673,6 +733,7 @@ def reapply_refusals(
             store,
             name_key,
             DeletionLog(db, "objection", run_id=run_id),
+            pz=pz,
             host=host,
             llm_store=llm_store,
         )

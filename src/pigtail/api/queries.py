@@ -173,7 +173,12 @@ def get_case(conn: Conn, case_id: str) -> dict[str, Any] | None:
         return None
     det = c["detection"]
     detection_hours: list[dict[str, Any]] = []
-    if det and det.get("detected_hour"):
+    hours_source: str | None = None
+    if det and det.get("rule_version") == "detection-v1":
+        hours_source = "github_counts"
+        detection_hours = _v1_count_snapshots(conn, c["host_id"], det)
+    elif det and det.get("detected_hour"):
+        hours_source = "gharchive"
         end = datetime.fromisoformat(det["detected_hour"])
         start = end - timedelta(hours=47)
         # The 48 hourly buckets behind stars_48h, each with the GH Archive dump it came from.
@@ -219,10 +224,48 @@ def get_case(conn: Conn, case_id: str) -> dict[str, Any] | None:
         "detection": det,
         "coverage": det.get("coverage") if det else None,
         "detection_hours": detection_hours,
+        "detection_hours_source": hours_source,
         "evidence_counts": {r["role"]: r["n"] for r in counts},
         "caveats": [COVERAGE_CAVEAT, UNCODED_NOTE],
         "coded": False,
     }
+
+
+def _v1_count_snapshots(conn: Conn, host_id: int, det: dict[str, Any]) -> list[dict[str, Any]]:
+    """M1-T28: the hourly GraphQL count snapshots behind a detection-v1 `stars_48h`.
+
+    Detection v1 (ADR-037) computes `stars_48h = L.stars - F.stars` from `repo_count_snapshot`
+    over the coverage window [F, L]; each row carries its batch snapshot's evidence id and the
+    change since the previous row (net of un-stars; no bot filtering at this step, ADR-037.1).
+    """
+    cov = det.get("coverage") or {}
+    if not cov.get("window_start") or not cov.get("window_end"):
+        return []
+    rows = _rows(
+        conn,
+        """
+        SELECT observed_at, stars, forks, evidence_id FROM repo_count_snapshot
+        WHERE repo_host_id = %(hid)s AND observed_at >= %(s)s::timestamptz
+          AND observed_at <= %(e)s::timestamptz
+        ORDER BY observed_at
+        """,
+        {"hid": host_id, "s": cov["window_start"], "e": cov["window_end"]},
+    )
+    out: list[dict[str, Any]] = []
+    prev: dict[str, Any] | None = None
+    for r in rows:
+        out.append(
+            {
+                "observed_at": r["observed_at"],
+                "stars": r["stars"],
+                "forks": r["forks"],
+                "stars_delta": None if prev is None else r["stars"] - prev["stars"],
+                "forks_delta": None if prev is None else r["forks"] - prev["forks"],
+                "evidence_id": r["evidence_id"],
+            }
+        )
+        prev = r
+    return out
 
 
 # --- evidence belonging to a case ----------------------------------------------------------------

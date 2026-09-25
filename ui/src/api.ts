@@ -100,7 +100,24 @@ export interface DetectionHour {
   lockstep: boolean;
 }
 
-export interface CaseDetail {
+/** M1-T28: a GraphQL count snapshot behind a detection-v1 `stars_48h` (net of un-stars). */
+export interface CountSnapshot {
+  observed_at: string;
+  stars: number;
+  forks: number;
+  stars_delta: number | null;
+  forks_delta: number | null;
+  evidence_id: string | null;
+}
+
+export type DetectionHours =
+  | { detection_hours_source: "gharchive"; detection_hours: DetectionHour[] }
+  | { detection_hours_source: "github_counts"; detection_hours: CountSnapshot[] }
+  | { detection_hours_source: null; detection_hours: [] };
+
+export type CaseDetail = CaseDetailBase & DetectionHours;
+
+export interface CaseDetailBase {
   case: {
     id: string;
     repo_id: string;
@@ -113,7 +130,6 @@ export interface CaseDetail {
   repo: { id: string; host: string; host_id: number; full_name: string; first_seen_at: string };
   detection: Detection | null;
   coverage: Coverage | null;
-  detection_hours: DetectionHour[];
   evidence_counts: Record<string, number>;
   caveats: string[];
   coded: boolean;

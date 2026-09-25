@@ -52,6 +52,7 @@ def test_m1_t24_cb23_no_cli_command_lists_stargazers():
         "capture github star-history",
         "capture github detect-v1",
         "capture github repo-events",
+        "capture github settle-lag",  # M4-T4 K2: star-history day counts, no identities
         "capture github budget",
     }
     assert not [c for c in cmds if re.search(r"stargazer|actor|who", c)]
@@ -63,7 +64,12 @@ def test_m1_t24_cb23_repo_event_actor_only_in_poller_and_registry():
         for p in SRC.rglob("*.py")
         if "repo_event_actor" in p.read_text(encoding="utf-8")
     }
-    assert users == {"capture/repo_events.py", "privacy/deletion.py"}
+    # export/jsonl.py only names it to classify it as never exported (M1-T20)
+    assert users == {"capture/repo_events.py", "privacy/deletion.py", "export/jsonl.py"}
+    from pigtail.export.jsonl import TABLE_LEVELS
+
+    assert TABLE_LEVELS["repo_event_actor"] == "never"
+    assert (SRC / "export" / "jsonl.py").read_text().count("repo_event_actor") == 2
     api = "\n".join(p.read_text() for p in (SRC / "api").rglob("*.py"))
     assert "repo_event_actor" not in api and "stargazers" not in api
 
@@ -98,6 +104,7 @@ def test_m1_t24_schedule_jobs_skip_without_token(caplog: pytest.LogCaptureFixtur
         "gh_star_history_confirm",
         "gh_detect_v1",
         "gh_repo_events",
+        "gh_settle_lag",  # M4-T4 K2
     }
     ev = cfg.job("gh_repo_events")
     assert ev.enabled is False  # person-level: off by default

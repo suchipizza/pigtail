@@ -26,6 +26,8 @@ from pigtail.connectors.hn import HNAlgoliaConnector, HNFirebaseConnector
 from pigtail.connectors.hn_ranks import HNRanksConnector
 from pigtail.privacy import requests, suppression
 from pigtail.privacy.deletion_sync import HNDeletionSource, sync
+from pigtail.pseudonymize import Pseudonymizer
+from tests.conftest import TEST_KEY
 from tests.hn_fake import FakeHN
 from tests.integration.test_hn_capture import (
     HANDLE_MARKERS,
@@ -43,7 +45,7 @@ def poll(db: Any, store: Any, fake: FakeHN, *, items: int = 30, clock: Any = lam
     conn = HNRanksConnector(
         pseudonymizer=None,
         env={},
-        suppression=suppression.load(db),
+        suppression=suppression.load(db, Pseudonymizer(TEST_KEY)),
         **conn_kw(store, fake, db, clock=clock),
     )
     with RunRecorder("capture.hn_ranks", {}, sink=db.upsert_run, detect_commit=False) as run:
@@ -114,11 +116,13 @@ def test_m1_t23_name_optout_suppresses_hn_for_repo_not_in_repos(capture_db, tmp_
     db = capture_db
     store = LocalSnapshotStore(tmp_path / "snap")
     assert db.conn.execute("SELECT count(*) FROM repos").fetchone() == (0,)
-    res = requests.optout_repo_name(db, store, platform="github", full_name="Org-B/Repo-2.git")
+    res = requests.optout_repo_name(
+        db, store, platform="github", full_name="Org-B/Repo-2.git", pz=pz
+    )
     assert res.outcome == "completed" and res.counts["suppression_added"] == 1
     entries = suppression.entries(db)
     assert [e["kind"] for e in entries] == ["repo_name"]
-    assert entries[0]["value"] == suppression.repo_name_key("org-b/repo-2")
+    assert entries[0]["value"] == suppression.repo_name_key("org-b/repo-2", pz)
     assert "repo-2" not in json.dumps(entries, default=str)  # the name itself is not stored
     # rank poller: the story's metadata is not stored (id and rank only), others are
     pres, _ = poll(db, store, FakeHN(), items=4)
@@ -130,11 +134,11 @@ def test_m1_t23_name_optout_suppresses_hn_for_repo_not_in_repos(capture_db, tmp_
     ).fetchone() == (1,)
     # mention capture refuses before any request; the watch list skips it
     fake = FakeHN()
-    kw = conn_kw(store, fake, db, pseudonymizer=pz, env=ON, suppression=suppression.load(db))
+    kw = conn_kw(store, fake, db, pseudonymizer=pz, env=ON, suppression=suppression.load(db, pz))
     with pytest.raises(RepoSuppressed):
         capture_hn_mentions(HNAlgoliaConnector(**kw), db, "org-b/repo-2")
     assert fake.requests == []
-    w = Watchlist(db, suppression.load(db))
+    w = Watchlist(db, suppression.load(db, pz))
     assert w.nominate("hn", "Org-B/Repo-2", source_ref="hn:9000004") == "skipped"
     assert w.nominate("hn", "org-a/repo-1", source_ref="hn:9000001") == "added"
 
@@ -155,7 +159,7 @@ def test_m1_t23_name_optout_purges_existing_hn_data_and_reapplies(capture_db, tm
     ).fetchall()
     assert mention_evs and all(store.exists(h) for _i, h in mention_evs)
     assert db.conn.execute("SELECT count(*) FROM repos").fetchone() == (0,)  # not tracked
-    res = requests.optout_repo_name(db, store, platform="github", full_name="org-a/repo-1")
+    res = requests.optout_repo_name(db, store, platform="github", full_name="org-a/repo-1", pz=pz)
     c = res.counts
     assert c["names_matched"] == 1 and c["mention_rows_deleted"] == 5
     assert c["story_rows_cleared"] == 1 and c["watchlist_deactivated"] == 1
@@ -184,14 +188,14 @@ def test_m1_t23_name_optout_purges_existing_hn_data_and_reapplies(capture_db, tm
         assert totals[f"repo_name_{k}"] == 0
 
 
-def test_m1_t23_name_optout_of_a_tracked_repo_also_purges_by_id(capture_db, tmp_path):
+def test_m1_t23_name_optout_of_a_tracked_repo_also_purges_by_id(capture_db, tmp_path, pz):
     db = capture_db
     add_repo_and_case(db)
     store = LocalSnapshotStore(tmp_path / "snap")
     poll(db, store, FakeHN(), items=4)
-    res = requests.optout_repo(db, store, platform="github", repo_key="github:1000001")
+    res = requests.optout_repo(db, store, platform="github", repo_key="github:1000001", pz=pz)
     assert res.counts["name_suppression_added"] == 1 and res.counts["cases_deleted"] == 1
-    s = suppression.load(db)
+    s = suppression.load(db, pz)
     assert "github:1000001" in s.repos and s.name_suppressed("github.com/org-a/repo-1")
     assert db.conn.execute(
         "SELECT title, repo_full_name FROM hn_story WHERE item_id = 9000001"

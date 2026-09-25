@@ -24,6 +24,7 @@ from pigtail.capture.hn_frontpage import (
 )
 from pigtail.cli import main
 from pigtail.privacy import suppression
+from tests.conftest import TEST_KEY
 
 P0 = datetime(2026, 9, 25, 10, tzinfo=UTC)
 M = timedelta(minutes=1)
@@ -117,10 +118,11 @@ def test_m1_t22_windows_verified_unknown_and_before_polling(capture_db):
 
 
 @pytest.mark.db
-def test_m1_t22_cli_report_is_read_only(capture_db, pg_url, monkeypatch, capsys):
+def test_m1_t22_cli_report_is_read_only(capture_db, pg_url, monkeypatch, capsys, pz):
     db = capture_db
     seed(db)
     monkeypatch.setenv("DATABASE_URL", pg_url)
+    monkeypatch.setenv("PSEUDONYM_KEY", TEST_KEY)  # name opt-outs are keyed (CB-13b)
     runs_before = db.conn.execute("SELECT count(*) FROM runs").fetchone()
     argv = ["report", "hn-frontpage", "--repo", "org-a/repo-1"]
     assert main([*argv, "--since", "2026-09-25T10:00", "--until", "2026-09-25T12:00"]) == 0
@@ -130,7 +132,7 @@ def test_m1_t22_cli_report_is_read_only(capture_db, pg_url, monkeypatch, capsys)
     assert db.conn.execute("SELECT count(*) FROM runs").fetchone() == runs_before  # no writes
     # opted-out repos are refused; `report` alone is still pending (M5)
     suppression.add(
-        db, "repo_name", suppression.repo_name_key("org-a/repo-1"), platform="github",
+        db, "repo_name", suppression.repo_name_key("org-a/repo-1", pz), platform="github",
         reason="objection",
     )  # fmt: skip
     assert main(argv) == 2 and "refusal list" in capsys.readouterr().err

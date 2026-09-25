@@ -121,6 +121,17 @@ timeout = "30m"
 retry_base = "5m"
 requires = ["github"]
 
+# settle_lag collection for the threshold calibration (K2, M4-T4): each day, yesterday's
+# star-history day of up to 100 calibration-split case repos is enrolled for re-fetches at
+# +1, +3, +7, +14 and +21 days; every fetch version is kept (star_history_settle_obs). About one
+# core request per enrolled repo per day. Skipped (missing_env:GITHUB_TOKEN) until the token is set.
+[jobs.gh_settle_lag]
+command = ["capture", "github", "settle-lag"]
+every = "1h"
+timeout = "30m"
+retry_base = "10m"
+requires = ["github"]
+
 # Per-repo events for open cases (TM-33): PERSON-LEVEL, off by default. Needs `enabled = true`
 # here, PIGTAIL_ENABLE_GITHUB_EVENTS=1 and PIGTAIL_ADR022_PERSON_SOURCES_OK=1 (ADR-022, ADR-036);
 # otherwise skipped with reason connector_disabled / person_source_hold. Each repo is polled at

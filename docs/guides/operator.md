@@ -115,6 +115,49 @@ scan days, today excluded. A day is complete when all 24 hours were scanned and 
 scheduled `gharchive_scan` run succeeded that day. The criterion is met when that number is
 ≥ 7; `--json` gives the same data for the verifier.
 
+### External liveness check (M1-T26)
+A dead scheduler can't send its own alerts, and `/healthz` answers only while the process runs.
+So the scheduler writes a heartbeat at every tick (every 15 s) to
+`PIGTAIL_DATA_DIR/liveness.json`. To use another path, set `PIGTAIL_LIVENESS_FILE` or pass
+`pigtail scheduler run --liveness-file PATH`. The heartbeat holds only times, a tick count and
+the process id. A **separate** process, on its own schedule, checks it:
+```bash
+uv run pigtail health --liveness-file /var/lib/pigtail/liveness.json --max-age 5m --alert
+```
+- Exit 0 while the heartbeat is fresh. Exit 1 when it is older than `--max-age` (default 5m), or
+  missing or unreadable.
+- `--alert` raises a critical `scheduler_dead` alert through the normal sink (host files and
+  e-mail when `SMTP_URL`/`ALERT_EMAIL` are set). The alert repeats at most hourly and resolves
+  once the heartbeat is fresh again. Its state lives in `PIGTAIL_DATA_DIR/alerts/liveness/`, so
+  it never touches the scheduler's own alert state.
+
+**systemd (same host):** install `infra/systemd/pigtail-liveness.service` and
+`pigtail-liveness.timer`, then run `sudo systemctl enable --now pigtail-liveness.timer`. It runs
+every 5 minutes.
+
+**cron (same host):**
+```cron
+*/5 * * * * cd /opt/pigtail && PIGTAIL_DATA_DIR=/var/lib/pigtail .venv/bin/pigtail health --liveness-file /var/lib/pigtail/liveness.json --alert >/dev/null
+```
+
+**Docker Compose:** the file is in the `app-data` volume. On the host, run
+`docker compose exec -T scheduler cat /data/liveness.json | pigtail health --liveness-file - --alert`.
+Note that this also fails (and alerts) when the container is down.
+
+**From a second host** (recommended: it also catches a dead host, disk or network). Install
+pigtail on the second host with `uv sync --locked --no-dev`. It needs no database, only
+`PIGTAIL_DATA_DIR` and the SMTP variables. Give it key-only SSH access to a read-only account on
+the scheduler host that can read the heartbeat file, then run it every 5 minutes (a timer, or
+cron):
+```bash
+ssh -o BatchMode=yes -o ConnectTimeout=20 pigtail-ro@scheduler-host cat /var/lib/pigtail/liveness.json \
+  | pigtail health --liveness-file - --max-age 5m --alert
+```
+`--liveness-file -` reads the heartbeat from stdin. If SSH fails, nothing arrives on stdin, so
+the check fails and the alert fires. The commented `ExecStart` in
+`pigtail-liveness.service` is the same thing as a systemd unit. Use a `--max-age` a few minutes
+longer than the check interval, so that one slow SSH connection doesn't page you.
+
 ### Alerts
 Every 5 minutes the scheduler evaluates these rules (thresholds under `[alerts]` in the schedule):
 
@@ -127,6 +170,7 @@ Every 5 minutes the scheduler evaluates these rules (thresholds under `[alerts]`
 | `disk_high` | `PIGTAIL_DATA_DIR` volume more than 80% full |
 | `doctor` | any `pigtail doctor` check at WARN or FAIL |
 | `deletion_sla` | deletion-sync re-checks, or detected deletions, more than 7 days overdue (CB-02) |
+| `scheduler_dead` | the heartbeat is stale; raised by the **external** liveness check, not by the scheduler (M1-T26) |
 
 Alerts go to `PIGTAIL_DATA_DIR/alerts/` on the host: `ALERTS.md` (readable, append-only),
 `alerts.jsonl` (structured) and `state.json` (dedupe). The files are mode 0600 and are **never
@@ -220,6 +264,27 @@ are kept, replay can re-fetch) or `deleted_upstream` (deletion sync, CB-02). JSO
 contain handles: HN authors are not returned, and titles and URLs pass the identifier scrubber
 (`@handle` → `@[handle]`, `github.com/<login>` → `[profile:github]`); titles of stories deleted
 upstream are hidden.
+
+## JSONL export (M1-T20, PRD §7)
+```bash
+uv run pigtail export jsonl --out /srv/pigtail-export                  # project-level tables
+uv run pigtail export jsonl --out /srv/pigtail-export --tables repos cases evidence
+uv run pigtail export jsonl --out /srv/private/export --include-person-level
+```
+- The export writes one `<table>.jsonl` per table plus `manifest.json` (format, database
+  migration, code commit, row count and SHA-256 per file). Each line is one record with sorted
+  keys and a `schema_version`. Rows are ordered by primary key, times are UTC, and one
+  read-only snapshot transaction is used. The same database state therefore gives identical
+  files, which diff and merge cleanly.
+- **Never inside the pigtail repository** (it is public). Such a path is refused with or without
+  flags.
+- **Person-level tables** (`hn_mention`, `upstream_items`, `evidence_upstream_items`, the refusal
+  list) are exported only with `--include-person-level`, and only to a directory outside **any**
+  git working tree. `repo_event_actor`, UI sessions and the UI audit log are never exported.
+  Files are mode 0600 in a 0700 directory. Treat a person-level export like the database:
+  private, encrypted storage, covered by the retention policy. Delete it when you're done.
+- A table the export doesn't know stops it. Every new migration must classify its tables in
+  `pigtail.export.jsonl.TABLE_LEVELS`.
 
 ## Privacy operations
 These commands implement the code side of the retention policy and the DPIA controls
@@ -405,6 +470,7 @@ records `budget_stop` and resumes on its next run.
 | `gh_hn_screen` | 1 h | `capture github hn-screen` (HN + Show HN URLs, GH Archive nominations) |
 | `gh_star_history_confirm` | 1 h | `capture github star-history --candidates` |
 | `gh_detect_v1` | 1 h | `capture github detect-v1` |
+| `gh_settle_lag` | 1 h | `capture github settle-lag` (K2 re-fetches; see below) |
 | `gh_repo_events` | 15 min | `capture github repo-events` (**off**; see below) |
 
 Add a repo by hand with `uv run pigtail capture github watch-add --repo owner/name`. The GH
@@ -421,6 +487,19 @@ counted as `repo_events.parse_failed` in the run record); the pseudonymous rows 
 30 days (`GITHUB_EVENTS_RETENTION_DAYS`, default 16, maximum 30; ADR-038) and deleted by
 `pigtail retention purge`; only daily aggregates stay (CB-22, CB-23). pigtail never builds or exports a list of a repo's
 stargazers.
+
+**settle_lag re-fetches (K2, M4-T4).** The threshold calibration needs to know how much a
+star-history day still changes after it ends (pre-registration
+`docs/preregistration/2026-09-25-threshold-calibration.md` §2.1 K2). Each day, `gh_settle_lag`
+enrols the previous endpoint day for up to 100 repos (`--max-repos`). It then re-fetches that
+day at +1, +3, +7, +14 and +21 days after the day ended. Every version is kept in the
+append-only `star_history_settle_obs` table. An item fetched more than 24 h late is marked
+`missed`.
+- Only repos whose cases are **all** in the calibration split are enrolled. Held-out repos never
+  are, nor repos without a case or on the refusal list. Pending items of a repo that later opts
+  out, or gets a held-out case, are dropped.
+- Cost: about one core request per enrolled repo per day (≤ 200 per run).
+- This job only collects. The settled-share statistic is computed once, by the calibration.
 
 **Search pages (CB-24).** Search result pages embed owner objects, so they are snapshotted as
 person-level and their raw bytes are deleted right after parsing (hash and URL kept, tombstone in
@@ -449,6 +528,7 @@ uv run pigtail privacy optout add --platform github --repo owner/name   # also i
 uv run pigtail privacy optout list
 uv run pigtail privacy optout remove --platform github --handle -
 uv run pigtail privacy optout purge     # re-apply the whole list, e.g. after a backup restore
+uv run pigtail privacy optout rekey     # CB-13b: convert pre-0009 unkeyed name entries
 ```
 - **Handles are never stored.** A handle is pseudonymized at once with `PSEUDONYM_KEY` in the
   platform's namespace, which is the same pseudonym the connectors store. The database rejects
@@ -458,7 +538,20 @@ uv run pigtail privacy optout purge     # re-apply the whole list, e.g. after a 
   aggregation (counted as `<source>.suppressed` in the run record). Opted-out repos are dropped
   by repo id and, for HN data, the watch list and the Show HN screen, also by normalized
   `owner/name` (M1-T23), so an opt-out reaches repos pigtail doesn't track yet. The name is
-  stored only as a hash (`rn_…`); `optout list` never shows it.
+  stored only as a **keyed** hash (`rk_…`: HMAC-SHA256 with `PSEUDONYM_KEY`, CB-13b), so the list
+  can't be reversed with a dictionary of public repo names; `optout list` never shows the name.
+  Matching names needs `PSEUDONYM_KEY`: a capture that finds keyed name entries but no key stops
+  (`MissingNameKey`) instead of ingesting opted-out repos. **Changing `PSEUDONYM_KEY`** orphans
+  these keys as it does pseudonyms, so re-add the names after a key rotation.
+- **Entries from before migration 0009** were unkeyed SHA-256 hashes (`rn_…`). SQL can't convert
+  them, because the name isn't stored. Dropping them would resume collecting repos whose owners
+  objected, so 0009 keeps them as `repo_name_unkeyed` and ingest still honours them. The migration
+  logs a warning with their count, and `pigtail doctor` (and therefore an alert) warns
+  (`optout_name_keys`) while any are left. To clear them:
+  1. Run `pigtail privacy optout rekey`. It converts every entry whose name is found in local data
+     (HN rows, the watch list, `repos`).
+  2. Re-add each remaining name with `optout add --repo owner/name`. This writes the keyed entry
+     and deletes the unkeyed one. The source is the owner's original request, never the hash.
 - **`--repo owner/name`:** if the repo is in the database, it is opted out by id *and* name. If
   not, it is opted out by name only; when it later enters the database, `optout purge` also adds
   its id.

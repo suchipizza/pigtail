@@ -51,6 +51,8 @@ def cmd_scheduler_run(args: argparse.Namespace) -> int:
     from pigtail.scheduler.core import Scheduler
     from pigtail.scheduler.health import build_report, default_probes
     from pigtail.scheduler.jobs import Planner, pg_open_cases
+    from pigtail.scheduler.liveness import default_path as liveness_path
+    from pigtail.scheduler.liveness import write_heartbeat
     from pigtail.scheduler.locks import PgJobLocks
     from pigtail.scheduler.runner import subprocess_runner
     from pigtail.scheduler.server import DEFAULT_PORT, HealthServer
@@ -82,6 +84,12 @@ def cmd_scheduler_run(args: argparse.Namespace) -> int:
     def alert_tick() -> None:
         alerts.process(evaluate(report(), cfg.alerts), utcnow())
 
+    # M1-T26: heartbeat for the external liveness check (`pigtail health --liveness-file`)
+    beat_path = Path(args.liveness_file) if args.liveness_file else liveness_path(s.data_dir)
+
+    def heartbeat(now: Any, started_at: Any, ticks: int) -> None:
+        write_heartbeat(beat_path, now, started_at=started_at, ticks=ticks)
+
     sched = Scheduler(
         cfg,
         store=PgStateStore(s.database_url),
@@ -89,6 +97,7 @@ def cmd_scheduler_run(args: argparse.Namespace) -> int:
         planner=Planner(os.environ, pg_open_cases(s.database_url)),
         runner=subprocess_runner(),
         on_alert_tick=alert_tick,
+        heartbeat=heartbeat,
     )
     holder["s"] = sched
     if args.once:
@@ -170,8 +179,10 @@ def cmd_health(args: argparse.Namespace) -> int:
     except ValueError as e:
         print(f"settings: {e}", file=sys.stderr)
         return 1
-    cfg = _cfg(args)
     now = utcnow()
+    if args.liveness_file:
+        return _liveness(args, s, now)
+    cfg = _cfg(args)
     if args.history:
         if not s.database_url:
             print("DATABASE_URL is not set", file=sys.stderr)
@@ -187,6 +198,38 @@ def cmd_health(args: argparse.Namespace) -> int:
     r = build_report(cfg, default_probes(s, cfg.alerts), now)
     print(json.dumps(r.to_dict(), indent=2) if args.json else render_text(r))
     return 1 if r.status == "fail" else 0
+
+
+def _liveness(args: argparse.Namespace, s: Any, now: Any) -> int:
+    """M1-T26: check the scheduler heartbeat (run from another schedule, or another host)."""
+    from pigtail.scheduler.alerts import AlertManager, EmailNotifier, Notifier
+    from pigtail.scheduler.config import parse_duration
+    from pigtail.scheduler.liveness import alerts_for, check
+
+    try:
+        max_age = parse_duration(args.max_age)
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    result = check(args.liveness_file, now, max_age)
+    out: dict[str, Any] = result.to_dict()
+    if args.alert:
+        from pigtail.logsafe import configure_logging
+
+        configure_logging()
+        notifiers: list[Notifier] = []
+        try:
+            if (email := EmailNotifier.from_env(os.environ)) is not None:
+                notifiers.append(email)
+        except ValueError as e:
+            log.warning("alert e-mail disabled: %s", e)
+        mgr = AlertManager(s.data_dir / "alerts" / "liveness", timedelta(hours=1), notifiers)
+        out["alert_events"] = [e.kind for e in mgr.process(alerts_for(result), now)]
+    if args.json:
+        print(json.dumps(out, indent=2))
+    else:
+        print(f"[{'OK' if result.ok else 'FAIL'}] scheduler liveness: {result.detail}")
+    return 0 if result.ok else 1
 
 
 def cmd_alerts_check(args: argparse.Namespace) -> int:
@@ -234,6 +277,11 @@ def add_commands(sub: Any) -> None:
     run = sch_sub.add_parser("run", help="run the scheduler loop and /healthz")
     cfg_arg(run)
     run.add_argument("--once", action="store_true", help="run due jobs once, then exit")
+    run.add_argument(
+        "--liveness-file",
+        help="heartbeat written every tick (default PIGTAIL_LIVENESS_FILE or "
+        "PIGTAIL_DATA_DIR/liveness.json; M1-T26)",
+    )
     run.set_defaults(func=cmd_scheduler_run)
     plan = sch_sub.add_parser("plan", help="next due time and planned commands per job")
     cfg_arg(plan)
@@ -243,6 +291,15 @@ def add_commands(sub: Any) -> None:
     cfg_arg(h)
     h.add_argument("--json", action="store_true")
     h.add_argument("--history", metavar="Nd", help="per-day run history, e.g. 7d")
+    h.add_argument(
+        "--liveness-file",
+        metavar="PATH",
+        help="M1-T26: only check the scheduler heartbeat at PATH ('-' = stdin); exit 1 if stale",
+    )
+    h.add_argument("--max-age", default="5m", help="--liveness-file: stale after (default 5m)")
+    h.add_argument(
+        "--alert", action="store_true", help="--liveness-file: raise/resolve a scheduler_dead alert"
+    )
     h.set_defaults(func=cmd_health)
 
     al = sub.add_parser("alerts", help="alert rules and export (M1-T21)")

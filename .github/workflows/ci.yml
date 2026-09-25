@@ -39,10 +39,18 @@ jobs:
           --health-retries 20
     env:
       DATABASE_URL: postgresql://pigtail:pigtail@localhost:5432/pigtail
-      # db-marked tests must run (not skip) in CI; s3-marked tests skip (no object store here).
+      # db- and s3-marked tests must run (not skip) in CI (M1-T20: S3 service below).
       PIGTAIL_REQUIRE_DB: "1"
+      PIGTAIL_REQUIRE_S3: "1"
+      S3_ENDPOINT: http://localhost:9000
     steps:
       - uses: actions/checkout@v4
+      - name: Object store for s3-marked tests (SeaweedFS + bucket, exactly as docker-compose.yml)
+        # A `services:` container cannot take SeaweedFS's command line, so the compose service
+        # itself is started (published on 127.0.0.1:9000, default local credentials).
+        run: |
+          docker compose up -d --wait --wait-timeout 180 objectstore
+          docker compose run --rm objectstore-init
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --locked
       - name: Lint
@@ -52,6 +60,9 @@ jobs:
       - name: Tests
         # Smoke tests against real backends skip here: no Claude login and no API key in CI.
         run: uv run pytest -q --cov=pigtail --cov-report=term-missing
+      - name: Stop the object store
+        if: always()
+        run: docker compose down -v
 
   ui:
     # M1-T12: the private web app (ui/, TypeScript strict + React + Vite).
