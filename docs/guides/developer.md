@@ -69,7 +69,7 @@ PSEUDONYM_KEY=… uv run pigtail capture scan --start 2026-09-20T00 --end 2026-0
 - **GitHub (M1-T24, ADR-032).** `pigtail.connectors.github` has two connectors on one HTTP
   layer (`GitHubAPI`): `github` (project-level: GraphQL counts, Search, star history) and
   `github_events` (person-level per-repo events; off, ADR-022 hold). The layer adds the token
-  (`GITHUB_TOKEN`, `MissingToken` without it), per-resource token buckets, primary/secondary
+  (`GITHUB_TOKEN`, `MissingToken` without it), per-resource rate-limit buckets, primary/secondary
   rate-limit handling, conditional requests (`fetch_conditional`, ETag cache `github_http_cache`)
   and budget hard stops (`pigtail.connectors.github_budget`: hourly caps from a shared ledger, job
   caps, server reserve). `Connector.requires_env` makes scheduler jobs skip with
