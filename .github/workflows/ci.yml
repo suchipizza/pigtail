@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  private-data-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Private-data scan (snapshots, raw records, handles, secrets)
+        run: python3 scripts/private_data_scan.py
+      - name: Secret scan (gitleaks, full history)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked
+      - name: Lint
+        run: uv run ruff check . && uv run ruff format --check .
+      - name: Types (mypy strict)
+        run: uv run mypy
+      - name: Tests
+        # Smoke tests against real backends skip here: no Claude login and no API key in CI.
+        run: uv run pytest -q --cov=pigtail --cov-report=term-missing
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker compose config
+        run: docker compose config -q
+      - name: docker compose up (db + object storage healthy)
+        run: |
+          docker compose up -d --wait db objectstore
+          docker compose run --rm objectstore-init
+          docker compose down -v

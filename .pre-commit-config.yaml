@@ -1,0 +1,24 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+  - repo: local
+    hooks:
+      - id: private-data-scan
+        name: private-data scan (PRD §10)
+        entry: python3 scripts/private_data_scan.py
+        language: system
+        pass_filenames: true
+      - id: mypy
+        name: mypy (strict, src)
+        entry: uv run mypy
+        language: system
+        pass_filenames: false
+        types: [python]

@@ -7,3 +7,11 @@ snapshots/
 __pycache__/
 .venv/
 node_modules/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+*.sqlite3
+dist/
+raw/

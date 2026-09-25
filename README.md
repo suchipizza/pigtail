@@ -13,6 +13,9 @@ Evidence-based forensics of how open-source projects grow. pigtail braids GitHub
 | `CLAUDE.md`, `.claude/agents/` | Agent instructions and subagents |
 | `ops/` | Live state: STATE, BACKLOG, DECISIONS, RUNLOG, COSTS, STATUS, HUMAN_INPUTS |
 | `scripts/run-autonomous.sh` | Headless loop runner (subscription or API backend) |
+| `src/pigtail/` | Python engine (`pigtail` CLI) |
+| `docs/guides/` | Developer and operator guides |
+| `docker-compose.yml` | Postgres + S3-compatible snapshot storage |
 
 ## Kickoff (owner)
 1. Copy this package into your clone of https://github.com/suchipizza/pigtail. Keep the existing `LICENSE`. Then commit and push.

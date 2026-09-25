@@ -1,0 +1,56 @@
+# pigtail stack (PRD §10 self-hosting). M0 skeleton: Postgres + S3-compatible object storage.
+# App services (collectors, API, UI, scheduler) are added in M1/M5.
+name: pigtail
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pigtail}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pigtail}
+      POSTGRES_DB: ${POSTGRES_DB:-pigtail}
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-pigtail}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  objectstore:
+    # Local S3-compatible store for snapshots (SeaweedFS; see ADR-005). Production can point
+    # S3_ENDPOINT at any private S3-compatible bucket instead.
+    image: chrislusf/seaweedfs:4.47
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-pigtail-local}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-pigtail-local-secret}
+    entrypoint: >
+      /bin/sh -c "sed -e s/__S3_ACCESS_KEY__/$$S3_ACCESS_KEY/ -e s/__S3_SECRET_KEY__/$$S3_SECRET_KEY/
+      /etc/pigtail/s3.json.tmpl > /tmp/s3.json &&
+      exec weed server -dir=/data -s3 -s3.port=9000 -s3.config=/tmp/s3.json -volume.max=0"
+    ports: ["127.0.0.1:9000:9000"]
+    volumes:
+      - snapshots:/data
+      - ./infra/seaweedfs/s3.json.tmpl:/etc/pigtail/s3.json.tmpl:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9000/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  objectstore-init:
+    image: amazon/aws-cli:2.27.0
+    depends_on:
+      objectstore: {condition: service_healthy}
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-pigtail-local}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-pigtail-local-secret}
+      AWS_DEFAULT_REGION: us-east-1
+      S3_BUCKET: ${S3_BUCKET:-pigtail-snapshots}
+    entrypoint: >
+      /bin/sh -c "aws --endpoint-url http://objectstore:9000 s3api head-bucket --bucket $$S3_BUCKET 2>/dev/null ||
+      aws --endpoint-url http://objectstore:9000 s3 mb s3://$$S3_BUCKET"
+
+volumes:
+  db-data:
+  snapshots:
