@@ -67,3 +67,49 @@ How to reverse: Change a source's clearance after H2 answers; a new ADR per sour
 Context: The source matrix cites a platform's published contact address (hello@…). The scan blocked it as personal data.
 Decision: Generic role addresses (hello@, info@, support@, legal@, …) are allowed; personal addresses are still blocked. Commits are gated on the scan passing (it failed once without gating: see RUNLOG 2026-09-25; no personal data was involved).
 How to reverse: Remove the role-address pattern from `EMAIL_ALLOW`.
+
+## ADR-012 — Stars for scoring come from the GitHub stargazers API (2026-09-25)
+Context: PRD §8.1 names GH Archive as the primary source for stars. ADR-009 records under-capture since 2025-05, and GH Archive has no un-star events. The 24-month universe falls almost entirely in that period.
+Options: GH Archive primary; API only; API for scored cases, with GH Archive as a fallback only when the measured coverage is ≥ 0.90.
+Decision: The third option. Store three series: `raw`, `bot_filtered` and `starscout_filtered`. The API series is net of un-stars and survivor-biased, so scoring uses the first fetch after T+k (docs/specs/outcome-model.md).
+How to reverse: If M1-T16 measures coverage ≥ 0.95, GH Archive becomes primary again.
+
+## ADR-013 — Community metrics come from the GitHub API for scored cases (2026-09-25)
+Context: The crawler loss may also affect PR and issue events, PR payloads have been trimmed since 2025-10-07, and M3-T0 hasn't run yet.
+Decision: The API is primary for every cohort, so cohorts stay comparable. GH Archive values are tagged `estimated` and can't feed outcome classes until M3-T0 reports.
+How to reverse: M3-T0 shows that merged-PR events are complete.
+
+## ADR-014 — Verification tags plus a status field; nothing is imputed (2026-09-25)
+Decision: Tags are `verified | self_reported | estimated | unknown`, extending R3.2 with `unknown` as ADR-010 set out. A separate status field takes `observed | pending | unknown | not_applicable`. A project with no package is `not_applicable`; an ecosystem we have no source for is `unknown`. Values are never imputed.
+How to reverse: Fold status back into tags.
+
+## ADR-015 — How the time anchor T is chosen (2026-09-25)
+Context: R3.1 says "first burst or declared launch" without saying which wins. Anchoring on the burst alone would select on the outcome.
+Decision: Use the declared launch if it falls within 30 days before the burst, otherwise the burst onset hour (found with a per-hour excess rule). Announced and manual cases use the launch date. Ties go to the launch, then to the lowest evidence id.
+How to reverse: Change the look-back window or the anchor priority, then recompute every case.
+
+## ADR-016 — "Returning external contributor" (2026-09-25)
+Decision: At least 2 merged PRs in [T, T+k), with the first and last merge ≥ 30 days apart. This interprets PRD §8.1's "across ≥ 2 months". "External" means `author_association` is not OWNER, MEMBER or COLLABORATOR, and the author is not a bot. The metric is not applicable at T+7 or T+30.
+How to reverse: Use a calendar-month rule instead.
+
+## ADR-017 — Provisional category taxonomy and how it is assigned (2026-09-25)
+Decision: 15 provisional categories. The inputs are frozen as of T. A rule-based pre-pass runs first, then an LLM classification through `LLMClient`. 10% of cases are double-coded, and low-confidence cases go to the review queue. Codebook v0 (M4-T1) may replace the taxonomy; if it does, every case is normalized again.
+How to reverse: Adopt the codebook taxonomy.
+
+## ADR-018 — Normalization cells (R3.4) (2026-09-25)
+Decision: A cell is (category, quarter of T). Adoption cells are further restricted to the primary ecosystem at T. Percentiles are mid-rank within pigtail's universe, not within all of GitHub. A cell needs n ≥ 30. The fallbacks, in order, are (category, year), then (all categories, quarter), then `unknown`.
+How to reverse: Change n or the fallback order through a new thresholds version.
+
+## ADR-019 — Outcome thresholds v0.1.0 (2026-09-25)
+Decision: `schemas/outcome-thresholds/v0.1.0.json` (provisional). Classes are checked in this order: winner, short_lived, attention_only, slow_riser, plateau, unclassified. A zero value never counts as "top". An unknown input blocks a class only when it could change the result. Business metrics are excluded from classes. "Matched loser" is a matching role, separate from the `plateau` class. Only the M4 pilot may calibrate the thresholds, and it freezes them as v1.0.0. Any later change needs an ADR and a held-out re-run on a 30% hash split (salt `pigtail-outcome-holdout-v1`).
+How to reverse: A new thresholds version plus an ADR.
+
+## ADR-020 — The fake-star filter removes stars at campaign level (2026-09-25)
+Options: Remove every star from a flagged account; or remove them only for repos StarScout flags as targeted by a campaign.
+Decision: Campaign level. The low-activity signature also matches legitimate new users, and the campaign rule is the paper's own guard against false positives. Classes are computed on the filtered series, then re-run on the raw series, and any flip is flagged.
+How to reverse: Remove stars at account level.
+
+## ADR-021 — MRR is never tagged "verified" under current clearances (2026-09-25)
+Context: PRD §8.1 lists MRR as `verified` from Stripe-verified dashboards such as TrustMRR. TrustMRR is a GAP (ADR-010).
+Decision: MRR is `self_reported` when the operator enters it with a citation, and `unknown` otherwise. This changes a metric default, not a §4, §5, §9.2–9.3 or §10 requirement.
+How to reverse: A source with verifiable MRR is cleared.

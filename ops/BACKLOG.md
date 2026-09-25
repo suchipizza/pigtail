@@ -28,7 +28,9 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [x] [M2-T4] Verifier spot-check — round 1 FAIL, round 2 PASS @191c44d (2026-09-25)
 - [ ] [M2-T5] Minor source-matrix follow-ups: Algolia earliest-item wording, cite yc-oss README, add #312 notes (Events API cache; merged-PR events) — verifier round 2 optional
 - [ ] [M3-T0] Check whether GH Archive still records merged PRs (PullRequestEvent closed+merged) on a sample of real hours; if not, the §8.1 "returning external contributors" metric needs the GitHub API — §8.1 — M1-T3
-- [ ] [M3-T1] Outcome model spec → docs/specs/outcome-model.md; versioned class thresholds — §8, R3.5 — M2-T2
+- [x] [M3-T1] Outcome model spec + outcome-thresholds v0.1.0 (ADR-012..021) (2026-09-25) — verifier review pending with the M3 acceptance
+- [ ] [M4-T0b] ADR: target for §9.1 forecasting test ("30-day outcome class" vs classes needing T+90): provisional T+30 `attention_top_decile` label, or predict the T+90 class from day-7 data — decide before M4-T2 pre-registration
+- [ ] [M3-T3] Cost estimate: stargazer-API full histories for ≥ 5,000 Tier 1 repos (rate limits, 40k cap, ordering) — ADR-012 — M1-T16
 - [ ] [M3-T2] Compliance pack: LIA, light DPIA, retention policy, privacy notice, legal-review questions; raise H2 — §10 — M2-T2
 - [ ] [M4-T0] ADR: stricter α ≥ 0.80 for promotion-deciding fields (lit. review open issue 4; stricter than PRD §9.2, not a relaxation) — decide before pilot pre-registration
 - [ ] [M4-T1] Codebook v0 + adaptive modules → docs/methodology/codebook.md — F6 — M2-T1
