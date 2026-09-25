@@ -7,7 +7,7 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [ ] [M1-T22] Front-page minutes (`att.hn_frontpage_minutes`) from rank observations, handling polling gaps
 - [ ] [M1-T23] HN follow-ups: clear `hn_story` titles for stories deleted upstream; a repo opt-out should also reach mentions of repos not in `repos`; `pigtail doctor` reports HN and ADR-022 flags; live check of Algolia
 - [ ] [M3-T5] Compliance docs: CB-02 status (HN implemented; Bluesky pending) — retention-policy §4, DPIA
-- [ ] [M1-T18] Breakout detection re-plan: evaluate own GitHub event collection (Events API, full paging), candidate screening via Search API / HN / Bluesky / registries + stargazers API, and third-party trend services — feasibility, rate limits, cost, terms; recommendation checked by the verifier — ADR-028, G3, R1.1 — GITHUB_TOKEN (H1) for measurements
+- [~] [M1-T18] Breakout detection re-plan — doc written (fbfcc88), verifier checking; then ADR-032 (supersedes ADR-012), TM-32 OpenDigger memo, LQ-28/29 — was: Breakout detection re-plan: evaluate own GitHub event collection (Events API, full paging), candidate screening via Search API / HN / Bluesky / registries + stargazers API, and third-party trend services — feasibility, rate limits, cost, terms; recommendation checked by the verifier — ADR-028, G3, R1.1 — GITHUB_TOKEN (H1) for measurements
 - [ ] [M1-T19] Retry and backfill missing GH Archive hours (404s are only marked missing today)
 - [ ] [M1-T20] JSONL export alongside the DB (PRD §7); S3 service in CI; handles inside free text; run error-text redaction; batched detect() for backfills
 - [x] [M2-T1] Literature review → docs/research/literature.md (80 citations; recommends StarScout for R3.3) — pending verifier spot-check M2-T4
