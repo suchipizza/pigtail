@@ -5,8 +5,13 @@ Every connector gets, from this base class:
 - **terms metadata** (`TermsMetadata`): terms URL, basis, clearance, commercial use, deletion
   obligation. A connector whose clearance is `gap` can never be enabled (R2.3): it raises
   `ConnectorGapError` instead of being scraped around.
-- a **per-source enable flag**: `PIGTAIL_CONNECTOR_<NAME>_ENABLED=true|false`, else the class
-  default. Fetching from a disabled connector raises `ConnectorDisabled`.
+- a **per-source enable flag**: `PIGTAIL_CONNECTOR_<NAME>_ENABLED=true|false`, else an optional
+  group flag (`enable_env`, e.g. `PIGTAIL_ENABLE_HN`), else the class default. Fetching from a
+  disabled connector raises `ConnectorDisabled`.
+- the **ADR-022 hold** for person-level sources (`person_level_hold = True`): enabling such a
+  connector raises `PersonSourceHold` unless the operator has set
+  `PIGTAIL_ADR022_PERSON_SOURCES_OK=1`, which they do only once every ADR-022 precondition for
+  person-level sources (CB-01, CB-02, CB-03, CB-06, CB-08, CB-12, CB-13) is met.
 - a **token-bucket rate limiter** running at `rate_per_second * (1 - safety_margin)`.
 - **retries** with exponential backoff and full jitter on 429/5xx and transport errors,
   honouring `Retry-After` (seconds or HTTP date).
@@ -24,6 +29,10 @@ Every connector gets, from this base class:
   every record whose pseudonymized handle fields hold a suppressed pseudonym, or whose
   `repo_fields` name an opted-out repo (`<repo_host>:<id>`). Drops are counted on the run
   (`<name>.suppressed`).
+
+`check(url)` is the one network path that stores nothing: deletion sync (R1.5, CB-02) uses it to
+re-check whether an item still exists upstream. It works while the connector is disabled, so
+deletion duties outlive collection.
 
 Subclasses implement `_parse(data, meta)`; the same code path serves live ingest and replay
 (`pigtail.capture.replay`).
@@ -88,6 +97,14 @@ class ConnectorDisabled(ConnectorError):
 
 class ConnectorGapError(ConnectorError):
     """The source is a documented gap under its terms (R2.3); it must not be used."""
+
+
+ADR022_ENV = "PIGTAIL_ADR022_PERSON_SOURCES_OK"
+ADR022_CONTROLS = ("CB-01", "CB-02", "CB-03", "CB-06", "CB-08", "CB-12", "CB-13")
+
+
+class PersonSourceHold(ConnectorError):
+    """A person-level source was enabled while ADR-022 still holds it (see `ADR022_ENV`)."""
 
 
 class FetchError(ConnectorError):
@@ -181,6 +198,15 @@ def parse_retry_after(value: str | None, now: datetime | None = None) -> float |
 
 
 @dataclass(frozen=True)
+class CheckResult:
+    """Outcome of `Connector.check()`: status and body of a GET that was **not** snapshotted."""
+
+    url: str
+    status: int | None  # None: transport error after retries
+    data: bytes
+
+
+@dataclass(frozen=True)
 class Fetched:
     """A fetched document: raw bytes already snapshotted, and its evidence record."""
 
@@ -205,6 +231,8 @@ class Connector(ABC):
     version: ClassVar[str]
     terms: ClassVar[TermsMetadata]
     enabled_by_default: ClassVar[bool] = False
+    enable_env: ClassVar[str | None] = None  # optional group flag, e.g. PIGTAIL_ENABLE_HN
+    person_level_hold: ClassVar[bool] = False  # ADR-022: needs ADR022_ENV=1 to be enabled
     rate_per_second: ClassVar[float] = 1.0
     burst: ClassVar[int] = 1
     safety_margin: ClassVar[float] = 0.2
@@ -221,7 +249,7 @@ class Connector(ABC):
         self,
         *,
         store: SnapshotStore,
-        pseudonymizer: Pseudonymizer,
+        pseudonymizer: Pseudonymizer | None,
         http: httpx.Client | None = None,
         enabled: bool | None = None,
         env: Mapping[str, str] | None = None,
@@ -236,17 +264,21 @@ class Connector(ABC):
         suppression: Suppressions | None = None,
     ) -> None:
         e = os.environ if env is None else env
-        flag = e.get(f"PIGTAIL_CONNECTOR_{self.name.upper()}_ENABLED")
-        self.enabled = (
-            enabled
-            if enabled is not None
-            else (_env_flag(flag) if flag is not None else self.enabled_by_default)
-        )
+        self.enabled = enabled if enabled is not None else self.enabled_from_env(e)
         if self.enabled and self.terms.clearance is Clearance.GAP:
             raise ConnectorGapError(
                 f"connector {self.name!r} is a documented terms gap and cannot be enabled "
                 f"({self.terms.terms_url})"
             )
+        if self.enabled and self.person_level_hold and e.get(ADR022_ENV, "").strip() != "1":
+            raise PersonSourceHold(
+                f"connector {self.name!r} collects person-level data and is held by ADR-022. "
+                f"Set {ADR022_ENV}=1 only after every ADR-022 precondition for person-level "
+                f"sources is met ({', '.join(ADR022_CONTROLS)}; ops/DECISIONS.md ADR-022, "
+                "docs/guides/operator.md)."
+            )
+        if self.handle_fields and pseudonymizer is None:
+            raise ValueError(f"connector {self.name!r} has handle fields and needs a pseudonymizer")
         self.store = store
         self.pz = pseudonymizer
         self.http = http or httpx.Client(timeout=self.timeout_seconds, follow_redirects=True)
@@ -261,6 +293,16 @@ class Connector(ABC):
         self.sleep = sleep
         self.clock = clock
         self.suppression = suppression or Suppressions()
+
+    @classmethod
+    def enabled_from_env(cls, env: Mapping[str, str]) -> bool:
+        """Per-connector flag, else the group flag (`enable_env`), else the class default."""
+        flag = env.get(f"PIGTAIL_CONNECTOR_{cls.name.upper()}_ENABLED")
+        if flag is not None:
+            return _env_flag(flag)
+        if cls.enable_env is not None and (group := env.get(cls.enable_env)) is not None:
+            return _env_flag(group)
+        return cls.enabled_by_default
 
     @property
     def collector_version(self) -> str:
@@ -312,13 +354,18 @@ class Connector(ABC):
         headers: Mapping[str, str] | None = None,
         case_id: str | None = None,
         repo_id: str | None = None,
+        retention_class: RetentionClass | None = None,
     ) -> Fetched:
-        """GET `url`, snapshot the raw bytes, record evidence. Raises before any parsing."""
+        """GET `url`, snapshot the raw bytes, record evidence. Raises before any parsing.
+
+        `retention_class` overrides the class default for this document (e.g. an id list that
+        holds no person-level data).
+        """
         if not self.enabled:
-            raise ConnectorDisabled(
-                f"connector {self.name!r} is disabled "
-                f"(set PIGTAIL_CONNECTOR_{self.name.upper()}_ENABLED=true)"
-            )
+            hint = f"PIGTAIL_CONNECTOR_{self.name.upper()}_ENABLED=true"
+            if self.enable_env:
+                hint += f" or {self.enable_env}=1"
+            raise ConnectorDisabled(f"connector {self.name!r} is disabled (set {hint})")
         resp = self._request(url, params, headers)
         if resp.status_code == 404:
             raise NotFound(url, 404)
@@ -345,7 +392,7 @@ class Connector(ABC):
             http_status=resp.status_code,
             reliability=self.reliability,
             terms_basis=self.terms.terms_basis,
-            retention_class=self.retention_class,
+            retention_class=retention_class or self.retention_class,
             deletion_state="present",
             collector_version=self.collector_version,
             case_id=case_id,
@@ -357,6 +404,21 @@ class Connector(ABC):
         if self.run is not None:
             self.run.incr(f"{self.name}.snapshots")
         return Fetched(data=data, content_hash=h, evidence=ev, meta=meta)
+
+    def check(self, url: str, params: Mapping[str, Any] | None = None) -> CheckResult:
+        """GET without snapshotting, for deletion sync only (R1.5, CB-02).
+
+        The body is used to read deletion flags and is never stored or parsed into records.
+        Allowed while the connector is disabled: deletion duties outlive collection. Rate
+        limiting, retries and cost accounting still apply. Transport errors give `status=None`.
+        """
+        try:
+            resp = self._request(url, params, None)
+        except FetchError as e:
+            return CheckResult(url=url, status=e.status, data=b"")
+        if self.run is not None:
+            self.run.incr(f"{self.name}.checks")
+        return CheckResult(url=url, status=resp.status_code, data=resp.content)
 
     def refetch_verified(self, url: str, content_hash: str) -> bytes:
         """Re-download a document whose raw bytes were dropped (retention) and verify its hash.
@@ -397,6 +459,7 @@ class Connector(ABC):
         if value is None:
             return None
         if isinstance(value, str):
+            assert self.pz is not None  # enforced in __init__ when handle_fields is non-empty
             return self.pz.pseudonym(value, self.handle_namespace)
         if isinstance(value, list):
             return [self._pseudo(v) for v in value]

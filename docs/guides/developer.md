@@ -55,6 +55,12 @@ PSEUDONYM_KEY=… uv run pigtail capture scan --start 2026-09-20T00 --end 2026-0
   identifiers and truncated (CB-18); use `pigtail.logsafe.configure_logging()` for log output.
 - Connectors take `suppression=pigtail.privacy.suppression.load(db)` and drop opted-out people
   and repos in `records()` (CB-13). Declare `repo_fields` for numeric repo ids.
+- Person-level connectors set `person_level_hold = True` (ADR-022): enabling them raises
+  `PersonSourceHold` unless `PIGTAIL_ADR022_PERSON_SOURCES_OK=1`. A group flag (`enable_env`, e.g.
+  `PIGTAIL_ENABLE_HN`) can enable a family of connectors; the per-connector flag wins.
+- Person-level captures register the upstream items in each snapshot with
+  `pigtail.privacy.deletion_sync.track_items()`, so deletion sync (CB-02) can drop the snapshot when
+  an item is deleted upstream. New platforms implement a `DeletionSource` (poll or push).
 - Tables holding pseudonymous person-level rows must be registered in
   `pigtail.privacy.deletion.PERSON_TABLES` so retention (CB-01) and erasure (CB-08) reach them.
   Operator commands: docs/guides/operator.md "Privacy operations".

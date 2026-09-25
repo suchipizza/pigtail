@@ -4,10 +4,10 @@ Every purge writes one row per action to `deletion_log` (migration 0003). The ta
 append-only (a trigger rejects UPDATE, DELETE and TRUNCATE) and holds hashes and ids, never
 content, so deletions can be re-applied after a backup restore (retention-policy.md §4, §5).
 
-`PERSON_TABLES` is the registry of Postgres tables holding pseudonymous person-level rows. None
-exists yet: capture stores only aggregates (`repo_hourly_activity`) and raw snapshots. M5 tables
-(actors, edges, posts) must register here so the retention purge (by `time_column`) and erasure
-(by `pseudonym_column`) reach them.
+`PERSON_TABLES` is the registry of Postgres tables holding pseudonymous person-level rows, so the
+retention purge (by `time_column`) and erasure (by `pseudonym_column`) reach them:
+`hn_mention` (M1-T4) and `upstream_items` (deletion sync, CB-02; migration 0005). M5 tables
+(actors, edges, posts) must register here too.
 """
 
 from __future__ import annotations
@@ -37,7 +37,10 @@ class PersonTable:
     time_column: str
 
 
-PERSON_TABLES: tuple[PersonTable, ...] = ()
+PERSON_TABLES: tuple[PersonTable, ...] = (
+    PersonTable("hn_mention", "author", "last_seen_at"),
+    PersonTable("upstream_items", "author_pseudonym", "last_seen_at"),
+)
 
 
 @dataclass
@@ -141,3 +144,60 @@ def delete_person_rows(
         if n:
             log.write("rows_deleted", t.table, rows=n)
     return out
+
+
+def drop_after_parse(
+    db: CaptureDB, store: SnapshotStore, evidence_id: str, content_hash: str, log: DeletionLog
+) -> bool:
+    """Minimisation: drop a snapshot's raw bytes right after parsing (e.g. HN item JSON read by
+    the project-level rank poller, whose `by` field must not be kept).
+
+    Only this evidence record moves to `raw_dropped`. If another *present* record still needs
+    the same blob, the bytes stay for it. Returns True if bytes were deleted.
+    """
+    row = db.conn.execute(
+        "SELECT count(*) FROM evidence WHERE content_hash = %s AND deletion_state = 'present'"
+        " AND id <> %s",
+        (content_hash, evidence_id),
+    ).fetchone()
+    shared = bool(row and int(row[0]))
+    if log.dry_run:
+        return False
+    db.conn.execute(
+        "UPDATE evidence SET deletion_state = 'raw_dropped' WHERE id = %s AND deletion_state ="
+        " 'present'",
+        (evidence_id,),
+    )
+    if shared:
+        return False
+    store.delete(content_hash)
+    log.write("raw_dropped", "snapshot", rows=1, content_hash=content_hash, evidence_id=evidence_id)
+    return True
+
+
+def mark_deleted_upstream(
+    db: CaptureDB, store: SnapshotStore, content_hash: str, log: DeletionLog
+) -> list[str]:
+    """Deletion sync (R1.5, CB-02): the blob holds content removed upstream.
+
+    Drops the raw bytes and moves **every** evidence record with this hash (present or already
+    `raw_dropped`) to `deleted_upstream`; hash, URL, fetch time and terms basis stay, so coded
+    facts keep their provenance. Returns the ids of the evidence rows changed.
+    """
+    ids = [
+        r[0]
+        for r in db.conn.execute(
+            "SELECT id FROM evidence WHERE content_hash = %s AND deletion_state <> "
+            "'deleted_upstream' ORDER BY id",
+            (content_hash,),
+        )
+    ]
+    if not ids:
+        return []
+    if not log.dry_run:
+        store.delete(content_hash)
+        db.conn.execute(
+            "UPDATE evidence SET deletion_state = 'deleted_upstream' WHERE id = ANY(%s)", (ids,)
+        )
+    log.write("raw_dropped", "snapshot", rows=len(ids), content_hash=content_hash)
+    return ids

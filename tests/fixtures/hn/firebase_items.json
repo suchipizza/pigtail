@@ -1,0 +1,14 @@
+{
+  "_note": "SYNTHETIC fixture (M1-T4/M1-T14/CB-02 tests). Fake ids 9000001-9000099, fake usernames hnuserNNN, fake repos org-a/repo-1, org-b/repo-2. Not real HN data.",
+  "items": {
+    "9000001": {"id": 9000001, "type": "story", "by": "hnuser001", "time": 1790000000, "title": "Show HN: Repo-1, a synthetic tool", "url": "https://github.com/org-a/repo-1", "score": 120, "descendants": 4, "kids": [9000011, 9000012, 9000013, 9000014]},
+    "9000002": {"id": 9000002, "type": "story", "by": "hnuser002", "time": 1790000600, "title": "A synthetic essay about tools", "url": "https://example.org/blog/synthetic-essay", "score": 50, "descendants": 0},
+    "9000003": {"id": 9000003, "type": "story", "by": "hnuser003", "time": 1790001200, "title": "Ask HN: A synthetic question", "text": "Is there anything like org-a&#x2F;repo-1? Asking hnuser009.", "score": 7, "descendants": 1, "kids": [9000015]},
+    "9000004": {"id": 9000004, "type": "story", "by": "hnuser007", "time": 1790001800, "title": "Repo-2: synthetic project", "url": "https://www.github.com/Org-B/Repo-2.git", "score": 30, "descendants": 0},
+    "9000011": {"id": 9000011, "type": "comment", "by": "hnuser004", "time": 1790000100, "parent": 9000001, "text": "Try <a href=\"https:&#x2F;&#x2F;github.com&#x2F;org-a&#x2F;repo-1\">https:&#x2F;&#x2F;github.com&#x2F;org-a&#x2F;repo-1</a> for this."},
+    "9000012": {"id": 9000012, "type": "comment", "by": "hnuser005", "time": 1790000200, "parent": 9000001, "text": "I prefer org-a&#x2F;repo-1 over the alternatives."},
+    "9000013": {"id": 9000013, "type": "comment", "deleted": true, "time": 1790000300, "parent": 9000001},
+    "9000014": {"id": 9000014, "type": "comment", "by": "hnuser006", "dead": true, "time": 1790000400, "parent": 9000001, "text": "[flagged synthetic comment]"},
+    "9000015": {"id": 9000015, "type": "comment", "by": "hnuser008", "time": 1790001300, "parent": 9000003, "text": "repo-1 is a common word here, unrelated."}
+  }
+}

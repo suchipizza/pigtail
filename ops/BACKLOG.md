@@ -3,6 +3,10 @@ Seeded by the orchestrator in M0 from docs/WORK_ORDER.md §4. Format: `- [ ] [ID
 Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (diagnosis inline).
 
 ## Now
+- [ ] [M1-T21] Scheduler: long-running `hn-ranks --loop`, daily `deletion-sync`, mentions for new cases within 48 h (R1.2); deploy when the host exists (H1)
+- [ ] [M1-T22] Front-page minutes (`att.hn_frontpage_minutes`) from rank observations, handling polling gaps
+- [ ] [M1-T23] HN follow-ups: clear `hn_story` titles for stories deleted upstream; a repo opt-out should also reach mentions of repos not in `repos`; `pigtail doctor` reports HN and ADR-022 flags; live check of Algolia
+- [ ] [M3-T5] Compliance docs: CB-02 status (HN implemented; Bluesky pending) — retention-policy §4, DPIA
 - [ ] [M1-T18] Breakout detection re-plan: evaluate own GitHub event collection (Events API, full paging), candidate screening via Search API / HN / Bluesky / registries + stargazers API, and third-party trend services — feasibility, rate limits, cost, terms; recommendation checked by the verifier — ADR-028, G3, R1.1 — GITHUB_TOKEN (H1) for measurements
 - [ ] [M1-T19] Retry and backfill missing GH Archive hours (404s are only marked missing today)
 - [ ] [M1-T20] JSONL export alongside the DB (PRD §7); S3 service in CI; handles inside free text; run error-text redaction; batched detect() for backfills
@@ -11,7 +15,7 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [x] [M1-T1] Capture schema v0 (`evidence`, `case`, `repo`, `run`) as JSON Schemas + Postgres migrations; content-addressed snapshot store (SHA-256) on S3 — R1.4, §7 — M0 — examples + validation tests; forward-only tested migrations
 - [x] [M1-T2] Connector interface: rate limiting, retries, terms metadata, enable flag, cost accounting, run records — R2.1 — M1-T1 — contract tests with recorded synthetic fixtures
 - [x] [M1-T3] GH Archive velocity scan (daily; BigQuery if H1 GCP, else hourly dumps from data.gharchive.org) + bot filter v0 + case opening — R1.1 — M1-T2 — threshold configurable; opens cases on fixture data
-- [ ] [M1-T4] Mention capture: HN Algolia + Firebase — R1.2 — M1-T2, M2-T2 clearance — snapshot within 48 h
+- [x] [M1-T4] HN Algolia + Firebase connectors + `capture mentions` (off by default; ADR-031) — was: Mention capture: HN Algolia + Firebase — R1.2 — M1-T2, M2-T2 clearance — snapshot within 48 h
 - [ ] [M1-T5] Mention capture: GitHub (REST/GraphQL) — R1.2 — M1-T2, GITHUB_TOKEN — snapshot within 48 h
 - [ ] [M1-T6] Mention capture: Bluesky — R1.2 — M1-T2, M2-T2 clearance
 - [ ] [M1-T7] Wayback save requests + CDX lookup — R1.2 — M1-T2, M2-T2 clearance
@@ -20,7 +24,7 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [ ] [M1-T10] Replay: rebuild stored records from snapshots — PRD §5.5 — M1-T3..T7 — replay reproduces records
 - [ ] [M1-T11] Scheduler + health checks + alerting to ops/ALERTS.md; deploy to host — WO M1 — H1 host VM — 7 consecutive days of scans
 - [ ] [M1-T12] D1 preview: operator login, /cases, /cases/:id timeline + evidence tabs, "uncoded preview" label — D1 — M1-T3 — D1 preview criteria
-- [ ] [M1-T14] HN front-page rank polling (own rank history; cannot be backfilled later) — R1.2, §8.1 front-page minutes, lit. review open issue 1 — M1-T2 — polls every ≤ 5 min, snapshots stored
+- [x] [M1-T14] HN rank poller (`capture hn-ranks`), live-checked (ADR-031) — was: HN front-page rank polling (own rank history; cannot be backfilled later) — R1.2, §8.1 front-page minutes, lit. review open issue 1 — M1-T2 — polls every ≤ 5 min, snapshots stored
 - [ ] [M1-T15] Confirm whether GH Archive records un-stars; define "net stars" for R1.1 accordingly — R1.1 — M1-T3
 - [ ] [M1-T16] Star coverage check: GH Archive vs GitHub stargazers API on a sample; stargazer confirmation for candidate cases; recalibrate R1.1 thresholds — R1.1, ADR-009 — M1-T3, GITHUB_TOKEN
 - [ ] [M1-T17] Early no-history connectors: Docker Hub pulls + Homebrew analytics daily snapshots — R2.2 — M1-T2
@@ -37,7 +41,7 @@ Before production capture on the host:
 - [ ] [CB-17] Encrypted backups; deletions re-applied after a restore
 - [~] [CB-18] Log hygiene: redaction filter + `runs.error` scrubbing; open: install filter in all services, log rotation
 Before enabling Bluesky, HN or V2EX:
-- [ ] [CB-02] Deletion sync (Bluesky ≤ 48 h) — R1.5
+- [~] [CB-02] Deletion sync: HN done (`privacy deletion-sync`); Bluesky push source open — R1.5
 - [~] [CB-06] Profile URLs, DIDs, per-source namespaces redacted before LLM calls; open: gists, avatar URLs, bare handles in author fields
 - [x] [CB-08] Data-subject requests (`pigtail privacy request access|erasure`); follow-up: rectification
 - [x] [CB-13] Opt-out list enforced at ingest + purge (`pigtail privacy optout`)

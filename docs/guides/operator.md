@@ -74,8 +74,8 @@ What it does, in order:
    row keeps its hash, URL, source, fetch time and terms basis, and moves to
    `deletion_state = raw_dropped`. A blob shared with a `project_level` record or with a younger
    capture is kept and reported as `blocked_shared`.
-3. Deletes pseudonymous person-level rows older than the cutoff. No such table exists yet; M5
-   tables register in `pigtail.privacy.deletion.PERSON_TABLES`.
+3. Deletes pseudonymous person-level rows older than the cutoff (tables registered in
+   `pigtail.privacy.deletion.PERSON_TABLES`: `hn_mention`, `upstream_items`; M5 tables add to it).
 4. Deletes LLM cache rows linked to the evidence dropped in step 2, and every cache row older than
    `LLM_CACHE_RETENTION_DAYS` (default and maximum 730). The LLM usage ledger follows the same
    period. Expired cache rows are never served, even before a purge runs.
@@ -84,6 +84,53 @@ What it does, in order:
 Project-level and aggregate data are never touched. Longer periods than the policy allows are
 rejected at startup. Container and system logs need their own 12-month rotation, for example
 journald `MaxRetentionSec=1year` or logrotate.
+
+### Deletion sync (CB-02, R1.5)
+```bash
+uv run pigtail privacy deletion-sync --dry-run          # report only; still writes a run record
+uv run pigtail privacy deletion-sync --source hn        # run daily (cron or systemd timer)
+```
+Capture jobs register every upstream item whose content sits in a person-level snapshot
+(`upstream_items`). The sync re-checks items that are due and, for each item that is gone upstream
+(HN: `deleted`, `dead`, or `null` from the Firebase API):
+1. drops the raw bytes of every snapshot that holds it (a search page holds many items, so the
+   whole page goes) and moves all evidence with those hashes to `deletion_state =
+   deleted_upstream` (hash, URL, fetch time and terms basis stay);
+2. deletes its parsed person-level rows (`hn_mention`) and the LLM cache rows derived from the
+   evidence;
+3. writes tombstones (reason `deleted_upstream`) to `deletion_log`.
+
+It also re-applies deletions to evidence captured after an item was found gone (a stale search
+index, or a backup restore). Schedule per source (retention-policy.md §4): HN items linked to an
+open case are re-checked daily, others monthly; action within 7 days of detection. The report
+lists `overdue_before_run` (re-checks more than 7 days late) and `detected_not_acted`. Checks store
+nothing and run even when HN collection is switched off. Bluesky (≤ 48 h, push/tombstone based)
+will plug into the same job before it may be enabled.
+
+### Hacker News sources (M1-T4, M1-T14)
+- **Rank poller** (`hn_ranks`, enabled by default; `PIGTAIL_CONNECTOR_HN_RANKS_ENABLED=false`
+  turns it off). Project-level only: story ids, ranks, urls, titles, scores, comment counts. It
+  keeps no usernames (the item's `by` is dropped, and item raw JSON is deleted right after
+  parsing), so it does not need the ADR-022 flag. Rank history can't be backfilled, so run it
+  continuously:
+  ```bash
+  uv run pigtail capture hn-ranks --once                          # one poll
+  uv run pigtail capture hn-ranks --loop --interval-minutes 5     # long-running (systemd service)
+  ```
+  The interval can't be under 1 minute (TM-04). Ranks 1–30 are the front page.
+- **Mention capture** (`hn_algolia`, `hn_firebase`): person-level (usernames are pseudonymized,
+  comment text stays in private snapshots). **Disabled by default** (`PIGTAIL_ENABLE_HN=0`).
+  Setting `PIGTAIL_ENABLE_HN=1` fails with an error unless `PIGTAIL_ADR022_PERSON_SOURCES_OK=1`
+  is also set. **Set that flag only after every ADR-022 precondition for person-level sources is
+  in place on your deployment:** CB-01 (retention purge scheduled), CB-02 (deletion sync
+  scheduled), CB-03 (encryption at rest), CB-06 (LLM redaction), CB-08 (request handling),
+  CB-12 (published privacy notice) and CB-13 (opt-outs), per `ops/DECISIONS.md` ADR-022. Use by
+  commercial operators is also pending legal question LQ-6.
+  ```bash
+  uv run pigtail capture mentions --repo owner/name [--since 2026-09-01] [--loose] [--no-items]
+  ```
+  Evidence attaches to the repo's newest open case if it has one. `--loose` also keeps hits that
+  only contain the repo name (noisy for common words).
 
 ### Opt-outs (CB-13)
 ```bash

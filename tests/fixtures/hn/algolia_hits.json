@@ -1,0 +1,11 @@
+{
+  "_note": "SYNTHETIC fixture: HN Algolia search hits mirroring firebase_items.json. Fake usernames hnuserNNN. Not real HN data.",
+  "hits": [
+    {"objectID": "9000001", "author": "hnuser001", "created_at": "2026-09-21T13:46:40Z", "created_at_i": 1790000000, "title": "Show HN: Repo-1, a synthetic tool", "url": "https://github.com/org-a/repo-1", "points": 120, "num_comments": 4, "story_id": 9000001, "_tags": ["story", "author_hnuser001", "story_9000001", "show_hn", "front_page"], "_highlightResult": {"author": {"value": "hnuser001"}}},
+    {"objectID": "9000011", "author": "hnuser004", "created_at": "2026-09-21T13:48:20Z", "created_at_i": 1790000100, "comment_text": "Try <a href=\"https:&#x2F;&#x2F;github.com&#x2F;org-a&#x2F;repo-1\">https:&#x2F;&#x2F;github.com&#x2F;org-a&#x2F;repo-1</a> for this.", "story_id": 9000001, "parent_id": 9000001, "story_title": "Show HN: Repo-1, a synthetic tool", "_tags": ["comment", "author_hnuser004", "story_9000001"]},
+    {"objectID": "9000012", "author": "hnuser005", "created_at": "2026-09-21T13:50:00Z", "created_at_i": 1790000200, "comment_text": "I prefer org-a&#x2F;repo-1 over the alternatives.", "story_id": 9000001, "parent_id": 9000001, "_tags": ["comment", "author_hnuser005", "story_9000001"]},
+    {"objectID": "9000003", "author": "hnuser003", "created_at": "2026-09-21T14:06:40Z", "created_at_i": 1790001200, "title": "Ask HN: A synthetic question", "story_text": "Is there anything like org-a&#x2F;repo-1? Asking hnuser009.", "points": 7, "num_comments": 1, "story_id": 9000003, "_tags": ["story", "author_hnuser003", "story_9000003", "ask_hn"]},
+    {"objectID": "9000015", "author": "hnuser008", "created_at": "2026-09-21T14:08:20Z", "created_at_i": 1790001300, "comment_text": "repo-1 is a common word here, unrelated.", "story_id": 9000003, "parent_id": 9000003, "_tags": ["comment", "author_hnuser008", "story_9000003"]},
+    {"objectID": "9000014", "author": "hnuser006", "created_at": "2026-09-21T13:53:20Z", "created_at_i": 1790000400, "comment_text": "[flagged synthetic comment] org-a repo-1", "story_id": 9000001, "parent_id": 9000001, "_tags": ["comment", "author_hnuser006", "story_9000001"]}
+  ]
+}

@@ -183,6 +183,153 @@ def cmd_capture_purge_raw(args: argparse.Namespace) -> int:
     return 0
 
 
+def _capture_env() -> tuple[Any, int | None]:
+    """Settings for capture commands, or an exit code 2 with the reason on stderr."""
+    from pigtail.config import Settings
+
+    s = Settings.from_env()
+    if not s.database_url:
+        print("DATABASE_URL is not set", file=sys.stderr)
+        return s, 2
+    return s, None
+
+
+def cmd_capture_hn_ranks(args: argparse.Namespace) -> int:
+    """M1-T14: poll HN topstories (project-level only; no ADR-022 flag needed)."""
+    import logging
+
+    from pigtail.capture.db import CaptureDB
+    from pigtail.capture.hn_ranks import RankPoller, check_interval, run_loop
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.capture.snapshots import build_store
+    from pigtail.connectors.base import ConnectorError
+    from pigtail.connectors.hn_ranks import HNRanksConnector
+    from pigtail.db.migrate import migrate
+    from pigtail.logsafe import configure_logging
+    from pigtail.privacy import suppression
+
+    configure_logging()
+    logger = logging.getLogger("pigtail.capture.hn_ranks")
+    s, rc = _capture_env()
+    if rc is not None:
+        return rc
+    try:
+        interval = check_interval(args.interval_minutes * 60)
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    migrate(s.database_url)
+    db = CaptureDB.connect(s.database_url)
+    store = build_store(s)
+    results: list[dict[str, Any]] = []
+    config = {"items": args.items, "interval_s": interval, "once": args.once}
+
+    def poll() -> None:
+        with RunRecorder("capture.hn_ranks", config, sink=db.upsert_run) as run:
+            conn = HNRanksConnector(
+                store=store,
+                pseudonymizer=None,
+                run=run,
+                evidence_sink=db.upsert_evidence,
+                suppression=suppression.load(db),
+            )
+            res = RankPoller(conn, db, run=run, items=args.items).poll_once()
+        out = {"run_id": run.id, **res.to_dict()}
+        results.append(out)
+        if not args.once:
+            print(json.dumps(out), flush=True)
+
+    try:
+        if args.once:
+            try:
+                poll()
+            except ConnectorError as e:
+                print(str(e), file=sys.stderr)
+                return 1
+            print(json.dumps(results[0], indent=2))
+            return 0
+        polls, failures = run_loop(
+            poll,
+            interval=interval,
+            max_polls=args.max_polls,
+            on_error=lambda e: logger.warning("hn rank poll failed: %s: %s", type(e).__name__, e),
+        )
+    finally:
+        db.close()
+    print(json.dumps({"polls": polls, "failures": failures}))
+    return 0 if failures < polls or polls == 0 else 1
+
+
+def cmd_capture_mentions(args: argparse.Namespace) -> int:
+    """M1-T4 / R1.2: search HN (Algolia) for mentions of a repo; snapshot and store them."""
+    from pigtail.capture.db import CaptureDB
+    from pigtail.capture.mentions import RepoSuppressed, capture_hn_mentions, split_full_name
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.capture.snapshots import build_store
+    from pigtail.connectors.base import ConnectorError
+    from pigtail.connectors.hn import HNAlgoliaConnector, HNFirebaseConnector
+    from pigtail.db.migrate import migrate
+    from pigtail.logsafe import configure_logging
+    from pigtail.privacy import suppression
+    from pigtail.pseudonymize import Pseudonymizer
+
+    configure_logging()
+    s, rc = _capture_env()
+    if rc is not None:
+        return rc
+    if not s.pseudonym_key:
+        print("PSEUDONYM_KEY is not set (>= 16 chars; PRD §10)", file=sys.stderr)
+        return 2
+    try:
+        split_full_name(args.repo)
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    migrate(s.database_url)
+    db = CaptureDB.connect(s.database_url)
+    config = {
+        "repo": args.repo.lower(),
+        "since": args.since.isoformat() if args.since else None,
+        "until": args.until.isoformat() if args.until else None,
+        "loose": args.loose,
+        "items": not args.no_items,
+    }
+    try:
+        with RunRecorder("capture.mentions", config, sink=db.upsert_run) as run:
+            common: dict[str, Any] = {
+                "store": build_store(s),
+                "pseudonymizer": Pseudonymizer(s.pseudonym_key),
+                "run": run,
+                "evidence_sink": db.upsert_evidence,
+                "suppression": suppression.load(db),
+            }
+            try:
+                algolia = HNAlgoliaConnector(**common)
+                firebase = None if args.no_items else HNFirebaseConnector(**common)
+                if not algolia.enabled:
+                    raise ConnectorError(
+                        "HN connectors are disabled (PIGTAIL_ENABLE_HN=0, the default). They "
+                        "collect person-level data: see docs/guides/operator.md, ADR-022."
+                    )
+                res = capture_hn_mentions(
+                    algolia,
+                    db,
+                    args.repo,
+                    firebase=firebase if firebase and firebase.enabled else None,
+                    since=args.since,
+                    until=args.until,
+                    loose=args.loose,
+                    run=run,
+                )
+            except (ConnectorError, RepoSuppressed) as e:
+                print(str(e), file=sys.stderr)
+                return 2
+    finally:
+        db.close()
+    print(json.dumps({"run_id": run.id, **res.to_dict()}, indent=2))
+    return 0
+
+
 def _warn_unencrypted(s: Any, log: Any) -> None:
     """CB-03: warn at startup when the snapshot store is not known to be encrypted."""
     from pigtail.privacy.doctor import run_checks
@@ -310,6 +457,43 @@ def cmd_retention_purge(args: argparse.Namespace, ctx: _Ctx) -> int:
     if len(rep.dropped_hashes) > 20:
         out["dropped_hashes"] = [*rep.dropped_hashes[:20], f"... {len(rep.dropped_hashes)} total"]
     print(json.dumps(out, indent=2))
+    return 0
+
+
+@_privacy
+def cmd_deletion_sync(args: argparse.Namespace, ctx: _Ctx) -> int:
+    """CB-02 / R1.5: re-check tracked person-level items upstream; drop what was deleted."""
+    import httpx
+
+    from pigtail.capture.runs import RunRecorder, utcnow
+    from pigtail.connectors.hn import HNFirebaseConnector
+    from pigtail.privacy.deletion_sync import DeletionSource, HNDeletionSource, sync
+
+    def hn(run: RunRecorder) -> DeletionSource:
+        # enabled=False: checks store nothing and must run even while HN collection is off
+        conn = HNFirebaseConnector(
+            store=ctx.store, pseudonymizer=ctx.pz, http=httpx.Client(), enabled=False, run=run
+        )
+        return HNDeletionSource(conn)
+
+    factories = {"hn": hn}
+    names = args.source or sorted(factories)
+    config = {"sources": names, "dry_run": args.dry_run, "limit": args.limit}
+    reports = []
+    with RunRecorder("privacy.deletion_sync", config, sink=ctx.db.upsert_run) as run:
+        for name in names:
+            rep = sync(
+                ctx.db,
+                ctx.store,
+                factories[name](run),
+                now=utcnow(),
+                llm_store=ctx.llm_store,
+                run=run,
+                dry_run=args.dry_run,
+                limit=args.limit,
+            )
+            reports.append(rep.to_dict())
+    print(json.dumps({"run_id": run.id, "sources": reports}, indent=2))
     return 0
 
 
@@ -492,6 +676,23 @@ def build_parser() -> argparse.ArgumentParser:
     purge = cap_sub.add_parser("purge-raw", help="drop raw GH Archive dumps past retention")
     purge.add_argument("--retention-days", type=int, help="default GHARCHIVE_RAW_RETENTION_DAYS")
     purge.set_defaults(func=cmd_capture_purge_raw)
+    ranks = cap_sub.add_parser(
+        "hn-ranks", help="poll HN topstories ranks (M1-T14; project-level, no handles)"
+    )
+    mode = ranks.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--once", action="store_true", help="one poll, then exit")
+    mode.add_argument("--loop", action="store_true", help="poll every --interval-minutes")
+    ranks.add_argument("--interval-minutes", type=float, default=5.0, help="loop interval (>= 1)")
+    ranks.add_argument("--max-polls", type=int, help="loop: stop after N polls")
+    ranks.add_argument("--items", type=int, default=30, help="item metadata for ranks 1..N")
+    ranks.set_defaults(func=cmd_capture_hn_ranks)
+    men = cap_sub.add_parser("mentions", help="search HN for mentions of a repo (M1-T4, R1.2)")
+    men.add_argument("--repo", required=True, help="owner/name")
+    men.add_argument("--since", type=_parse_hour, help="earliest item time, UTC")
+    men.add_argument("--until", type=_parse_hour, help="latest item time, UTC (default now)")
+    men.add_argument("--loose", action="store_true", help="also keep repo-name-only matches")
+    men.add_argument("--no-items", action="store_true", help="skip per-item Firebase snapshots")
+    men.set_defaults(func=cmd_capture_mentions)
 
     ret = sub.add_parser("retention", help="retention purge (DPIA CB-01)")
     ret_sub = ret.add_subparsers(dest="retention_command", required=True)
@@ -524,6 +725,11 @@ def build_parser() -> argparse.ArgumentParser:
     priv_sub.add_parser("requests", help="request log (no handles)").set_defaults(
         func=cmd_privacy_requests, _need_key=False
     )
+    ds = priv_sub.add_parser("deletion-sync", help="re-check upstream deletions (CB-02, R1.5)")
+    ds.add_argument("--source", action="append", choices=("hn",), help="default: all")
+    ds.add_argument("--dry-run", action="store_true", help="report only; change nothing")
+    ds.add_argument("--limit", type=int, help="max items to re-check per source")
+    ds.set_defaults(func=cmd_deletion_sync, _need_key=False)
 
     doc = sub.add_parser("doctor", help="privacy/encryption preconditions (DPIA CB-03)")
     doc.add_argument("--strict", action="store_true", help="exit 1 on warnings too")
