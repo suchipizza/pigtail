@@ -14,3 +14,9 @@
 **Costs to date:** USD 0 (LLM calls ran on your subscription).
 
 **Notable:** The MinIO Docker image is no longer pullable, so local storage uses SeaweedFS (ADR-005). Anthropic's Claude Code terms confirm the subscription backend is for your own use only; shared deployments must use the API (ADR-008).
+
+### Update (same day, later)
+- M0 **accepted** by the verifier. M2 research **accepted** after one correction round (no fabricated citations).
+- M3: outcome-model spec and compliance pack written. **H2 (legal review) raised**: see `ops/HUMAN_INPUTS.md`.
+- **Please read this one:** the compliance review found that Anthropic's Consumer Terms for Pro/Max in the EEA/CH include a no-commercial-or-business-use clause, and those plans have no zero-retention option. pigtail keeps the subscription backend only for your own research use, and bulk coding of person-level text waits for your lawyer's answer (ADR-023). Switching to the API later is a one-line change.
+- Production capture won't start on a host until the basic privacy controls (retention purge, encryption, raw-dump minimization, a published notice) are built (ADR-022). They're next in the backlog.

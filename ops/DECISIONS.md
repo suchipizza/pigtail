@@ -113,3 +113,19 @@ How to reverse: Remove stars at account level.
 Context: PRD §8.1 lists MRR as `verified` from Stripe-verified dashboards such as TrustMRR. TrustMRR is a GAP (ADR-010).
 Decision: MRR is `self_reported` when the operator enters it with a citation, and `unknown` otherwise. This changes a metric default, not a §4, §5, §9.2–9.3 or §10 requirement.
 How to reverse: A source with verifiable MRR is cleared.
+
+## ADR-022 — Interim holds until compliance controls exist (2026-09-25)
+Context: The compliance pack (docs/compliance/dpia.md) concludes a full DPIA is needed. It also found that capture currently has no retention purge, no encryption at rest, no minimization of raw GH Archive dumps, and no published notice or request handling.
+Decision (in force until the listed controls exist and/or H2 answers):
+- No production capture on the host until CB-01 (retention purge), CB-03 (encryption at rest), CB-04 (raw-dump minimization), CB-09 (key rotation runbook), CB-12 (published notice), CB-16 (breach runbook), CB-17 (encrypted backups) and CB-18 (log hygiene) exist. Local development continues.
+- No person-level source beyond GH Archive (Bluesky, HN, V2EX, Discord) until CB-02 (deletion sync), CB-06 (identifier redaction before LLM calls), CB-08 (data-subject request tooling) and CB-13 (honouring refusals) exist.
+- No account-level spread graphs until LQ-8 is answered.
+- No private individuals, matched losers or personal-account repos named in any output.
+This is stricter than the PRD and doesn't relax any requirement.
+How to reverse: Lift each hold when its controls are verified, or when H2 answers the related question.
+
+## ADR-023 — Subscription backend stays the default, limited to the owner's own use (2026-09-25)
+Context: PRD §12 makes `subscription` the default. The compliance pack found that Anthropic's Consumer Terms (Pro/Max) in the EEA/CH include a no-commercial-or-business-use clause, that no zero-retention option exists on those plans (30-day retention even with training off), and that there is no DPA. PRD §10 requires only pseudonymization plus training off in subscription mode, so this isn't a PRD violation, but it is a legal risk.
+Options: (a) switch the product default to `api` now; (b) keep `subscription` for the owner's own non-commercial research use, with telemetry off (CB-07, done), pseudonymized inputs, no bulk person-level coding until LQ-1/2 are answered, and heavy jobs routed to `api` per job when a key exists.
+Decision: (b). It's the most reversible option, it matches the owner's explicit choice (ADR-001), and the question is raised in H2 (LQ-1, LQ-2).
+How to reverse: Set `LLM_BACKEND=api`. Nothing else changes (D6 acceptance).

@@ -40,10 +40,21 @@ _RESET_EPOCH = re.compile(r"\|(\d{10})\b")  # e.g. "Claude AI usage limit reache
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
 
+# Opt out of telemetry, error reporting and other non-essential traffic from the CLI, so
+# snapshot-derived content never reaches third-party error trackers (compliance CB-07; env var
+# names from https://code.claude.com/docs/en/env-vars, accessed 2026-09-25).
+PRIVACY_ENV = {
+    "DISABLE_TELEMETRY": "1",
+    "DISABLE_ERROR_REPORTING": "1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+}
+
+
 def subprocess_env(base: Mapping[str, str] | None = None) -> dict[str, str]:
     env = dict(os.environ if base is None else base)
     for k in STRIPPED_ENV:
         env.pop(k, None)
+    env.update(PRIVACY_ENV)
     return env
 
 
@@ -118,7 +129,11 @@ class SubscriptionBackend:
         if is_error:
             if payload.get("api_error_status") == 429 or LIMIT_PATTERN.search(text):
                 raise UsageLimitReached("subscription usage limit reached", parse_reset(text))
-            raise BackendError(f"claude CLI failed (exit {returncode}): {text[:500]}")
+            # No CLI output in the message: it may echo prompt content (compliance CB-07).
+            raise BackendError(
+                f"claude CLI failed (exit {returncode}, subtype={payload.get('subtype')!r}, "
+                f"api_error_status={payload.get('api_error_status')!r})"
+            )
         data = payload.get("structured_output")
         if not isinstance(data, dict):
             try:

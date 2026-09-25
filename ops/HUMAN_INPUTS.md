@@ -29,7 +29,11 @@ Infrastructure and data sources:
 - [ ] Monthly budget ceiling set in the host `.env` as `BUDGET_USD_MONTH` (default 300)
 - [ ] Codebook/methodology licence: MIT (default, matches the repo) or CC BY 4.0
 
-## H2 — Legal review  [not yet raised]
+## H2 — Legal review  [OPEN — raised 2026-09-25; formal default date 2026-10-09 (WO §5); requested answer date 2026-11-06]
+**What:** An external lawyer reviews `docs/compliance/`. Start with `legal-review-questions.md`, then `lia.md`, `dpia.md`, `retention-policy.md`, `privacy-notice.md` and `terms-memos.md`, and answer LQ-1…LQ-26. Priority-A questions first: LQ-1, LQ-2, LQ-4, LQ-8, LQ-10, LQ-12. You (the owner) fill in the `[operator]` and contact placeholders in `privacy-notice.md`.
+**Most important for you to know now:** under the EEA/Swiss Consumer Terms that cover Pro/Max plans, you agree not to use the services "for any commercial or business purposes", and zero data retention isn't offered on those plans. If the lawyer confirms this applies to pigtail, the default product backend must become `api` (LQ-1, LQ-2; ADR-023).
+**Blocks:** publishing anything (M9: findings, D2 public mode, v1 tag). Also: subscription-mode LLM coding of person-level text at scale (LQ-1/2), account-level spread graphs (LQ-8), and the Wayback, V2EX, Discord and HN connectors for commercial operators (LQ-15/18/21/6). **Does not block** collection under the documented safeguards.
+**Default if unanswered by 2026-10-09:** release stays blocked and the interim defaults in ADR-022 stay in force. Everything else continues.
 ## H3 — Human calibration coding (optional, ~3–4 h)  [not yet raised]
 ## H4 — Publish aggregate findings / D2 public mode / tag v1.0  [not yet raised]
 ## H5 — External actions / owner launch profiles  [not yet raised]

@@ -1,5 +1,7 @@
 # Per-source terms memos (TM-01 … TM-31)
 
+Part of the compliance pack: see [README.md](README.md).
+
 **Prepared by:** the compliance agent. It is not a lawyer. These memos prepare material for legal review at gate H2, and until that review happens pigtail enforces conservative defaults.
 
 **Access date:** every URL was accessed on **2026-09-25** unless noted otherwise.

@@ -23,6 +23,31 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [ ] [M1-T17] Early no-history connectors: Docker Hub pulls + Homebrew analytics daily snapshots — R2.2 — M1-T2
 - [!] [M1-T13] Reddit connector — GAP per source matrix (commercial use needs a written agreement; no sharing with LLM providers). Revisit only after H2 (Q2)
 
+## Compliance controls (docs/compliance/dpia.md; ADR-022 holds)
+Before production capture on the host:
+- [ ] [CB-01] 24-month retention purge job (person-level) — retention-policy.md
+- [ ] [CB-03] Encryption at rest: snapshot bucket + database
+- [ ] [CB-04] GH Archive raw-dump minimization (hash kept, bytes purged ≤ 30 d, replay re-downloads) — briefed to M1 engineer
+- [ ] [CB-09] Pseudonym key rotation runbook
+- [ ] [CB-12] Publish the privacy notice (needs owner placeholders)
+- [ ] [CB-16] Breach runbook
+- [ ] [CB-17] Encrypted backups; deletions re-applied after a restore
+- [ ] [CB-18] Log hygiene (no content or handles in logs)
+Before enabling Bluesky, HN or V2EX:
+- [ ] [CB-02] Deletion sync (Bluesky ≤ 48 h) — R1.5
+- [ ] [CB-06] Redact profile URLs, `did:` identifiers and bare handles before LLM calls
+- [ ] [CB-08] Data-subject request tooling (access, objection, erasure)
+- [ ] [CB-13] Honour explicit refusals (opt-out list)
+Feature-specific:
+- [ ] [CB-05] Time limit on the LLM cache, linked to evidence (before Tier 2 extraction)
+- [ ] [CB-10] Account reach stored in bands
+- [ ] [CB-11] Codebook privacy rules (M4)
+- [ ] [CB-14] Guard against naming people in outputs (before spread graphs, public mode, D3, D4)
+- [ ] [CB-15] Record of processing activities
+- [ ] [CB-19] UI login + audit log
+- [ ] [CB-20] Suppress personal-account repos and matched losers in public outputs
+- [ ] [CB-21] Operator guide: controller duties
+
 ## Next
 - [ ] [M2-T3] Fake-star method: select, reproduce on a sample, document validation — R3.3 — M2-T1
 - [x] [M2-T4] Verifier spot-check — round 1 FAIL, round 2 PASS @191c44d (2026-09-25)
@@ -31,7 +56,8 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [x] [M3-T1] Outcome model spec + outcome-thresholds v0.1.0 (ADR-012..021) (2026-09-25) — verifier review pending with the M3 acceptance
 - [ ] [M4-T0b] ADR: target for §9.1 forecasting test ("30-day outcome class" vs classes needing T+90): provisional T+30 `attention_top_decile` label, or predict the T+90 class from day-7 data — decide before M4-T2 pre-registration
 - [ ] [M3-T3] Cost estimate: stargazer-API full histories for ≥ 5,000 Tier 1 repos (rate limits, 40k cap, ordering) — ADR-012 — M1-T16
-- [ ] [M3-T2] Compliance pack: LIA, light DPIA, retention policy, privacy notice, legal-review questions; raise H2 — §10 — M2-T2
+- [x] [M3-T2] Compliance pack (LIA, DPIA, retention, privacy notice, LQ-1..26); H2 raised (2026-09-25)
+- [x] [CB-07] CLI telemetry/error reporting off in the subscription subprocess; BackendError no longer echoes output (2026-09-25)
 - [ ] [M4-T0] ADR: stricter α ≥ 0.80 for promotion-deciding fields (lit. review open issue 4; stricter than PRD §9.2, not a relaxation) — decide before pilot pre-registration
 - [ ] [M4-T1] Codebook v0 + adaptive modules → docs/methodology/codebook.md — F6 — M2-T1
 - [ ] [M4-T2] Pre-register pilot analyses in docs/preregistration/ — WO §6 — M4-T1

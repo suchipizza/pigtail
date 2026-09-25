@@ -11,7 +11,12 @@ import pytest
 
 from pigtail.llm import UsageLimitReached
 from pigtail.llm.errors import BackendError
-from pigtail.llm.subscription import SubscriptionBackend, parse_reset, subprocess_env
+from pigtail.llm.subscription import (
+    PRIVACY_ENV,
+    SubscriptionBackend,
+    parse_reset,
+    subprocess_env,
+)
 
 OK = {
     "type": "result",
@@ -36,7 +41,7 @@ def test_r15_2_api_key_stripped_from_subprocess_env():
             "PATH": "/bin",
         }
     )
-    assert env == {"PATH": "/bin"}
+    assert env == {"PATH": "/bin", **PRIVACY_ENV}
 
 
 def test_r15_2_command_uses_official_cli_without_bare():
@@ -97,3 +102,10 @@ def test_missing_cli_is_backend_error():
 
     with pytest.raises(BackendError):
         SubscriptionBackend(runner=runner).complete(system="", prompt="", json_schema={}, model="m")
+
+
+def test_cb07_error_message_does_not_echo_output():
+    payload = {"type": "result", "is_error": True, "result": "secret prompt text"}
+    with pytest.raises(BackendError) as ei:
+        SubscriptionBackend.parse(json.dumps(payload), "stderr prompt text", 1, "m")
+    assert "prompt text" not in str(ei.value)
