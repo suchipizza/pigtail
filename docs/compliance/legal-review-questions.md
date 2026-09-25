@@ -50,7 +50,7 @@ Priority:
 | TM-32 (new, no Q number) | LQ-28 |
 | TM-33 (new, no Q number) | LQ-29 |
 
-LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from the LIA and DPIA. LQ-27 comes from the backlog (ADR-030.1). LQ-28 and LQ-29 come from the detection re-plan (`docs/research/detection-replan.md`, ADR-032) and memos TM-32 and TM-33.
+LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from the LIA and DPIA. LQ-27 comes from the backlog (ADR-030.1). LQ-28 and LQ-29 come from the detection re-plan (`docs/research/detection-replan.md`, ADR-032) and memos TM-32 and TM-33. LQ-30 and LQ-31 come from the CB-09 and CB-16 runbooks.
 
 ---
 
@@ -249,6 +249,27 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - **Default meanwhile:** the TM-33 conditions: only repos with an open case (and, if the operator opts in, repos above the pre-threshold); poll within `X-Poll-Interval`; pseudonymise at ingest; person-level event rows kept 16 days by default (ceiling 30; ADR-038; the class `person_level_30d` is named after the ceiling), then aggregates; never rebuild, store or export a stargazer list; cases record `bot_filter.basis`, `bot_filter.confirmed` and `bot_filter.coverage_ratio`. CB-22 and CB-23 are implemented and tested (M1-T24, ADR-037; [dpia.md](dpia.md) §9). The connector stays off (`PIGTAIL_ENABLE_GITHUB_EVENTS` plus the ADR-022 flag, ADR-036) until the remaining ADR-022 pre-conditions exist (CB-12 open; CB-03 and CB-06 partly done; CB-02 met for this source via ADR-038). Until then detection-v1 cases open with `bot_filter` `unavailable` (ADR-037.1).
 - **Blocks:** any wider use of stargazer identities (retention beyond the 30-day ceiling, cross-repo stargazer graphs, a StarScout-style reproduction on identities beyond the tracked set). The `starscout_filtered` series stays `unknown` where these conditions don't allow the data.
 
+### LQ-30 · Honouring objections after a pseudonym-key change · Priority B
+- **Context:**
+  - The refusal list stores objectors only as keyed pseudonyms and keyed repo-name hashes, never handles, names or contact details (ADR-030.4, ADR-042.1). A new `PSEUDONYM_KEY` makes those entries stop matching, so collection about the objectors would resume. Entries can be re-derived only where the handle still appears in retained raw data ([runbooks/key-rotation.md](runbooks/key-rotation.md) §3). pigtail does not yet detect a key change (CB-25).
+- **Question:**
+  1. After a rotation (for example following a key compromise), what must the controller do for objections whose handles can no longer be recovered? Is it acceptable to keep the old key sealed only for matching old objections (dual-key matching, CB-27)?
+  2. Should the controller keep the handle of an objector (or a contact) specifically so that the objection survives a rotation, and would that be proportionate?
+- **Default meanwhile:** no scheduled rotation until CB-25 to CB-27 exist; rotate only after a compromise, following the runbook; unmappable entries are recorded as unresolved.
+- **Blocks:** scheduled key rotation ([retention-policy.md](retention-policy.md) §3.5).
+
+### LQ-31 · Breach notification: which authority, key-only leaks, and how to inform data subjects · Priority B
+- **Context:**
+  - pigtail's data subjects are spread worldwide. EDPB Guidelines 9/2022 (v2.0, ¶73) say that for a controller not established in the EU the presence of a representative "does not trigger the one-stop-shop system", so a breach must be notified "to every supervisory authority for which affected data subjects reside in their Member State".
+  - Pseudonymous rows are protected only while `PSEUDONYM_KEY` is safe (EDPB ¶77). A leak of the key alone exposes no data.
+  - pigtail holds no contact details of data subjects, only handles in raw snapshots.
+- **Question:**
+  1. For the owner (and for a typical self-hoster), which authority or authorities must be notified under GDPR Art. 33, given that the Member States of affected people are usually unknown?
+  2. Is a leak of `PSEUDONYM_KEY` alone, with no data exposed, a personal data breach that must be documented or notified?
+  3. Is a public communication on the notice page the right route under GDPR Art. 34(3)(c) and FADP Art. 24(5)(b)–(c), rather than contacting people on the platforms?
+- **Default meanwhile:** [runbooks/breach.md](runbooks/breach.md): document every incident; notify the competent authority within 72 hours when a risk is likely; FDPIC when high risk is likely; public communication for high-risk breaches.
+- **Blocks:** nothing (the defaults stand); needed before release (M9).
+
 ### LQ-12 (was Q11) · Adequacy of 24-month retention plus pseudonymisation at ingest · Priority A
 - **Context:** carried over from terms-memos Q11:
   > "For people whose public posts appear in private snapshots, is our 24-month retention for person-level data, together with pseudonymisation at ingest, adequate under GDPR and the Swiss FADP? Is it compatible with each CLEARED-WITH-CONDITIONS source?"
@@ -360,7 +381,7 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 | Priority | Questions | Blocks if unanswered |
 |---|---|---|
 | **A** | LQ-1, LQ-2, LQ-4, LQ-8, LQ-10, LQ-12 | Release (M9); subscription-mode coding at scale; account-level spread graphs; person-level sources beyond GH Archive (until the notice and controls exist) |
-| **B** | LQ-3, LQ-6, LQ-7, LQ-11, LQ-13, LQ-14, LQ-15, LQ-18, LQ-23, LQ-24, LQ-25, LQ-26, LQ-28, LQ-29 | The named source or feature |
+| **B** | LQ-3, LQ-6, LQ-7, LQ-11, LQ-13, LQ-14, LQ-15, LQ-18, LQ-23, LQ-24, LQ-25, LQ-26, LQ-28, LQ-29, LQ-30, LQ-31 | The named source or feature |
 | **C** | LQ-5, LQ-9, LQ-16, LQ-17, LQ-19, LQ-20, LQ-21, LQ-22, LQ-27 | Nothing (the defaults stand) |
 
 ## Changelog
@@ -372,3 +393,4 @@ LQ-1, LQ-2, LQ-7 to LQ-11, LQ-13, LQ-14 and LQ-22 to LQ-26 are new, arising from
 - 2026-09-25 — fixes after verifier (ADR-036 alignment): LQ-29 covers fork actors; field names aligned; gate named.
 - 2026-09-25 — CB-22/23 implemented (M1-T24, ADR-037): LQ-29 default updated (CB-22 and CB-23 done; remaining holds CB-02 and CB-12; cases open with `bot_filter` unavailable) and two sub-questions added (4: ≤ 30-day expiry in place of deletion sync; 5: 30 days now that lockstep is not applied to per-repo events).
 - 2026-09-25 — ADR-038 wording (16-day default; CB-02 per source)
+- 2026-09-25 — LQ-30 (objections after a key change; from the CB-09 runbook) and LQ-31 (breach notification: authority, key-only leaks, informing data subjects; from the CB-16 runbook) added; summary updated.

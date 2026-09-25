@@ -66,8 +66,8 @@ The key (`PSEUDONYM_KEY`) is the "additional information" of GDPR Art. 4(5). Who
 2. **Storage:** in the host environment or a secrets manager only. Never in git, Postgres, the snapshot bucket, logs or data backups (**O**; CLAUDE.md).
 3. **Backup:** a separate encrypted backup, kept apart from the data backups (**O**, H1). If the key is lost, pseudonym continuity is lost. Old records then have to be re-pseudonymised from the raw data, which is only possible while the raw data is retained.
 4. **Access:** the operator only. Access requests from data subjects (Art. 15 / FADP Art. 25) are handled by the operator computing the pseudonym, not by giving the key out.
-5. **Rotation:** after a suspected compromise, or every 24 months (aligned with the retention period). Rotation re-pseudonymises the retained records with the new key, and then the old key is destroyed. This needs a key id stored with the pseudonyms (**P, CB-09**).
-6. **Compromise:** treat it as a personal data breach (§7) and rotate at once.
+5. **Rotation:** follow [runbooks/key-rotation.md](runbooks/key-rotation.md) (CB-09, documentation done). A new key silently stops the refusal list from matching, because opt-outs are stored only as keyed pseudonyms and keyed name hashes. **Until the rotation tooling exists (key-change detection CB-25, re-pseudonymisation CB-26, dual-key matching CB-27; all P), the key is rotated only after a compromise, not on a schedule.** Once they exist, the target is rotation every 24 months (aligned with the retention period), re-pseudonymising the retained records and then destroying the old key.
+6. **Compromise:** treat it as a possible personal data breach (§7) and rotate following the runbook's §4–§5.
 7. **Deletion:** when a deployment is decommissioned, destroy the key after the data. Once both are gone, any pseudonyms that remain in aggregates are unlinkable.
 
 ---
@@ -137,7 +137,7 @@ On an upstream deletion, pigtail:
 
 ## 7. Breach handling (summary)
 
-Security breaches involving person-level data or the pseudonym key are handled under the runbook CB-16 (**P**). It covers:
+Security breaches involving person-level data or the pseudonym key are handled under [runbooks/breach.md](runbooks/breach.md) (CB-16, documentation done). It covers:
 - notification to the supervisory authority where required, "not later than 72 hours" where feasible (GDPR Art. 33(1));
 - notification to the FDPIC "as quickly as possible" when high risk is likely (FADP Art. 24(1));
 - key rotation (§3).
@@ -157,3 +157,4 @@ Review this policy when a source is added, when a platform's terms change, at H2
 - 2026-09-25 — fixes after verifier (ADR-036 alignment): §1 adds the planned class `person_level_30d` (P, CB-22): per-repo event actor rows ≤ 30 days, raw events snapshots dropped at parse.
 - 2026-09-25 — CB-22/23 implemented (M1-T24, ADR-037): §1 `person_level_30d` marked I with code and test citations, actor rows now dated by event time (not `fetched_at`), aggregates named (`repo_event_daily_agg`, case `bot_filter` counts; no lockstep, ADR-037.2); `person_level_24m` covers GitHub search pages (ADR-037.8); §2 adds the M1-T24 tables and the search snapshots; §4 adds the per-repo Events API (no deletion duty, no sync source, ≤ 30-day expiry as mitigation, CB-02 applicability open).
 - 2026-09-25 — ADR-038 wording (16-day default; CB-02 per source)
+- 2026-09-25 — §3 rotation and compromise now point to runbooks/key-rotation.md (CB-09); scheduled rotation suspended until CB-25 to CB-27 exist; §7 points to runbooks/breach.md (CB-16).

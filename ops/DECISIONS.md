@@ -290,3 +290,11 @@ How to reverse: Return `unknown` for partly covered windows (a one-line change i
 5. **Liveness (M1-T26).** The scheduler writes a heartbeat file on every tick. `pigtail health --liveness-file … --alert` is run by a systemd timer or cron, preferably on a second host, and raises `scheduler_dead`.
 6. **Case API:** detection-v1 cases show hourly rows from `repo_count_snapshot` (`detection_hours_source`).
 How to reverse: Per item, through an ADR.
+
+## ADR-043 — Key-change detection is a production precondition; no scheduled key rotation yet (amends ADR-022) (2026-09-25)
+Context: The CB-09 runbook found that changing `PSEUDONYM_KEY` silently disables every opt-out. The refusal list stores people only as keyed pseudonyms, so under a new key the entries stop matching and collection resumes for people who objected. Erasure would also miss earlier pseudonymous rows. Nothing detects a key change today.
+Decision:
+- **CB-25 (key fingerprint: store a fingerprint of the key and make `pigtail doctor` and every collector refuse to run on a mismatch) joins ADR-022's production preconditions** (the list of controls needed before production capture on the host).
+- Until CB-26/27 (re-derivation under a new key; dual-key matching during rotation) exist, the key is rotated **only after a compromise**, following the runbook, not on a schedule. retention-policy §3.5 is changed accordingly.
+- CB-29 (the `ui` service loading the whole `.env` including the key; `Settings.pseudonym_key` visible in `repr()`) is fixed before production too.
+How to reverse: Once CB-26/27 exist, scheduled rotation can return through an ADR.

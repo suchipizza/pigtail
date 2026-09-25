@@ -43,12 +43,14 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 
 ## Compliance controls (docs/compliance/dpia.md; ADR-022 holds)
 Before production capture on the host:
+- [ ] [CB-25] **Key fingerprint**: store a fingerprint of PSEUDONYM_KEY; doctor + collectors refuse on mismatch (ADR-043)
+- [ ] [CB-29] ui service must not load PSEUDONYM_KEY; mask `Settings.pseudonym_key` in repr (ADR-043)
 - [x] [CB-01] 24-month retention purge (`pigtail retention purge`; ADR-030)
 - [~] [CB-03] Encryption at rest: SeaweedFS SSE via `S3_SSE_KEK` + `pigtail doctor`; open: enable on host, Postgres volume encryption (operator)
 - [~] [CB-04] GH Archive raw-dump minimization: 30-day purge + verified re-fetch done (ADR-027.4); open: drop-after-parse, minimal-parse fallback when upstream disappears
-- [ ] [CB-09] Pseudonym key rotation runbook
+- [x] [CB-09] Key rotation runbook (docs/compliance/runbooks/key-rotation.md); tooling gaps CB-25..27
 - [ ] [CB-12] Publish the privacy notice (needs owner placeholders); notice must also cover per-repo star/fork events (16-day retention) before that connector is enabled
-- [ ] [CB-16] Breach runbook
+- [x] [CB-16] Breach runbook (docs/compliance/runbooks/breach.md)
 - [ ] [CB-17] Encrypted backups; deletions re-applied after a restore
 - [~] [CB-18] Log hygiene: redaction filter + `runs.error` scrubbing; open: install filter in all services, log rotation
 Before enabling Bluesky, HN or V2EX:
@@ -57,6 +59,14 @@ Before enabling Bluesky, HN or V2EX:
 - [x] [CB-08] Data-subject requests (`pigtail privacy request access|erasure`); follow-up: rectification
 - [x] [CB-13] Opt-out list enforced at ingest + purge (`pigtail privacy optout`)
 Feature-specific:
+- [ ] [CB-26] Re-derive pseudonyms and opt-outs under a new key (migration tool)
+- [ ] [CB-27] Dual-key matching during a rotation window
+- [ ] [CB-28] Command to clear the LLM cache
+- [ ] [CB-30] Alerts from the UI audit log (failed logins, integrity failures)
+- [ ] [CB-31] Rotate host alert files (ALERTS.md, alerts.jsonl)
+- [ ] [CB-32] Upper limit for GHARCHIVE_RAW_RETENTION_DAYS in config
+- [ ] [CB-33] Purge ui_audit_log on a schedule, not only at login
+- [ ] [M3-T11] DPIA stale statuses: CB-24 implemented, CB-19 (UI login + audit, ADR-034) implemented, CB-18 filter now on every command (ADR-040.6); LQ-30/31 added
 - [ ] [CB-13c] **Before production:** repo opt-out purge (`purge_repo`) must also delete the repo's rows in the M1-T24 tables (repo_star_daily, repo_count_snapshot, star_history_fetch, repo_event_poll, repo_event_daily_agg, detection_agreement); add a test that enumerates every table with a repo key
 - [x] [CB-13b] Keyed name opt-outs (ADR-042.1); remaining unkeyed rows are warned about by doctor — was: **Before production:** name opt-outs must use a keyed hash (HMAC with PSEUDONYM_KEY), not unkeyed SHA-256 (ADR-040.4); migrate existing rows
 - [ ] [M1-T29] Title matching for HN front-page minutes (outcome-model A2); per-day lock for GH Archive re-aggregation; batch the first deletion-sync run after migration 0008
@@ -68,10 +78,10 @@ Feature-specific:
 - [ ] [CB-10] Account reach stored in bands
 - [x] [CB-11] Codebook privacy rules (codebook v0.1.0 §12)
 - [ ] [CB-14] Guard against naming people in outputs (before spread graphs, public mode, D3, D4)
-- [ ] [CB-15] Record of processing activities
+- [x] [CB-15] Record of processing activities (docs/compliance/ropa.md; controller placeholders)
 - [ ] [CB-19] UI login + audit log
 - [ ] [CB-20] Suppress personal-account repos and matched losers in public outputs
-- [ ] [CB-21] Operator guide: controller duties
+- [x] [CB-21] Controller duties (docs/compliance/controller-duties.md + operator guide link)
 
 ## Next
 - [x] [M3-T10] Outcome spec updated (μ_h, calibration pointer, H-sealed cells, HN minutes; ADR-041) — was: state μ_h = μ_d/24 in §2.1; point §5.4 and §9 to the calibration pre-registration; §3.3 note that after the freeze H-sealed is excluded from cell populations (ADR-039.5)

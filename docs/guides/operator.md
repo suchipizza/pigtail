@@ -1,5 +1,20 @@
 # Operator guide (draft — completed in M9)
 
+## Your duties as controller (CB-21)
+If you run pigtail, you are the controller of the personal data it collects on your host, not the
+pigtail maintainers. Before the first capture, read
+[`docs/compliance/controller-duties.md`](../compliance/controller-duties.md). It lists what you must
+adopt and do: the LIA and DPIA, a published privacy notice, the record of processing activities,
+handling requests with the `pigtail privacy` commands, retention and deletion sync, encryption,
+key handling and backups, the breach runbook, the subscription-vs-api scope of the LLM backend
+(ADR-008, ADR-023), and EU or Swiss hosting. Related:
+- [Record of processing activities](../compliance/ropa.md) (template to fill in)
+- [Breach response runbook](../compliance/runbooks/breach.md)
+- [`PSEUDONYM_KEY` management and rotation](../compliance/runbooks/key-rotation.md). Don't
+  change the key without reading it: opt-outs stop matching.
+
+Set `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` only once those duties are met.
+
 ## LLM backend (`LLM_BACKEND`, PRD F15)
 | Value | What it uses | When |
 |---|---|---|
