@@ -22,7 +22,8 @@ replicas are backed up by the bucket, not here).
 1. *Carry-over*: before anything changes, the live database's `deletion_log`, refusal list
    (`privacy_suppression`), request log, pseudonym-key fingerprint and its history (CB-25) and
    the run records they reference are read. The live fingerprint replaces the restored one: the
-   carried-over opt-outs are keyed with the live key.
+   carried-over opt-outs are keyed with the live key. A backup taken before the live database's
+   last `privacy rekey` (CB-26) is refused (`check_rotation`): its pseudonyms use the old key.
 2. The file is decrypted (age identity file `BACKUP_IDENTITY`, or the gpg keyring) and the dump
    is replayed by `pg_restore | psql` inside **one transaction** that first drops and recreates
    schema `public`; the transaction commits only if decryption, `pg_restore` and `psql` all
@@ -74,6 +75,7 @@ MAGIC = b"PIGTAIL-BACKUP 1\n"
 AGE_HEADER = b"age-encryption.org/v1\n"
 RECIPIENT_ENV = "BACKUP_RECIPIENT"
 IDENTITY_ENV = "BACKUP_IDENTITY"
+BACKUP_DIR_ENV = "BACKUP_DIR"  # default --out / --dir; checked by `pigtail doctor` (CB-17b)
 BACKUP_RETENTION_DAYS = 35  # retention-policy.md §2
 NAME_RE = re.compile(r"^pigtail-backup-(\d{8}T\d{6}Z)\.(age|gpg)$")
 PARTIAL_SUFFIX = ".partial"
@@ -445,6 +447,26 @@ def read_carry_over(conninfo: str) -> CarryOver:
     return co
 
 
+def check_rotation(co: CarryOver, manifest: Mapping[str, Any]) -> None:
+    """CB-26: refuse a backup taken before the live database's last key rotation by
+    re-derivation (`pigtail privacy rekey`). Its pseudonyms are keyed with the old key: they
+    would come back unmappable, and its refusal list would not match under the live key."""
+    rekeys = [e["logged_at"] for e in co.key_fingerprint_log if e.get("event") == "rekey"]
+    if not rekeys:
+        return
+    last = max(rekeys)
+    try:
+        created = datetime.fromisoformat(str(manifest["created_at"]))
+    except (KeyError, ValueError):
+        created = None
+    if created is None or created < last:
+        raise BackupError(
+            "this backup was taken before the pseudonym key was rotated "
+            f"({last:%Y-%m-%d %H:%M} UTC, `pigtail privacy rekey`): its pseudonyms and opt-outs "
+            "are keyed with the old key. Restore a backup taken after the rotation (CB-26)."
+        )
+
+
 def _json(v: Any) -> Any:
     return Jsonb(v) if isinstance(v, dict | list) else v
 
@@ -736,6 +758,8 @@ def restore(
         raise BackupError(f"no such backup file: {path}")
     detect_tool(path)
     co = read_carry_over(conninfo)
+    if any(e.get("event") == "rekey" for e in co.key_fingerprint_log):  # CB-26
+        check_rotation(co, read_manifest(path, identity=identity))
     manifest = restore_database(path, conninfo, identity=identity)
     applied = migrate(conninfo, migrations_dir)
     db = CaptureDB.connect(conninfo)

@@ -13,6 +13,11 @@ stale_factor = 3          # job_stale: no success for 3x the job's interval
 consecutive_failures = 3  # job_failing
 disk_percent = 80         # disk_high: PIGTAIL_DATA_DIR volume usage
 repeat = "6h"             # re-notify a still-firing alert at most this often
+login_failures = 10       # CB-30: failed UI logins (rate-limited attempts included) ...
+login_window = "1h"       # ... within this window raise `login_failures`
+integrity_window = "24h"  # CB-30: any snapshot hash mismatch in the UI raises `snapshot_integrity`
+file_max_bytes = 1000000  # CB-31: rotate ALERTS.md / alerts.jsonl at this size or when their first
+file_rotate_after = "30d" # event is this old; archives are deleted after LOG_RETENTION_DAYS (<= 365)
 
 # HN front-page ranks: project-level only, on by default (ADR-031.1). Rank history cannot be
 # backfilled, so this is the job that must never stop.
@@ -143,3 +148,23 @@ timeout = "14m"
 retry_base = "5m"
 enabled = false
 requires = ["github", "github_events"]
+
+# --- Backups (CB-17, CB-17b; ADR-044). OFF by default. They need `pg_dump` 16 and `age` (or gpg)
+# ON THE HOST running the scheduler: the app image has neither, so under Docker Compose keep these
+# off and run `pigtail backup create` from a host cron/systemd timer instead. Both use
+# BACKUP_DIR (outside any git tree); create also needs BACKUP_RECIPIENT. A missing tool, variable
+# or directory makes the run fail (job_failing alert); `pigtail doctor` also reports the age of
+# the newest backup (warn > 2 days, fail > 7 days).
+[jobs.backup_create]
+command = ["backup", "create"]
+every = "1d"
+timeout = "2h"
+retry_base = "30m"
+enabled = false
+
+[jobs.backup_prune]
+command = ["backup", "prune"]
+every = "1d"
+timeout = "10m"
+retry_base = "30m"
+enabled = false

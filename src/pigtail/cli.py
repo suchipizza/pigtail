@@ -67,6 +67,35 @@ def cmd_llm_status(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_llm_cache_clear(args: argparse.Namespace) -> int:
+    """CB-28: delete cached LLM outputs (all with --all --yes, or older than N days). The usage
+    ledger and pause state are kept."""
+    from pigtail.config import Settings
+    from pigtail.llm.store import LLMStore
+
+    if args.all == (args.older_than is not None):
+        print("give exactly one of --older-than DAYS or --all", file=sys.stderr)
+        return 2
+    if args.all and not (args.yes or args.dry_run):
+        print("--all deletes every cached output; re-run with --yes", file=sys.stderr)
+        return 2
+    if args.older_than is not None and args.older_than < 0:
+        print("--older-than must be >= 0", file=sys.stderr)
+        return 2
+    s = Settings.from_env()
+    store = LLMStore(s.data_dir / "llm.sqlite3", retention_days=s.llm_cache_retention_days)
+    older = None if args.all else timedelta(days=args.older_than)
+    n = store.clear(older_than=older, dry_run=args.dry_run)
+    out = {
+        "scope": "all" if args.all else f"older_than_{args.older_than}d",
+        "dry_run": args.dry_run,
+        "cache_rows_deleted" if not args.dry_run else "cache_rows_matching": n,
+        "cache_rows_left": store.cache_count(),
+    }
+    print(json.dumps(out))
+    return 0
+
+
 def _parse_hour(value: str) -> datetime:
     """`2026-09-20T00`, `2026-09-20T00:00`, or full ISO 8601; naive means UTC."""
     for fmt in ("%Y-%m-%dT%H", "%Y-%m-%dT%H:%M"):
@@ -861,11 +890,15 @@ def cmd_backup_create(args: argparse.Namespace) -> int:
     from pigtail.capture.db import CaptureDB
     from pigtail.capture.runs import RunRecorder
     from pigtail.config import Settings
-    from pigtail.privacy.backup import RECIPIENT_ENV, BackupError, create
+    from pigtail.privacy.backup import BACKUP_DIR_ENV, RECIPIENT_ENV, BackupError, create
 
     s = Settings.from_env()
     if not s.database_url:
         print("DATABASE_URL is not set", file=sys.stderr)
+        return 2
+    out_dir = args.out or os.environ.get(BACKUP_DIR_ENV, "").strip()
+    if not out_dir:
+        print(f"give --out or set {BACKUP_DIR_ENV}", file=sys.stderr)
         return 2
     db = CaptureDB.connect(s.database_url)
     try:
@@ -877,7 +910,7 @@ def cmd_backup_create(args: argparse.Namespace) -> int:
                 res = create(
                     db,
                     s.database_url,
-                    Path(args.out),
+                    Path(out_dir),
                     recipient=os.environ.get(RECIPIENT_ENV),
                     snapshot_backend=s.snapshot_backend,
                 )
@@ -1034,14 +1067,84 @@ def cmd_key_fingerprint(args: argparse.Namespace, ctx: _Ctx) -> int:
     return 0 if out["status"] != "mismatch" else 1
 
 
-def cmd_backup_prune(args: argparse.Namespace) -> int:
-    """CB-17: delete backups older than 35 days (retention-policy §2)."""
+@_privacy
+def cmd_privacy_rekey(args: argparse.Namespace, ctx: _Ctx) -> int:
+    """CB-26: rotate PSEUDONYM_KEY by re-deriving every stored pseudonym in one transaction.
+
+    The new key is `PSEUDONYM_KEY`; the old one is read from the environment variable named by
+    `--old-key-env` (never from an argument or a file). See `pigtail.privacy.rekey`."""
     from pathlib import Path
 
-    from pigtail.privacy.backup import BackupError, prune
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.privacy import rekey as rk
 
+    assert ctx.pz is not None
+    if not (args.dry_run or args.confirm_rotation):
+        raise _UsageError(
+            "rekey rewrites every stored pseudonym and switches the database to the new key."
+            " Stop every writer, take a backup, run it with --dry-run first, then re-run with"
+            " --confirm-rotation (key-rotation runbook §4)"
+        )
     try:
-        res = prune(Path(args.dir), days=args.days, dry_run=args.dry_run)
+        old = rk.old_key_from_env(args.old_key_env)
+        handles = rk.read_handles_file(Path(args.handles_file)) if args.handles_file else []
+    except ValueError as e:  # HandlesFileError too; messages never contain a key or a handle
+        raise _UsageError(str(e)) from None
+    config = {
+        "dry_run": args.dry_run,
+        "handles_file": bool(args.handles_file),  # never the path or its content
+        "purge_person_level": args.purge_person_level,
+        "drop_unmapped": args.drop_unmapped,
+        "snapshot_scan": not args.no_snapshot_scan,
+    }
+    refused: rk.RekeyRefused | None = None
+    with RunRecorder("privacy.rekey", config, sink=ctx.db.upsert_run) as run:
+        try:
+            rep = rk.rekey(
+                ctx.db,
+                ctx.store,
+                old,
+                ctx.pz,
+                handles=handles,
+                purge_person_level=args.purge_person_level,
+                drop_unmapped=args.drop_unmapped,
+                scan_snapshots=not args.no_snapshot_scan,
+                dry_run=args.dry_run,
+                llm_store=ctx.llm_store,
+                run=run,
+            )
+        except rk.RekeyRefused as e:
+            refused = e
+            run.incr("refused")
+    if refused is not None:
+        print(str(refused), file=sys.stderr)
+        if refused.report is not None:
+            print(json.dumps({"run_id": run.id, **refused.report.to_dict()}, indent=2))
+        return 2
+    print(json.dumps({"run_id": run.id, **rep.to_dict()}, indent=2))
+    if rep.committed:
+        print(
+            f"rotation committed. Unset {args.old_key_env}; keep the old key sealed until backups"
+            " taken before now have been pruned (35 days), then destroy it. Delete person-level"
+            " JSONL exports made before the rotation.",
+            file=sys.stderr,
+        )
+    return 0
+
+
+def cmd_backup_prune(args: argparse.Namespace) -> int:
+    """CB-17: delete backups older than 35 days (retention-policy §2)."""
+    import os
+    from pathlib import Path
+
+    from pigtail.privacy.backup import BACKUP_DIR_ENV, BackupError, prune
+
+    directory = args.dir or os.environ.get(BACKUP_DIR_ENV, "").strip()
+    if not directory:
+        print(f"give --dir or set {BACKUP_DIR_ENV}", file=sys.stderr)
+        return 2
+    try:
+        res = prune(Path(directory), days=args.days, dry_run=args.dry_run)
     except BackupError as e:
         print(str(e), file=sys.stderr)
         return 2
@@ -1078,6 +1181,14 @@ def build_parser() -> argparse.ArgumentParser:
     smoke.set_defaults(func=cmd_llm_smoke)
     status = llm_sub.add_parser("status", help="backend, usage ledger and pause state")
     status.set_defaults(func=cmd_llm_status)
+    cache = llm_sub.add_parser("cache", help="LLM result cache (CB-05, CB-28)")
+    cache_sub = cache.add_subparsers(dest="cache_command", required=True)
+    cc = cache_sub.add_parser("clear", help="delete cached outputs; the usage ledger is kept")
+    cc.add_argument("--older-than", type=int, metavar="DAYS", help="only rows older than DAYS")
+    cc.add_argument("--all", action="store_true", help="every cached output")
+    cc.add_argument("--yes", action="store_true", help="confirm --all")
+    cc.add_argument("--dry-run", action="store_true", help="count only; delete nothing")
+    cc.set_defaults(func=cmd_llm_cache_clear)
 
     db = sub.add_parser("db", help="database utilities")
     db_sub = db.add_subparsers(dest="db_command", required=True)
@@ -1171,6 +1282,45 @@ def build_parser() -> argparse.ArgumentParser:
         help="confirm the documented rotation procedure (key-rotation runbook §4) was followed",
     )
     kfp.set_defaults(func=cmd_key_fingerprint, _need_key=True, _key_check=False)
+    rkp = priv_sub.add_parser(
+        "rekey",
+        help="rotate PSEUDONYM_KEY: re-derive every stored pseudonym in one transaction (CB-26)",
+    )
+    rkp.add_argument(
+        "--old-key-env",
+        required=True,
+        metavar="NAME",
+        help="NAME of the environment variable holding the old key (never the key itself)",
+    )
+    rkp.add_argument(
+        "--handles-file",
+        metavar="PATH",
+        help="private file outside any git tree (mode 0600): '<platform> <handle>' and"
+        " 'repo <owner/name>' lines from the original opt-out requests",
+    )
+    rkp.add_argument(
+        "--purge-person-level",
+        action="store_true",
+        help="delete every person-level row instead of mapping it",
+    )
+    rkp.add_argument(
+        "--drop-unmapped",
+        action="store_true",
+        help="delete person-level rows whose pseudonym cannot be mapped (else: refuse)",
+    )
+    rkp.add_argument(
+        "--no-snapshot-scan",
+        action="store_true",
+        help="do not re-parse retained snapshots to map person-level rows",
+    )
+    rkp.add_argument("--dry-run", action="store_true", help="report only; roll everything back")
+    rkp.add_argument(
+        "--confirm-rotation",
+        action="store_true",
+        help="confirm the rotation procedure (key-rotation runbook §4) is being followed",
+    )
+    # the running key is the NEW key: it cannot match the stored fingerprint yet
+    rkp.set_defaults(func=cmd_privacy_rekey, _need_key=True, _key_check=False)
     ds = priv_sub.add_parser("deletion-sync", help="re-check upstream deletions (CB-02, R1.5)")
     ds.add_argument("--source", action="append", choices=("hn",), help="default: all")
     ds.add_argument("--dry-run", action="store_true", help="report only; change nothing")
@@ -1202,7 +1352,7 @@ def build_parser() -> argparse.ArgumentParser:
     bc = bk_sub.add_parser(
         "create", help="pg_dump + snapshot manifest, encrypted to BACKUP_RECIPIENT (age or gpg)"
     )
-    bc.add_argument("--out", required=True, help="output directory (never inside a git tree)")
+    bc.add_argument("--out", help="output directory (never inside a git tree; default $BACKUP_DIR)")
     bc.set_defaults(func=cmd_backup_create)
     br = bk_sub.add_parser(
         "restore", help="replace the database with a backup, then re-apply all deletions"
@@ -1212,7 +1362,7 @@ def build_parser() -> argparse.ArgumentParser:
     br.add_argument("--yes", action="store_true", help="confirm: the database is replaced")
     br.set_defaults(func=cmd_backup_restore)
     bp = bk_sub.add_parser("prune", help="delete backups older than 35 days")
-    bp.add_argument("--dir", required=True, help="backup directory")
+    bp.add_argument("--dir", help="backup directory (default $BACKUP_DIR)")
     bp.add_argument("--days", type=int, default=35, help="keep this many days (max 35)")
     bp.add_argument("--dry-run", action="store_true", help="list only; delete nothing")
     bp.set_defaults(func=cmd_backup_prune)

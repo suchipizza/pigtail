@@ -2,9 +2,11 @@
 
 Per job: last success, lag behind schedule, consecutive failures, failures in the last 24 h,
 stale flag (no success for `stale_factor` x interval). Checks: database reachable and migrated,
-object store reachable, disk usage of `PIGTAIL_DATA_DIR`, `pigtail doctor` results, and the
-deletion-sync SLA (CB-02: act within 7 days). Everything is job names, counts, times and fixed
-check texts: the report carries no personal data.
+object store reachable, disk usage of `PIGTAIL_DATA_DIR`, `pigtail doctor` results, the
+deletion-sync SLA (CB-02: act within 7 days), and the UI audit log (CB-30): failed logins in the
+last `login_window` (`ui_login_failures`, warn at `login_failures`) and snapshot hash mismatches
+in the last `integrity_window` (`snapshot_integrity`, fail on any). Everything is job names,
+counts, times and fixed check texts: the report carries no personal data.
 
 Each probe is injectable (`Probes`) so the report logic is tested without a database.
 """
@@ -130,6 +132,10 @@ def job_health(
 
 
 # --- probes ------------------------------------------------------------------------------------
+def _no_checks(_now: datetime) -> list[HealthCheck]:
+    return []
+
+
 @dataclass
 class Probes:
     stats: Callable[[Sequence[str], datetime], dict[str, JobStats]]
@@ -138,6 +144,7 @@ class Probes:
     disk: Callable[[], HealthCheck]
     doctor: Callable[[], list[HealthCheck]]
     deletion_sla: Callable[[datetime], HealthCheck]
+    ui_audit: Callable[[datetime], list[HealthCheck]] = _no_checks  # CB-30
 
 
 def disk_check(path: Path, threshold: float) -> HealthCheck:
@@ -230,6 +237,57 @@ def deletion_sla_check(
     return probe
 
 
+def ui_audit_checks(url: str | None, cfg: AlertConfig) -> Callable[[datetime], list[HealthCheck]]:
+    """CB-30: failed logins and snapshot hash mismatches recorded by the private UI
+    (`ui_audit_log`, ADR-034). Counts only: no client hash, route or evidence id."""
+
+    def probe(now: datetime) -> list[HealthCheck]:
+        if not url:
+            return []
+        import psycopg
+
+        try:
+            with psycopg.connect(url, autocommit=True, connect_timeout=5) as conn:
+                row = conn.execute(
+                    "SELECT count(*) FILTER (WHERE event = 'login_failure' AND at > %s),"
+                    " count(*) FILTER (WHERE event = 'login_rate_limited' AND at > %s),"
+                    " count(*) FILTER (WHERE event = 'snapshot_integrity_failure' AND at > %s)"
+                    " FROM ui_audit_log WHERE at > %s",
+                    (
+                        now - cfg.login_window,
+                        now - cfg.login_window,
+                        now - cfg.integrity_window,
+                        now - max(cfg.login_window, cfg.integrity_window),
+                    ),
+                ).fetchone()
+        except psycopg.errors.UndefinedTable:
+            return [HealthCheck("ui_audit", "warn", "ui_audit_log missing (pigtail db migrate)")]
+        except psycopg.Error as e:
+            return [HealthCheck("ui_audit", "warn", f"not checked: {type(e).__name__}")]
+        failed, limited, mismatch = (int(x) for x in row) if row else (0, 0, 0)
+        attempts = failed + limited
+        lw, iw = fmt_duration(cfg.login_window), fmt_duration(cfg.integrity_window)
+        login_st: Status = "warn" if attempts >= cfg.login_failures else "ok"
+        integ_st: Status = "fail" if mismatch else "ok"
+        return [
+            HealthCheck(
+                "ui_login_failures",
+                login_st,
+                f"{attempts} failed UI login attempt(s) in the last {lw} ({limited} rate-limited;"
+                f" alert at {cfg.login_failures})",
+                float(attempts),
+            ),
+            HealthCheck(
+                "snapshot_integrity",
+                integ_st,
+                f"{mismatch} snapshot hash mismatch(es) in the last {iw}",
+                float(mismatch),
+            ),
+        ]
+
+    return probe
+
+
 def default_probes(s: Settings, alerts: AlertConfig) -> Probes:
     def stats(jobs: Sequence[str], now: datetime) -> dict[str, JobStats]:
         if not s.database_url:
@@ -243,6 +301,7 @@ def default_probes(s: Settings, alerts: AlertConfig) -> Probes:
         disk=lambda: disk_check(s.data_dir, alerts.disk_percent),
         doctor=lambda: doctor_checks(s),
         deletion_sla=deletion_sla_check(s.database_url),
+        ui_audit=ui_audit_checks(s.database_url, alerts),
     )
 
 
@@ -265,6 +324,7 @@ def build_report(
         st = stats.get(spec.run_job, JobStats(job=spec.run_job))
         jobs.append(job_health(spec, st, now, cfg.alerts, scheduler_started_at))
     checks += [probes.object_store(), probes.disk(), probes.deletion_sla(now)]
+    checks += probes.ui_audit(now)
     return HealthReport(now, jobs, checks, probes.doctor(), scheduler)
 
 

@@ -19,6 +19,11 @@ what is switched on. A person-level connector switched on without the ADR-022 fl
 (it would raise `PersonSourceHold`); the ADR-022 flag itself is a `warn`, because only the
 operator can confirm its preconditions (e.g. the published notice, CB-12).
 
+Backups (CB-17b): `backup_recipient` warns while `BACKUP_RECIPIENT` is unset (no encrypted backup
+can be made); `backup_age` reports the newest `pigtail-backup-*` file in `BACKUP_DIR`: `ok` up to
+2 days old, `warn` after 2 days, `fail` after 7 days or when there is none, `warn` while
+`BACKUP_DIR` is unset (the directory may live on the host only, outside the app container).
+
 Statuses: `ok`, `warn`, `fail`, `manual` (needs an operator check). The command exits 1 on any
 `fail`, and with `--strict` also on `warn`.
 """
@@ -28,6 +33,8 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlparse
 
@@ -38,6 +45,8 @@ if TYPE_CHECKING:
 
 Status = Literal["ok", "warn", "fail", "manual"]
 GUIDE = "docs/guides/operator.md#privacy-operations"
+BACKUP_WARN_AGE = timedelta(days=2)  # CB-17b
+BACKUP_FAIL_AGE = timedelta(days=7)
 
 
 @dataclass(frozen=True)
@@ -276,7 +285,61 @@ def run_checks(
             f"run error text {s.log_retention_days} d; run `pigtail retention purge` daily",
         )
     )
-    out += source_flag_checks(s, os.environ if env is None else env)
+    e = os.environ if env is None else env
+    out += source_flag_checks(s, e)
+    out += backup_checks(e)
+    return out
+
+
+def _age(td: timedelta) -> str:
+    hours = int(td.total_seconds() // 3600)
+    return f"{hours // 24} d {hours % 24} h" if hours >= 24 else f"{hours} h"
+
+
+def backup_checks(env: Mapping[str, str], now: datetime | None = None) -> list[Check]:
+    """CB-17b: is an encryption recipient configured, and how old is the newest backup?"""
+    from pigtail.privacy.backup import BACKUP_DIR_ENV, RECIPIENT_ENV, backup_time
+
+    out: list[Check] = []
+    if (env.get(RECIPIENT_ENV) or "").strip():
+        out.append(Check("backup_recipient", "ok", f"{RECIPIENT_ENV} set (value not shown)"))
+    else:
+        out.append(
+            Check(
+                "backup_recipient",
+                "warn",
+                f"{RECIPIENT_ENV} is not set: `pigtail backup create` refuses to run (CB-17)",
+            )
+        )
+    raw = (env.get(BACKUP_DIR_ENV) or "").strip()
+    if not raw:
+        out.append(
+            Check(
+                "backup_age",
+                "warn",
+                f"{BACKUP_DIR_ENV} is not set: the age of the newest backup is unknown (CB-17b)",
+            )
+        )
+        return out
+    directory = Path(raw)
+    if not directory.is_dir():
+        out.append(Check("backup_age", "fail", f"{BACKUP_DIR_ENV} is not a directory"))
+        return out
+    times = [
+        t for p in directory.iterdir() if p.is_file() and (t := backup_time(p.name)) is not None
+    ]
+    if not times:
+        out.append(Check("backup_age", "fail", f"no backup in {BACKUP_DIR_ENV} (CB-17)"))
+        return out
+    newest = max(times)
+    age = (now or datetime.now(UTC)) - newest
+    detail = f"newest backup {newest:%Y-%m-%d %H:%M} UTC ({_age(age)} old)"
+    if age > BACKUP_FAIL_AGE:
+        out.append(Check("backup_age", "fail", f"{detail}: more than 7 days (CB-17)"))
+    elif age > BACKUP_WARN_AGE:
+        out.append(Check("backup_age", "warn", f"{detail}: more than 2 days"))
+    else:
+        out.append(Check("backup_age", "ok", detail))
     return out
 
 

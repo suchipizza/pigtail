@@ -6,12 +6,22 @@ Rules (evaluated on a `HealthReport`):
 - `db_down`, `s3_down`: database / snapshot bucket unreachable;
 - `disk_high`: `PIGTAIL_DATA_DIR` volume above `disk_percent`;
 - `doctor`: any `pigtail doctor` WARN or FAIL;
-- `deletion_sla`: deletion-sync re-checks or deletions more than 7 days late (CB-02).
+- `deletion_sla`: deletion-sync re-checks or deletions more than 7 days late (CB-02);
+- `login_failures` (CB-30): at least `login_failures` failed UI logins (rate-limited attempts
+  included) within `login_window`, from `ui_audit_log`;
+- `snapshot_integrity` (CB-30): any snapshot that failed hash verification when the UI served it
+  (`snapshot_integrity_failure` audit events) within `integrity_window`.
 
 Sink: `PIGTAIL_DATA_DIR/alerts/` on the host, never in git:
 - `ALERTS.md`: human-readable, append-only;
 - `alerts.jsonl`: the same events, structured (read by `pigtail alerts export`);
 - `state.json`: active alerts, for dedupe and throttling.
+
+Rotation (CB-31): `ALERTS.md` and `alerts.jsonl` are moved together to
+`ALERTS.<start>.md` / `alerts.<start>.jsonl` (`<start>` = time of their first event) when either
+exceeds `file_max_bytes` or the first event is older than `file_rotate_after` (never longer than
+the retention). Archives are deleted once their first event is older than the retention
+(`LOG_RETENTION_DAYS`, at most 12 months; CB-18), so no alert line is kept longer than that.
 
 Every line goes through `pigtail.logsafe.scrub` (CB-18), and messages are built from fixed
 templates that contain job names, check names, counts and times only.
@@ -34,7 +44,7 @@ import smtplib
 import ssl
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Literal
@@ -148,6 +158,18 @@ def evaluate(report: HealthReport, cfg: AlertConfig) -> list[Alert]:
         )
     if (c := checks.get("deletion_sla")) and c.status == "fail":
         out.append(Alert("deletion_sla", "deletion_sync", "critical", f"CB-02 SLA: {c.detail}"))
+    if (c := checks.get("ui_login_failures")) and c.status != "ok":
+        out.append(Alert("login_failures", "ui", "warning", f"CB-30: {c.detail}"))
+    if (c := checks.get("snapshot_integrity")) and c.status == "fail":
+        out.append(
+            Alert(
+                "snapshot_integrity",
+                "snapshots",
+                "critical",
+                f"CB-30: {c.detail}; a stored snapshot no longer matches its hash (check the"
+                " snapshot store and ui_audit_log)",
+            )
+        )
     for d in report.doctor:
         if d.status in ("warn", "fail"):
             sev: Severity = "critical" if d.status == "fail" else "warning"
@@ -238,16 +260,35 @@ Notifier = Callable[[Sequence[AlertEvent]], None]
 
 
 # --- manager ---------------------------------------------------------------------------------
+ARCHIVE_RE = re.compile(r"^(ALERTS|alerts)\.(\d{8}T\d{6}Z)(?:-(\d+))?\.(md|jsonl)$")
+ALERT_FILE_MAX_BYTES = 1_000_000
+ALERT_FILE_ROTATE_AFTER = timedelta(days=30)
+ALERT_RETENTION_MAX = timedelta(days=365)  # CB-18 / retention-policy: logs at most 12 months
+
+
+def _stamp(dt: datetime) -> str:
+    return dt.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
 class AlertManager:
     def __init__(
         self,
         directory: Path,
         repeat: timedelta = timedelta(hours=6),
         notifiers: Sequence[Notifier] = (),
+        *,
+        max_bytes: int = ALERT_FILE_MAX_BYTES,
+        rotate_after: timedelta = ALERT_FILE_ROTATE_AFTER,
+        retention: timedelta = ALERT_RETENTION_MAX,
     ) -> None:
+        if retention > ALERT_RETENTION_MAX:
+            raise ValueError("alert file retention is at most 365 days (CB-18)")
         self.dir = directory
         self.repeat = repeat
         self.notifiers = list(notifiers)
+        self.max_bytes = max_bytes
+        self.retention = max(retention, timedelta(days=1))
+        self.rotate_after = min(rotate_after, self.retention)
 
     @property
     def md_path(self) -> Path:
@@ -260,6 +301,64 @@ class AlertManager:
     @property
     def state_path(self) -> Path:
         return self.dir / "state.json"
+
+    # --- rotation (CB-31) ------------------------------------------------------------------
+    def _first_event_at(self) -> datetime | None:
+        try:
+            with self.jsonl_path.open(encoding="utf-8") as f:
+                first = f.readline()
+            return datetime.fromisoformat(str(json.loads(first)["at"]))
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
+    def archives(self) -> list[tuple[datetime, Path]]:
+        """Rotated files with the time of their first event, oldest first."""
+        out: list[tuple[datetime, Path]] = []
+        try:
+            entries = list(self.dir.iterdir())
+        except OSError:
+            return out
+        for p in entries:
+            m = ARCHIVE_RE.match(p.name)
+            if m and p.is_file():
+                at = datetime.strptime(m.group(2), "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC)
+                out.append((at, p))
+        return sorted(out, key=lambda x: (x[0], x[1].name))
+
+    def rotate(self, now: datetime) -> dict[str, list[str]]:
+        """Rotate the live files if too big or too old, then delete archives past retention."""
+        rotated: list[str] = []
+        live = [p for p in (self.md_path, self.jsonl_path) if p.exists()]
+        if live:
+            start = self._first_event_at()
+            size = max(p.stat().st_size for p in live)
+            too_old = start is not None and now - start >= self.rotate_after
+            if size >= self.max_bytes or too_old:
+                stamp = _stamp(start or now)
+                suffix = ""
+                n = 0
+                while any(
+                    (self.dir / f"{stem}.{stamp}{suffix}.{ext}").exists()
+                    for stem, ext in (("ALERTS", "md"), ("alerts", "jsonl"))
+                ):
+                    n += 1
+                    suffix = f"-{n}"
+                for path, stem, ext in (
+                    (self.md_path, "ALERTS", "md"),
+                    (self.jsonl_path, "alerts", "jsonl"),
+                ):
+                    if path.exists():
+                        target = self.dir / f"{stem}.{stamp}{suffix}.{ext}"
+                        path.replace(target)
+                        os.chmod(target, 0o600)
+                        rotated.append(target.name)
+        deleted: list[str] = []
+        cutoff = now - self.retention
+        for at, p in self.archives():
+            if at < cutoff:
+                p.unlink(missing_ok=True)
+                deleted.append(p.name)
+        return {"rotated": rotated, "deleted": deleted}
 
     def _load_state(self) -> dict[str, dict[str, Any]]:
         try:
@@ -319,6 +418,10 @@ class AlertManager:
                 )
             )
         self._save_state(state)
+        try:
+            self.rotate(now)
+        except OSError as err:  # never lose an alert over housekeeping
+            log.warning("alert file rotation failed: %s", type(err).__name__)
         if events:
             self._write(events)
             for e in events:
@@ -365,10 +468,13 @@ def export_summary(directory: Path, now: datetime, since: timedelta | None = Non
     mgr = AlertManager(directory)
     cutoff = now - since if since else None
     groups: dict[tuple[str, str], dict[str, Any]] = {}
-    try:
-        lines = mgr.jsonl_path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        lines = []
+    lines: list[str] = []
+    paths = [p for _, p in mgr.archives() if p.suffix == ".jsonl"] + [mgr.jsonl_path]
+    for path in paths:  # CB-31: rotated archives first, then the live file
+        try:
+            lines += path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
     for raw in lines:
         try:
             e = json.loads(raw)

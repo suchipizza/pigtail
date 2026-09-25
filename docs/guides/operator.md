@@ -12,7 +12,8 @@ key handling and backups, the breach runbook, the subscription-vs-api scope of t
 - [Breach response runbook](../compliance/runbooks/breach.md)
 - [`PSEUDONYM_KEY` management and rotation](../compliance/runbooks/key-rotation.md). Don't
   change the key without reading it: opt-outs stop matching. pigtail detects a changed key and
-  refuses to run (see "Pseudonym key check" under Privacy operations).
+  refuses to run (see "Pseudonym key check" under Privacy operations). Rotate with
+  `pigtail privacy rekey` ("Rotating the key" under Privacy operations).
 
 Set `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` only once those duties are met.
 
@@ -33,6 +34,16 @@ Subscription setup:
 4. Check with `uv run pigtail llm smoke` and `uv run pigtail llm status`.
 
 API mode: use zero data retention or a data processing agreement with Anthropic where available (PRD §10).
+
+**Clearing the result cache (CB-28).** Cached outputs live in `PIGTAIL_DATA_DIR/llm.sqlite3` and
+expire after `LLM_CACHE_RETENTION_DAYS` (the daily retention purge deletes them). To delete them
+sooner:
+```bash
+uv run pigtail llm cache clear --older-than 30      # outputs created more than 30 days ago
+uv run pigtail llm cache clear --all --yes          # every cached output
+uv run pigtail llm cache clear --all --dry-run      # count only
+```
+The usage ledger and pause state are kept. `privacy rekey` clears the whole cache itself.
 
 ## Services
 `docker compose up -d --wait` starts Postgres and S3-compatible object storage (SeaweedFS). Point `S3_ENDPOINT` at a private bucket in production. Default hosting region: EU or Switzerland.
@@ -192,6 +203,8 @@ Every 5 minutes the scheduler evaluates these rules (thresholds under `[alerts]`
 | `disk_high` | `PIGTAIL_DATA_DIR` volume more than 80% full |
 | `doctor` | any `pigtail doctor` check at WARN or FAIL |
 | `deletion_sla` | deletion-sync re-checks, or detected deletions, more than 7 days overdue (CB-02) |
+| `login_failures` | 10 or more failed web-app logins (rate-limited attempts included) within 1 hour, counted from `ui_audit_log` (CB-30; `login_failures`, `login_window`) |
+| `snapshot_integrity` | a snapshot failed its hash check when the web app served it within the last 24 h (CB-30; `integrity_window`). Critical: the stored bytes no longer match their hash |
 | `scheduler_dead` | the heartbeat is stale; raised by the **external** liveness check, not by the scheduler (M1-T26) |
 
 Alerts go to `PIGTAIL_DATA_DIR/alerts/` on the host: `ALERTS.md` (readable, append-only),
@@ -207,6 +220,14 @@ set, each batch is also e-mailed:
 
 E-mail is best effort: the file is always written first. On a host without the scheduler, run
 `pigtail alerts check` from cron.
+
+**Rotation and retention of the alert files (CB-31).** `ALERTS.md` and `alerts.jsonl` are moved
+together to `ALERTS.<first event time>.md` / `alerts.<first event time>.jsonl` when either file
+reaches `file_max_bytes` (default 1 MB) or its first event is older than `file_rotate_after`
+(default 30 days). Rotated files are deleted once their first event is older than
+`LOG_RETENTION_DAYS` (default and maximum 365 days, CB-18), so no alert line is kept longer
+than that. The liveness alerts under `alerts/liveness/` follow the same rules. `alerts export`
+reads the rotated files too.
 
 **Copying alerts into the repo.** `ops/ALERTS.md` is public. An agent session copies only a
 sanitized summary there:
@@ -340,6 +361,14 @@ It also reports which sources are switched on (M1-T23):
 
 Flag values and tokens are never printed.
 
+Backups (CB-17b):
+- `backup_recipient`: `WARN` while `BACKUP_RECIPIENT` is unset (`backup create` would refuse);
+- `backup_age`: the newest `pigtail-backup-*` file in `BACKUP_DIR`. `OK` up to 2 days old,
+  `WARN` after 2 days, `FAIL` after 7 days or when there is no backup (or the directory is
+  missing); `WARN` while `BACKUP_DIR` is unset. Under Docker Compose the backup directory usually
+  lives on the host only: run `pigtail doctor` on the host with `BACKUP_DIR` set, or accept the
+  `WARN` in the container.
+
 ### Pseudonym key check (CB-25, ADR-043)
 Opt-outs and stored pseudonyms are keyed hashes of `PSEUDONYM_KEY`. With a different key they
 silently stop matching: people and repos that opted out would be collected again, and erasure
@@ -368,8 +397,66 @@ uv run pigtail privacy key-fingerprint --reset --confirm-rotation
 This records the running key's fingerprint as the database's key. It writes a `runs` record
 (`privacy.key_fingerprint_reset`) and a `reset` event with the old and new fingerprints to the
 append-only `pseudonym_key_fingerprint_log`. `--reset` alone is refused. Resetting does not
-re-key existing opt-outs: do the runbook's mapping steps first. A backup restore keeps the live
-database's fingerprint (its opt-outs are keyed with the live key).
+re-key existing opt-outs: use `privacy rekey` (below) instead, which re-derives them and records
+the new fingerprint in the same transaction. A backup restore keeps the live database's
+fingerprint (its opt-outs are keyed with the live key).
+
+### Rotating the key: `privacy rekey` (CB-26)
+`privacy rekey` moves the database from the old `PSEUDONYM_KEY` to a new one in **one
+transaction**: every stored pseudonym is re-derived under the new key (or deleted), the LLM
+cache is cleared, and the key fingerprint switches to the new key last. If anything can't be
+done, nothing changes. Follow the rotation runbook (`docs/compliance/runbooks/key-rotation.md`)
+for the surrounding steps (decision record, sealed old key, backup).
+
+A pseudonym is a one-way hash of a handle, and pigtail stores no handles, so re-deriving needs the
+handle again. `rekey` gets it, only in memory, from:
+1. **your handles file** (`--handles-file`): the handles and repo names from the original opt-out
+   and erasure requests, one per line: `github <handle>`, `hn <handle>`, `bluesky <handle>`,
+   `v2ex <handle>` or `repo <owner/name>` (`#` starts a comment). It must be outside any git
+   working tree and `chmod 600`. It only maps existing entries; nothing in it is added to the
+   opt-out list. Delete it afterwards.
+2. **repo names pigtail still holds** (HN mentions, story links, the Show HN screen, the watch
+   list, `repos`), for repo-name opt-outs. These names are usually purged with the opt-out, so
+   the handles file is the main source.
+3. **retained raw snapshots**, for person-level rows (`hn_mention`, `upstream_items`,
+   `repo_event_actor`): each connector re-parses them as at ingest and pairs each old pseudonym
+   with the new one. `--no-snapshot-scan` skips this (it can be slow with many GH Archive dumps).
+
+Rules:
+- **Every opt-out must be mapped.** An opt-out (a person, or a repo by name) that can't be mapped
+  would stop matching, and collection would resume for someone who objected. So `rekey`
+  refuses, and no flag overrides this. The refusal lists each unmapped entry's kind, platform,
+  request id and date (never the pseudonym) so you can find the original request and add its
+  handle to the file. Opt-outs by repo id and legacy unkeyed name entries don't use the key and
+  stay as they are.
+- **Person-level rows that can't be mapped** make it refuse too, unless you choose
+  `--drop-unmapped` (those rows are deleted; for `upstream_items` only the author is cleared, so
+  deletion sync keeps tracking the item) or `--purge-person-level` (every person-level row,
+  mapped or not). Deletions are logged in `deletion_log` with reason `key_rotation`.
+- It refuses while other sessions are connected to the database. Stop the scheduler, the `app`
+  and `ui` services and any cron jobs first.
+
+```bash
+export OLD_PSEUDONYM_KEY=...   # the old key, only for this shell (e.g. `read -s`); never an argument
+export PSEUDONYM_KEY=...       # the new key
+uv run pigtail privacy rekey --old-key-env OLD_PSEUDONYM_KEY \
+  --handles-file /secure/rotation/handles.txt --dry-run            # report, then roll back
+uv run pigtail privacy rekey --old-key-env OLD_PSEUDONYM_KEY \
+  --handles-file /secure/rotation/handles.txt --confirm-rotation   # the rotation itself
+unset OLD_PSEUDONYM_KEY
+```
+`--old-key-env` takes the **name** of the variable, never the key. The output is JSON counts only
+(mapped and unmapped opt-outs, rows mapped or deleted per table, snapshots scanned, cache rows
+deleted) with a `privacy.rekey` run record. Neither the output nor the run record contains a key,
+a handle, a repo name or the file's path. Exit 2 means it refused and nothing changed.
+
+Afterwards: `pigtail privacy key-fingerprint` shows the new key with a `rekey` event. Backups taken
+before the rotation hold old pseudonyms: `backup restore` refuses them, and they expire with
+`backup prune` after 35 days. Keep the old key sealed until then, then destroy it. Delete JSONL
+exports made with `--include-person-level` before the rotation.
+
+No dual-key window (CB-27) is needed: the switch is atomic, and every command started afterwards
+checks the new fingerprint.
 
 ### Encryption at rest (CB-03)
 Required before production capture (ADR-022).
@@ -599,8 +686,9 @@ uv run pigtail privacy optout rekey     # CB-13b: convert pre-0009 unkeyed name 
   stored only as a **keyed** hash (`rk_…`: HMAC-SHA256 with `PSEUDONYM_KEY`, CB-13b), so the list
   can't be reversed with a dictionary of public repo names; `optout list` never shows the name.
   Matching names needs `PSEUDONYM_KEY`: a capture that finds keyed name entries but no key stops
-  (`MissingNameKey`) instead of ingesting opted-out repos. **Changing `PSEUDONYM_KEY`** orphans
-  these keys as it does pseudonyms, so re-add the names after a key rotation.
+  (`MissingNameKey`) instead of ingesting opted-out repos. **Changing `PSEUDONYM_KEY`** would
+  orphan these keys as it does pseudonyms, so rotate only with `privacy rekey`, which re-derives
+  them from the names in your handles file (or still held locally) and refuses if one is missing.
 - **Entries from before migration 0009** were unkeyed SHA-256 hashes (`rn_…`). SQL can't convert
   them, because the name isn't stored. Dropping them would resume collecting repos whose owners
   objected, so 0009 keeps them as `repo_name_unkeyed` and ingest still honours them. The migration
@@ -642,8 +730,9 @@ Backups are encrypted, kept 35 days, and a restore re-applies every deletion mad
 backup was taken (retention policy §2, §5).
 ```bash
 export BACKUP_RECIPIENT=age1...        # public key only: age (preferred) or a gpg fingerprint
-uv run pigtail backup create --out /srv/pigtail-backups
-uv run pigtail backup prune --dir /srv/pigtail-backups            # deletes files > 35 days old
+export BACKUP_DIR=/srv/pigtail-backups    # default for --out / --dir, checked by `pigtail doctor`
+uv run pigtail backup create                                       # or --out DIR
+uv run pigtail backup prune                                        # deletes files > 35 days old
 BACKUP_IDENTITY=/secure/age-key.txt \
   uv run pigtail backup restore --in /srv/pigtail-backups/pigtail-backup-20260925T030000Z.age --yes
 ```
@@ -660,6 +749,13 @@ BACKUP_IDENTITY=/secure/age-key.txt \
   §3) and never goes into a data backup.
 - Schedule `backup create` and `backup prune` daily (cron or a systemd timer). The
   object-storage replica or versioning of the snapshot bucket needs the same 35-day expiry.
+- Or, on a systemd host where the scheduler runs on the host itself (not in the app image),
+  set `enabled = true` for the `backup_create` and `backup_prune` jobs in `infra/schedule.toml`.
+  They are off by default because they need `pg_dump` and `age`/`gpg` on that host, plus
+  `BACKUP_DIR` and `BACKUP_RECIPIENT` in the scheduler's environment. If any is missing, the job
+  fails and raises `job_failing`.
+- `pigtail doctor` warns when the newest backup in `BACKUP_DIR` is older than 2 days and fails
+  after 7 days (CB-17b), so a silently stopped backup alerts.
 
 **`backup create`** writes one file, `pigtail-backup-<UTC time>.age` (or `.gpg`), mode 0600,
 with a consistent `pg_dump` of the database and a manifest (creation time, applied migrations,
@@ -675,7 +771,9 @@ scheduler first. It needs `PSEUDONYM_KEY` and, for age, the identity file (`--id
 `BACKUP_IDENTITY`; gpg uses its keyring). Steps:
 1. Check that `PSEUDONYM_KEY` matches the live database's key fingerprint (CB-25; exit 2 on a
    mismatch, nothing changed). Read the live database's `deletion_log`, opt-out list, request
-   log and key fingerprint, plus the run records they reference, before anything changes.
+   log and key fingerprint, plus the run records they reference, before anything changes. A
+   backup taken before the last `privacy rekey` is refused (CB-26): its pseudonyms are keyed with
+   the old key.
 2. Decrypt and restore the dump with `pg_restore | psql` in **one transaction** that drops and
    recreates schema `public`. The transaction commits only if decryption, `pg_restore` and
    `psql` all succeed, so a wrong key or a truncated file changes nothing.

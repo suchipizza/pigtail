@@ -44,7 +44,7 @@ PARSE_ERRORS: tuple[type[BaseException], ...] = (
     zlib.error,
 )
 
-Reason = Literal["retention", "erasure", "objection", "deleted_upstream"]
+Reason = Literal["retention", "erasure", "objection", "deleted_upstream", "key_rotation"]
 Action = Literal[
     "raw_dropped",
     "rows_deleted",
@@ -65,11 +65,16 @@ class PersonTable:
     time_column: str
     retention_days: int | None = None  # a source-specific cap below the 24-month default
     retention_class: str = "person_level_24m"  # person_level_30d rows follow its cap (CB-22)
+    # CB-26 (`pigtail privacy rekey`): what happens to a row whose pseudonym cannot be mapped to
+    # the new key (or to every row with `--purge-person-level`). `delete` the row, or `null` the
+    # pseudonym column when the row is still needed without it (e.g. deletion-sync tracking).
+    rekey_unmapped: Literal["delete", "null"] = "delete"
 
 
 PERSON_TABLES: tuple[PersonTable, ...] = (
     PersonTable("hn_mention", "author", "last_seen_at"),
-    PersonTable("upstream_items", "author_pseudonym", "last_seen_at"),
+    # rows without an author are valid (rank-poller stories): deletion sync keeps tracking them
+    PersonTable("upstream_items", "author_pseudonym", "last_seen_at", rekey_unmapped="null"),
     PersonTable(
         "repo_event_actor",
         "actor_pseudonym",

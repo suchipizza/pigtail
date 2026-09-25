@@ -34,3 +34,4 @@ One entry per session: date · session id · tasks · outcomes · cost · next.
 - 2026-09-25 CB-13c repo purge registry + schema test; CB-17 encrypted backups (age/gpg) with a restore that re-applies deletions (tested: no deleted data returns). 466 pass locally; backup tests run in CI with age + pg client 16 (verified in an Ubuntu 24.04 container). ADR-044.
 - 2026-09-25 CB-25 key fingerprint, CB-29 secret hygiene, CB-32, CB-33, CB-34 (engineer). Migration 0012. 489 tests pass. Fixed a bug where an empty opt-out list skipped the key check. ADR-045.
 - 2026-09-25 CI: gitleaks flagged synthetic test values in test_secret_hygiene (false positive); marked with gitleaks:allow; CI green.
+- 2026-09-25 CB-26 rekey (atomic re-derivation), CB-27 not needed, CB-28, CB-30, CB-31, CB-17b doctor checks (engineer). Migration 0013. 526 tests pass. ADR-046.

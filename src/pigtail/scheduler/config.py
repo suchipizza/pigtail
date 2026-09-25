@@ -10,6 +10,11 @@ stale_factor = 3             # job stale when no success for stale_factor x its 
 consecutive_failures = 3
 disk_percent = 80
 repeat = "6h"                # re-notify a still-firing alert at most this often
+login_failures = 10          # CB-30: failed UI logins (incl. rate-limited) per login_window
+login_window = "1h"
+integrity_window = "24h"     # CB-30: snapshot hash mismatches seen in the UI
+file_max_bytes = 1000000     # CB-31: rotate ALERTS.md / alerts.jsonl at this size ...
+file_rotate_after = "30d"    # ... or when their first event is this old
 
 [jobs.hn_ranks]
 kind = "command"             # command | gharchive_scan | hn_mentions
@@ -88,6 +93,13 @@ class AlertConfig:
     consecutive_failures: int = 3
     disk_percent: float = 80.0
     repeat: timedelta = timedelta(hours=6)
+    # CB-30: alert rules on the UI audit log (ui_audit_log)
+    login_failures: int = 10
+    login_window: timedelta = timedelta(hours=1)
+    integrity_window: timedelta = timedelta(hours=24)
+    # CB-31: rotation of the host alert files (retention: LOG_RETENTION_DAYS, max 12 months)
+    file_max_bytes: int = 1_000_000
+    file_rotate_after: timedelta = timedelta(days=30)
 
 
 @dataclass(frozen=True)
@@ -163,7 +175,18 @@ def parse(data: Mapping[str, Any]) -> ScheduleConfig:
         consecutive_failures=int(a.get("consecutive_failures", 3)),
         disk_percent=float(a.get("disk_percent", 80)),
         repeat=parse_duration(a.get("repeat", "6h")),
+        login_failures=int(a.get("login_failures", 10)),
+        login_window=parse_duration(a.get("login_window", "1h")),
+        integrity_window=parse_duration(a.get("integrity_window", "24h")),
+        file_max_bytes=int(a.get("file_max_bytes", 1_000_000)),
+        file_rotate_after=parse_duration(a.get("file_rotate_after", "30d")),
     )
+    if alerts.login_failures < 1:
+        raise ScheduleError("alerts.login_failures must be >= 1")
+    if alerts.file_max_bytes < 1024:
+        raise ScheduleError("alerts.file_max_bytes must be >= 1024")
+    if alerts.file_rotate_after < timedelta(days=1):
+        raise ScheduleError("alerts.file_rotate_after must be at least 1d")
     s = data.get("scheduler", {})
     return ScheduleConfig(
         jobs=jobs,

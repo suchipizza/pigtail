@@ -40,7 +40,18 @@ def _alert_manager(s: Any, cfg: Any) -> Any:
         email = None
     if email is not None:
         notifiers.append(email)
-    return AlertManager(s.data_dir / "alerts", cfg.alerts.repeat, notifiers)
+    return AlertManager(
+        s.data_dir / "alerts", cfg.alerts.repeat, notifiers, **_rotation(s, cfg.alerts)
+    )
+
+
+def _rotation(s: Any, alerts: Any) -> dict[str, Any]:
+    """CB-31: alert-file rotation and retention (LOG_RETENTION_DAYS, at most 12 months)."""
+    return {
+        "max_bytes": alerts.file_max_bytes,
+        "rotate_after": alerts.file_rotate_after,
+        "retention": timedelta(days=s.log_retention_days),
+    }
 
 
 def _key_check(s: Any) -> int | None:
@@ -250,7 +261,14 @@ def _liveness(args: argparse.Namespace, s: Any, now: Any) -> int:
                 notifiers.append(email)
         except ValueError as e:
             log.warning("alert e-mail disabled: %s", e)
-        mgr = AlertManager(s.data_dir / "alerts" / "liveness", timedelta(hours=1), notifiers)
+        from pigtail.scheduler.config import AlertConfig
+
+        mgr = AlertManager(
+            s.data_dir / "alerts" / "liveness",
+            timedelta(hours=1),
+            notifiers,
+            **_rotation(s, AlertConfig()),
+        )
         out["alert_events"] = [e.kind for e in mgr.process(alerts_for(result), now)]
     if args.json:
         print(json.dumps(out, indent=2))

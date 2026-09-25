@@ -21,6 +21,9 @@ erasure would miss their earlier rows. So the database remembers which key it wa
 - After a documented compromise rotation (runbook `key-rotation.md` §4) the operator re-records
   it with `pigtail privacy key-fingerprint --reset --confirm-rotation` (event `reset`, with a
   `runs` record `privacy.key_fingerprint_reset`).
+- `pigtail privacy rekey` (CB-26, `pigtail.privacy.rekey`) re-derives every stored pseudonym
+  under the new key and records the new fingerprint (event `rekey`, migration 0013) as the last
+  write of the same transaction.
 """
 
 from __future__ import annotations
@@ -113,25 +116,33 @@ def verify(
 
 
 def reset(
-    conn: psycopg.Connection[Any], pz: Pseudonymizer, *, run_id: str | None = None
+    conn: psycopg.Connection[Any],
+    pz: Pseudonymizer,
+    *,
+    run_id: str | None = None,
+    event: Literal["reset", "rekey"] = "reset",
 ) -> tuple[str | None, str]:
-    """Record `pz`'s key as the database's key (compromise rotation). Returns (old, new)."""
+    """Record `pz`'s key as the database's key. Returns (old, new).
+
+    `event="reset"`: a bare reset after a compromise rotation (nothing re-derived).
+    `event="rekey"`: the last step of `pigtail privacy rekey` (CB-26, migration 0013), inside the
+    caller's transaction that re-derived every stored pseudonym."""
     fp = pz.fingerprint()
     with conn.transaction():
         old = stored(conn)
         conn.execute(
             "INSERT INTO pseudonym_key_fingerprint (fingerprint, set_at, set_by, run_id)"
-            " VALUES (%s, now(), 'reset', %s) ON CONFLICT (singleton) DO UPDATE SET"
+            " VALUES (%s, now(), %s, %s) ON CONFLICT (singleton) DO UPDATE SET"
             " fingerprint = EXCLUDED.fingerprint, set_at = EXCLUDED.set_at,"
             " set_by = EXCLUDED.set_by, run_id = EXCLUDED.run_id",
-            (fp, _run_ref(conn, run_id)),
+            (fp, event, _run_ref(conn, run_id)),
         )
         conn.execute(
             "INSERT INTO pseudonym_key_fingerprint_log (event, old_fingerprint, new_fingerprint,"
-            " run_id) VALUES ('reset', %s, %s, %s)",
-            (old.fingerprint if old else None, fp, _run_ref(conn, run_id)),
+            " run_id) VALUES (%s, %s, %s, %s)",
+            (event, old.fingerprint if old else None, fp, _run_ref(conn, run_id)),
         )
-    log.warning("CB-25: pseudonym key fingerprint reset (compromise rotation)")
+    log.warning("CB-25: pseudonym key fingerprint %s (key rotation)", event)
     return (old.fingerprint if old else None, fp)
 
 

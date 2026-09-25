@@ -255,6 +255,46 @@ class LLMStore:
         with self._lock, self._db:
             return self._delete_keys(keys)
 
+    def clear(
+        self,
+        *,
+        older_than: timedelta | None = None,
+        now: datetime | None = None,
+        dry_run: bool = False,
+    ) -> int:
+        """CB-28: delete cached outputs (all, or those created more than `older_than` ago) and
+        their evidence links; returns the number of cache rows. The usage ledger and pause state
+        are kept. Used by `pigtail llm cache clear` and by a key rotation (CB-26), after which
+        cached outputs may quote pseudonyms under the old key."""
+        if older_than is not None and older_than < timedelta(0):
+            raise ValueError("older_than must be >= 0")
+        with self._lock, self._db:
+            if older_than is None:
+                n = int(self._db.execute("SELECT count(*) FROM llm_cache").fetchone()[0])
+                if not dry_run:
+                    self._db.execute("DELETE FROM llm_cache")
+                    self._db.execute("DELETE FROM llm_cache_evidence")
+                return n
+            cutoff = _ts((now or self.clock()) - older_than)
+            keys = [
+                r[0]
+                for r in self._db.execute(
+                    "SELECT key FROM llm_cache WHERE created_at <= ?", (cutoff,)
+                )
+            ]
+            if dry_run:
+                return len(keys)
+            n = self._delete_keys(keys)
+            # links whose cache row no longer exists
+            self._db.execute(
+                "DELETE FROM llm_cache_evidence WHERE key NOT IN (SELECT key FROM llm_cache)"
+            )
+            return n
+
+    def cache_count(self) -> int:
+        with self._lock:
+            return int(self._db.execute("SELECT count(*) FROM llm_cache").fetchone()[0])
+
     def purge_ledger(self, now: datetime | None = None, *, dry_run: bool = False) -> int:
         """Delete usage-ledger and pause-log rows past the retention period (policy §2)."""
         cutoff = self._cutoff(now)

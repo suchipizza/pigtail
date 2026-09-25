@@ -314,3 +314,13 @@ How to reverse: Per item, through an ADR.
 5. **CB-34.** An unparseable snapshot no longer aborts access, erasure or opt-out purges. Erasure and opt-out purges drop it if any of its evidence is person-level (deleting is the safer side), with a tombstone.
 6. **Bug fixed:** the connector base used `suppression or Suppressions()`, so an empty opt-out list was replaced and the key check silently skipped. It now uses `is not None`.
 How to reverse: Per item, through an ADR.
+
+## ADR-046 — Key rotation by re-derivation; CB-27 not needed; alert and backup operations (amends ADR-043) (2026-09-25)
+1. **`pigtail privacy rekey` (CB-26)** rotates the key in one transaction. It refuses while other database sessions are connected and locks the opt-out list, the fingerprint table and the person tables. Old→new pseudonyms are re-derived from handles the operator supplies (a file outside git, mode 0600), from repo names pigtail still holds, and from retained raw snapshots. **No opt-out may be lost:** any unmappable opt-out makes the command refuse, with no override. Unmappable person-level rows are deleted only with `--drop-unmapped` or `--purge-person-level` (logged as `key_rotation`). The LLM cache is cleared, and the fingerprint switches as the last write.
+2. **CB-27 (dual-key matching) is not needed.** The rotation is atomic and CB-25 refuses any process running with the wrong key, so there is never a mixed-key period.
+3. **Scheduled rotation may return** now that CB-26 exists (reversing ADR-043's "only after compromise"). The runbook defines the procedure.
+4. **Restore refuses backups taken before the last `rekey`,** which would bring old-key pseudonyms back. **Decision: also refuse backups taken before a bare `--reset`** (same risk; follow-up CB-35).
+5. **Alerts (CB-30, CB-31):** failed-login and snapshot-integrity rules on the UI audit log, which report counts only. Alert files rotate at 1 MB or 30 days, and archives are deleted by their first event within `LOG_RETENTION_DAYS` (≤ 365).
+6. **Backups (CB-17b):** `pigtail doctor` checks `BACKUP_RECIPIENT` and backup age (warn after 2 days, fail after 7). Optional scheduler jobs for backup create and prune ship disabled.
+7. **CB-28:** `pigtail llm cache clear`.
+How to reverse: Per item, through an ADR.

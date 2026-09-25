@@ -59,13 +59,14 @@ Before enabling Bluesky, HN or V2EX:
 - [x] [CB-08] Data-subject requests (`pigtail privacy request access|erasure`); follow-up: rectification
 - [x] [CB-13] Opt-out list enforced at ingest + purge (`pigtail privacy optout`)
 Feature-specific:
-- [ ] [CB-17b] Backup follow-ups: ship deletion_log + opt-outs off host continuously; backup container/scheduler job; doctor checks BACKUP_RECIPIENT and backup age; item-level tombstones for upstream deletions; state that the LLM cache isn't backed up (retention-policy §2)
+- [ ] [CB-35] Restore also refuses backups taken before a bare fingerprint `--reset` (ADR-046.4)
+- [~] [CB-17b] doctor backup checks + optional jobs done (ADR-046.6); still open: ship deletion_log + opt-outs off host continuously; backup container/scheduler job; doctor checks BACKUP_RECIPIENT and backup age; item-level tombstones for upstream deletions; state that the LLM cache isn't backed up (retention-policy §2)
 - [x] [CB-34] Unparseable snapshots skipped/dropped, not aborting purges
-- [ ] [CB-26] Re-derive pseudonyms and opt-outs under a new key (migration tool)
-- [ ] [CB-27] Dual-key matching during a rotation window
-- [ ] [CB-28] Command to clear the LLM cache
-- [ ] [CB-30] Alerts from the UI audit log (failed logins, integrity failures)
-- [ ] [CB-31] Rotate host alert files (ALERTS.md, alerts.jsonl)
+- [x] [CB-26] `privacy rekey` (ADR-046)
+- [x] [CB-27] Not needed: rotation is atomic (ADR-046.2)
+- [x] [CB-28] `llm cache clear`
+- [x] [CB-30] UI audit alerts
+- [x] [CB-31] Alert file rotation
 - [x] [CB-32] GHARCHIVE_RAW_RETENTION_DAYS capped at 30
 - [x] [CB-33] UI audit + sessions purged by the daily retention job
 - [x] [M3-T11] Compliance status sync done — was: CB-13c/CB-17 now implemented (ADR-044); DPIA stale statuses: CB-24 implemented, CB-19 (UI login + audit, ADR-034) implemented, CB-18 filter now on every command (ADR-040.6); LQ-30/31 added
@@ -86,6 +87,7 @@ Feature-specific:
 - [x] [CB-21] Controller duties (docs/compliance/controller-duties.md + operator guide link)
 
 ## Next
+- [ ] [M3-T13] Runbook + retention-policy §3.5: document `privacy rekey`, scheduled rotation allowed again (ADR-046); DPIA statuses CB-26/27/28/30/31
 - [x] [M3-T12] done (runbook v0.2) — Update key-rotation runbook for CB-25 commands (reset after building the old-key mapping; §0/§2/§3/§6 statements now outdated) and DPIA/README statuses for CB-25/29/32/33/34
 - [x] [M3-T10] Outcome spec updated (μ_h, calibration pointer, H-sealed cells, HN minutes; ADR-041) — was: state μ_h = μ_d/24 in §2.1; point §5.4 and §9 to the calibration pre-registration; §3.3 note that after the freeze H-sealed is excluded from cell populations (ADR-039.5)
 - [ ] [M4-T5] Day-zone check after the 2026-11-01 DST change before unitizing bursts for the pilot
