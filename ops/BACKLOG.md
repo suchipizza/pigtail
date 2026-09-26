@@ -12,6 +12,7 @@ v2 plan (ADR-047/048/049). Format: `- [ ] [ID] title — depends on — acceptan
 - [ ] [CB-06b] Finish LLM-path redaction (gists, avatar URLs, bare handles in author fields): with CB-12, the remaining precondition for person-level sources (ADR-022 as amended by ADR-073.2)
 
 ## Next
+- [ ] [OPS-1] Backups: `pigtail backup` should check that `pg_dump`/`pg_restore`/`psql` match the server's major version (a newer client writes settings an older server rejects, e.g. `transaction_timeout`); document installing the matching client (`brew install postgresql@16`) in the operator guide; scheduler job for weekly backups to BACKUP_DIR
 - [ ] [M21-G] roles-v2 (no cross-platform name matching, ADR-075.3); brief schema v1.3 renames `fake_star_filter` → `exclude_anomaly_flagged` (ADR-075.2)
 - [ ] [M21-F] M21 follow-ups: fold the briefs archive into the single backup stream; rename `person_level_24m` and the pseudonym-key tables; remove the keyed-cache search in privacy requests after old caches expire; Bluesky deletion sync without stored authors; R19.10 cache purge; compliance-template rewrite (§9); codebook §4.2 account definition; README 'Responsible use' (§8.8)
 - [ ] [M12-F] M12 follow-ups: scan blocks expansion proposal files (top-level brief_id + expansion); CLI edit refuses files without `version:` unless forced; stale estimate-v0 / brief-v1 labels

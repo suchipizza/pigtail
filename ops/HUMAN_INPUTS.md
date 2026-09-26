@@ -14,7 +14,7 @@ Required:
 - [x] **Spend limits set on that key in the Anthropic Console** — confirmed by the owner 2026-09-26 (matches the monthly API cap).
 - [x] GitHub token (fine-grained, read-only public data) — set in the local `.env`, verified 2026-09-26 (full rate limit)
 - [x] FileVault on — verified 2026-09-26 with `fdesetup status`
-- [~] **Encrypted local backup location** — owner chose an external drive (2026-09-26). Still to do: set `BACKUP_DIR` to the drive's path and `BACKUP_RECIPIENT` to an age public key, then run a first `pigtail backup create` (the briefs directory is included from M21).
+- [x] **Encrypted local backup location** — done 2026-09-26: external drive folder, age key pair created (private key kept in the owner's home directory, outside the repo and the drive), first backup created and test-restored into a throwaway database (counts matched). **Owner: keep a copy of the private backup key in a password manager.**
 - [x] Claude subscription login for the agents (`AGENT_BACKEND=subscription`) — verified by agent 2026-09-25 with `claude auth status`
 
 Optional:
@@ -22,7 +22,7 @@ Optional:
 - [ ] SMTP / e-mail for alerts and the weekly status
 
 Other open items carried over (not gates under Directive §10; defaults apply):
-- [ ] Key for the opt-out HMAC fingerprint (today `PSEUDONYM_KEY`; ADR-071.1), generated on the machine and backed up **separately** from the data (e.g. `openssl rand -hex 32`)
+- [x] Key for the opt-out HMAC fingerprint (`OPTOUT_KEY`, ADR-071.1) — generated 2026-09-26 and stored in the local `.env` only (not in the database or git). **Owner: keep a copy in a password manager; losing it breaks opt-out matching (CB-25).**
 - [ ] Optional: Reddit API app and data-access approval. Until approval, Reddit is metadata only (Directive §8.4, ADR-066.4).
 - [ ] Codebook/methodology licence: MIT (default, matches the repo) or CC BY 4.0
 
@@ -62,3 +62,7 @@ No findings, data or reports leave your instance, and there is no public mode, u
 ## Brief fields to confirm in the shortlist review  [generic item — Directive §4 generic rule, ADR-062]
 When brief #1 runs, any brief field that is missing gets a default, and any reference case whose repo can't be resolved is left open. **Neither blocks the run.** They are listed in the shortlist review screen (`/briefs/:id/shortlist`) for you to confirm or correct. This file only records that such a list exists; the fields and their values stay in your private brief (`~/.pigtail/briefs`) and never appear here.
 - [ ] Confirm or correct the defaulted brief fields and unresolved reference cases in the shortlist review of brief #1.
+
+## Owner to-do (not urgent)
+- [ ] Send the GitHub Support request to purge cached views of the commits removed by the 2026-09-26 history rewrite (text in the chat of 2026-09-26; see ops/history-rewrite-2026-09-26.md). Owner considers it low priority.
+- [x] Email provider for the privacy notice: Google Workspace (confirmed 2026-09-26).
