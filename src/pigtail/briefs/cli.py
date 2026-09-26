@@ -837,7 +837,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     if args.json:
         _json(out)
     else:
-        print(f"\n{outcome.status}: {outcome.message}")
+        from pigtail.briefs.preregistration import EXIT_NOT_PREREGISTERED
+
+        # a refused selection leaves the run as it was: say "refused", not the run's status
+        head = "refused" if outcome.exit_code == EXIT_NOT_PREREGISTERED else outcome.status
+        print(f"\n{head}: {outcome.message}")
         if outcome.brief_run_id:
             print(f"brief run: {outcome.brief_run_id}")
     if outcome.exit_code not in (0,):

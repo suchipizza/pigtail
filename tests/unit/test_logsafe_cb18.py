@@ -103,3 +103,4 @@ def test_adr_076_6_http_client_request_urls_are_not_logged():
     configure_logging(logging.INFO)
     assert not logging.getLogger("httpx").isEnabledFor(logging.INFO)
     assert logging.getLogger("httpx").isEnabledFor(logging.WARNING)
+    assert not logging.getLogger("httpx2").isEnabledFor(logging.INFO)
