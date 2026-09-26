@@ -530,7 +530,7 @@ Replaces chat reference: none (new in the directive; ADR-073.3, Directive §11).
 2. **Bot filtering** runs in memory. The outcome is stored on the coded record ("automated account" plus the version of the rule that flagged it), so results stay reproducible without the handle.
 3. **Brief storage outside git:** the default briefs directory moves to `~/.pigtail/briefs` (configurable) and is included in the encrypted backup. The CI check that blocks committed brief files stays (it exists; it is extended). A synthetic example brief ships in the repo.
 4. **Privacy notice:** published in a **separate repo on GitHub Pages**, because it describes the owner's instance, not the tool. It contains: the controller (the owner), a dedicated contact alias (not her personal email), purpose, sources, what is and isn't stored (roles and buckets, no handles), retention (§8.2), legal basis, how to opt out or object, and US processing. **The draft is shown to the owner before publication (H5).** The pigtail repo keeps the generic template.
-5. **Git history:** brief-specific names and wording were pushed in commits b5367a2, 9f3778d, 3c14f1f, 0330bd4 and 952a0ad. A history rewrite waits for the owner's decision.
+5. **Git history:** brief-specific content pushed on 2026-09-26 was removed by an owner-approved history rewrite (0 forks), done the same day. See `ops/history-rewrite-2026-09-26.md`.
 
 ## ADR-072 — Applying Owner Directive 001 to the documents: interpretations (2026-09-26)
 1. **Milestone IDs:** WORK_ORDER never reuses IDs, so M13–M19 are retired and the directive's 8 steps are **M20–M27** (D4 = M28). STATE and BACKLOG are remapped.
