@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -217,10 +218,13 @@ def make_guard(
     approved_paid: bool = False,
     month_cap_usd: float | None = None,
     spent_usd: float = 0.0,
+    brief_ledger: Callable[[], float] | None = None,
 ) -> BudgetGuard:
     """A `BudgetGuard` on this install's usage ledger, with the client's explicit overrides.
     `spent_usd` is what the brief has already spent (cost ledger); `month_cap_usd` defaults to
-    `BUDGET_USD_MONTH`."""
+    `BUDGET_USD_MONTH`. `brief_ledger` re-reads the brief's API total from the cost ledger
+    before every money check, as the runner's guard does (ADR-078.6), so spend recorded after
+    the guard was built (another run, another tab) counts."""
     if month_cap_usd is None:
         from pigtail.config import Settings
 
@@ -232,6 +236,7 @@ def make_guard(
         approved_paid=approved_paid,
         spent_usd=spent_usd,
         overrides=dict(client.overrides),
+        brief_ledger=brief_ledger,
     )
 
 

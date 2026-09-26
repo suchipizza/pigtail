@@ -1,6 +1,6 @@
 # pigtail — Work Order for Autonomous Agents
 
-Version 2.1 · Audience: Claude Code (the orchestrator session) and its subagents.
+Version 2.2 · Audience: Claude Code (the orchestrator session) and its subagents.
 Mission: build pigtail as specified in `docs/PRD.md` (v2.2), and deliver the pages and artifacts defined in `docs/DELIVERABLES.md` (D1–D3 and D5–D7 in v1; D4 in v2). pigtail ships a **method, not data**: every user runs their own instance with their own credentials. The owner is the first user, and her project's neighbourhood is the pilot. Work end to end with **minimal human supervision**.
 Repository: https://github.com/suchipizza/pigtail. It is **public**, MIT-licensed and on the `main` branch. Everything committed is visible to the world.
 Binding source for v2.1: `ops/OWNER_DIRECTIVE_001.md` (Owner Directive 001, public copy) and ADR-059 to ADR-073. ADR-070 and ADR-071 are the owner's later decisions and override the directive where they differ; ADR-072 and ADR-073 record how it is applied.
@@ -9,6 +9,7 @@ Binding source for v2.1: `ops/OWNER_DIRECTIVE_001.md` (Owner Directive 001, publ
 
 | Version | Date | Change |
 |---|---|---|
+| 2.2 | 2026-09-26 | New milestone **M23b — Outcome connectors** between M23 (pilot) and the owner's second report (§4.5; ADR-080): the owner's first report ranks on attention because adoption and community have no connector yet. |
 | 2.1 | 2026-09-26 | Owner Directive 001 applied (Directive §0.3). Milestone plan re-ordered into the directive's 8 steps (Directive §11, ADR-069): the v2.0 milestones M13–M19, none of them started, are retired and replaced by **M20–M27** (with D4 as M28); M11 and M12 stay accepted (§4.5, with a mapping table). Human gates replaced by Directive §10 / ADR-068 (§5). Agents stay on the owner's subscription at ≤ ~50% of the weekly allowance; product calls use `api` (§2; Directive §6.1–6.2, §6.4; ADR-064). Hard rules gain: no handles stored, publishing disabled, brief content never in git (§6; Directive §8, ADR-066, ADR-071.3). Definition of done aligned with the directive's acceptance (§10). M20 verifier fixes: reports stay private and `docs/reports/pilot.md` / `final.md` are withdrawn (§4, §6, M23, M24, §8, §10; ADR-073.1); M23 depends on CB-12 and CB-06b for person-level sources (ADR-073.2); M26 depends on M24 for the R17.5 cases; M2-T3 obsolete (ADR-070.4). |
 | 2.0 | 2026-09-26 | Re-planned per ADR-047 (CR-002: brief-driven neighbourhood analysis) and ADR-048 (CR-001: batch runs on the owner's Mac, launch mode, evidence-decay study). M0, M2 and M3 are accepted history. M1 and M4 are closed as partly superseded (§4.2). M5–M10 are retired. New milestones M11–M19; the next major milestone is M15, the first end-to-end neighbourhood report on the owner's project (the pilot). Gates G1 and G2 are retired. H1 and H3 are redefined. The definition of done follows ADR-048.4. |
 | 1.0 | 2026-09-25 | Global collection, mechanism library, M0–M10. The full text is in git history (for example `git show archive/global-collection:docs/WORK_ORDER.md`); the tag `archive/global-collection` marks the code before the re-scope. |
@@ -168,6 +169,7 @@ The directive's eight steps, in order. Tracks can overlap; the dependencies list
 | 2. Cleanup and privacy | **M21** | M11 (accepted; its code part is done, ADR-051); cost-estimator part of M12 |
 | 3. Brief feature | **M22** | M12 (accepted); M13; the run core of M14 |
 | 4. Owner brief #1, pilot | **M23** | first half of M15 |
+| (4b) Outcome connectors (ADR-080) | **M23b** | — (new; adoption and community data) |
 | 5. Owner brief #1, full run | **M24** | second half of M15 |
 | 6. D3 plan | **M25** | M16 |
 | 7. Launch mode and D5 tracking | **M26** | launch-mode, scheduling and ops parts of M14; M17 |
@@ -203,6 +205,15 @@ The directive's eight steps, in order. Tracks can overlap; the dependencies list
 - Until CB-12 and CB-06b are done, the pilot runs on project-level sources only and records the person-level sources as gaps (ADR-073.2).
 - The pilot report, the cost report's case detail and the decay results stay in the instance's private data directory and are backed up; `ops/COSTS.md` and `ops/STATUS.md` carry totals and per-case averages only (ADR-073.1).
 - **Accept when:** the pre-registration was pushed before the outcome data was examined; the 5 cases are double-coded with per-field α; the cost report and projection are written; the decay measurement is reported (and any cadence change is an ADR); the verifier signs off.
+
+#### M23b — Outcome connectors (adoption and community data) · depends on: M23 (pilot); **must ship before the owner's second report** (ADR-080)
+- Why: ADR-077.2 left every adoption and community metric `unknown` (`no_connector`), so a brief that ranks on them, or sets a minimum on them, gets no winners. The owner's first report ranks on attention (owner decision 2026-09-26); her second report and any user brief ranking on adoption or community need this milestone.
+- **npm downloads** (`adopt.downloads@90/@365` for npm packages): the downloads API, cleared (TM-08); chunked ranges, a descriptive User-Agent, far below 5M requests a month.
+- **crates.io downloads**: cleared with conditions (TM-09): the index, crate content, RSS and dumps before the API; API at ≤ 1 request per second with a contact User-Agent; the dumps' `users` table dropped at ingest.
+- **`comm.returning_external_contributors@90/@365`** (and `comm.external_authors@90`) from GitHub pull requests with the operator's own token: authors are counted in memory against the maintainer set and only counts are stored (no handles, Directive §8.1, ADR-066.1); bots excluded by the stored bot outcome (ADR-071.2).
+- **Optional, off by default:** PyPI downloads via BigQuery (TM-07; paid, `optional_sources.bigquery`) stays off under the owner's USD 0 cap for paid services other than the API (ADR-072.4; enabling it needs H6); deps.dev dependents (TM-12; `adopt.dependents@*`), BigQuery for history and the API for point lookups only.
+- Each connector: package-to-repo mapping recorded with its rule, snapshot-or-drop, the source matrix and retention policy updated, `unknown` (never imputed) where a project has no package; the selection's per-dimension "undetermined" counts drop accordingly.
+- **Accept when:** on synthetic fixtures, a brief ranking on adoption (npm or crates.io) and one ranking on community get winners and matched losers with every value traced to a snapshot; PyPI and deps.dev stay off unless enabled; no handle is stored (search of the stored data); the verifier signs off.
 
 #### M24 — Owner brief #1: full run (step 5) · depends on: M23; projection within the cap (else H6)
 - The full run within the API cap; the brief report (the per-brief D2) with per-field α, the sensitivity check, transferability labels, absolute numbers and loser contrasts.

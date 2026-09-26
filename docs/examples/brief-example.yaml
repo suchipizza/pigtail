@@ -41,15 +41,19 @@ window:
   months: 18               # 12-18 (ADR-047.1)
 
 success:
-  primary: adoption
+  # Ranks on attention (GitHub stars, Show HN points): the only dimension with a data source
+  # today. Adoption (npm, crates.io, PyPI downloads; deps.dev dependents) and community
+  # (returning external contributors) have no connector until the outcome-connectors milestone
+  # (M23b, docs/WORK_ORDER.md §4.5); a brief that ranks on them, or sets a minimum on them,
+  # gets no winners until then (every value is `unknown`, reason `no_connector`; ADR-077.2).
+  primary: attention
   primary_threshold: top_quartile
-  minimums:
-    attention: at_least_median
+  minimums: {}             # no minimum on a dimension without data (see above)
   fallbacks:
-    no_measurable_adoption: use_community_as_primary_and_flag
+    no_measurable_adoption: use_community_as_primary_and_flag   # used only when adoption ranks
     too_few_winners:
       min_winners: 10
-      steps: [relax_primary_to_top_third, drop_attention_minimum]
+      steps: [relax_primary_to_top_third]   # a drop_<dim>_minimum step needs that minimum
 
 own_audience:              # reach bands only (none, r1 < 1k, r2 < 10k, r3 < 100k, r4, unknown)
   channels:

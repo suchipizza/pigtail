@@ -133,6 +133,7 @@ class Candidate:
     rubric_version: str | None = None
     relevance: dict[str, Any] | None = None
     judged_at: datetime | None = None
+    carried_from_version: int | None = None  # copied from this version's final shortlist
 
     @property
     def is_named(self) -> bool:
@@ -160,13 +161,14 @@ class Candidate:
             "rubric_version": self.rubric_version,
             "relevance": self.relevance,
             "judged_at": self.judged_at,
+            "carried_from_version": self.carried_from_version,
         }
 
 
 _COLS = (
     "candidate_ref, repo_full_name, panel, repo_host_id, repo_id, named_index, resolution,"
     " resolution_rule, matches, sources, metadata, first_seen_at, last_seen_at, verdict, reason,"
-    " distance, model_panel, rubric_version, relevance, judged_at"
+    " distance, model_panel, rubric_version, relevance, judged_at, carried_from_version"
 )
 
 
@@ -192,6 +194,7 @@ def _row(r: Any) -> Candidate:
         rubric_version=r[17],
         relevance=r[18],
         judged_at=r[19],
+        carried_from_version=r[20],
     )
 
 

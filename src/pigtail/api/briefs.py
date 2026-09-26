@@ -315,6 +315,7 @@ def make_router(
             approved_paid=body.approve_paid,
             month_cap_usd=month_cap_usd,
             spent_usd=PgCostLedger(conn).brief_total(brief_id),
+            brief_ledger=lambda: PgCostLedger(conn).brief_total(brief_id),  # ADR-078.6
         )
         try:
             proposal = propose_expansion(s.brief, client, guard)

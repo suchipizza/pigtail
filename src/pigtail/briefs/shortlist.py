@@ -30,6 +30,11 @@ holds for it (`repos`, other candidate rows); one added by URL whose id is still
 checked again when its metadata arrives (`outcomes.fetch_outcome_data`), before any fetch, and
 `forget` removes it from the brief version.
 
+**Carry-forward** (ADR-079, `pigtail.briefs.carry`): a final shortlist can be copied to a later
+version of the same brief whose edit changes only `success.*`, `panel.*`, `report.*`, `notes` or
+store metadata. The copied decisions keep their original role, channel, reason, bulk marker and
+time, so the precision label is the source's, followed by "carried from vN".
+
 **Mention scope** (Directive §8.3): while in review, the proposed and accepted repos are
 `in_review` entries of `brief_shortlist_entry`; finalizing writes the final set as `final` and
 marks everything else of this version `removed` (`pigtail.capture.scope.set_entries`). Evidence
@@ -167,7 +172,8 @@ class Shortlist:
     def status(self) -> dict[str, Any] | None:
         cur = self.conn.execute(
             "SELECT status, created_at, brief_run_id, finalized_at, finalized_role, finalized_via,"
-            " precision FROM brief_shortlist WHERE brief_id = %s AND brief_version = %s",
+            " precision, carried_from_version, carried_reason FROM brief_shortlist"
+            " WHERE brief_id = %s AND brief_version = %s",
             (self.brief_id, self.version),
         )
         row = cur.fetchone()
@@ -250,6 +256,10 @@ class Shortlist:
             label = "mixed reviewers: " + ", ".join(sorted(roles))
         if on_verdict and len(on_verdict) < len(decided):
             label += f"; {len(on_verdict)} of {len(decided)} by bulk action, not item-reviewed"
+        st = self.status()
+        carried = st["carried_from_version"] if st else None
+        if carried is not None:  # the source version's decisions, copied (ADR-079)
+            label += f"; carried from v{carried}"
         value = len(kept) / len(decided) if decided else None
         return {
             "value": None if value is None else round(value, 4),
@@ -263,6 +273,7 @@ class Shortlist:
             "bulk_on_filter_verdict": len(on_verdict),
             "item_reviewed": len(decided) - len(on_verdict),
             "rubric_versions": sorted({c.rubric_version for c in relevant if c.rubric_version}),
+            "carried_from_version": carried,
             "definition": (
                 "accepted among field-panel candidates the filter judged relevant and the "
                 "reviewer decided on (R4.7); named projects excluded; decisions from a bulk "

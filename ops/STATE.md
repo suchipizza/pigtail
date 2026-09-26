@@ -10,8 +10,9 @@ resumed: 2026-09-26 after CR-001/CR-002 (ADR-047/048); work locally, no server
 | M0, M2, M3, M11, M12 | accepted | — |
 | M20 Documents per Owner Directive 001 | **accepted** (2026-09-26) | — |
 | M21 Cleanup and privacy | **accepted** (2026-09-26) | — |
-| M22 Discovery, relevance, shortlist review, selection (outcome sort, matched losers, balance, sensitivity), `pigtail run --brief` | in progress (round-2 fixes done, ADR-078; awaiting verifier round 3) | outcome connectors and the live acceptance run wait for the owner |
+| M22 Discovery, relevance, shortlist review, selection (outcome sort, matched losers, balance, sensitivity), `pigtail run --brief` | in progress (round-2 fixes done, ADR-078; follow-ups: shortlist carry-forward ADR-079, example ranks on attention ADR-080; awaiting verifier round 3) | the live acceptance run waits for the owner |
 | M23 Owner brief #1 pilot (5 cases, cost projection, evidence decay) | not started | M22; CB-12 (H5) and CB-06b for person-level sources |
+| M23b Outcome connectors (npm, crates.io, returning contributors; PyPI/deps.dev optional) | not started (ADR-080) | M23; before the owner's second report |
 | M24 Owner brief #1 full run and report | not started | M23, cost within cap |
 | M25 D3 plan | not started | M24 |
 | M26 Launch mode + D5 | not started | M22; M24 (R17.5 validation cases) |

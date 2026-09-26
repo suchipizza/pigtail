@@ -22,6 +22,12 @@ from the LLM cache and in-flight batches are collected by their stored batch ids
 being submitted and paid for again (the batch store is keyed on the run id, which is why a
 resume keeps it). A Postgres advisory lock per brief keeps two runs of one brief apart.
 
+**Carried-forward versions** (ADR-079, `pigtail brief shortlist carry-forward`): a version
+whose final shortlist was copied from an earlier version has a `carried_forward` run row with
+discovery, relevance and shortlist marked done (`carried_from` = the source version's run, whose
+window end it keeps). It counts as complete: the next run on it runs only the selection, after
+the pre-registration, on that same row.
+
 **Idempotent.** Candidates are upserted, verdicts are only computed for candidates without one
 under the current rubric, and a brief version whose run is complete is not run again unless
 `--incremental` asks for a refresh: a new run (`resumed_from` the last one) whose discovery only
@@ -73,7 +79,7 @@ EXIT_BUSY = 6
 EXIT_PREREG = EXIT_NOT_PREREGISTERED  # 7: the selection needs a pre-registration (R8.2)
 
 RESUMABLE = ("planned", "running", "waiting_batch", "paused_budget", "failed")
-COMPLETE = ("awaiting_review", "succeeded")
+COMPLETE = ("awaiting_review", "succeeded", "carried_forward")  # carried: ADR-079
 
 
 def utcnow() -> datetime:

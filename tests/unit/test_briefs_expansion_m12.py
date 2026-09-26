@@ -263,6 +263,30 @@ def test_r15_11_monthly_cap_stops_the_expansion_before_the_call(store):
     assert ei.value.kind == "money"
 
 
+def test_adr_078_6_make_guard_rereads_the_brief_ledger_before_the_call(store):
+    """Round-2 left-open item: the expansion's guard, like the runner's, re-reads the brief's
+    API total from the cost ledger at the check, so spend recorded after the guard was built
+    counts (here: another run spent the cap in between)."""
+    d = example_data()
+    d["budget"]["llm_backend"] = "api"
+    brief = store.save_version(validate_brief(d))[0].brief
+    client = make_client(
+        [], api=[copy.deepcopy(FAKE_OUTPUT)], default_backend="api",
+        models={"synthesis": "claude-opus-5-5"},
+    )  # fmt: skip
+    ledger = {"usd": 0.0}
+    guard = make_guard(
+        client, brief, approved_paid=True, month_cap_usd=10**6, spent_usd=0.0,
+        brief_ledger=lambda: ledger["usd"],
+    )  # fmt: skip
+    assert guard.brief_ledger is not None
+    ledger["usd"] = brief.budget.money_usd  # spent elsewhere after the guard was built
+    with pytest.raises(BudgetStop) as ei:
+        propose_expansion(brief, client, guard)
+    assert ei.value.kind == "money"
+    assert client.backends["api"].calls == []  # type: ignore[attr-defined]
+
+
 def test_r15_8_expansion_runs_in_the_synthesis_stage_as_a_standard_call(store):
     brief = store.get("example-config-linter").brief
     client = make_client([copy.deepcopy(FAKE_OUTPUT)], models={"synthesis": "synth-model"})

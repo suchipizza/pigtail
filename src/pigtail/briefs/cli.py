@@ -20,6 +20,10 @@
                                                              review decisions (R4.7), bulk by filter
     pigtail brief shortlist add ID URL --reason R [--panel P] [--resolves named:reference:0]
     pigtail brief shortlist finalize ID [--as ROLE]         mark the shortlist final
+    pigtail brief shortlist carry-forward ID [--from N] [--to M] --as ROLE --reason R [--json]
+                                                             copy a final shortlist to a version
+                                                             that changes only success, panel,
+                                                             report or notes (ADR-079)
     pigtail brief preregister ID --print-hashes [--json]     SHA-256 values to paste into the
                                                              pre-registration (no brief content)
     pigtail brief preregister ID --file PATH [--commit SHA]  record the pre-registration (R8.2)
@@ -576,6 +580,8 @@ def cmd_expand(args: argparse.Namespace) -> int:
             approved_paid=args.approve_paid,
             month_cap_usd=s.budget_usd_month,
             spent_usd=_brief_spent(s, brief.brief_id),
+            # re-read before every money check (ADR-078.6), like the runner's guard
+            brief_ledger=lambda: _brief_spent(s, brief.brief_id),
         )
         proposal = propose_expansion(brief, client, guard)
     except BudgetStop as e:
@@ -989,6 +995,79 @@ def cmd_shortlist(args: argparse.Namespace) -> int:
     return EXIT_USAGE
 
 
+def cmd_carry_forward(args: argparse.Namespace) -> int:
+    """ADR-079: copy a final shortlist to a later version of the same brief."""
+    import psycopg
+
+    from pigtail.briefs.carry import CarryError, carry_forward
+
+    s = _settings()
+    if not s.database_url:
+        print("DATABASE_URL is not set", file=sys.stderr)
+        return EXIT_USAGE
+    store = _store()
+    try:
+        to_v = args.to_version or store.latest_version(args.brief_id)
+        target = store.get(args.brief_id, to_v).brief
+    except (BriefNotFound, BriefInvalid) as e:
+        print(str(e), file=sys.stderr)
+        return EXIT_INVALID
+    conn = psycopg.connect(s.database_url, autocommit=True)
+    try:
+        from_v = args.from_version
+        if from_v is None:  # the newest earlier version with a final shortlist
+            row = conn.execute(
+                "SELECT max(brief_version) FROM brief_shortlist WHERE brief_id = %s"
+                " AND brief_version < %s AND status = 'final'",
+                (args.brief_id, to_v),
+            ).fetchone()
+            from_v = row[0] if row else None
+            if from_v is None:
+                print(
+                    f"no earlier version of {args.brief_id} has a final shortlist (before v{to_v})",
+                    file=sys.stderr,
+                )
+                return EXIT_INVALID
+        try:
+            source = store.get(args.brief_id, from_v).brief
+        except (BriefNotFound, BriefInvalid) as e:
+            print(str(e), file=sys.stderr)
+            return EXIT_INVALID
+        try:
+            res = carry_forward(conn, source, target, reason=args.reason, reviewer=args.role)
+        except CarryError as e:
+            print(str(e), file=sys.stderr)
+            return EXIT_INVALID
+    finally:
+        conn.close()
+    if args.json:
+        _json(res.to_dict())
+        return 0
+    p = res.precision
+    val = "n/a" if p["value"] is None else f"{p['value'] * 100:.0f} %"
+    print(
+        f"carried the final shortlist of {res.brief_id} v{res.from_version} to "
+        f"v{res.to_version} (run {res.brief_run_id}, carried_forward): {res.candidates} "
+        f"candidates, {res.decisions} decisions, {res.shortlisted} repos on the final shortlist; "
+        f"precision {val} ({p['label']})"
+    )
+    print(f"fields changed: {', '.join(res.changed_fields) or 'none'}")
+    if res.dropped_refused:
+        print(
+            f"dropped {res.dropped_refused} repo(s) now on the refusal list (CB-13)"
+            + (
+                f"; {res.unconfirmed_named} named project(s) to confirm again"
+                if res.unconfirmed_named
+                else ""
+            )
+        )
+    print(
+        f"next: pre-register v{res.to_version} (pigtail brief preregister {res.brief_id} "
+        f"--print-hashes), then pigtail run --brief {res.brief_id} runs only the selection"
+    )
+    return 0
+
+
 def _add_shortlist_commands(bs: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     sp = bs.add_parser("shortlist", help="shortlist review (R4.7): show, decide, add, finalize")
     ss = sp.add_subparsers(dest="shortlist_command", required=True)
@@ -1036,6 +1115,24 @@ def _add_shortlist_commands(bs: argparse._SubParsersAction[argparse.ArgumentPars
     common(p)
     role(p)
     p.set_defaults(func=cmd_shortlist)
+    p = ss.add_parser(
+        "carry-forward",
+        help="copy a final shortlist to a later version that changes only success, panel, "
+        "report or notes (ADR-079)",
+    )
+    p.add_argument("brief_id")
+    p.add_argument(
+        "--from", dest="from_version", type=int,
+        help="source version (default: the newest earlier version with a final shortlist)",
+    )  # fmt: skip
+    p.add_argument("--to", dest="to_version", type=int, help="target version (default: latest)")
+    p.add_argument(
+        "--as", dest="role", choices=["user", "owner", "verifier"], required=True,
+        help="role logged with the carry-forward",
+    )  # fmt: skip
+    p.add_argument("--reason", required=True, help="why (logged with every carried decision)")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_carry_forward)
 
 
 # --- pigtail brief selection (R4.3, R4.8, R4.9; ADR-077) ---------------------------------------

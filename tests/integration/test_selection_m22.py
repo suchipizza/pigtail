@@ -102,8 +102,8 @@ def test_selection_runs_after_finalize_on_the_same_run_and_stores_provenance(w, 
     by = {c["repo_full_name"]: c for c in v["cases"]}
     assert by["org-z/schema-checker"]["is_reference"] is True
     assert by["org-z/showcase-engine"]["role"] == "exemplar"
-    # the example brief ranks on adoption, which has no connector yet: nothing is invented,
-    # every anchored field candidate is undetermined and the report says so
+    # the example brief ranks on attention (owner decision 2026-09-26): adoption and community
+    # have no connector until M23b, so their values stay unknown and are never imputed
     for c in v["cases"]:
         d = c["detail"]
         if d["anchor"] is not None:
@@ -111,7 +111,8 @@ def test_selection_runs_after_finalize_on_the_same_run_and_stores_provenance(w, 
         assert d["star_anomaly"]["label"] == "unfiltered, anomaly-checked"
     assert sel["summary"]["counts"]["winners"] == 0
     assert any("fewer winners than the minimum" in x for x in sel["summary"]["warnings"])
-    assert sel["summary"]["undetermined_by_dimension"]["adoption"] >= 1
+    assert sel["summary"]["final_definition"]["primary"] == "attention"
+    assert sel["summary"]["undetermined_by_dimension"]["adoption"] == 0  # not in the definition
     fetched = w.conn.execute("SELECT count(DISTINCT repo_host_id) FROM star_history_fetch")
     assert fetched.fetchone()[0] >= 6
     # star-history evidence is linked to the run for retention (R19.9)

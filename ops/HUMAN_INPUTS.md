@@ -63,6 +63,9 @@ No findings, data or reports leave your instance, and there is no public mode, u
 When brief #1 runs, any brief field that is missing gets a default, and any reference case whose repo can't be resolved is left open. **Neither blocks the run.** They are listed in the shortlist review screen (`/briefs/:id/shortlist`) for you to confirm or correct. This file only records that such a list exists; the fields and their values stay in your private brief (`~/.pigtail/briefs`) and never appear here.
 - [ ] Confirm or correct the defaulted brief fields and unresolved reference cases in the shortlist review of brief #1.
 
+## Briefs that rank on adoption or community  [NOTE — ADR-080; no action needed]
+Adoption (registry downloads, dependents) and community (returning external contributors) have no data connector yet: every value is `unknown` and never imputed, so **a brief whose primary dimension, or a minimum, is adoption or community gets no winners** until milestone **M23b (outcome connectors)** ships. Your first report ranks on attention (your decision of 2026-09-26), and the example brief now does too. M23b comes after the pilot (M23) and before your second report: npm and crates.io downloads and returning contributors from GitHub pull requests; PyPI via BigQuery (paid, off under your USD 0 cap for other paid services) and deps.dev dependents stay optional. If you change only the success definition of a brief whose shortlist is final, `pigtail brief shortlist carry-forward` reuses that shortlist (ADR-079).
+
 ## Owner to-do (not urgent)
 - [ ] Send the GitHub Support request to purge cached views of the commits removed by the 2026-09-26 history rewrite (text in the chat of 2026-09-26; see ops/history-rewrite-2026-09-26.md). Owner considers it low priority.
 - [x] Email provider for the privacy notice: Google Workspace (confirmed 2026-09-26).

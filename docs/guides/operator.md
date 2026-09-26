@@ -296,7 +296,10 @@ run with this stage alone. It makes no model call.
   Registry downloads, dependents, contributor metrics and business signals have no connector
   yet and are `unknown` (reason `no_connector`); a value is never imputed. A brief whose primary
   dimension or thresholds use those metrics therefore gets **no winners** until the connectors
-  exist, and the result says how many candidates each dimension left undetermined.
+  exist, and the result says how many candidates each dimension left undetermined. The
+  connectors (npm and crates.io downloads, returning external contributors from GitHub pull
+  requests; PyPI via BigQuery and deps.dev dependents optional) are milestone **M23b**
+  (ADR-080); until then rank on attention, as the example brief does.
 - **Anchor T** per candidate: its first Show HN launch post, or the first star burst
   (`velocity-v0`) in the window, by the outcome model's rule (§2.2). A value whose horizon hasn't
   passed (`T + k + 3 days`) is `pending`. A candidate without an anchor can't be sorted.
@@ -348,7 +351,33 @@ whose run is complete is not run again (except for the selection, which the same
 once the shortlist is final); `--incremental` starts a refresh run that adds repos
 created since the last discovery, judges only new candidates and keeps your decisions (a final
 shortlist returns to review only when new candidates need a decision). Editing the brief creates
-a new version with its own candidates and review.
+a new version with its own candidates and review, unless you carry the shortlist forward.
+
+**Carrying a final shortlist forward to a new version (ADR-079).** An edit that changes only
+the success definition (primary dimension, threshold, minimums, fallback steps), the `panel`
+settings, the `report` options or the notes doesn't change discovery, the relevance filter or
+your review, so you don't need to run and review again:
+```bash
+uv run pigtail brief shortlist carry-forward my-project --as owner --reason "only success changed"
+uv run pigtail brief shortlist carry-forward my-project --from 4 --to 5 --as owner --reason "..." [--json]
+```
+`--to` defaults to the latest version and `--from` to the newest earlier version with a final
+shortlist. It is refused unless the source shortlist is final, the target version has no
+candidates, decisions or shortlist yet, and the two versions differ only in `success.*`,
+`panel.*`, `report.*`, `notes` or store metadata (anything else, such as `field.*`, `window.*`,
+`expansion` or `distribution_exemplars`, is listed and refused: run the brief instead). It
+copies, in one step: every candidate with its verdict, reason, distance and provenance (marked
+`carried_from_version`); each candidate's latest decision as a new logged decision of the target
+version that keeps the original role, channel, reason, bulk marker and time and adds your role,
+reason and time and the source version; and the named-project resolutions and confirmations.
+It then finalizes the target shortlist with the same members and writes its mention scope. The
+precision keeps the source's label (including `not item-reviewed` or `not reviewed`) followed by
+"carried from vN". The refusal list is checked again: a repo refused since then is dropped and
+counted (a named project confirmed as that repo goes back to unresolved). The target gets a run
+row with status `carried_forward` that points at the source's run and keeps its window end; it
+counts as complete, so after you **pre-register the new version** (its content hash changed),
+`pigtail run --brief my-project` runs only the selection on it. A second carry-forward to the
+same version is refused.
 
 ## LLM backend (`LLM_BACKEND`, PRD F15)
 **Redaction on the LLM path (CB-06; ADR-066 follow-up, M21b, ADR-074).** Before any input leaves the
