@@ -9,8 +9,8 @@ resumed: 2026-09-26 after CR-001/CR-002 (ADR-047/048); work locally, no server
 |---|---|---|
 | M0, M2, M3, M11, M12 | accepted | — |
 | M20 Documents per Owner Directive 001 | **accepted** (2026-09-26) | — |
-| M21 Cleanup and privacy (handle model, snapshot purge, API wiring, per-stage models, cost estimator, briefs dir) | in progress | — |
-| M22 Discovery, relevance, shortlist review, `pigtail run --brief` | not started | M21 |
+| M21 Cleanup and privacy | **accepted** (2026-09-26) | — |
+| M22 Discovery, relevance, shortlist review, `pigtail run --brief` | in progress | — |
 | M23 Owner brief #1 pilot (5 cases, cost projection, evidence decay) | not started | M22; CB-12 (H5) and CB-06b for person-level sources |
 | M24 Owner brief #1 full run and report | not started | M23, cost within cap |
 | M25 D3 plan | not started | M24 |
