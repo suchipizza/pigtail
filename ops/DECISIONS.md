@@ -450,3 +450,62 @@ How to reverse: Per item, through an ADR.
 4. **Estimate** is now `estimate-v1` (supersedes ADR-055.4's `estimate-v0`). Its per-unit figures are still placeholders until measured.
 Also fixed: a time-dependent test (`due_case_repos` now takes an injectable clock).
 How to reverse: Per item, through an ADR.
+
+# Owner Directive 001 (2026-09-26): one ADR per section
+Source: `ops/OWNER_DIRECTIVE_001.md` (public copy, §4 redacted by owner decision; the full copy is private). Chat references: CR-001 = batch runs (ADR-048), CR-002 = brief-based research (ADR-047, which the owner called "ADR-004"), CR-003 = legal mitigations (this directive, §8–§9). The directive is binding and supersedes conflicting text in PRD, DELIVERABLES, WORK_ORDER and CLAUDE.md.
+
+## ADR-059 — Directive §1: project framing
+pigtail is a personal project for now: no service, no customers, no findings leave the owner's instance. Distribution follows the Crawl4AI model: open-source code, method, templates and docs that each user installs and runs with their own credentials and data. No data and no hosted service ship. Nothing in the code is owner-specific. Confirms ADR-047.
+
+## ADR-060 — Directive §2: brief-based research
+Brief fields and the per-brief flow as in §2.1–2.3 (confirms ADR-047, ADR-055, ADR-058). Every report records the brief version, shortlist decisions, data version **and code commit**. Cuts as in ADR-047.3. Findings are per-brief patterns showing n, the loser contrast and counterexamples.
+
+## ADR-061 — Directive §3: success definition and matching
+Confirms ADR-047.2 (primary dimension plus minimums; weights advanced only; PRD §5.3 amended), ADR-053.2 (fallbacks), and ADR-054.1 (exact match on audience bucket and launch half-year; SMD < 0.25 as a target; > 0.5 excluded from headline patterns). Every report includes the sensitivity check.
+
+## ADR-062 — Directive §4: the owner's first brief (content private)
+Per the owner's option (b), §4's content lives only in the owner's private brief: the field panel, widening steps, distribution exemplars, reference cases, audience and channels. The generic rules are public (ADR-054.3, ADR-057). Missing brief fields get defaults and are listed in `ops/HUMAN_INPUTS.md` (generically) for confirmation in the shortlist review. Unresolved reference cases never block a run.
+
+## ADR-063 — Directive §5: collection model
+Confirms ADR-048 and ADR-049.1 (batch runs `pigtail run --brief <id> [--incremental]`; 7-day default, 1–8 weeks; ceiling ≤ 60 days derived from per-source history windows; launch mode; D5 weekly; launchd; server optional). Confirms ADR-051 (archive tag; global code deleted; poller, scheduler and per-repo collectors kept). The **purge of cached data that no brief references**, once the first brief's shortlist is final, is logged. GH Archive is used for discovery signals only. §5.3's "stargazer timestamps" is **not implementable** (GitHub restricted them on 2026-06-30); the owner accepted daily counts instead (ADR-070). Evidence-decay study as ADR-048.3.
+
+## ADR-064 — Directive §6: LLM backends, models and cost (supersedes ADR-023 and ADR-053.1 for product calls)
+1. **Product LLM calls use `LLM_BACKEND=api`** (the owner's Anthropic API key, Commercial Terms, verified 2026-09-26). The `subscription` backend stays in the code for other users, documented as individual, non-commercial use on the operator's own plan through the official CLI only, with a pointer to Anthropic's terms.
+2. **Agents building pigtail** stay on the owner's subscription (`AGENT_BACKEND=subscription`), using at most ~50% of the weekly allowance, with pause and resume; never an automatic backend switch.
+3. **Models:** relevance filter `claude-haiku-4-5-20251001`; extraction and coding `claude-sonnet-5`; synthesis, report and plan `claude-opus-5-5`. All three are visible on the owner's key (checked 2026-09-26). The **Batch API** is used for every stage that isn't time-sensitive; launch mode may use standard calls. Prompt caching covers the codebook and system prompts. Evidence is cut down before sending (truncation, deduplication, relevant excerpts). Model IDs and prompt versions are logged with every output.
+4. **Budget:** API hard cap USD 150 for the owner's first full brief and USD 200 per month. After the first 5 pilot cases, the cost per case and a projection go in `ops/COSTS.md` and `ops/STATUS.md`; if the projection exceeds the cap, stop and raise H6. Other paid services USD 0 (BigQuery free tier only; Trendshift and X off). A cost estimate is shown before every run (CLI and UI). Brief schema: `budget.money_usd` covers the API cap plus other paid services; `budget.subscription_share` now applies to agents only.
+
+## ADR-065 — Directive §7: quality and pre-registration
+Confirms ADR-047.7 and ADR-050: double coding with adjudication, Krippendorff's α per field, "low reliability" below 0.70 (also on findings resting on such fields), and the optional owner calibration (H3) or the "LLM-coded, not human-validated" label. Old pre-registrations are withdrawn by amendment, not deleted (done: ADR-049.5). Brief-level hypotheses are pre-registered before the outcome data they test is examined.
+
+## ADR-066 — Directive §8: privacy and legal mitigations (supersedes the pseudonymized-handle model of ADR-030/042/045 for coded data)
+1. **Code, then discard identities:** spread-graph nodes are roles and buckets (maintainer, account by follower bucket, newsletter, community, organization). Handles and personal names are never stored in coded data; organizations and projects may be named. The pseudonymized-handle scheme is replaced; existing data is migrated, then the handles and pseudonyms are purged. Kept: an HMAC fingerprint only for people who opted out (ADR-071).
+2. **Time-limited snapshots:** raw snapshots are stored locally, encrypted at rest (FileVault), and kept until the brief's report is final **plus 12 months**. Then they're deleted, keeping the coded facts and the content hash. A scheduled purge job writes a log. Snapshot-or-drop applies at coding time.
+3. **Minimal collection:** mentions of **shortlisted projects only**; no sweeps of users or accounts; no follower lists.
+4. **Sources:** official APIs only, rate limits with margin, deletions honoured. Reddit is metadata only (link, title, score, timestamp) until API approval. Trendshift off by default.
+5. **Outputs:** snapshots are never reproduced; at most one short attributed excerpt per source.
+6. **Publishing (H4) is disabled.** No findings, data or reports leave the instance. The repo holds only code, docs, templates and synthetic fixtures. The CI private-data scan stays.
+7. **LLM processing:** API mode only, under the data processing agreement in the Commercial Terms. The compliance docs record that inference happens in the US.
+8. **Distribution safeguards:** no data and no default targets ship; the protections are on by default; a "Responsible use" section goes in the README and operator guide (each user is the controller of their own instance). MIT licence unchanged.
+
+## ADR-067 — Directive §9: compliance documents
+`docs/compliance/` becomes a **template**: a one-page LIA, a short privacy notice, a light DPIA, a retention policy matching §8.2, and a terms memo per source. The owner's completed pack is the first filled-in copy, kept outside git. `docs/compliance/LEGAL_REVIEW_H2.md` is narrowed to three questions (legitimate interest and GDPR Art. 3(2)(b); whether a public notice under Art. 14(5)(b) is enough; Reddit terms, only if Reddit is used beyond metadata). The Anthropic questions (LQ-1 to LQ-3) are closed, because product calls run on the API. H2 blocks publishing only, and publishing is disabled.
+
+## ADR-068 — Directive §10: human gates
+H1: Anthropic API key with Console spend limits (✓ key verified 2026-09-26; spend limits to be confirmed by the owner), GitHub token (✓), FileVault (✓), an encrypted local backup location, and the Claude subscription login for agents (✓); optional BigQuery (free tier) and SMTP. H2: the narrowed legal consult (collection continues under the mitigations). H3: optional calibration (~2 h). **H4: publishing disabled** until the owner revokes the directive. H5: no external action without approval (the privacy-notice publication falls under H5). H6: no spend above the ADR-064 caps.
+
+## ADR-069 — Directive §11: milestone re-plan
+Order: (1) documents, with the verifier's consistency check; (2) cleanup and privacy (ADR-051 done; §8.1 migration and handle purge; §8.2 purge job; `LLM_BACKEND=api` wiring; cost estimator); (3) brief feature (M12 done; discovery, relevance filter and shortlist review remain); (4) owner brief #1 pilot: the first 5 cases end to end with double coding, then the cost report and projection and the evidence-decay measurement; (5) full brief #1 run within the cap: report with per-field α, sensitivity check and transferability labels; (6) D3 plan; (7) launch mode and D5 before the owner's first launch; (8) operator guide: a new user runs a first brief in under an hour. Acceptance as in the directive. The WORK_ORDER milestones M13–M19 are renumbered accordingly.
+
+## ADR-070 — Daily star counts, day-level attribution, launch-mode star polling, aggregate anomaly checks (owner decision; resolves the directive's §5.3 conflict)
+1. **Stars** come from `GET /repos/{owner}/{repo}/stargazers/history` (daily net counts). Resolution is **daily**.
+2. **Trigger attribution** uses the timestamps on HN, Reddit and Bluesky posts. Attributions that rely on daily star data are labelled **"day-level"**.
+3. **Launch mode** polls each tracked repo's current star count every 3 h (hourly on launch day), to build an intra-day curve from now on. It can't be reconstructed afterwards. D1's hourly star lanes exist only for launch-mode cases.
+4. **Fake-star filtering:** methods that inspect individual stargazer accounts (StarScout-style) no longer work for repos we don't own. They are replaced by **aggregate anomaly checks**: star spikes with no matching forks, issues, downloads or external mentions, and odd stars-to-activity ratios. Star metrics are labelled **"unfiltered, anomaly-checked"**. The outcome model, codebook and literature notes are updated; `analysis-params` gets an anomaly-check section in a new version.
+
+## ADR-071 — Opt-out fingerprints, bot flags on coded records, brief storage, privacy-notice publication (owner decisions)
+1. **Opt-out fingerprint:** an HMAC with a secret key stored separately from the data. It is used only to exclude and purge that person in future runs, and is described in the privacy notice.
+2. **Bot filtering** runs in memory. The outcome is stored on the coded record ("automated account" plus the version of the rule that flagged it), so results stay reproducible without the handle.
+3. **Brief storage outside git:** the default briefs directory moves to `~/.pigtail/briefs` (configurable) and is included in the encrypted backup. The CI check that blocks committed brief files stays (it exists; it is extended). A synthetic example brief ships in the repo.
+4. **Privacy notice:** published in a **separate repo on GitHub Pages**, because it describes the owner's instance, not the tool. It contains: the controller (the owner), a dedicated contact alias (not her personal email), purpose, sources, what is and isn't stored (roles and buckets, no handles), retention (§8.2), legal basis, how to opt out or object, and US processing. **The draft is shown to the owner before publication (H5).** The pigtail repo keeps the generic template.
+5. **Git history:** brief-specific names and wording were pushed in commits b5367a2, 9f3778d, 3c14f1f, 0330bd4 and 952a0ad. A history rewrite waits for the owner's decision.
