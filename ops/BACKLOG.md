@@ -167,3 +167,4 @@ Feature-specific:
 - [x] [M0-T3] docker compose: Postgres 16 + SeaweedFS S3 + bucket init; verified locally (2026-09-25)
 - [x] [M0-T4] `LLMClient` with subscription and api backends, cache, usage ledger, limit pause/resume, per-job overrides, redaction; subscription structured-output smoke test passed (2026-09-25)
 - [x] [M0-T5] Private-data scan (CI + pre-commit) with tests; ops files; H1 raised (2026-09-25)
+- [ ] M22-P — precision label: when every decision on a filter verdict comes from one bulk action on that same verdict, label precision "not item-reviewed" instead of "<role>-checked" (R4.7; owner brief v5 showed 100 % after a bulk accept). Also: the web page should say why Finalize is disabled (n undecided).
