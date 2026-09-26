@@ -92,3 +92,14 @@ def test_cb18_run_error_is_scrubbed_and_truncated():
     assert "user0004" not in err and "example.org" not in err
     assert err.startswith("RuntimeError: row from @[handle]")
     assert len(err) <= RUN_ERROR_MAX_CHARS + 40
+
+
+def test_adr_076_6_http_client_request_urls_are_not_logged():
+    """Request URLs (queries can carry brief text) stay out of INFO logs."""
+    import logging
+
+    from pigtail.logsafe import configure_logging
+
+    configure_logging(logging.INFO)
+    assert not logging.getLogger("httpx").isEnabledFor(logging.INFO)
+    assert logging.getLogger("httpx").isEnabledFor(logging.WARNING)

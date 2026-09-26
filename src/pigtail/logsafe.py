@@ -83,6 +83,9 @@ def configure_logging(level: int = logging.INFO) -> None:
     """`logging.basicConfig` plus the CB-18 filter on every root handler. Idempotent."""
     logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     logging.captureWarnings(True)  # warnings.warn() text goes through the filter too
+    # HTTP clients log every request URL at INFO; queries can carry brief text (ADR-076.6)
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(max(level, logging.WARNING))
     install()
 
 
