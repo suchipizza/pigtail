@@ -121,7 +121,9 @@ def job_health(
         lag = max(0.0, (now - (st.last_success_at + spec.every)).total_seconds())
     if base is None:
         return JobHealth(spec, st, "never_run", False, lag, since)
-    stale = now - base > spec.every * alerts.stale_factor
+    # A launch-mode-only job (ADR-049.1) is idle between scheduled runs by design: only its
+    # failures count until M14 makes staleness launch-mode aware.
+    stale = not spec.launch_mode_only and now - base > spec.every * alerts.stale_factor
     if stale or st.consecutive_failures >= alerts.consecutive_failures:
         status = "fail"
     elif st.consecutive_failures > 0:
@@ -361,12 +363,10 @@ def parse_days(value: str) -> int:
 
 
 def history(conninfo: str, cfg: ScheduleConfig, days: int, now: datetime) -> dict[str, Any]:
-    """Per UTC day: scheduler runs per job (succeeded/failed/skipped), GH Archive hours covered
-    (ok + missing out of 24), HN rank polls; plus the streak of complete scan days.
+    """Per UTC day: scheduler runs per job (succeeded/failed/skipped) and HN rank polls.
 
-    A day counts toward the streak when all 24 GH Archive hours were scanned (status `ok` or
-    `missing` upstream) and at least one scheduled `gharchive_scan` run succeeded that day.
-    Today is excluded (incomplete by definition, the scan lags ~2 h).
+    The HN rank poller runs once per scheduled run and continuously only in launch mode
+    (ADR-049.1), so days with few polls are expected outside launch mode, not a failure.
     """
     import psycopg
 
@@ -374,8 +374,7 @@ def history(conninfo: str, cfg: ScheduleConfig, days: int, now: datetime) -> dic
     first = today - timedelta(days=days)
     start = datetime(first.year, first.month, first.day, tzinfo=UTC)
     per_day: dict[date, dict[str, Any]] = {
-        first + timedelta(days=i): {"jobs": {}, "gharchive_hours": 0, "hn_rank_polls": 0}
-        for i in range(days + 1)
+        first + timedelta(days=i): {"jobs": {}, "hn_rank_polls": 0} for i in range(days + 1)
     }
     with psycopg.connect(conninfo, autocommit=True, connect_timeout=5) as conn:
         rows = conn.execute(
@@ -390,47 +389,27 @@ def history(conninfo: str, cfg: ScheduleConfig, days: int, now: datetime) -> dic
             key = "skipped" if skipped else status
             j = per_day[d]["jobs"].setdefault(job.removeprefix("scheduler."), {})
             j[key] = j.get(key, 0) + int(n)
-        for table, col, key in (
-            ("gharchive_hours", "hour", "gharchive_hours"),
-            ("hn_rank_poll", "observed_at", "hn_rank_polls"),
-        ):
-            try:
-                got = conn.execute(
-                    f"SELECT ({col} AT TIME ZONE 'UTC')::date, count(*) FROM {table} "
-                    f"WHERE {col} >= %s GROUP BY 1",
-                    (start,),
-                ).fetchall()
-            except psycopg.errors.UndefinedTable:
-                got = []
-            for d, n in got:
-                if d in per_day:
-                    per_day[d][key] = int(n)
-    scan_job = next((j.name for j in cfg.jobs if j.kind == "gharchive_scan"), "gharchive_scan")
-    out_days = []
-    for d in sorted(per_day):
-        info = per_day[d]
-        scans_ok = int(info["jobs"].get(scan_job, {}).get("succeeded", 0))
-        complete = d < today and info["gharchive_hours"] >= 24 and scans_ok > 0
-        out_days.append({"date": d.isoformat(), "scan_day_complete": complete, **info})
-    streak = 0
-    for day in reversed([x for x in out_days if x["date"] < today.isoformat()]):
-        if not day["scan_day_complete"]:
-            break
-        streak += 1
-    return {"days": out_days, "scan_streak_days": streak, "generated_at": now.isoformat()}
+        try:
+            got = conn.execute(
+                "SELECT (observed_at AT TIME ZONE 'UTC')::date, count(*) FROM hn_rank_poll "
+                "WHERE observed_at >= %s GROUP BY 1",
+                (start,),
+            ).fetchall()
+        except psycopg.errors.UndefinedTable:
+            got = []
+        for d, n in got:
+            if d in per_day:
+                per_day[d]["hn_rank_polls"] = int(n)
+    out_days = [{"date": d.isoformat(), **per_day[d]} for d in sorted(per_day)]
+    return {"days": out_days, "generated_at": now.isoformat()}
 
 
 def render_history(h: dict[str, Any]) -> str:
-    lines = ["date        scan-day  gha-hours  hn-polls  jobs (succeeded/failed/skipped)"]
+    lines = ["date        hn-polls  jobs (succeeded/failed/skipped)"]
     for d in h["days"]:
         jobs = ", ".join(
             f"{name} {v.get('succeeded', 0)}/{v.get('failed', 0)}/{v.get('skipped', 0)}"
             for name, v in sorted(d["jobs"].items())
         )
-        mark = "yes" if d["scan_day_complete"] else "no"
-        lines.append(
-            f"{d['date']}  {mark:<8}  {d['gharchive_hours']:>9}  {d['hn_rank_polls']:>8}  "
-            f"{jobs or '-'}"
-        )
-    lines.append(f"consecutive complete scan days (excluding today): {h['scan_streak_days']}")
+        lines.append(f"{d['date']}  {d['hn_rank_polls']:>8}  {jobs or '-'}")
     return "\n".join(lines)

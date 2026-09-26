@@ -41,10 +41,22 @@ res.output, res.provenance()  # store the provenance with every coded record (R7
   namespace) so @mentions get the same pseudonyms the connector stores, and `evidence_id=` so the
   cache row is purged with its source (CB-05).
 
+## Direction since M11 (ADR-047, ADR-048, ADR-049)
+pigtail is brief-driven: a user's research brief defines a neighbourhood, and runs are batch runs
+on the operator's own machine plus launch mode. There is no global collection any more. M11
+removed the 50k-repo watch list (`capture/github_watch.py`), the all-GitHub search sweeps and
+screens (`capture/github_screens.py`), the GH Archive velocity scan and its backfill
+(`capture/velocity.py`, `capture/gharchive_backfill.py`), detection v1
+(`capture/detection_v1.py`), the held-out split and H-sealed guard (`pigtail.analysis.split`)
+and the settle-lag collection (`capture/settle_lag.py`), with their CLI commands, scheduler jobs
+and tables (migration 0014). They are in the git tag `archive/global-collection`; don't bring
+them back without an ADR. New code is scoped to a brief or a tracked project: take the repos or
+queries as input, never enumerate GitHub. The full rewrite of this guide comes with M12/M14.
+
 ## Capture layer (M1)
 ```bash
 uv run pigtail db migrate                       # forward-only SQL in migrations/, tracked in schema_migrations
-PSEUDONYM_KEY=… uv run pigtail capture scan --start 2026-09-20T00 --end 2026-09-21T00
+uv run pigtail scheduler run --once             # one batch run of the jobs in infra/schedule.toml
 ```
 - Records follow `schemas/v0/*.schema.json`; `pigtail.capture.models` mirrors them (a test checks both).
 - Connectors subclass `pigtail.connectors.base.Connector`: declare `terms`, rate limit, `handle_fields`;
@@ -66,22 +78,26 @@ PSEUDONYM_KEY=… uv run pigtail capture scan --start 2026-09-20T00 --end 2026-0
   Operator commands: docs/guides/operator.md "Privacy operations".
 - A table with a shorter cap than 24 months sets `PersonTable.retention_days` and
   `retention_class` (e.g. `repo_event_actor`: 30 days, `person_level_30d`, CB-22).
-- **GitHub (M1-T24, ADR-032).** `pigtail.connectors.github` has two connectors on one HTTP
-  layer (`GitHubAPI`): `github` (project-level: GraphQL counts, Search, star history) and
-  `github_events` (person-level per-repo events; off, ADR-022 hold). The layer adds the token
-  (`GITHUB_TOKEN`, `MissingToken` without it), per-resource rate-limit buckets, primary/secondary
-  rate-limit handling, conditional requests (`fetch_conditional`, ETag cache `github_http_cache`)
-  and budget hard stops (`pigtail.connectors.github_budget`: hourly caps from a shared ledger, job
-  caps, server reserve). `Connector.requires_env` makes scheduler jobs skip with
-  `missing_env:<VAR>`. Capture code: `capture/github_watch.py` (watch list, selection policy,
-  GraphQL batches), `capture/github_screens.py` (Search slicing under the 1,000-result cap, HN /
-  Show HN, GH Archive), `capture/star_history.py` (endpoint day labels, never converted to UTC),
-  `capture/detection_v1.py` (candidates from hourly counts, star-history baseline with the
-  velocity-v0 statistics on days, agreement with v0), `capture/repo_events.py` (events polling,
-  aggregate-only bot filter), CLI in `capture/github_cli.py`. Tests run against
-  `tests/github_fake.py` (httpx `MockTransport`): no network and no real token in tests.
-  `repo_event_actor` may only be read in aggregate (`tests/unit/test_github_privacy_m1t24.py`
-  enforces this); never add a function, command or API path that lists a repo's stargazers.
+- **GitHub (M1-T24, ADR-032; per-repo since M11).** `pigtail.connectors.github` has two
+  connectors on one HTTP layer (`GitHubAPI`): `github` (project-level: GraphQL, Search, star
+  history) and `github_events` (person-level per-repo events; off, ADR-022 hold). The layer adds
+  the token (`GITHUB_TOKEN`, `MissingToken` without it), per-resource rate-limit buckets,
+  primary/secondary rate-limit handling, conditional requests (`fetch_conditional`, ETag cache
+  `github_http_cache`) and budget hard stops (`pigtail.connectors.github_budget`: hourly caps
+  from a shared ledger, job caps, server reserve). `Connector.requires_env` makes scheduler jobs
+  skip with `missing_env:<VAR>`. Capture code: `capture/star_history.py` (endpoint day labels,
+  never converted to UTC; `due_case_repos` for `star-history --cases`),
+  `capture/github_search.py` (`search_repos`: pages one caller-supplied query under the
+  1,000-result cap and drops each page's raw bytes after parsing, for brief-scoped discovery in
+  M13), `capture/repo_events.py` (events polling for live cases, aggregate-only bot filter), CLI
+  in `capture/github_cli.py`. Tests run against `tests/github_fake.py` (httpx `MockTransport`):
+  no network and no real token in tests. `repo_event_actor` may only be read in aggregate
+  (`tests/unit/test_github_privacy_m1t24.py` enforces this); never add a function, command or
+  API path that lists a repo's stargazers.
+- **GH Archive connector.** `connectors/gharchive.py` is kept, unused by any job, for
+  brief-restricted discovery signals in M13 (ADR-047.1; since mid-2025 the dumps are nearly
+  push-events only, so stars and forks come from the GitHub API, ADR-047.8). Raw dumps stay
+  under `GHARCHIVE_RAW_RETENTION_DAYS`.
 - **Drop at parse (CB-23b, CB-24).** Person-level pages that are only parsed for project-level
   fields (HN rank items, GitHub search pages, per-repo events) are dropped with
   `pigtail.privacy.deletion.drop_after_parse` right after parsing. A page that fails to parse is
@@ -92,52 +108,31 @@ PSEUDONYM_KEY=… uv run pigtail capture scan --start 2026-09-20T00 --end 2026-0
 - **Repo opt-outs by name (M1-T23, CB-13b).** Besides `<host>:<id>`, the refusal list holds
   keyed `repo_name_key(owner/name, pz)` hashes (`rk_…`: HMAC-SHA256 with `PSEUDONYM_KEY`,
   namespace `repo_name`). Check `Suppressions.name_suppressed(full_name)` wherever a repo is known
-  only by name (HN stories, mentions, watch-list nominations). `suppression.load(db, pz)` binds
+  only by name (HN stories, mentions, search results). `suppression.load(db, pz)` binds
   the key (default: `PSEUDONYM_KEY` from the environment) and raises `MissingNameKey` when keyed
   entries exist but no key does. Never write an unkeyed hash: `legacy_repo_name_key` exists only
   to match and convert rows from before migration 0009 (`repo_name_unkeyed`), and the database
   refuses new ones.
-- **settle_lag collection (M4-T4, K2).** `capture/settle_lag.py`, `capture github settle-lag`,
-  job `gh_settle_lag`. Schedule rows are `settle_lag_schedule`. Every fetch version goes to the
-  append-only `star_history_settle_obs` table; `repo_star_daily` keeps only the latest. Only
-  repos whose cases are all in the calibration split are enrolled.
 - Tests marked `db` / `s3` use the compose services and skip if they are unreachable
   (`PIGTAIL_REQUIRE_DB=1` / `PIGTAIL_REQUIRE_S3=1` make them fail instead). CI sets both and
   starts the compose `objectstore` (SeaweedFS) and `objectstore-init` services for the python
   job (M1-T20).
 
-## Holdout split and the H-sealed guard (M4-T4)
-`pigtail.analysis.split` implements the threshold-calibration pre-registration §1.1 exactly:
-`m = int(sha256("pigtail-outcome-holdout-v1" + case_id), 16) % 100`. `m >= 30` is
-`calibration`, `m < 20` is `h_eval`, and `20 <= m < 30` is `h_sealed`. The case id is used as
-stored. The published test vectors are `split.TEST_VECTORS` and live in
-`tests/unit/test_split_m4t4.py`. Never reimplement the rule elsewhere.
+## Scheduler and launch mode (M1-T21; ADR-048, ADR-049.1)
+`pigtail scheduler run --once` is a batch run: every due job plus the jobs with
+`run_at_start = true`, then exit. A job with `launch_mode_only = true` is otherwise due only while
+`pigtail.scheduler.launch_mode` says launch mode is on (an active row in `launch_mode_window`, a
+stub M14 fills, or `PIGTAIL_LAUNCH_MODE=1`). The HN rank poller uses both flags; there is no
+always-on job. Job kinds are `command` and `hn_mentions`.
 
-Every function that computes a class, a percentile, a provisional label or an outcome summary
-must run its case ids through the guard:
-```python
-from pigtail.analysis.split import PgUnsealLog, UnsealToken, sealed_guard
-
-
-@sealed_guard("outcome_classes")
-def outcome_classes(case_ids, *, unseal_token=None, unseal_log=None, thresholds_frozen=False): ...
-
-
-outcome_classes(ids)  # raises SealedCaseError / HeldOutCaseError for held-out ids
-outcome_classes(
-    ids,
-    thresholds_frozen=True,
-    unseal_token=UnsealToken("ADR-0NN", "§5.3 re-run"),
-    unseal_log=PgUnsealLog(conn),
-)  # a §5.3 re-run only
-```
-- H-sealed cases need an `UnsealToken` that names an ADR present in `ops/DECISIONS.md`, plus an
-  `UnsealLog`. The unseal is written to the append-only `holdout_unseal_log` table *before* the
-  computation runs.
-- H-eval cases are refused until `outcome-thresholds 1.0.0` is frozen (`thresholds_frozen=True`),
-  and no token lifts that.
-- Before the freeze, use `calibration_only(ids)` to drop held-out cases before any observation
-  is read.
+## Burst segmentation and analysis parameters (M11)
+`pigtail.analysis.bursts` derives bursts and quiet intervals from one repo's star-history days
+(codebook v0.3.0 §3.2-3.3, outcome model v2 §2.1): pure functions (`segment`, `evaluate_day`,
+`onset`, `burst_end`, `daily_baseline`), no database and no global scan. Its parameters, and the
+StarScout fake-star parameters, are versioned in `pigtail.analysis.params`
+(`PARAMS_VERSION`), which mirrors `schemas/analysis-params/v1.0.0.json`
+(`tests/unit/test_analysis_bursts_m11.py` keeps the two equal). Changing a value means a new
+version of both, logged as an ADR. There is no held-out split any more (ADR-049.5).
 
 ## JSONL export (M1-T20)
 `pigtail.export.jsonl`: one file per table. It fails closed on tables missing from
@@ -162,11 +157,10 @@ Operator setup: docs/guides/operator.md, "External liveness check".
   pnpm --dir ui dev          # Vite on 127.0.0.1:5173, proxies /api to `pigtail ui serve` on :8080
   pnpm --dir ui lint && pnpm --dir ui typecheck && pnpm --dir ui test && pnpm --dir ui build
   ```
-- Case detail `detection_hours` (M1-T28) depends on `detection_hours_source`. For
-  `gharchive` (velocity-v0 cases) it holds the 48 GH Archive hours. For `github_counts`
-  (detection-v1 cases) it holds the `repo_count_snapshot` rows over the coverage window, each
-  with `stars_delta` and its evidence id. For `null` (no detection) it is empty. The UI type is
-  a discriminated union (`ui/src/api.ts`).
+- Case detail returns an older case's `detection` block as recorded; the hourly data behind it
+  (`detection_hours`) was dropped in M11. The timeline's `github` lane is the repo's star-history
+  days (`repo_star_daily`: `stars_net`, `is_partial`, the page's evidence id), daily whatever
+  the bucket.
 - Tests: `tests/integration/test_api_d1.py` (seeded synthetic DB: auth, audit, 410s, hash
   verification, no handles in JSON, 5,000-item budget), `tests/unit/test_ui_auth.py`,
   `ui/src/ui.test.tsx`.

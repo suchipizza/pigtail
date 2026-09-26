@@ -13,9 +13,6 @@ from typing import Any
 import httpx
 import pytest
 
-from pigtail.capture.detection_v1 import DetectionV1Config, daily_baseline
-from pigtail.capture.github_screens import SearchSlice
-from pigtail.capture.github_watch import WatchRow, build_batch_query
 from pigtail.capture.snapshots import LocalSnapshotStore
 from pigtail.connectors.base import ADR022_ENV, FetchError, PersonSourceHold, TokenBucket
 from pigtail.connectors.github import (
@@ -261,27 +258,38 @@ def test_m1_t24_conditional_request_304_is_free_and_stores_nothing(tmp_path):
 
 
 # --- GraphQL -------------------------------------------------------------------------------------
-def test_m1_t24_graphql_batch_query_and_cost_recording(tmp_path):
+REPO_FIELDS = "fragment R on Repository { databaseId nameWithOwner stargazerCount forkCount }"
+
+
+def batch_query(n_nodes: int, n_names: int) -> str:
+    """A small aliased GraphQL query (the generic `graphql()` call; the watch-list batches that
+    built these were removed in M11)."""
+    parts = [f"r{i}: node(id: $i{i}) {{ ...R }}" for i in range(n_nodes)]
+    parts += [
+        f"r{i}: repository(owner: $o{i}, name: $n{i}) {{ ...R }}"
+        for i in range(n_nodes, n_nodes + n_names)
+    ]
+    decl = [f"$i{i}: ID!" for i in range(n_nodes)]
+    decl += [f"$o{i}: String!, $n{i}: String!" for i in range(n_nodes, n_nodes + n_names)]
+    return (
+        f"query({', '.join(decl)}) {{ {' '.join(parts)} rateLimit {{ cost remaining limit "
+        f"resetAt }} }} {REPO_FIELDS}"
+    )
+
+
+def test_m1_t24_graphql_cost_recording_and_not_found(tmp_path):
     fake = FakeGitHub()
     fake.graphql_cost = 3
     ledger = MemoryLedger()
     c = gh(tmp_path, fake, budget=Budget(ledger=ledger, clock=lambda: NOW))
-    rows = [
-        WatchRow(1, 7000001, "R_fake_7000001", "org-x/repo-1"),
-        WatchRow(2, None, None, "org-x/repo-2"),
-        WatchRow(3, None, None, "org-x/nope"),
-    ]
-    q, v = build_batch_query(rows)
-    assert "r0: node(id: $i0)" in q and "r1: repository(owner: $o1, name: $n1)" in q
-    assert v == {"i0": "R_fake_7000001", "o1": "org-x", "n1": "repo-2", "o2": "org-x", "n2": "nope"}
+    q = batch_query(1, 2)
+    v = {"i0": "R_fake_7000001", "o1": "org-x", "n1": "repo-2", "o2": "org-x", "n2": "nope"}
     assert "org-x" not in q  # values travel only as variables
     res = c.graphql(q, v)
     assert res.cost == 3 and res.data["r0"]["stargazerCount"] == 4000
     assert res.data["r2"] is None and res.errors[0]["type"] == "NOT_FOUND"
     assert ledger.used(hour_of(NOW), "graphql") == 3  # estimate 1, corrected to the real cost
     assert json.loads(fake.requests[0].content)["variables"] == v
-    with pytest.raises(ValueError):
-        build_batch_query([WatchRow(i, None, None, "a/b") for i in range(101)])
 
 
 def test_m1_t24_graphql_rate_limited_error_waits(tmp_path):
@@ -299,8 +307,7 @@ def test_m1_t24_graphql_rate_limited_error_waits(tmp_path):
     sleeps = Sleeps()
     budget = Budget(clock=lambda: NOW, sleep=sleeps)
     c = gh(tmp_path, fake, sleep=sleeps, budget=budget)
-    q, v = build_batch_query([WatchRow(1, None, None, "org-x/repo-1")])
-    res = c.graphql(q, v)
+    res = c.graphql(batch_query(0, 1), {"o0": "org-x", "n0": "repo-1"})
     assert res.data["r0"]["databaseId"] == 7000001
     assert 41.0 in sleeps
 
@@ -312,22 +319,6 @@ def test_m1_t24_search_paging_capped_at_1000_results(tmp_path):
         c.search_repositories("stars:1..*", page=11)
     with pytest.raises(ValueError):
         c.search_repositories("stars:1..*", per_page=101)
-
-
-def test_m1_t24_search_slice_splits_stars_then_time():
-    t0 = datetime(2026, 9, 18, tzinfo=UTC)
-    t1 = t0 + timedelta(days=7)
-    s = SearchSlice("created", t0, t1, 20, None)
-    assert s.query() == "created:2026-09-18T00:00:00Z..2026-09-25T00:00:00Z stars:20..*"
-    a, b = s.split(top_stars=5000, min_span=timedelta(hours=1)) or []
-    assert (a.stars_lo, a.stars_hi, b.stars_lo, b.stars_hi) == (20, 316, 317, 5000)  # geometric
-    a, b = SearchSlice("pushed", t0, t1, 50, 60).split(None, timedelta(hours=1)) or []
-    assert (a.stars_hi, b.stars_lo) == (55, 56)
-    one = SearchSlice("created", t0, t1, 42, 42)
-    a, b = one.split(42, timedelta(hours=1)) or []
-    assert a.date_to < b.date_from and a.stars_lo == a.stars_hi == 42
-    tiny = SearchSlice("created", t0, t0 + timedelta(minutes=30), 42, 42)
-    assert tiny.split(42, timedelta(hours=1)) is None
 
 
 @pytest.mark.parametrize(
@@ -354,25 +345,6 @@ def test_m1_t24_star_history_validation(tmp_path):
         c.star_history("org-x/repo-1", per_page=31)
     with pytest.raises(ValueError):
         c.star_history("org-x/repo-1", page=101)
-
-
-# --- detection statistics ------------------------------------------------------------------------
-def test_m1_t24_daily_baseline_matches_v0_statistics():
-    cfg = DetectionV1Config()
-    start = date(2026, 8, 24)
-    flat = {start + timedelta(days=i): 5 for i in range(30)}
-    b = daily_baseline(flat, start, cfg)
-    assert b.quality == "full" and b.days_covered == 30
-    assert b.mean_48h == 10 and b.std_48h == 0 and b.sigma_used == pytest.approx(10**0.5)
-    none = daily_baseline({}, start, cfg)
-    assert none.quality == "none" and none.sigma_used == cfg.min_sigma
-    short = {start + timedelta(days=25 + i): 20 for i in range(5)}
-    p = daily_baseline(short, start, cfg)
-    assert p.quality == "partial" and p.days_covered == 5 and p.std_48h == 0  # < 3 blocks
-    created = daily_baseline(flat, start, cfg, not_before=start + timedelta(days=20))
-    assert created.days_covered == 10
-    neg = daily_baseline({start: -40, start + timedelta(days=1): 0}, start, cfg)
-    assert neg.mean_48h == 0  # net days can be negative; the mean is floored
 
 
 # --- per-repo events connector (TM-33, ADR-022, CB-23) -------------------------------------------

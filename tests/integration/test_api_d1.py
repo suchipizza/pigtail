@@ -132,7 +132,8 @@ def seed_db(db: Any, store: LocalSnapshotStore) -> Seed:
         " (%s, 'github:1000002', %s, 'manual', 'closed', NULL)",
         (CASE1, T0 + timedelta(hours=3), json.dumps(detection), CASE2, T0 - timedelta(days=3)),
     )
-    # GH Archive: hours 00-03 scanned ok (00 raw dropped after retention), hour 04 missing.
+    # GH Archive dumps left over from the removed velocity scan (M11): evidence rows and bytes
+    # stay under their retention, but nothing links them to cases any more.
     for i in range(4):
         hour = T0 + timedelta(hours=i)
         name = f"gh{i}"
@@ -148,22 +149,25 @@ def seed_db(db: Any, store: LocalSnapshotStore) -> Seed:
             state="raw_dropped" if i == 0 else "present",
             content_type="application/gzip",
         )
-        x(
-            "INSERT INTO gharchive_hours (hour, status, content_hash, evidence_id, events,"
-            " bot_filter_version) VALUES (%s, 'ok', %s, %s, 100, 'bf-v0')",
-            (hour, s.hash[name], s.ev[name]),
-        )
-    x(
-        "INSERT INTO gharchive_hours (hour, status, events, bot_filter_version)"
-        " VALUES (%s, 'missing', 0, 'bf-v0')",
-        (T0 + timedelta(hours=4),),
+    # Star history (the kept per-repo collector): one page, three endpoint days (the last one
+    # still filling when fetched).
+    sh = _evidence(
+        db,
+        s,
+        "sh",
+        source="github",
+        url="https://api.github.com/repos/org-a/repo-1/stargazers/history?per_page=6&page=1",
+        data=b'[{"week": "2026-09-13", "total": 150, "days": [0, 0, 0, 0, 0, 5, 60]}]',
+        fetched_at=T0 + timedelta(hours=1),
+        repo_id="github:1000001",
     )
-    for i, (raw, filt, forks) in enumerate([(60, 50, 4), (60, 55, 4), (50, 45, 4)]):
+    for day, n, partial in (("2026-09-18", 5, False), ("2026-09-19", 60, False),
+                            ("2026-09-20", 85, True)):  # fmt: skip
         x(
-            "INSERT INTO repo_hourly_activity (repo_host_id, hour, repo_name, stars_raw,"
-            " stars_bot, stars_lockstep, stars_filtered, forks_raw, forks_filtered)"
-            " VALUES (1000001, %s, 'org-a/repo-1', %s, %s, 0, %s, %s, %s)",
-            (T0 + timedelta(hours=i), raw, raw - filt, filt, forks, forks),
+            "INSERT INTO repo_star_daily (repo_host_id, day, stars_net, week_label,"
+            " day_boundary_tz, is_partial, fetched_at, evidence_id)"
+            " VALUES (1000001, %s, %s, '2026-09-13', 'x', %s, %s, %s)",
+            (day, n, partial, T0 + timedelta(hours=1), sh),
         )
     # HN: two rank polls, one story about the repo (title/url hold fake handles).
     for j, (minutes, rank) in enumerate([(70, 12), (130, 5)]):
@@ -451,87 +455,21 @@ def test_r14_2_cases_list_filters_and_sort(env):
 
 
 def test_r13_2_case_detection_numbers_trace_to_evidence(env):
-    client, seed, _ = env
+    client, _, _ = env
     login(client)
     body = client.get(f"/api/cases/{CASE1}").json()
     assert body["coded"] is False
     assert body["repo"]["full_name"] == "org-a/repo-1"
     assert body["detection"]["stars_48h"] == 150
-    assert body["coverage"]["source"] == "gharchive"
-    assert any("GH Archive" in c for c in body["caveats"])
-    hours = body["detection_hours"]
-    assert len(hours) == 48
-    # stars_48h is the sum of the 48 hourly buckets, each linked to its GH Archive dump.
-    assert sum(h["stars_filtered"] for h in hours) == 150
-    linked = {h["evidence_id"] for h in hours if h["stars_filtered"]}
-    assert linked == {seed.ev["gh0"], seed.ev["gh1"], seed.ev["gh2"]}
-    assert body["evidence_counts"]["gharchive_hour"] == 3
+    assert body["coverage"]["source"] == "gharchive"  # recorded by the removed detection
+    assert any("star-history" in c for c in body["caveats"])
+    assert any("GH Archive" in c for c in body["caveats"])  # older detections, labelled
+    # M11: the hourly data behind old detections was dropped; no hours block any more
+    assert "detection_hours" not in body and "detection_hours_source" not in body
+    assert "gharchive_hour" not in body["evidence_counts"]
+    assert body["evidence_counts"]["repo"] >= 1  # the star-history page
     assert client.get("/api/cases/case_ffffffffffffffffffff").status_code == 404
     assert client.get("/api/cases/NOT-AN-ID").status_code == 404
-
-
-def test_m1_t28_v1_case_detection_hours_read_count_snapshots(env):
-    """M1-T28: a detection-v1 case's hours come from `repo_count_snapshot`, not GH Archive."""
-    client, seed, db = env
-    start = T0 + timedelta(days=1)
-    snaps = [(0, 1000, 50), (1, 1030, 51), (24, 1080, 53), (48, 1150, 55)]  # hours, stars, forks
-    evs = []
-    for h, stars, forks in snaps:
-        evs.append(
-            _evidence(
-                db,
-                seed,
-                f"gq{h}",
-                source="github",
-                url="https://api.github.com/graphql",
-                data=f'{{"h": {h}}}'.encode(),
-                fetched_at=start + timedelta(hours=h),
-            )
-        )
-        db.conn.execute(
-            "INSERT INTO repo_count_snapshot (repo_host_id, observed_at, stars, forks,"
-            " evidence_id) VALUES (1000002, %s, %s, %s, %s)",
-            (start + timedelta(hours=h), stars, forks, evs[-1]),
-        )
-    # a snapshot outside the window is not part of the case
-    db.conn.execute(
-        "INSERT INTO repo_count_snapshot (repo_host_id, observed_at, stars, forks)"
-        " VALUES (1000002, %s, 900, 40)",
-        (start - timedelta(hours=5),),
-    )
-    end = start + timedelta(hours=48)
-    det = {
-        "rule_version": "detection-v1",
-        "detected_hour": end.isoformat(),
-        "stars_48h": 150,
-        "coverage": {
-            "source": "github_graphql_counts",
-            "window_start": start.isoformat(),
-            "window_end": end.isoformat(),
-            "observed_stars": 150,
-            "reference_stars": 148,
-            "reference_source": "github_star_history",
-            "ratio": 1.0135,
-        },
-    }
-    case3 = "case_00000000000000000003"
-    db.conn.execute(
-        "INSERT INTO cases (id, repo_id, opened_at, trigger, status, detection)"
-        " VALUES (%s, 'github:1000002', %s, 'velocity', 'live', %s)",
-        (case3, end + timedelta(hours=1), json.dumps(det)),
-    )
-    login(client)
-    body = client.get(f"/api/cases/{case3}").json()
-    assert body["detection_hours_source"] == "github_counts"
-    hours = body["detection_hours"]
-    assert [h["stars"] for h in hours] == [1000, 1030, 1080, 1150]
-    assert [h["stars_delta"] for h in hours] == [None, 30, 50, 70]
-    assert sum(h["stars_delta"] or 0 for h in hours) == body["detection"]["stars_48h"]
-    assert [h["evidence_id"] for h in hours] == evs  # every number traces to its snapshot
-    # the v0 case still reads GH Archive hours
-    v0 = client.get(f"/api/cases/{CASE1}").json()
-    assert v0["detection_hours_source"] == "gharchive" and len(v0["detection_hours"]) == 48
-    assert client.get(f"/api/cases/{CASE2}").json()["detection_hours_source"] is None
 
 
 def test_r13_2_timeline_lanes_link_every_point_to_evidence(env):
@@ -542,16 +480,15 @@ def test_r13_2_timeline_lanes_link_every_point_to_evidence(env):
         params={"from": "2026-09-20T00:00:00Z", "to": "2026-09-20T06:00:00Z"},
     ).json()
     assert body["range"]["bucket"] == "hour" and body["coded"] is False
-    gh = {p["t"][:13]: p for p in body["github"]}
-    assert gh["2026-09-20T00"]["stars_raw"] == 60
-    assert gh["2026-09-20T00"]["stars_filtered"] == 50
-    assert gh["2026-09-20T00"]["evidence_ids"] == [seed.ev["gh0"]]
-    assert gh["2026-09-20T03"]["stars_filtered"] == 0  # scanned, no activity
-    assert gh["2026-09-20T03"]["evidence_ids"] == [seed.ev["gh3"]]
-    assert gh["2026-09-20T04"]["stars_filtered"] is None  # missing hour: unknown, not zero
-    assert gh["2026-09-20T04"]["hours_missing"] == 1
-    for p in body["github"]:
-        assert p["evidence_ids"] or p["stars_filtered"] is None
+    # star history is daily whatever the bucket: the one endpoint day in range
+    assert body["github"] == [
+        {
+            "t": "2026-09-20T00:00:00Z",
+            "stars_net": 85,
+            "is_partial": True,
+            "evidence_ids": [seed.ev["sh"]],
+        }
+    ]
     hn = body["hn"]
     assert [s["item_id"] for s in hn["stories"]] == [9000001]
     assert [(r["best_rank"], r["evidence_id"]) for r in hn["ranks"]] == [
@@ -565,7 +502,8 @@ def test_r13_2_timeline_lanes_link_every_point_to_evidence(env):
     assert seed.ev["poll0"] not in kinds  # polls are shown as rank points, not events
     daily = client.get(f"/api/cases/{CASE1}/timeline?bucket=day").json()
     assert daily["range"]["bucket"] == "day"
-    assert sum(p["stars_filtered"] or 0 for p in daily["github"]) == 150
+    assert [p["stars_net"] for p in daily["github"]] == [5, 60, 85]  # days never fetched: absent
+    assert all(p["evidence_ids"] == [seed.ev["sh"]] for p in daily["github"])
     bad = client.get(
         f"/api/cases/{CASE1}/timeline", params={"from": "2026-01-01T00:00Z", "bucket": "hour"}
     )
@@ -580,9 +518,7 @@ def test_r14_2_evidence_inventory_sort_filter_state(env):
     expected = {
         seed.ev[n]
         for n in (
-            "gh0",
-            "gh1",
-            "gh2",
+            "sh",
             "poll0",
             "poll1",
             "story_item",
@@ -594,7 +530,7 @@ def test_r14_2_evidence_inventory_sort_filter_state(env):
     }
     assert ids == expected and body["total"] == len(expected)
     by_id = {i["id"]: i for i in body["items"]}
-    assert by_id[seed.ev["gh0"]]["snapshot"] == {
+    assert by_id[seed.ev["story_item"]]["snapshot"] == {
         "available": False,
         "href": None,
         "state": "raw_dropped",
@@ -605,8 +541,9 @@ def test_r14_2_evidence_inventory_sort_filter_state(env):
     order = ["high", "medium", "low", "unknown"]
     ranks = [order.index(i["reliability"]) for i in rel]
     assert ranks == sorted(ranks)
-    only = client.get(f"/api/cases/{CASE1}/evidence?source=gharchive").json()
-    assert only["total"] == 3 and "gharchive" in only["sources"]
+    only = client.get(f"/api/cases/{CASE1}/evidence?source=github").json()
+    assert only["total"] == 1 and "github" in only["sources"]
+    assert "gharchive" not in only["sources"]  # scan dumps are no longer linked to cases
     page = client.get(f"/api/cases/{CASE1}/evidence?limit=2&offset=2").json()
     assert len(page["items"]) == 2 and page["total"] == len(expected)
     assert client.get(f"/api/cases/{CASE1}/evidence?sort=url").status_code == 422
@@ -620,8 +557,14 @@ def test_r13_2_evidence_record_links_and_retention(env):
     ev = body["evidence"]
     assert ev["content_hash"] == seed.hash["gh1"]
     assert ev["snapshot"]["available"] and ev["snapshot"]["in_store"] is True
-    assert body["links"]["gharchive_hours"][0]["status"] == "ok"
+    assert body["links"]["star_history_days"] == []
     assert body["retention"]["raw_drop_due_at"].startswith("2026-10-20")  # 30 days
+    sh = client.get(f"/api/evidence/{seed.ev['sh']}").json()
+    assert [d["day"] for d in sh["links"]["star_history_days"]] == [
+        "2026-09-18",
+        "2026-09-19",
+        "2026-09-20",
+    ]
     story = client.get(f"/api/evidence/{seed.ev['story_item']}").json()
     assert story["links"]["hn_stories"] == [{"item_id": 9000001, "repo_id": "github:1000001"}]
     assert story["evidence"]["deletion_state"] == "raw_dropped"

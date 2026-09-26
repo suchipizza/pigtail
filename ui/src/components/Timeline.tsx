@@ -8,7 +8,7 @@ import { useAsync } from "../useAsync";
 // never two per lane). Every mark opens the evidence it was computed from (R13.2).
 
 const MARGIN = { left: 64, right: 16 };
-const LANES = { stars: 170, forks: 70, hn: 130, events: 46 } as const;
+const LANES = { stars: 170, hn: 130, events: 46 } as const;
 const GAP = 26;
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -101,19 +101,18 @@ function Chart({ data, onZoom }: { data: Timeline; onZoom: (r: Range) => void })
   const plotW = width - MARGIN.left - MARGIN.right;
   const x = (t: number) => MARGIN.left + ((t - from) / (to - from)) * plotW;
   const tOf = (px: number) => from + ((px - MARGIN.left) / plotW) * (to - from);
-  const colW = Math.max(2, (bw / (to - from)) * plotW);
 
-  const top = { stars: 18, forks: 0, hn: 0, events: 0 };
-  top.forks = top.stars + LANES.stars + GAP;
-  top.hn = top.forks + LANES.forks + GAP;
+  const top = { stars: 18, hn: 0, events: 0 };
+  top.hn = top.stars + LANES.stars + GAP;
   top.events = top.hn + LANES.hn + GAP;
   const height = top.events + LANES.events + 28;
 
-  const gh = data.github.map((p) => ({ ...p, t: Date.parse(p.t) + bw / 2 }));
-  const starMax = niceMax(Math.max(0, ...gh.map((p) => p.stars_raw ?? 0)));
-  const forkMax = niceMax(Math.max(0, ...gh.map((p) => p.forks_filtered ?? 0)));
-  const yStars = (v: number) => top.stars + LANES.stars - (v / starMax) * LANES.stars;
-  const yForks = (v: number) => top.forks + LANES.forks - (v / forkMax) * LANES.forks;
+  // Star history is daily whatever the bucket (endpoint day labels, not UTC-aligned).
+  const gh = data.github.map((p) => ({ ...p, t: Date.parse(p.t) + DAY / 2 }));
+  const starMax = niceMax(Math.max(0, ...gh.map((p) => p.stars_net)));
+  const starMin = Math.min(0, ...gh.map((p) => p.stars_net));
+  const yStars = (v: number) => top.stars + LANES.stars - ((v - starMin) / (starMax - starMin)) * LANES.stars;
+  const dayW = Math.max(2, (DAY / (to - from)) * plotW);
 
   const ranks = data.hn.ranks.map((r) => ({ ...r, tt: Date.parse(r.t) + bw / 2 }));
   const rankMax = Math.max(30, ...ranks.map((r) => r.best_rank));
@@ -124,17 +123,14 @@ function Chart({ data, onZoom }: { data: Timeline; onZoom: (r: Range) => void })
   const inRange = (t: number) => t >= from && t <= to;
 
   const tipFor = (p: Omit<GithubPoint, "t"> & { t: number }): string[] => [
-    data.range.bucket === "hour" ? fmtTime(new Date(p.t - bw / 2).toISOString()) : fmtDay(new Date(p.t).toISOString()),
-    p.stars_filtered === null
-      ? "not observed (unknown)"
-      : `stars filtered ${fmtNum(p.stars_filtered)} · raw ${fmtNum(p.stars_raw)}`,
-    p.forks_filtered === null ? "" : `forks ${fmtNum(p.forks_filtered)}`,
-    `${p.hours_observed} h scanned${p.hours_missing ? `, ${p.hours_missing} h missing` : ""}${p.lockstep ? " · lockstep flag" : ""}`,
+    `day ${fmtDay(new Date(p.t - DAY / 2).toISOString())} (endpoint label)`,
+    `stars ${fmtNum(p.stars_net)} (net of un-stars)`,
+    p.is_partial ? "day still filling when fetched (partial)" : "",
     p.evidence_ids.length === 1
       ? "click: open evidence"
       : p.evidence_ids.length > 1
         ? `click: list ${p.evidence_ids.length} evidence records`
-        : "no evidence (not scanned)",
+        : "no evidence link",
   ].filter(Boolean);
 
   // Drag anywhere on the chart to zoom; a drag never counts as a click on a mark.
@@ -195,50 +191,25 @@ function Chart({ data, onZoom }: { data: Timeline; onZoom: (r: Range) => void })
           </g>
         ))}
 
-        {/* GitHub stars: raw vs bot/lockstep-filtered */}
-        {laneLabel(top.stars, "GitHub stars per " + data.range.bucket + " (GH Archive, lower bound)")}
+        {/* GitHub stars per day (star-history endpoint) */}
+        {laneLabel(top.stars, "GitHub stars per day (star history, net of un-stars)")}
         <text x={MARGIN.left - 6} y={top.stars + 4} className="axis" textAnchor="end">
           {fmtNum(starMax)}
         </text>
         <text x={MARGIN.left - 6} y={top.stars + LANES.stars} className="axis" textAnchor="end">
-          0
+          {fmtNum(starMin)}
         </text>
         <line x1={MARGIN.left} x2={width - MARGIN.right} y1={yStars(0)} y2={yStars(0)} className="baseline" />
-        <path d={linePath(gh.map((p) => ({ t: p.t, v: p.stars_raw })), x, yStars, bw)} className="line raw" />
-        <path d={linePath(gh.map((p) => ({ t: p.t, v: p.stars_filtered })), x, yStars, bw)} className="line filtered" />
-        {gh.map((p) =>
-          p.stars_filtered === null ? (
-            <rect key={`u${p.t}`} x={x(p.t) - colW / 2} y={top.stars} width={colW} height={LANES.stars} className="unknown" />
-          ) : null,
-        )}
+        <path d={linePath(gh.map((p) => ({ t: p.t, v: p.stars_net })), x, yStars, DAY)} className="line filtered" />
 
-        {/* forks */}
-        {laneLabel(top.forks, "GitHub forks per " + data.range.bucket + " (filtered)")}
-        <text x={MARGIN.left - 6} y={top.forks + 4} className="axis" textAnchor="end">
-          {fmtNum(forkMax)}
-        </text>
-        <line x1={MARGIN.left} x2={width - MARGIN.right} y1={yForks(0)} y2={yForks(0)} className="baseline" />
-        {gh.map((p) =>
-          p.forks_filtered ? (
-            <rect
-              key={`f${p.t}`}
-              x={x(p.t) - Math.max(1, colW / 2 - 1)}
-              y={yForks(p.forks_filtered)}
-              width={Math.max(1, colW - 2)}
-              height={yForks(0) - yForks(p.forks_filtered)}
-              className="bar forks"
-            />
-          ) : null,
-        )}
-
-        {/* hover/click columns over the GitHub lanes */}
+        {/* hover/click columns over the stars lane */}
         {gh.map((p) => (
           <rect
             key={`h${p.t}`}
-            x={x(p.t) - colW / 2}
+            x={x(p.t) - dayW / 2}
             y={top.stars}
-            width={colW}
-            height={top.forks + LANES.forks - top.stars}
+            width={dayW}
+            height={LANES.stars}
             className="hit"
             onMouseEnter={() => setHover({ x: x(p.t), y: top.stars, lines: tipFor(p) })}
             onMouseLeave={() => setHover(null)}
@@ -248,8 +219,15 @@ function Chart({ data, onZoom }: { data: Timeline; onZoom: (r: Range) => void })
           </rect>
         ))}
         {gh.map((p) =>
-          p.stars_filtered !== null && (data.range.bucket === "day" || colW >= 6) ? (
-            <circle key={`d${p.t}`} cx={x(p.t)} cy={yStars(p.stars_filtered)} r={3} className="dot filtered" pointerEvents="none" />
+          dayW >= 4 ? (
+            <circle
+              key={`d${p.t}`}
+              cx={x(p.t)}
+              cy={yStars(p.stars_net)}
+              r={3}
+              className={`dot filtered${p.is_partial ? " partial" : ""}`}
+              pointerEvents="none"
+            />
           ) : null,
         )}
 
@@ -390,13 +368,7 @@ function Chart({ data, onZoom }: { data: Timeline; onZoom: (r: Range) => void })
       )}
       <ul className="legend" aria-label="Legend">
         <li>
-          <span className="swatch filtered" /> stars, bot/lockstep-filtered
-        </li>
-        <li>
-          <span className="swatch raw" /> stars, raw
-        </li>
-        <li>
-          <span className="swatch forks" /> forks
+          <span className="swatch filtered" /> stars per day (net)
         </li>
         <li>
           <span className="swatch hn" /> HN rank
@@ -404,9 +376,7 @@ function Chart({ data, onZoom }: { data: Timeline; onZoom: (r: Range) => void })
         <li>
           <span className="swatch mention" /> HN mention
         </li>
-        <li>
-          <span className="swatch unknown" /> not observed (unknown, not zero)
-        </li>
+        <li className="muted">Days never fetched have no point (unknown, not zero).</li>
         <li className="muted">Drag across the chart to zoom.</li>
       </ul>
       {selection && (
@@ -431,25 +401,21 @@ function Chart({ data, onZoom }: { data: Timeline; onZoom: (r: Range) => void })
 function DataTable({ data }: { data: Timeline }) {
   return (
     <table className="data compact">
-      <caption>GitHub lane as a table</caption>
+      <caption>GitHub stars per day as a table (star-history endpoint day labels)</caption>
       <thead>
         <tr>
-          <th>Bucket (UTC)</th>
-          <th className="num">Stars raw</th>
-          <th className="num">Stars filtered</th>
-          <th className="num">Forks</th>
-          <th className="num">Hours scanned</th>
+          <th>Day</th>
+          <th className="num">Stars (net)</th>
+          <th>Partial</th>
           <th>Evidence</th>
         </tr>
       </thead>
       <tbody>
         {data.github.map((p) => (
           <tr key={p.t}>
-            <td>{data.range.bucket === "hour" ? fmtTime(p.t) : fmtDay(p.t)}</td>
-            <td className="num">{fmtNum(p.stars_raw)}</td>
-            <td className="num">{fmtNum(p.stars_filtered)}</td>
-            <td className="num">{fmtNum(p.forks_filtered)}</td>
-            <td className="num">{p.hours_observed}</td>
+            <td>{fmtDay(p.t)}</td>
+            <td className="num">{fmtNum(p.stars_net)}</td>
+            <td>{p.is_partial ? "yes" : "no"}</td>
             <td>
               {p.evidence_ids.slice(0, 3).map((id) => (
                 <Link key={id} href={`/evidence/${id}`} className="ev-chip">

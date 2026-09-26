@@ -16,7 +16,6 @@ from typing import Any
 import httpx
 import pytest
 
-from pigtail.capture.github_watch import Watchlist
 from pigtail.capture.hn_ranks import RankPoller
 from pigtail.capture.mentions import RepoSuppressed, capture_hn_mentions
 from pigtail.capture.runs import RunRecorder
@@ -132,15 +131,12 @@ def test_m1_t23_name_optout_suppresses_hn_for_repo_not_in_repos(capture_db, tmp_
     assert db.conn.execute(
         "SELECT count(*) FROM hn_rank_observation WHERE item_id = 9000004"
     ).fetchone() == (1,)
-    # mention capture refuses before any request; the watch list skips it
+    # mention capture refuses before any request
     fake = FakeHN()
     kw = conn_kw(store, fake, db, pseudonymizer=pz, env=ON, suppression=suppression.load(db, pz))
     with pytest.raises(RepoSuppressed):
         capture_hn_mentions(HNAlgoliaConnector(**kw), db, "org-b/repo-2")
     assert fake.requests == []
-    w = Watchlist(db, suppression.load(db, pz))
-    assert w.nominate("hn", "Org-B/Repo-2", source_ref="hn:9000004") == "skipped"
-    assert w.nominate("hn", "org-a/repo-1", source_ref="hn:9000001") == "added"
 
 
 def test_m1_t23_name_optout_purges_existing_hn_data_and_reapplies(capture_db, tmp_path, pz):
@@ -152,7 +148,6 @@ def test_m1_t23_name_optout_purges_existing_hn_data_and_reapplies(capture_db, tm
     capture_hn_mentions(
         HNAlgoliaConnector(**kw), db, "org-a/repo-1", firebase=HNFirebaseConnector(**kw)
     )
-    Watchlist(db).nominate("hn", "org-a/repo-1", source_ref="hn:9000001")
     mention_evs = db.conn.execute(
         "SELECT DISTINCT e.id, e.content_hash FROM hn_mention m JOIN evidence e"
         " ON e.id IN (m.evidence_id, m.item_evidence_id)"
@@ -162,7 +157,7 @@ def test_m1_t23_name_optout_purges_existing_hn_data_and_reapplies(capture_db, tm
     res = requests.optout_repo_name(db, store, platform="github", full_name="org-a/repo-1", pz=pz)
     c = res.counts
     assert c["names_matched"] == 1 and c["mention_rows_deleted"] == 5
-    assert c["story_rows_cleared"] == 1 and c["watchlist_rows_deleted"] == 1
+    assert c["story_rows_cleared"] == 1
     assert c["evidence_deleted"] == len(mention_evs)
     assert db.conn.execute("SELECT count(*) FROM hn_mention").fetchone() == (0,)
     assert not any(store.exists(h) for _i, h in mention_evs)
@@ -170,10 +165,6 @@ def test_m1_t23_name_optout_purges_existing_hn_data_and_reapplies(capture_db, tm
         "SELECT title, url, repo_full_name, repo_id FROM hn_story WHERE item_id = 9000001"
     ).fetchone()
     assert story == (None, None, None, None)
-    # CB-13c: the watch-list row is deleted (the keyed refusal-list entry is the tombstone)
-    assert db.conn.execute(
-        "SELECT count(*) FROM watchlist WHERE full_name = 'org-a/repo-1'"
-    ).fetchone() == (0,)
     other = db.conn.execute("SELECT title FROM hn_story WHERE item_id = 9000004").fetchone()
     assert other == ("Repo-2: synthetic project",)  # other repos untouched
     log = dict(
@@ -182,10 +173,10 @@ def test_m1_t23_name_optout_purges_existing_hn_data_and_reapplies(capture_db, tm
             " AND action IN ('rows_deleted', 'fields_cleared') GROUP BY 1"
         ).fetchall()
     )
-    assert log == {"hn_mention": 5, "hn_story": 1, "watchlist": 1}
+    assert log == {"hn_mention": 5, "hn_story": 1}
     # re-applying the list (e.g. after a restore) is idempotent: nothing more to remove
     totals = requests.reapply_refusals(db, store, pz)
-    for k in ("mention_rows_deleted", "story_rows_cleared", "watchlist_rows_deleted"):
+    for k in ("mention_rows_deleted", "story_rows_cleared"):
         assert totals[f"repo_name_{k}"] == 0
 
 

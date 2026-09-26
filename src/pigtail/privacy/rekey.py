@@ -13,8 +13,8 @@ one of three sources, and the handle itself is never stored, logged or printed:
    (`github <handle>`, `hn <handle>`, `bluesky <handle>`, `v2ex <handle>`, `repo <owner/name>`;
    `#` comments). It must be outside any git working tree and readable by its owner only
    (mode 0600). It only *maps* entries: nothing in it is added to the refusal list.
-2. **Names pigtail already holds** (HN mentions, story links, the Show HN screen, the watch list,
-   `repos`) for keyed repo-name opt-outs (`rk_`), as `privacy optout rekey` does for legacy ones.
+2. **Names pigtail already holds** (HN mentions, story links, `repos`) for keyed repo-name
+   opt-outs (`rk_`), as `privacy optout rekey` does for legacy ones.
    After an opt-out purge those names are usually gone, so the handles file is the main source.
 3. **Retained raw snapshots** (which contain handles): each connector re-parses them with a
    pseudonymizer that computes the old *and* the new pseudonym of every handle it meets and

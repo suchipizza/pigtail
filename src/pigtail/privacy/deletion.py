@@ -44,7 +44,9 @@ PARSE_ERRORS: tuple[type[BaseException], ...] = (
     zlib.error,
 )
 
-Reason = Literal["retention", "erasure", "objection", "deleted_upstream", "key_rotation"]
+Reason = Literal[
+    "retention", "erasure", "objection", "deleted_upstream", "key_rotation", "purpose_limitation"
+]
 Action = Literal[
     "raw_dropped",
     "rows_deleted",
@@ -123,38 +125,22 @@ _HN_STORY_CLEAR = (
 
 # Order matters: rows are removed in this order (evidence ids are collected before any delete).
 REPO_TABLES: tuple[RepoTable, ...] = (
-    # GH Archive hourly aggregates (M1-T3)
-    RepoTable("repo_hourly_activity", "repo_host_id", "host_id", "delete", "hourly_rows_deleted"),
-    RepoTable("repo_hourly_activity", "repo_name", "name", "delete", "hourly_rows_deleted"),
-    # GitHub detection v1 (M1-T24): counts, star history, events, agreement, watch list
-    RepoTable("repo_count_snapshot", "repo_host_id", "host_id", "delete"),
+    # per-repo GitHub collectors (M1-T24): star history and events
     RepoTable("repo_star_daily", "repo_host_id", "host_id", "delete"),
     RepoTable("star_history_fetch", "repo_host_id", "host_id", "delete"),
     RepoTable("repo_event_actor", "repo_host_id", "host_id", "delete"),
     RepoTable("repo_event_poll", "repo_host_id", "host_id", "delete"),
     RepoTable("repo_event_daily_agg", "repo_host_id", "host_id", "delete"),
-    RepoTable("detection_agreement", "repo_host_id", "host_id", "delete"),
-    RepoTable("watchlist", "repo_host_id", "host_id", "delete", "watchlist_rows_deleted"),
-    RepoTable("watchlist", "full_name", "name", "delete", "watchlist_rows_deleted"),
-    # settle-lag collection (K2, M4-T4)
-    RepoTable("star_history_settle_obs", "repo_host_id", "host_id", "delete"),
-    RepoTable("settle_lag_schedule", "repo_host_id", "host_id", "delete"),
+    # launch-mode windows of a tracked project (M11 stub, filled from M14; ADR-049.1)
+    RepoTable("launch_mode_window", "repo_id", "id", "delete"),
     # ETag cache of per-repo GitHub API pages (url and etag only)
     RepoTable("github_http_cache", "url", "url", "delete"),
-    # HN (M1-T4, M1-T14, M1-T23): mentions are deleted; the rank history and the Show HN screen
-    # keep the item id but lose the repo link (and a story its title and url)
+    # HN (M1-T4, M1-T14, M1-T23): mentions are deleted; the rank history keeps the item id but
+    # loses the repo link (and a story its title and url)
     RepoTable("hn_mention", "repo_id", "id", "delete", "mention_rows_deleted"),
     RepoTable("hn_mention", "repo_full_name", "name", "delete", "mention_rows_deleted"),
     RepoTable("hn_story", "repo_id", "id", "clear", "story_rows_cleared", _HN_STORY_CLEAR),
     RepoTable("hn_story", "repo_full_name", "name", "clear", "story_rows_cleared", _HN_STORY_CLEAR),
-    RepoTable(
-        "hn_show_screen",
-        "repo_full_name",
-        "name",
-        "clear",
-        "show_rows_cleared",
-        clear_sql="repo_full_name = NULL",
-    ),
     # evidence linked to the repo, its cases or its per-repo API pages; then cases and the repo
     RepoTable("evidence", "repo_id", "id", "evidence", "evidence_deleted"),
     RepoTable("evidence", "url", "url", "evidence", "evidence_deleted"),

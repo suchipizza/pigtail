@@ -196,13 +196,12 @@ table.data caption { text-align: left; color: var(--text-secondary); padding: 8p
 .chart .axis { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .chart .lane-label { fill: var(--text-secondary); font-size: 12px; font-weight: 600; }
 .chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.chart .line.raw { stroke: var(--series-raw); stroke-dasharray: 4 3; }
 .chart .line.filtered { stroke: var(--series-1); }
 .chart .line.hn { stroke: var(--series-3); stroke-width: 1.5; opacity: 0.6; }
 .chart .dot { stroke: var(--surface-1); stroke-width: 2; }
 .chart .dot.filtered { fill: var(--series-1); }
+.chart .dot.partial { fill: var(--surface-1); stroke: var(--series-1); }
 .chart .dot.hn { fill: var(--series-3); }
-.chart .bar.forks { fill: var(--series-2); }
 .chart .mention { fill: var(--series-3); stroke: var(--surface-1); stroke-width: 1.5; }
 .chart .event { stroke: var(--text-secondary); stroke-width: 2; }
 .chart .event.gone { stroke-dasharray: 2 2; opacity: 0.6; }
@@ -229,8 +228,6 @@ table.data caption { text-align: left; color: var(--text-secondary); padding: 8p
 .legend { display: flex; flex-wrap: wrap; gap: 14px; list-style: none; padding: 4px 16px 0; margin: 0; font-size: 12px; color: var(--text-secondary); }
 .swatch { display: inline-block; width: 14px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
 .swatch.filtered { background: var(--series-1); }
-.swatch.raw { background: var(--series-raw); }
-.swatch.forks { background: var(--series-2); height: 10px; width: 8px; }
 .swatch.hn { background: var(--series-3); height: 8px; width: 8px; border-radius: 50%; }
 .swatch.mention { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--series-3); background: none; border-radius: 0; }
 .swatch.unknown { background: var(--unknown); height: 10px; border: 1px solid var(--border); }

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -62,6 +62,7 @@ def make(
     runner: FakeRunner | None = None,
     env: dict[str, str] | None = None,
     clock: FakeClock | None = None,
+    launch_mode: Callable[[datetime], bool] | None = None,
 ) -> tuple[Scheduler, MemoryStateStore, FakeRunner, FakeClock]:
     store = MemoryStateStore()
     r = runner or FakeRunner()
@@ -74,6 +75,7 @@ def make(
         runner=r,
         clock=c,
         code_commit="abc1234",
+        launch_mode=launch_mode,
     )
     return s, store, r, c
 
@@ -84,16 +86,15 @@ def test_m1t21_repo_schedule_parses_with_required_jobs() -> None:
     names = {j.name: j for j in cfg.jobs}
     assert set(names) >= {
         "hn_ranks",
-        "gharchive_scan",
         "retention_purge",
         "deletion_sync",
-        "purge_raw",
         "hn_mentions",
+        "gh_star_history",
     }
-    assert names["hn_ranks"].every == timedelta(minutes=5) and names["hn_ranks"].enabled
-    assert names["gharchive_scan"].every == timedelta(hours=1)
-    assert names["gharchive_scan"].param_duration("lag", "0s") == timedelta(hours=2)
-    for daily in ("retention_purge", "deletion_sync", "purge_raw"):
+    hn = names["hn_ranks"]
+    assert hn.every == timedelta(minutes=5) and hn.enabled
+    assert hn.run_at_start and hn.launch_mode_only  # ADR-049.1: no always-on poller
+    for daily in ("retention_purge", "deletion_sync", "gh_star_history"):
         assert names[daily].every == timedelta(days=1)
     assert names["hn_mentions"].kind == "hn_mentions"
     assert cfg.alerts.stale_factor == 3 and cfg.alerts.disk_percent == 80
@@ -281,25 +282,105 @@ def test_m1t21_alert_tick_runs_every_alert_interval() -> None:
 
 
 # --- planner ----------------------------------------------------------------------------------
-def test_m1t21_gharchive_window_lags_two_hours_and_catches_up() -> None:
-    s = JobSpec(
-        "gharchive_scan",
-        "gharchive_scan",
-        timedelta(hours=1),
-        timedelta(minutes=50),
-        params={"lag": "2h", "catchup_days": 2},
-    )
-    plan = Planner({}).plan(s, T0)  # 10:07 → end 08:00; start = midnight two days back
-    assert plan.skip is None
-    assert plan.commands == (
-        ("capture", "scan", "--start", "2026-09-23T00:00", "--end", "2026-09-25T08:00"),
-    )
-
-
-def test_m1t21_gharchive_scan_skips_when_connector_disabled() -> None:
-    s = JobSpec("gharchive_scan", "gharchive_scan", timedelta(hours=1), timedelta(minutes=5))
+def test_m1t21_command_job_skips_when_required_connector_disabled() -> None:
+    s = JobSpec("x", "command", timedelta(hours=1), timedelta(minutes=5), command=("a",),
+                params={"requires": ["gharchive"]})  # fmt: skip
     plan = Planner({"PIGTAIL_CONNECTOR_GHARCHIVE_ENABLED": "false"}).plan(s, T0)
     assert plan.skip == "connector_disabled" and plan.commands == ()
+
+
+def test_m11_removed_job_kinds_and_jobs_are_gone() -> None:
+    """M11 acceptance: no scheduler job for the watch list, sweeps, screens, detection, the GH
+    Archive scan or settle-lag remains, and the scan job kind is refused."""
+    names = {j.name for j in sconfig.load(REPO_SCHEDULE).jobs}
+    assert not names & {
+        "gharchive_scan",
+        "gharchive_backfill",
+        "gh_watchlist_counts",
+        "gh_search_sweep",
+        "gh_hn_screen",
+        "gh_star_history_confirm",
+        "gh_detect_v1",
+        "gh_settle_lag",
+    }
+    text = REPO_SCHEDULE.read_text()
+    for argv in ("watchlist-counts", "search-sweep", "hn-screen", "detect-v1", "settle-lag",
+                 "backfill-gharchive", '"scan"'):  # fmt: skip
+        assert argv not in text.split("[jobs.", 1)[1], argv
+    with pytest.raises(ScheduleError, match="kind"):
+        parse({"jobs": {"s": {"kind": "gharchive_scan", "every": "1h"}}})
+
+
+# --- batch runs and launch mode (ADR-049.1) ----------------------------------------------------
+def hn_spec() -> JobSpec:
+    return spec("hn_ranks", "5m", run_at_start=True, launch_mode_only=True)
+
+
+def test_adr049_1_hn_ranks_runs_once_per_scheduled_run_outside_launch_mode() -> None:
+    s, store, runner, clock = make([hn_spec()], launch_mode=lambda now: False)
+    assert s.run_pending() == {"hn_ranks": "succeeded"}  # start of the run: one snapshot
+    for _ in range(4):  # the loop keeps ticking: no always-on polling
+        clock.advance(minutes=6)
+        assert s.run_pending() == {}
+    assert len(runner.calls) == 1
+    (rec,) = [r for r in store.runs.values() if r.job == "scheduler.hn_ranks"]
+    assert rec.config["at_start"] is True
+    # the next scheduled run (a new `scheduler run --once`) takes one more snapshot, even if the
+    # last one was a minute ago
+    s2 = Scheduler(
+        ScheduleConfig(jobs=(hn_spec(),)),
+        store=store,
+        locks=MemoryJobLocks(),
+        planner=Planner({}),
+        runner=runner,
+        clock=clock,
+        code_commit="abc1234",
+        launch_mode=lambda now: False,
+    )
+    assert s2.run_pending() == {"hn_ranks": "succeeded"}
+    assert len(runner.calls) == 2
+
+
+def test_adr049_1_hn_ranks_polls_continuously_in_launch_mode() -> None:
+    on = {"v": False}
+    s, _store, runner, clock = make([hn_spec()], launch_mode=lambda now: on["v"])
+    s.run_pending()
+    on["v"] = True
+    for _ in range(3):
+        clock.advance(minutes=5, seconds=1)  # past the 1-minute launch-mode cache too
+        assert s.run_pending() == {"hn_ranks": "succeeded"}
+    on["v"] = False
+    clock.advance(minutes=5, seconds=1)
+    assert s.run_pending() == {}
+    assert len(runner.calls) == 4
+
+
+def test_adr049_1_launch_mode_check_failure_means_batch_cadence() -> None:
+    def boom(now: datetime) -> bool:
+        raise RuntimeError("db down")
+
+    s, _store, _runner, clock = make([hn_spec(), spec("other", "5m")], launch_mode=boom)
+    assert s.run_pending() == {"hn_ranks": "succeeded", "other": "succeeded"}
+    clock.advance(minutes=6)
+    assert s.run_pending() == {"other": "succeeded"}  # other jobs keep their interval
+
+
+def test_adr049_1_schedule_flags_must_be_booleans() -> None:
+    job = {"command": ["a"], "every": "5m"}
+    cfg = parse({"jobs": {"a": {**job, "run_at_start": True, "launch_mode_only": True}}})
+    assert cfg.jobs[0].run_at_start and cfg.jobs[0].launch_mode_only
+    with pytest.raises(ScheduleError, match="run_at_start"):
+        parse({"jobs": {"a": {**job, "run_at_start": "yes"}}})
+
+
+def test_adr049_1_launch_mode_env_override() -> None:
+    from pigtail.scheduler.launch_mode import env_override, pg_launch_mode
+
+    assert env_override({}) is None
+    assert env_override({"PIGTAIL_LAUNCH_MODE": "1"}) is True
+    assert env_override({"PIGTAIL_LAUNCH_MODE": "off"}) is False
+    # the override wins without touching the database (the URL is never connected to)
+    assert pg_launch_mode("postgresql://invalid", {"PIGTAIL_LAUNCH_MODE": "1"})(T0) is True
 
 
 def _mentions_spec() -> JobSpec:
@@ -360,7 +441,7 @@ def test_m1t21_connector_gate() -> None:
 
 def test_m1t21_lock_key_stable_and_distinct() -> None:
     assert lock_key("hn_ranks") == lock_key("hn_ranks")
-    assert lock_key("hn_ranks") != lock_key("gharchive_scan")
+    assert lock_key("hn_ranks") != lock_key("retention_purge")
     assert -(2**63) <= lock_key("x") < 2**63
 
 

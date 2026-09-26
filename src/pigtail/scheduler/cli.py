@@ -1,5 +1,11 @@
-"""CLI for the unattended runtime (M1-T21): `pigtail scheduler run|plan`, `pigtail health`,
-`pigtail alerts check|export`. Registered from `pigtail.cli.build_parser` via `add_commands`."""
+"""CLI for scheduled runs (M1-T21; ADR-048, ADR-049.1): `pigtail scheduler run|plan`,
+`pigtail health`, `pigtail alerts check|export`. Registered from `pigtail.cli.build_parser` via
+`add_commands`.
+
+`pigtail scheduler run --once` is the batch runner: it runs every job that is due, plus the
+start-of-run jobs (one HN front-page snapshot), then exits. `pigtail scheduler run` without
+`--once` is the optional long-running loop (server path, or while a launch is followed); nothing
+starts it by default."""
 
 from __future__ import annotations
 
@@ -83,10 +89,12 @@ def cmd_scheduler_run(args: argparse.Namespace) -> int:
     from pigtail.capture.runs import utcnow
     from pigtail.db.migrate import migrate
     from pigtail.logsafe import configure_logging
+    from pigtail.privacy.doctor import warn_unencrypted
     from pigtail.scheduler.alerts import evaluate
     from pigtail.scheduler.core import Scheduler
     from pigtail.scheduler.health import build_report, default_probes
     from pigtail.scheduler.jobs import Planner, pg_open_cases
+    from pigtail.scheduler.launch_mode import pg_launch_mode
     from pigtail.scheduler.liveness import default_path as liveness_path
     from pigtail.scheduler.liveness import write_heartbeat
     from pigtail.scheduler.locks import PgJobLocks
@@ -103,6 +111,7 @@ def cmd_scheduler_run(args: argparse.Namespace) -> int:
     migrate(s.database_url)
     if (rc := _key_check(s)) is not None:
         return rc
+    warn_unencrypted(s, log)  # CB-03
     probes = default_probes(s, cfg.alerts)
     alerts = _alert_manager(s, cfg)
     holder: dict[str, Scheduler] = {}
@@ -136,6 +145,7 @@ def cmd_scheduler_run(args: argparse.Namespace) -> int:
         runner=subprocess_runner(),
         on_alert_tick=alert_tick,
         heartbeat=heartbeat,
+        launch_mode=pg_launch_mode(s.database_url, os.environ),
     )
     holder["s"] = sched
     if args.once:
@@ -170,6 +180,7 @@ def cmd_scheduler_plan(args: argparse.Namespace) -> int:
     from pigtail.capture.runs import utcnow
     from pigtail.scheduler.core import next_due
     from pigtail.scheduler.jobs import Planner, pg_open_cases
+    from pigtail.scheduler.launch_mode import env_override, pg_launch_mode
     from pigtail.scheduler.state import JobStats, PgStateStore
 
     s = _settings()
@@ -177,27 +188,33 @@ def cmd_scheduler_plan(args: argparse.Namespace) -> int:
     now = utcnow()
     stats: dict[str, JobStats] = {}
     cases = None
+    launch_mode = env_override(os.environ) or False
     if s.database_url:
         try:
             stats = PgStateStore(s.database_url).stats([j.run_job for j in cfg.jobs], now)
             cases = pg_open_cases(s.database_url)
+            launch_mode = pg_launch_mode(s.database_url, os.environ)(now)
         except Exception as e:
             print(f"run log unavailable: {type(e).__name__}", file=sys.stderr)
     planner = Planner(os.environ, cases)
-    out = []
+    out: list[dict[str, Any]] = []
     for j in cfg.jobs:
         st = stats.get(j.run_job, JobStats(job=j.run_job))
         entry: dict[str, Any] = {"job": j.name, "enabled": j.enabled}
         if j.enabled:
             p = planner.plan(j, now)
             entry["next_due"] = next_due(j, st, now).isoformat()
+            if j.run_at_start:
+                entry["at_start"] = True
+            if j.launch_mode_only and not launch_mode:
+                entry["next_due"] = "next scheduler run (launch mode off)"
             entry["skip"] = p.skip
             # command lines for mentions carry repo names: show only how many
             entry["commands"] = (
                 len(p.commands) if j.kind == "hn_mentions" else [list(c) for c in p.commands]
             )
         out.append(entry)
-    print(json.dumps(out, indent=2))
+    print(json.dumps({"launch_mode": launch_mode, "jobs": out}, indent=2))
     return 0
 
 
@@ -317,11 +334,15 @@ def add_commands(sub: Any) -> None:
             "--config", help="schedule file (default PIGTAIL_SCHEDULE or infra/schedule.toml)"
         )
 
-    sch = sub.add_parser("scheduler", help="unattended job scheduler (M1-T21)")
+    sch = sub.add_parser("scheduler", help="batch runner for scheduled jobs (M1-T21, ADR-048)")
     sch_sub = sch.add_subparsers(dest="scheduler_command", required=True)
-    run = sch_sub.add_parser("run", help="run the scheduler loop and /healthz")
+    run = sch_sub.add_parser(
+        "run", help="--once: one batch run of due jobs; without it: the optional loop + /healthz"
+    )
     cfg_arg(run)
-    run.add_argument("--once", action="store_true", help="run due jobs once, then exit")
+    run.add_argument(
+        "--once", action="store_true", help="run due and start-of-run jobs once, then exit"
+    )
     run.add_argument(
         "--liveness-file",
         help="heartbeat written every tick (default PIGTAIL_LIVENESS_FILE or "

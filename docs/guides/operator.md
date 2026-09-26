@@ -1,4 +1,15 @@
-# Operator guide (draft — completed in M9)
+# Operator guide (draft — rewritten in M12/M14)
+
+> **Scope since M11 (ADR-047, ADR-048, ADR-049).** pigtail no longer collects globally. You write
+> a research brief about your own project; pigtail analyses that project's neighbourhood with
+> **batch runs** on your own machine, plus launch-mode tracking. The 50k-repo watch list, the
+> all-GitHub search sweeps, the GH Archive velocity scan and the global breakout detection
+> (detection v1), the held-out split with its unseal log, and the settle-lag collection were
+> removed in M11. Their code is in the git tag `archive/global-collection`; their tables were
+> dropped by migration 0014 (row counts only are logged in `deletion_log`, reason
+> `purpose_limitation`). Data kept in the remaining tables (repos, cases, evidence, per-repo star
+> history, per-repo events, HN tables) stays as a cache briefs can reuse. Briefs arrive in M12,
+> brief-scoped discovery in M13, the launchd schedule and launch mode in M14.
 
 ## Your duties as controller (CB-21)
 If you run pigtail, you are the controller of the personal data it collects on your host, not the
@@ -49,64 +60,65 @@ The usage ledger and pause state are kept. `privacy rekey` clears the whole cach
 ## Services
 `docker compose up -d --wait` starts Postgres and S3-compatible object storage (SeaweedFS). Point `S3_ENDPOINT` at a private bucket in production. Default hosting region: EU or Switzerland.
 
-## Running unattended (M1-T21)
-Long-running jobs run on the host and must not depend on an agent session (WORK_ORDER §2). The
-scheduler (`pigtail scheduler run`) is one small process that:
-- runs the jobs in `infra/schedule.toml` (override with `PIGTAIL_SCHEDULE`), each in a child
-  process with a timeout;
+## Scheduled runs (M1-T21; batch runs since M11, ADR-048, ADR-049.1)
+Runs happen on the operator's machine and must not depend on an agent session (WORK_ORDER §2).
+The default is a **batch run**: `pigtail scheduler run --once` runs every job in
+`infra/schedule.toml` (override with `PIGTAIL_SCHEDULE`) that is due, plus the start-of-run jobs,
+then exits. Nothing runs between batch runs; M14 adds the launchd schedule that calls it. The
+long-running loop (`pigtail scheduler run` without `--once`) is optional: the server path
+(ADR-048.6), or while a launch is followed. Either way the scheduler:
+- runs each job in a child process with a timeout;
 - holds one Postgres advisory lock per job, so runs never overlap, even with two schedulers on one
   database;
 - retries failures with exponential backoff (`retry_base` × 2ⁿ, capped at the interval);
 - writes a `run` record `scheduler.<job>` for every attempt (the command also writes its own, e.g.
   `capture.hn_ranks`). Those records are the scheduler's only state, so restarts lose nothing. A
   run left `running` by a killed scheduler is closed as failed ("abandoned") and retried;
-- serves `/healthz` and `/livez` (port `PIGTAIL_HEALTH_PORT`, default 8787, bound to
+- logs the CB-03 encryption warning at start when the snapshot store is not known to be encrypted;
+- in loop mode, serves `/healthz` and `/livez` (port `PIGTAIL_HEALTH_PORT`, default 8787, bound to
   `PIGTAIL_HEALTH_BIND`, default 127.0.0.1) and evaluates alert rules every 5 minutes.
 
 | Job | Command | Every | Notes |
 |---|---|---|---|
-| `hn_ranks` | `capture hn-ranks --once` | 5 min | project-level, on by default (ADR-031.1) |
-| `gharchive_scan` | `capture scan --start <midnight −2 d> --end <now −2 h>` | 1 h | complete days already scanned are skipped; catches up after ≤ 2 days of downtime (ADR-028: limited value, cheap) |
-| `gharchive_backfill` | `capture backfill-gharchive --days 7` | 1 h | M1-T19: retries missing GH Archive hours that are due (see below); one query when nothing is due |
-| `retention_purge` | `retention purge` | 1 d | CB-01, CB-04, CB-05, CB-18, CB-33 (UI audit rows) |
+| `hn_ranks` | `capture hn-ranks --once` | start of each run; 5 min in launch mode | project-level, on by default (ADR-031.1); see below |
+| `retention_purge` | `retention purge` | 1 d | CB-01, CB-04, CB-05, CB-18, CB-33 (UI audit rows); also drops raw GH Archive dumps past retention |
 | `deletion_sync` | `privacy deletion-sync` | 1 d | CB-02; needs `PSEUDONYM_KEY` |
-| `purge_raw` | `capture purge-raw` | 1 d | CB-04 |
 | `hn_mentions` | `capture mentions --repo … --since <opened −14 d>` per live case opened in the last 48 h | 3 h | person-level: **skipped and logged** unless `PIGTAIL_ENABLE_HN=1` *and* `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` (ADR-022) |
+| `gh_star_history` | `capture github star-history --cases` | 1 d | per-repo star history of open cases; skipped without `GITHUB_TOKEN` |
+| `gh_repo_events` | `capture github repo-events` | 15 min | person-level, **off** (`enabled = false`); see "GitHub token and budgets" |
+| `backup_create`, `backup_prune` | `backup create`, `backup prune` | 1 d | off by default (see "Backups and restore") |
 
-**Missing GH Archive hours (M1-T19).** When an hourly dump can't be read at scan time (404: not
-published yet; 5xx/429 after the connector's retries; a network error; or a dump that fails to
-decompress, whose bytes are then deleted at once), the hour is stored as `missing` with its
-reason, attempt count and next retry time (1 h, 2 h, 4 h, … capped at 24 h). Missing hours count
-as *unknown* in the baseline, never as zero. `gharchive_backfill` retries the due ones up to
-`--days` back (1–30, default 7; `--max-hours` downloads per run, default 48), re-aggregates each
-UTC day in which an hour came back, and re-runs detection for the following 47 hours. Older
-missing hours are reported as `expired` and stay unknown. By hand:
-```bash
-uv run pigtail capture backfill-gharchive --days 7
-```
-The JSON output lists `due`, `tried`, `recovered`, `still_missing` (by reason), `not_due`,
-`expired`, `days_rescanned` and `cases_opened`.
+**HN front-page ranks (ADR-049.1).** There is no always-on poller. The `hn_ranks` job has
+`run_at_start = true` (one snapshot of the current front page at the start of every scheduler
+run) and `launch_mode_only = true` (between starts it polls every 5 minutes only while a brief or
+tracked project is in launch mode). Launch mode is read from the `launch_mode_window` table (a
+stub until M14 fills it) or forced with `PIGTAIL_LAUNCH_MODE=1` (`0` forces it off). Rank history
+outside those windows is not collected and is reported as a coverage gap; historical front-page
+presence comes from the Algolia `front_page` tag, labelled as such. For manual continuous
+polling, run `uv run pigtail capture hn-ranks --loop` yourself. The job is never marked stale for
+being idle between runs; its failures still alert.
 
 A job whose connector is disabled (`PIGTAIL_CONNECTOR_<NAME>_ENABLED=false`) is skipped, not
 failed: its run record has `counts.skipped = 1` and the reason in `config.skipped`. Set
-`enabled = false` in the schedule to drop a job entirely. `pigtail scheduler plan` shows each
-job's next due time and what it would run now; `pigtail scheduler run --once` runs whatever is due
-once and exits (for cron-only hosts or debugging).
+`enabled = false` in the schedule to drop a job entirely. `pigtail scheduler plan` shows launch
+mode and, per job, its next due time and what it would run now.
 
 ### With Docker Compose
 ```bash
 cp .env.example .env            # set PSEUDONYM_KEY, S3_*, SNAPSHOT_BACKEND=s3 for production, SMTP_URL/ALERT_EMAIL
 docker compose up -d --wait db objectstore && docker compose run --rm objectstore-init
-docker compose up -d --build scheduler
-curl -s http://127.0.0.1:8787/healthz | python3 -m json.tool
-docker compose exec scheduler pigtail health
-docker compose logs -f scheduler
+docker compose build scheduler
+docker compose run --rm scheduler pigtail scheduler run --once     # one batch run
+docker compose run --rm scheduler pigtail health
 ```
-The `scheduler` service uses the repo's `Dockerfile` (python:3.12-slim + uv, locked
-dependencies, non-root uid 10001, read-only root filesystem, all capabilities dropped,
-`restart: unless-stopped`). Its `PIGTAIL_DATA_DIR` is the `app-data` volume (`/data`): local
-snapshots (if `SNAPSHOT_BACKEND=local`), the LLM cache and `alerts/`. It reads `.env`, but
-`DATABASE_URL` and `S3_ENDPOINT` point at the compose services (`db`, `objectstore`); set
+The `scheduler` service is in the Compose profile `server`, so a plain `docker compose up` does
+not start it (ADR-049.1: no always-on process by default). For the optional server path, start
+the loop with `docker compose --profile server up -d scheduler` and check
+`curl -s http://127.0.0.1:8787/healthz`. The service uses the repo's `Dockerfile`
+(python:3.12-slim + uv, locked dependencies, non-root uid 10001, read-only root filesystem, all
+capabilities dropped). Its `PIGTAIL_DATA_DIR` is the `app-data` volume (`/data`): local snapshots
+(if `SNAPSHOT_BACKEND=local`), the LLM cache and `alerts/`. It reads `.env`, but `DATABASE_URL`
+and `S3_ENDPOINT` point at the compose services (`db`, `objectstore`); set
 `COMPOSE_DATABASE_URL` / `COMPOSE_S3_ENDPOINT` to use external ones. Build with
 `--build-arg PIGTAIL_CODE_COMMIT=$(git rev-parse HEAD)` (or export `PIGTAIL_CODE_COMMIT` before
 `docker compose build`) so run records carry the code commit. `docker compose stop` gives
@@ -118,8 +130,8 @@ taken from the host environment or `.env` by Compose interpolation. So it never 
 `PSEUDONYM_KEY`, `GITHUB_TOKEN`, `SMTP_URL` or API keys; the web app doesn't use them. If you add a
 UI setting to `.env`, add it to that list too.
 
-### With systemd (no Docker)
-`infra/systemd/pigtail-scheduler.service` runs the same command from a checkout in
+### With systemd (no Docker; optional server path)
+`infra/systemd/pigtail-scheduler.service` runs the scheduler loop from a checkout in
 `/opt/pigtail` (`uv sync --locked --no-dev`), as user `pigtail`, with its environment in
 `/etc/pigtail/pigtail.env` (mode 0600, root-owned) and `PIGTAIL_DATA_DIR=/var/lib/pigtail`. It
 runs `pigtail db migrate` before starting, restarts on failure and is sandboxed
@@ -141,13 +153,11 @@ uv run pigtail health --history 7d
   failures nor doctor warnings. Those show in the body (`"status": "fail"`) and raise alerts.
   `/livez` only checks the loop.
 
-**M1 acceptance: 7 consecutive days of scans.** `pigtail health --history 7d` prints one line
-per UTC day: whether it is a complete scan day, GH Archive hours covered (out of 24, counting
-hours GH Archive itself is missing), HN rank polls (288 expected at 5 minutes), and scheduler
-runs per job (succeeded/failed/skipped). The last line gives the number of consecutive complete
-scan days, today excluded. A day is complete when all 24 hours were scanned and at least one
-scheduled `gharchive_scan` run succeeded that day. The criterion is met when that number is
-≥ 7; `--json` gives the same data for the verifier.
+**Run history.** `pigtail health --history 7d` prints one line per UTC day: HN rank polls and
+scheduler runs per job (succeeded/failed/skipped); `--json` gives the same data. The GH Archive
+"complete scan day" streak went with the scan (M1's 7-day criterion is replaced by ADR-048.4:
+3 consecutive scheduled runs succeed with alerts working). Staleness is still judged against
+each job's interval, which suits the loop; making it fit weekly batch runs is part of M14.
 
 ### External liveness check (M1-T26)
 A dead scheduler can't send its own alerts, and `/healthz` answers only while the process runs.
@@ -284,19 +294,20 @@ rotates with the password. Rows older than `LOG_RETENTION_DAYS` (max 365) are de
 Read the log with SQL, e.g. `SELECT at, event, evidence_id FROM ui_audit_log ORDER BY at DESC`.
 
 **What the pages show.**
-- `/cases`: filters (status, opened date range), sort by recency or 48 h velocity, and a "Live
-  now" strip of open cases by velocity (a placeholder until triggers are coded).
-- `/cases/:id`: detection metrics with the 48 hourly buckets and GH Archive dumps behind them, the
-  **coverage caveat** (ADR-028: GH Archive under-captures stars, so counts are a lower bound;
-  unscanned hours are unknown, not zero), and two tabs:
-  - **Timeline**: time-aligned lanes for GitHub stars (raw vs bot/lockstep-filtered), forks,
-    HN front-page rank (best rank per bucket; shaded band = ranks 1–30) with mention markers,
-    and captured evidence. Zoom with the range buttons or by dragging across the chart; buckets
-    switch between hours and days. Every point opens its evidence (a daily bucket lists its
-    hourly dumps). A table view is available.
+- `/cases`: filters (status, opened date range), sort by recency or by the 48 h stars recorded
+  when the case was opened (older cases, opened by the detection removed in M11), and a "Live
+  now" strip of open cases.
+- `/cases/:id`: the detection metrics recorded for older cases (shown as recorded: the hourly
+  data behind them was dropped in M11), the **coverage caveat** (stars come from the
+  star-history endpoint, net of un-stars, endpoint day labels; days never fetched are unknown,
+  not zero), and two tabs:
+  - **Timeline**: time-aligned lanes for GitHub stars per day (star history), HN front-page rank
+    (best rank per bucket; shaded band = ranks 1–30) with mention markers, and captured evidence.
+    Zoom with the range buttons or by dragging across the chart. Stars stay daily whatever the
+    bucket. Every point opens its evidence (the star-history page). A table view is available.
   - **Evidence**: every evidence record behind the case (case- and repo-linked items, HN stories,
-    mentions and rank polls, GH Archive hours with repo activity), sortable by capture time,
-    source, reliability, retention class and state, with a one-click **Open snapshot**.
+    mentions and rank polls), sortable by capture time, source, reliability, retention class and
+    state, with a one-click **Open snapshot**.
 - `/evidence/:id`: the record, its retention rule and due date, and what references it.
 
 **Snapshots.** "Open snapshot" streams the raw bytes after re-checking their SHA-256; a mismatch
@@ -346,7 +357,7 @@ uv run pigtail doctor --json
 It checks `PSEUDONYM_KEY` and its fingerprint (below), the database and pending migrations, the
 snapshot bucket's default
 encryption (`GetBucketEncryption`), TLS to a remote object store, and prints the retention
-settings. `capture scan` logs the same encryption warning when it starts. Two items show as
+settings. `scheduler run` logs the same encryption warning when it starts. Two items show as
 `MANUAL` because no client can see them: Postgres volume encryption and, with
 `SNAPSHOT_BACKEND=local`, the snapshot directory's disk encryption.
 
@@ -421,8 +432,8 @@ handle again. `rekey` gets it, only in memory, from:
    `v2ex <handle>` or `repo <owner/name>` (`#` starts a comment). It must be outside any git
    working tree and `chmod 600`. It only maps existing entries; nothing in it is added to the
    opt-out list. Delete it afterwards.
-2. **repo names pigtail still holds** (HN mentions, story links, the Show HN screen, the watch
-   list, `repos`), for repo-name opt-outs. These names are usually purged with the opt-out, so
+2. **repo names pigtail still holds** (HN mentions, story links, `repos`), for repo-name
+   opt-outs. These names are usually purged with the opt-out, so
    the handles file is the main source.
 3. **retained raw snapshots**, for person-level rows (`hn_mention`, `upstream_items`,
    `repo_event_actor`): each connector re-parses them as at ingest and pairs each old pseudonym
@@ -544,11 +555,12 @@ will plug into the same job before it may be enabled.
 - **Rank poller** (`hn_ranks`, enabled by default; `PIGTAIL_CONNECTOR_HN_RANKS_ENABLED=false`
   turns it off). Project-level only: story ids, ranks, urls, titles, scores, comment counts. It
   keeps no usernames (the item's `by` is dropped, and item raw JSON is deleted right after
-  parsing), so it does not need the ADR-022 flag. Rank history can't be backfilled, so run it
-  continuously:
+  parsing), so it does not need the ADR-022 flag. Rank history can't be backfilled. Scheduled
+  runs take one snapshot at the start of each run and poll continuously only in launch mode
+  (ADR-049.1, "Scheduled runs" above); gaps outside those windows are reported, not filled:
   ```bash
   uv run pigtail capture hn-ranks --once                          # one poll
-  uv run pigtail capture hn-ranks --loop --interval-minutes 5     # long-running (systemd service)
+  uv run pigtail capture hn-ranks --loop --interval-minutes 5     # manual continuous polling
   ```
   The interval can't be under 1 minute (TM-04). Ranks 1–30 are the front page. Every stored
   story is registered for deletion sync (no author is stored), so stories deleted upstream lose
@@ -579,9 +591,11 @@ will plug into the same job before it may be enabled.
   Evidence attaches to the repo's newest open case if it has one. `--loose` also keeps hits that
   only contain the repo name (noisy for common words).
 
-### GitHub token and budgets (M1-T24, ADR-032)
-Breakout detection uses the GitHub API: hourly star counts for a watch list, Search sweeps,
-the star-history endpoint and, optionally, per-repo events for open cases.
+### GitHub token and budgets (M1-T24, ADR-032; per-repo only since M11)
+pigtail uses the GitHub API per repo: the star-history endpoint for the repos of open cases (and,
+from M13, of a brief's candidates), repository search for the queries a brief defines (M13), and,
+optionally, per-repo events for open cases. The watch list, the all-GitHub search sweeps and
+detection v1 were removed in M11 (ADR-047.6).
 
 **The token.** Create one fine-grained personal access token on your own GitHub account with
 access to *public repositories only* and no extra permissions, and put it in the host's `.env`
@@ -599,37 +613,30 @@ records `budget_stop` and resumes on its next run.
 | Bucket | GitHub limit | Default cap | Override (per hour) | Used by |
 |---|---|---|---|---|
 | core | 5,000 requests/h | 3,500 | `GITHUB_BUDGET_CORE_PER_HOUR` | star history, per-repo events |
-| graphql | 5,000 points/h | 3,500 | `GITHUB_BUDGET_GRAPHQL_PER_HOUR` | watch-list counts (100 repos ≈ 1 point) |
-| search | 30 requests/min | 1,260 (21/min) | `GITHUB_BUDGET_SEARCH_PER_HOUR` | Search sweeps |
+| graphql | 5,000 points/h | 3,500 | `GITHUB_BUDGET_GRAPHQL_PER_HOUR` | none since M11 |
+| search | 30 requests/min | 1,260 (21/min) | `GITHUB_BUDGET_SEARCH_PER_HOUR` | brief-scoped search (M13) |
 
 - The hourly spend is shared by all pigtail processes through the `github_budget_ledger` table.
 - `GITHUB_BUDGET_RESERVE_FRACTION` (default 0.30): stop when GitHub reports less than this share
   of a bucket left and the reset is more than 2 minutes away. This also leaves room for anything
   else you run with the same account.
-- Each job run has its own cap too (`--max-points`, `--max-requests`; defaults: counts 700
-  points, search 400, star history 400, detect-v1 200, repo events 1,600 core requests).
+- Each job run has its own cap too (`--max-requests`; defaults: star history 400, repo events
+  1,600 core requests).
 - Rate-limit answers are honoured: `Retry-After`, `X-RateLimit-Reset`, at least 60 s (doubling)
   for secondary limits; requests are serial; ETag `304` answers cost nothing; per-repo events are
   never polled faster than GitHub's `X-Poll-Interval`.
-- Expected steady state (replan §6.2, a 50,000-repo watch list): core ≈ 3,055/h (61 %), GraphQL
-  ≈ 700/h (14 %), search ≈ 210/h (12 %). Check actual use with
-  `uv run pigtail capture github budget --hours 24`.
+- Check actual use with `uv run pigtail capture github budget --hours 24`. A brief's cost
+  estimate before each run arrives in M12.
 
 **Jobs** (`infra/schedule.toml`; all skip until `GITHUB_TOKEN` is set):
 
 | Job | Every | Command |
 |---|---|---|
-| `gh_watchlist_counts` | 1 h | `capture github watchlist-counts` (watch-list cap `--cap`, default 50,000) |
-| `gh_search_sweep` | 6 h | `capture github search-sweep --kind all` |
-| `gh_hn_screen` | 1 h | `capture github hn-screen` (HN + Show HN URLs, GH Archive nominations) |
-| `gh_star_history_confirm` | 1 h | `capture github star-history --candidates` |
-| `gh_detect_v1` | 1 h | `capture github detect-v1` |
-| `gh_settle_lag` | 1 h | `capture github settle-lag` (K2 re-fetches; see below) |
+| `gh_star_history` | 1 d | `capture github star-history --cases` (open cases whose series was never fetched or is older than 20 h) |
 | `gh_repo_events` | 15 min | `capture github repo-events` (**off**; see below) |
 
-Add a repo by hand with `uv run pigtail capture github watch-add --repo owner/name`. The GH
-Archive `gharchive_scan` job keeps running as the velocity-v0 control; `detect-v1` reports how
-often both agree (`agreement_30d`).
+By hand: `uv run pigtail capture github star-history --repo owner/name [--full]` for a repo
+already in the `repos` table (`--full` pages back to the creation week).
 
 **Per-repo events (person-level).** `repo-events` reads `WatchEvent`/`ForkEvent` actors for
 repos with an open case, to confirm the bot filter. It is off by default. To turn it on, meet
@@ -642,21 +649,9 @@ counted as `repo_events.parse_failed` in the run record); the pseudonymous rows 
 `pigtail retention purge`; only daily aggregates stay (CB-22, CB-23). pigtail never builds or exports a list of a repo's
 stargazers.
 
-**settle_lag re-fetches (K2, M4-T4).** The threshold calibration needs to know how much a
-star-history day still changes after it ends (pre-registration
-`docs/preregistration/2026-09-25-threshold-calibration.md` §2.1 K2). Each day, `gh_settle_lag`
-enrols the previous endpoint day for up to 100 repos (`--max-repos`). It then re-fetches that
-day at +1, +3, +7, +14 and +21 days after the day ended. Every version is kept in the
-append-only `star_history_settle_obs` table. An item fetched more than 24 h late is marked
-`missed`.
-- Only repos whose cases are **all** in the calibration split are enrolled. Held-out repos never
-  are, nor repos without a case or on the refusal list. Pending items of a repo that later opts
-  out, or gets a held-out case, are dropped.
-- Cost: about one core request per enrolled repo per day (≤ 200 per run).
-- This job only collects. The settled-share statistic is computed once, by the calibration.
-
-**Search pages (CB-24).** Search result pages embed owner objects, so they are snapshotted as
-person-level and their raw bytes are deleted right after parsing (hash and URL kept, tombstone in
+**Search pages (CB-24).** `pigtail.capture.github_search.search_repos` pages one given query
+(M13 builds the queries from a brief). Search result pages embed owner objects, so they are
+snapshotted as person-level and their raw bytes are deleted right after parsing (hash and URL kept, tombstone in
 `deletion_log`). Only repo ids, names, counts, dates and the owner *type* (User/Organization) are
 kept.
 
@@ -664,14 +659,10 @@ kept.
 (probably US Pacific; to be confirmed around the DST change on 2026-11-01). Stored rows carry a
 `day_boundary_tz` note.
 
-**First runs once the token exists** (validation plan in `docs/research/detection-replan.md` §8):
+**First runs once the token exists:**
 ```bash
-uv run pigtail capture github search-sweep --kind new --max-requests 60   # seed the watch list
-uv run pigtail capture github hn-screen
-uv run pigtail capture github watchlist-counts --max-points 50             # M3: cost per batch
-uv run pigtail capture github budget --hours 1                              # M7: ledger
-uv run pigtail capture github star-history --candidates --max-requests 50
-uv run pigtail capture github detect-v1                                    # needs ≥ 2 count runs
+uv run pigtail capture github budget --hours 1                              # ledger
+uv run pigtail capture github star-history --cases --max-requests 50
 ```
 
 ### Opt-outs (CB-13)
@@ -688,10 +679,9 @@ uv run pigtail privacy optout rekey     # CB-13b: convert pre-0009 unkeyed name 
   platform's namespace, which is the same pseudonym the connectors store. The database rejects
   anything that isn't a pseudonym. `--handle X` also works, but `--handle -` (or leaving the flag
   out) reads the handle from stdin and keeps it out of your shell history.
-- **Ingest:** `capture scan` loads the list, and connectors drop matching records before
+- **Ingest:** every capture loads the list, and connectors drop matching records before
   aggregation (counted as `<source>.suppressed` in the run record). Opted-out repos are dropped
-  by repo id and, for HN data, the watch list and the Show HN screen, also by normalized
-  `owner/name` (M1-T23), so an opt-out reaches repos pigtail doesn't track yet. The name is
+  by repo id and, for HN data, also by normalized `owner/name` (M1-T23), so an opt-out reaches repos pigtail doesn't track yet. The name is
   stored only as a **keyed** hash (`rk_…`: HMAC-SHA256 with `PSEUDONYM_KEY`, CB-13b), so the list
   can't be reversed with a dictionary of public repo names; `optout list` never shows the name.
   Matching names needs `PSEUDONYM_KEY`: a capture that finds keyed name entries but no key stops
@@ -704,7 +694,7 @@ uv run pigtail privacy optout rekey     # CB-13b: convert pre-0009 unkeyed name 
   logs a warning with their count, and `pigtail doctor` (and therefore an alert) warns
   (`optout_name_keys`) while any are left. To clear them:
   1. Run `pigtail privacy optout rekey`. It converts every entry whose name is found in local data
-     (HN rows, the watch list, `repos`).
+     (HN rows, `repos`).
   2. Re-add each remaining name with `optout add --repo owner/name`. This writes the keyed entry
      and deletes the unkeyed one. The source is the owner's original request, never the hash.
 - **`--repo owner/name`:** if the repo is in the database, it is opted out by id *and* name. If
@@ -721,17 +711,15 @@ uv run pigtail privacy optout rekey     # CB-13b: convert pre-0009 unkeyed name 
 
     | Rows | What happens |
     |---|---|
-    | GH Archive hourly aggregates, GitHub count snapshots, star history (daily rows and fetch log), per-repo events (actors, polls, daily aggregates), detection agreement, settle-lag schedule and observations, ETag cache rows of its API pages | deleted |
-    | Watch-list entries | deleted (the refusal-list entry is the tombstone; a plain-text row would show which repos opted out) |
+    | Star history (daily rows and fetch log), per-repo events (actors, polls, daily aggregates), launch-mode windows, ETag cache rows of its API pages | deleted |
     | HN mention rows | deleted, with their snapshots unless another repo's mention uses the same one |
-    | Rank-poller stories, Show HN screen rows | kept without title, url and repo link (the rank history keeps only the item id) |
+    | Rank-poller stories | kept without title, url and repo link (the rank history keeps only the item id) |
     | Evidence linked to the repo, its cases or its per-repo API pages | raw bytes dropped first, then the rows and derived LLM cache rows |
     | Cases, then the `repos` row | deleted |
 
-    Opting out by name also resolves the repo's ids (from `repos` and the watch list), adds them
-    to the list and purges by id. Snapshots shared with other repos are **kept**: GraphQL count
-    batches (100 repos each), GH Archive dumps (purged after 30 days anyway; replay drops the
-    repo at ingest) and HN front pages. Only the rows derived from them for this repo go.
+    Opting out by name also resolves the repo's ids (from `repos`), adds them to the list and
+    purges by id. Snapshots shared with other repos are **kept**: GH Archive dumps (purged after
+    30 days anyway; replay drops the repo at ingest) and HN front pages. Only the rows derived from them for this repo go.
   - Opt-outs are logged in the request log as `objection`.
 
 ### Backups and restore (CB-17)

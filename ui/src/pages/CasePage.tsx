@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { api, type CaseDetail, type CountSnapshot } from "../api";
+import { api, type CaseDetail } from "../api";
 import { EvidenceTable } from "../components/EvidenceTable";
 import { TimelineView } from "../components/Timeline";
 import { fmtNum, fmtTime } from "../format";
@@ -8,50 +7,9 @@ import { useAsync } from "../useAsync";
 
 type Tab = "timeline" | "evidence";
 
-function CountSnapshotTable({ rows }: { rows: CountSnapshot[] }) {
-  const first = rows[0];
-  const last = rows[rows.length - 1];
-  return (
-    <table className="data compact">
-      <thead>
-        <tr>
-          <th>Snapshot</th>
-          <th className="num">Stars</th>
-          <th className="num">Change</th>
-          <th className="num">Forks</th>
-          <th>Evidence</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => (
-          <tr key={r.observed_at}>
-            <td>{fmtTime(r.observed_at)}</td>
-            <td className="num">{fmtNum(r.stars)}</td>
-            <td className="num">{r.stars_delta === null ? "—" : fmtNum(r.stars_delta)}</td>
-            <td className="num">{fmtNum(r.forks)}</td>
-            <td>{r.evidence_id ? <Link href={`/evidence/${r.evidence_id}`}>{r.evidence_id}</Link> : "—"}</td>
-          </tr>
-        ))}
-      </tbody>
-      <tfoot>
-        <tr>
-          <td>Last − first snapshot (net of un-stars)</td>
-          <td className="num" />
-          <td className="num">{first && last ? fmtNum(last.stars - first.stars) : "unknown"}</td>
-          <td colSpan={2} />
-        </tr>
-      </tfoot>
-    </table>
-  );
-}
-
 function DetectionPanel({ d }: { d: CaseDetail }) {
-  const [open, setOpen] = useState(false);
   const det = d.detection;
   if (!det) return <p className="muted">No automatic detection for this case (trigger: {d.case.trigger}).</p>;
-  const counts = d.detection_hours_source === "github_counts" ? d.detection_hours : null;
-  const archive = d.detection_hours_source === "gharchive" ? d.detection_hours : [];
-  const hours = archive.filter((h) => h.stars_filtered > 0 || h.scan_status !== "ok");
   const cov = det.coverage;
   return (
     <section className="card detection" aria-label="Detection metrics">
@@ -89,46 +47,10 @@ function DetectionPanel({ d }: { d: CaseDetail }) {
           ? "; no independent reference count yet (unknown)."
           : `; reference ${fmtNum(cov.reference_stars)} from ${cov.reference_source ?? "unknown"}.`}
       </p>
-      <button type="button" className="link-button" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {open ? "Hide" : "Show"} the {counts ? "count snapshots" : "48 hourly buckets"} behind these numbers
-      </button>
-      {open && counts && <CountSnapshotTable rows={counts} />}
-      {open && !counts && (
-        <table className="data compact">
-          <thead>
-            <tr>
-              <th>Hour</th>
-              <th>Scan</th>
-              <th className="num">Stars raw</th>
-              <th className="num">Stars filtered</th>
-              <th className="num">Forks</th>
-              <th>Evidence</th>
-            </tr>
-          </thead>
-          <tbody>
-            {hours.map((h) => (
-              <tr key={h.hour}>
-                <td>{fmtTime(h.hour)}</td>
-                <td>{h.scan_status ?? "not scanned (unknown)"}</td>
-                <td className="num">{h.scan_status ? fmtNum(h.stars_raw) : "unknown"}</td>
-                <td className="num">
-                  {h.scan_status ? fmtNum(h.stars_filtered) : "unknown"}
-                  {h.lockstep ? " ⚑" : ""}
-                </td>
-                <td className="num">{h.scan_status ? fmtNum(h.forks_filtered) : "unknown"}</td>
-                <td>{h.evidence_id ? <Link href={`/evidence/${h.evidence_id}`}>{h.evidence_id}</Link> : "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={3}>Sum over 48 h (hours with no stars omitted above)</td>
-              <td className="num">{fmtNum(archive.reduce((a, h) => a + h.stars_filtered, 0))}</td>
-              <td colSpan={2} />
-            </tr>
-          </tfoot>
-        </table>
-      )}
+      <p className="muted small">
+        Recorded by the global detection removed in M11 (ADR-047.6). The hourly data behind these numbers was
+        discarded; the evidence records linked to this case remain.
+      </p>
     </section>
   );
 }

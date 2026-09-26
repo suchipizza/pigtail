@@ -15,7 +15,7 @@ from psycopg import sql
 
 from pigtail.capture.snapshots import LocalSnapshotStore
 from pigtail.llm.store import LLMStore
-from pigtail.privacy import requests, suppression
+from pigtail.privacy import requests
 from pigtail.privacy.deletion import REPO_TABLES, DeletionLog, RepoTable
 from tests.integration.test_privacy_ops import put_ev
 
@@ -100,16 +100,6 @@ def seed(db: Any, store: LocalSnapshotStore, repo: tuple[int, str]) -> dict[str,
     )  # fmt: skip
     q = db.conn.execute
     q(
-        "INSERT INTO repo_hourly_activity (repo_host_id, hour, repo_name, stars_raw)"
-        " VALUES (%s, %s, %s, 5)",
-        (hid, t, name.upper()),  # GH Archive keeps the event's casing
-    )
-    q(
-        "INSERT INTO repo_count_snapshot (repo_host_id, observed_at, stars, forks)"
-        " VALUES (%s, %s, 10, 1)",
-        (hid, t),
-    )
-    q(
         "INSERT INTO repo_star_daily (repo_host_id, day, stars_net, week_label, day_boundary_tz,"
         " fetched_at, evidence_id) VALUES (%s, %s, 3, 'w', 'UTC', %s, %s)",
         (hid, date(2026, 9, 17), t, hist.id),
@@ -131,27 +121,6 @@ def seed(db: Any, store: LocalSnapshotStore, repo: tuple[int, str]) -> dict[str,
     )
     q("INSERT INTO repo_event_daily_agg (repo_host_id, day) VALUES (%s, %s)", (hid, t.date()))
     q(
-        "INSERT INTO detection_agreement (repo_host_id, detected_hour, v1_case_id, v1_stars_48h)"
-        " VALUES (%s, %s, %s, 40)",
-        (hid, t, case),
-    )
-    q(
-        "INSERT INTO watchlist (repo_host_id, full_name, source, added_at, last_nominated_at)"
-        " VALUES (%s, %s, 'search', %s, %s)",
-        (hid, name, t, t),
-    )
-    q(
-        "INSERT INTO star_history_settle_obs (repo_host_id, day, lag_days, due_at, fetched_at,"
-        " lag_hours_actual, not_modified, day_boundary_tz, evidence_id)"
-        " VALUES (%s, %s, 1, %s, %s, 24, false, 'UTC', %s)",
-        (hid, date(2026, 9, 17), t, t, hist.id),
-    )
-    q(
-        "INSERT INTO settle_lag_schedule (repo_host_id, day, lag_days, due_at, enrolled_at)"
-        " VALUES (%s, %s, 3, %s, %s)",
-        (hid, date(2026, 9, 17), t, t),
-    )
-    q(
         "INSERT INTO github_http_cache (url, etag, content_hash, evidence_id, fetched_at)"
         " VALUES (%s, 'W/\"x\"', %s, %s, %s)",
         (hist_url, hist.content_hash, hist.id, t),
@@ -168,8 +137,9 @@ def seed(db: Any, store: LocalSnapshotStore, repo: tuple[int, str]) -> dict[str,
         (hid, f"https://github.com/{name}", name, key, t, t),
     )
     q(
-        "INSERT INTO hn_show_screen (item_id, repo_full_name, seen_at) VALUES (%s, %s, %s)",
-        (hid + 1, name, t),
+        "INSERT INTO launch_mode_window (scope, repo_id, starts_at, ends_at)"
+        " VALUES ('tracked_project', %s, %s, %s)",
+        (key, t, t + timedelta(days=14)),
     )
     return {"key": key, "evidence": [page, hist, search]}
 
@@ -215,16 +185,14 @@ def test_cb13c_purge_repo_reaches_every_registered_table(capture_db, tmp_path, p
         " FROM hn_story WHERE item_id = %s",
         (X[0],),
     ).fetchone() == (None, None, None, None, True)
-    assert db.conn.execute(
-        "SELECT repo_full_name FROM hn_show_screen WHERE item_id = %s", (X[0] + 1,)
-    ).fetchone() == (None,)
     # evidence: raw bytes and rows gone, derived LLM cache purged
     for ev in x["evidence"]:
         assert not store.exists(ev.content_hash)
         assert db.conn.execute("SELECT 1 FROM evidence WHERE id = %s", (ev.id,)).fetchone() is None
     assert res.counts["evidence_deleted"] == 3
     assert res.counts["llm_cache_rows_deleted"] == 3
-    assert res.counts["hourly_rows_deleted"] == 1 and res.counts["cases_deleted"] == 1
+    assert res.counts["repo_star_daily_rows_deleted"] == 1 and res.counts["cases_deleted"] == 1
+    assert res.counts["launch_mode_window_rows_deleted"] == 1
     # the other repo is untouched
     assert {(t.table, t.column): rows_of(db, t, Y) for t in REPO_TABLES} == before_y
     # every table with deleted rows has a tombstone
@@ -238,25 +206,6 @@ def test_cb13c_purge_repo_reaches_every_registered_table(capture_db, tmp_path, p
     # re-applying (e.g. after a restore) finds nothing more
     totals = requests.reapply_refusals(db, store, pz, llm_store=llm)
     assert sum(v for k, v in totals.items() if k.startswith("repo_")) == 0
-
-
-def test_cb13c_name_optout_resolves_watchlist_ids(capture_db, tmp_path, pz):
-    """A repo known only to the watch list (no `repos` row) opted out by name loses its
-    id-keyed rows too, and its id joins the refusal list."""
-    db = capture_db
-    store = LocalSnapshotStore(tmp_path / "snap")
-    seed(db, store, X)
-    x_key = f"github:{X[0]}"
-    for table in ("hn_mention", "detection_agreement"):
-        db.conn.execute(sql.SQL("DELETE FROM {}").format(sql.Identifier(table)))
-    db.conn.execute("DELETE FROM evidence WHERE repo_id = %s", (x_key,))
-    db.conn.execute("DELETE FROM cases")
-    db.conn.execute("DELETE FROM repos")
-    res = requests.optout_repo_name(db, store, platform="github", full_name=X[1], pz=pz)
-    assert res.counts["names_matched"] == 1
-    assert x_key in suppression.load(db, pz).repos
-    left = {(t.table, t.column): rows_of(db, t, X) for t in REPO_TABLES}
-    assert left == dict.fromkeys(left, 0), {k: v for k, v in left.items() if v}
 
 
 def test_cb13c_shared_evidence_is_kept(capture_db, tmp_path, pz):

@@ -34,7 +34,6 @@ export const ROLE_LABEL: Record<string, string> = {
   hn_mention: "HN search",
   hn_mention_item: "HN item",
   hn_rank_poll: "HN rank poll",
-  gharchive_hour: "GH Archive hour",
 };
 
 /** `datetime-local` input value (UTC) <-> ISO. */

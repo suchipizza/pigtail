@@ -382,3 +382,13 @@ How to reverse: Per item, through an ADR.
 9. **Pilot pre-registration and publishing:** the brief's success definition is the owner's brief content. The public pre-registration commits its SHA-256 hash, and the text becomes public only if the owner approves (H4).
 10. **Old pre-registrations** are withdrawn by dated amendments (pilot amendment 3, forecasting amendment 5, calibration amendment 1). The seed hypotheses MC-01…13 stay as a starter list a brief picks from before its outcome sort.
 How to reverse: Codebook or spec version bump + ADR; before the M15 pre-registration is pushed.
+
+## ADR-051 — M11 code cleanup: what was kept and how launch mode starts (2026-09-26)
+1. **Removed:** the watch list, search sweeps and screens, global velocity detection (GH Archive scan, backfill, detection v1), the holdout split and guard, settle-lag collection, and their scheduler jobs. Migration 0014 drops their tables. It first writes count-only `deletion_log` rows with the new reason `purpose_limitation` (ADR-047.6).
+2. **Kept:** per-repo collectors (star history, repo events, still gated), HN connectors, privacy, backups, UI and export. Also `botfilter.py` (login rules used by the connectors), the GH Archive connector (brief-restricted discovery, M13), and a generic `search_repos` (one caller-supplied query, raw pages dropped at parse).
+3. **Burst logic** is now `pigtail.analysis.bursts`: pure functions over one repo's star-history days, per codebook §3. Its parameters and the StarScout parameters live in `schemas/analysis-params/v1.0.0.json`, mirrored by `pigtail.analysis.params`, which replaces the retired thresholds JSON.
+4. **Launch-mode stub:** the table `launch_mode_window`, the override `PIGTAIL_LAUNCH_MODE`, and job flags `run_at_start` / `launch_mode_only`. The HN poller takes one snapshot per scheduled run and polls continuously only in launch mode (ADR-049.1). Launch-mode-only jobs are never flagged as stale; M14 reworks staleness for weekly batch runs.
+5. **The scheduler moves to the Compose `server` profile,** so a plain `docker compose up` on a Mac doesn't start an always-on service (ADR-048).
+6. **`repo-events` polls any live case,** not only velocity-triggered ones.
+Incident: docs commit 214986f accidentally included the engineer's staged deletions. That left HEAD broken and CI failed on that commit. It was repaired in the next commit, which completes M11's code part. Lesson: check `git diff --cached` before committing while another agent is working in the same tree.
+How to reverse: `archive/global-collection` has the removed code.

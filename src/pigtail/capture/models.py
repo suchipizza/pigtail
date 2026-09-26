@@ -129,7 +129,8 @@ class BotFilterStatus(BaseModel):
 
 
 class DetectionV1(BaseModel):
-    """Metrics of a detection-v1 case (ADR-032; `pigtail.capture.detection_v1`).
+    """Metrics of a detection-v1 case (ADR-032; detection removed in M11, ADR-047.6: the
+    model stays because cases it opened keep this block).
 
     Same core fields as `VelocityDetection` (so readers of `stars_48h`, `z_score`,
     `detected_hour`, `baseline_quality` and `coverage.ratio` keep working) plus the data sources,

@@ -45,16 +45,10 @@ def test_m1_t24_cb23_no_cli_command_lists_stargazers():
     gh = {c for c in cmds if c.startswith("capture github")}
     assert gh == {
         "capture github",
-        "capture github watch-add",
-        "capture github watchlist-counts",
-        "capture github search-sweep",
-        "capture github hn-screen",
         "capture github star-history",
-        "capture github detect-v1",
         "capture github repo-events",
-        "capture github settle-lag",  # M4-T4 K2: star-history day counts, no identities
         "capture github budget",
-    }
+    }  # M11: watch list, sweeps, screens, detect-v1 and settle-lag removed (ADR-047.6)
     assert not [c for c in cmds if re.search(r"stargazer|actor|who", c)]
 
 
@@ -97,15 +91,7 @@ def test_m1_t24_cb23_repo_event_actor_is_read_only_in_aggregate():
 def test_m1_t24_schedule_jobs_skip_without_token(caplog: pytest.LogCaptureFixture):
     cfg = load()
     gh = [j for j in cfg.jobs if j.name.startswith("gh_")]
-    assert {j.name for j in gh} == {
-        "gh_watchlist_counts",
-        "gh_search_sweep",
-        "gh_hn_screen",
-        "gh_star_history_confirm",
-        "gh_detect_v1",
-        "gh_repo_events",
-        "gh_settle_lag",  # M4-T4 K2
-    }
+    assert {j.name for j in gh} == {"gh_star_history", "gh_repo_events"}
     ev = cfg.job("gh_repo_events")
     assert ev.enabled is False  # person-level: off by default
     now = datetime(2026, 9, 25, tzinfo=UTC)
@@ -114,7 +100,7 @@ def test_m1_t24_schedule_jobs_skip_without_token(caplog: pytest.LogCaptureFixtur
             assert Planner({}).plan(j, now).skip == "missing_env:GITHUB_TOKEN"
     assert "GITHUB_TOKEN is not set" in caplog.text
     env = {"GITHUB_TOKEN": "x"}
-    assert Planner(env).plan(cfg.job("gh_detect_v1"), now).commands
+    assert Planner(env).plan(cfg.job("gh_star_history"), now).commands
     assert connector_gate(["github", "github_events"], env) == "connector_disabled"
     env_on = {**env, "PIGTAIL_ENABLE_GITHUB_EVENTS": "1"}
     assert connector_gate(["github", "github_events"], env_on) == "person_source_hold"

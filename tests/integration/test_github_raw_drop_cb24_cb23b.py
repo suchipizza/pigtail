@@ -11,13 +11,12 @@ from datetime import timedelta
 import httpx
 import pytest
 
-from pigtail.capture.github_screens import SearchSweeper, SweepConfig
-from pigtail.capture.github_watch import Watchlist
+from pigtail.capture.github_search import search_repos
 from pigtail.capture.repo_events import EventsConfig, RepoEventsPoller
 from pigtail.capture.runs import RunRecorder
 from pigtail.connectors.github import events_url, full_url
 from tests.github_fake import NOW, FakeGitHub, search_pool
-from tests.integration.test_github_detection_m1t24 import (
+from tests.integration.test_github_per_repo_m1t24 import (
     Clock,
     connector,
     dump_all_tables,
@@ -26,8 +25,12 @@ from tests.integration.test_github_detection_m1t24 import (
 
 pytestmark = pytest.mark.db
 
+# A caller-supplied query (M13 builds these from a brief); the fake needs date and star ranges.
+Q = "topic:example created:2026-09-15T00:00:00Z..2026-09-25T18:00:00Z stars:1..*"
+
 
 def test_cb24_search_pages_raw_dropped_after_parse_owner_type_only(capture_db, tmp_path):
+    """CB-24 via `search_repos` (the generic search kept from the removed sweeps, M11)."""
     db = capture_db
     fake = FakeGitHub()
     fake.search_pool = search_pool(
@@ -35,9 +38,9 @@ def test_cb24_search_pages_raw_dropped_after_parse_owner_type_only(capture_db, t
     )
     c = connector(db, fake, tmp_path)
     with RunRecorder("t", {}, sink=db.upsert_run, detect_commit=False) as run:
-        res = SearchSweeper(c, db, cfg=SweepConfig(new_days=7), run=run).sweep("new")
+        res = search_repos(c, db, Q, run=run)
     assert res.pages == 2 and res.raw_dropped == 2 and res.parse_failed == 0
-    assert Watchlist(db).counts()["active"] == 150  # every hit still nominated
+    assert res.total_count == 150 and len(res.items) == 150  # every hit parsed
     evs = db.conn.execute(
         "SELECT deletion_state, retention_class, content_hash, url FROM evidence"
         " WHERE source = 'github'"
@@ -52,9 +55,8 @@ def test_cb24_search_pages_raw_dropped_after_parse_owner_type_only(capture_db, t
     assert {r[1] for r in logs} == {e[2] for e in evs} and all(r[0] == "retention" for r in logs)
     assert run.counts["search.raw_dropped"] == 2
     # only the owner *type* survives from the owner objects
-    assert db.conn.execute("SELECT DISTINCT owner_type FROM watchlist").fetchall() == [
-        ("Organization",)
-    ]
+    assert {it.owner_type for it in res.items} == {"Organization"}
+    assert all("login" not in repr(it) for it in res.items)
     assert '"login"' not in dump_all_tables(db)
 
 
@@ -66,7 +68,7 @@ def test_cb23b_unparseable_search_page_dropped_and_counted(capture_db, tmp_path)
     fake.script = [httpx.Response(200, content=body, headers=fake._headers("search"))]
     c = connector(db, fake, tmp_path)
     with RunRecorder("t", {}, sink=db.upsert_run, detect_commit=False) as run:
-        res = SearchSweeper(c, db, run=run).sweep("new")
+        res = search_repos(c, db, Q, run=run)
     assert res.parse_failed == 1 and res.raw_dropped == 1 and res.pages == 0
     ev = db.conn.execute(
         "SELECT deletion_state, content_hash FROM evidence WHERE source = 'github'"

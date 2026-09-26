@@ -1,8 +1,17 @@
-# pigtail unattended schedule (M1-T21). Read by `pigtail scheduler run`; override the path with
-# PIGTAIL_SCHEDULE. Durations: 90s, 5m, 2h, 1d. Intervals under 1 minute are refused (TM-04).
-# Each job runs `pigtail <command>` in a child process, holds a Postgres advisory lock while it
-# runs (no overlap), retries failures with exponential backoff (retry_base x 2^n, capped at
-# `every`, for `max_retries` failures in a row), and writes a `runs` record `scheduler.<job>`.
+# pigtail schedule (M1-T21; batch runs since M11, ADR-048, ADR-049.1). Read by
+# `pigtail scheduler run|plan`; override the path with PIGTAIL_SCHEDULE. Durations: 90s, 5m, 2h,
+# 1d. Intervals under 1 minute are refused (TM-04).
+#
+# `pigtail scheduler run --once` is one batch run: it runs every job that is due plus the
+# start-of-run jobs, then exits (M14 adds the launchd schedule that calls it). The long-running
+# loop (`pigtail scheduler run` without --once) is optional: the server path, or while a launch is
+# followed. Each job runs `pigtail <command>` in a child process, holds a Postgres advisory lock
+# while it runs (no overlap), retries failures with exponential backoff (retry_base x 2^n, capped
+# at `every`, for `max_retries` failures in a row), and writes a `runs` record `scheduler.<job>`.
+#
+# The global-collection jobs (GH Archive velocity scan and backfill, watch-list counts, search
+# sweeps, HN/GH Archive screens, detection v1, settle-lag) were removed in M11 (ADR-047.6,
+# ADR-049.5); see the git tag `archive/global-collection`.
 
 [scheduler]
 tick = "15s"          # how often the loop looks for due jobs
@@ -19,35 +28,21 @@ integrity_window = "24h"  # CB-30: any snapshot hash mismatch in the UI raises `
 file_max_bytes = 1000000  # CB-31: rotate ALERTS.md / alerts.jsonl at this size or when their first
 file_rotate_after = "30d" # event is this old; archives are deleted after LOG_RETENTION_DAYS (<= 365)
 
-# HN front-page ranks: project-level only, on by default (ADR-031.1). Rank history cannot be
-# backfilled, so this is the job that must never stop.
+# HN front-page ranks: project-level only, on by default (ADR-031.1, ADR-049.1). No always-on
+# poller: one snapshot of the current front page at the start of every scheduled run
+# (`run_at_start`), and every `every` only while a brief or tracked project is in launch mode
+# (`launch_mode_only`; launch_mode_window, or PIGTAIL_LAUNCH_MODE=1). Rank history outside those
+# windows is not collected and is reported as a coverage gap; historical front-page presence comes
+# from the Algolia `front_page` tag, labelled as such. For manual continuous polling use
+# `pigtail capture hn-ranks --loop`.
 [jobs.hn_ranks]
 command = ["capture", "hn-ranks", "--once"]
 every = "5m"
 timeout = "4m"
 retry_base = "1m"
 requires = ["hn_ranks"]
-
-# GH Archive velocity scan (R1.1). Limited value for breakout detection (ADR-028) but cheap.
-# Scans [midnight UTC `catchup_days` before, now - lag); complete days already scanned are skipped.
-[jobs.gharchive_scan]
-kind = "gharchive_scan"
-every = "1h"
-timeout = "50m"
-lag = "2h"
-catchup_days = 2
-retry_base = "5m"
-
-# Retry missing GH Archive hours (M1-T19): 404/5xx/transport errors and undecodable dumps are
-# marked missing at scan time with a backoff (1h, 2h, 4h, ... capped at 24h). This job retries the
-# ones that are due, up to `--days` back, and re-aggregates the days that came back. Cheap when
-# nothing is due (one query).
-[jobs.gharchive_backfill]
-command = ["capture", "backfill-gharchive", "--days", "7"]
-every = "1h"
-timeout = "50m"
-retry_base = "10m"
-requires = ["gharchive"]
+run_at_start = true
+launch_mode_only = true
 
 # Retention purge (CB-01, CB-04, CB-05, CB-18; CB-33: UI audit rows past LOG_RETENTION_DAYS).
 [jobs.retention_purge]
@@ -63,13 +58,6 @@ every = "1d"
 timeout = "2h"
 retry_base = "10m"
 
-# Raw GH Archive dump purge (CB-04). Retention purge covers this too; kept as a separate, cheap job.
-[jobs.purge_raw]
-command = ["capture", "purge-raw"]
-every = "1d"
-timeout = "1h"
-retry_base = "10m"
-
 # HN mentions for live cases opened within `window` (R1.2). Person-level: skipped (and logged)
 # unless PIGTAIL_ENABLE_HN=1 and PIGTAIL_ADR022_PERSON_SOURCES_OK=1 (ADR-022, ADR-031.2).
 [jobs.hn_mentions]
@@ -80,60 +68,16 @@ window = "48h"
 since_before_open = "14d"
 retry_base = "10m"
 
-# --- GitHub detection (M1-T24, ADR-032). Every job below requires the `github` connector, which
-# makes no live call without GITHUB_TOKEN: until the operator sets it, each run is skipped and
-# logged with reason `missing_env:GITHUB_TOKEN` (no failure, no alert). Budgets: see
-# docs/guides/operator.md "GitHub token and budgets".
+# --- Per-repo GitHub collectors (M1-T24, ADR-032; per-repo only since M11). Every job below
+# requires the `github` connector, which makes no live call without GITHUB_TOKEN: until the
+# operator sets it, each run is skipped and logged with reason `missing_env:GITHUB_TOKEN` (no
+# failure, no alert). Budgets: see docs/guides/operator.md "GitHub token and budgets".
 
-# Hourly GraphQL star/fork counts for the watch list (100 repos per query, ~1 point each).
-[jobs.gh_watchlist_counts]
-command = ["capture", "github", "watchlist-counts"]
-every = "1h"
-timeout = "45m"
-retry_base = "5m"
-requires = ["github"]
-
-# Search sweeps (new repos, recently pushed repos in star bands) into the watch list.
-[jobs.gh_search_sweep]
-command = ["capture", "github", "search-sweep", "--kind", "all"]
-every = "6h"
-timeout = "2h"
-retry_base = "15m"
-requires = ["github"]
-
-# GitHub URLs from the HN rank poller + Show HN (project-level), and GH Archive nominations.
-[jobs.gh_hn_screen]
-command = ["capture", "github", "hn-screen"]
-every = "1h"
-timeout = "30m"
-retry_base = "5m"
-requires = ["github", "hn_ranks"]
-
-# Star-history baselines: new watch-list entries, pre-threshold repos and cases (daily refresh).
-[jobs.gh_star_history_confirm]
-command = ["capture", "github", "star-history", "--candidates"]
-every = "1h"
+# Star-history daily series for the repos of open cases (never fetched, or older than 20 h).
+[jobs.gh_star_history]
+command = ["capture", "github", "star-history", "--cases"]
+every = "1d"
 timeout = "50m"
-retry_base = "10m"
-requires = ["github"]
-
-# Detection v1 (counts screen + star-history confirmation). GH Archive `gharchive_scan` stays on
-# as the velocity-v0 control; agreement is recorded.
-[jobs.gh_detect_v1]
-command = ["capture", "github", "detect-v1"]
-every = "1h"
-timeout = "30m"
-retry_base = "5m"
-requires = ["github"]
-
-# settle_lag collection for the threshold calibration (K2, M4-T4): each day, yesterday's
-# star-history day of up to 100 calibration-split case repos is enrolled for re-fetches at
-# +1, +3, +7, +14 and +21 days; every fetch version is kept (star_history_settle_obs). About one
-# core request per enrolled repo per day. Skipped (missing_env:GITHUB_TOKEN) until the token is set.
-[jobs.gh_settle_lag]
-command = ["capture", "github", "settle-lag"]
-every = "1h"
-timeout = "30m"
 retry_base = "10m"
 requires = ["github"]
 

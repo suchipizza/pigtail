@@ -27,6 +27,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from pigtail.capture.db import CaptureDB
+from pigtail.capture.repos import OPEN_CASE_STATUSES
 from pigtail.capture.runs import RunRecorder
 from pigtail.connectors.github import STAR_HISTORY_MAX_PAGE, GitHubConnector, StarWeek
 
@@ -146,15 +147,30 @@ def fetch_star_history(
         (repo_host_id, now, per_page, res.pages, res.weeks, res.not_modified, res.total_net,
          res.complete, run.id if run else None),
     )  # fmt: skip
-    db.conn.execute(
-        "UPDATE watchlist SET baseline_fetched_at = %s WHERE repo_host_id = %s",
-        (now, repo_host_id),
-    )
     if run is not None:
         run.incr("star_history.pages", res.pages)
         run.incr("star_history.not_modified", res.not_modified)
         run.incr("star_history.repos")
     return res
+
+
+def due_case_repos(
+    db: CaptureDB, *, refresh: timedelta = timedelta(hours=20)
+) -> list[tuple[int, str]]:
+    """GitHub repos of open cases whose star history was never fetched or is older than
+    `refresh` (`capture github star-history --cases`). Most recently opened cases first."""
+    rows = db.conn.execute(
+        """
+        SELECT r.host_id, r.full_name FROM repos r
+        WHERE r.host = 'github' AND r.host_id IS NOT NULL
+          AND EXISTS (SELECT 1 FROM cases c WHERE c.repo_id = r.id AND c.status = ANY(%s))
+          AND coalesce((SELECT max(f.fetched_at) FROM star_history_fetch f
+                        WHERE f.repo_host_id = r.host_id), '-infinity') < now() - %s
+        ORDER BY (SELECT max(c.opened_at) FROM cases c WHERE c.repo_id = r.id) DESC, r.host_id
+        """,
+        (list(OPEN_CASE_STATUSES), refresh),
+    ).fetchall()
+    return [(int(h), str(n)) for h, n in rows]
 
 
 def daily_series(db: CaptureDB, repo_host_id: int, start: date, end: date) -> dict[date, int]:

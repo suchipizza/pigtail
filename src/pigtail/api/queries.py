@@ -23,12 +23,14 @@ Bucket = Literal["hour", "day"]
 CaseSort = Literal["recency", "velocity"]
 EvidenceSort = Literal["fetched_at", "source", "reliability", "deletion_state", "retention_class"]
 
-# ADR-028: GH Archive under-captures stars; every view of star counts carries this caveat.
+# ADR-032.3, ADR-047.8: stars come from GitHub's star-history endpoint; every view of star counts
+# carries this caveat.
 COVERAGE_CAVEAT = (
-    "Star counts come from GH Archive, which was measured to capture a small fraction of "
-    "public stars (about 0.7% in the M1 smoke run, ADR-028). Treat them as a lower bound and a "
-    "shape, not as the repo's true star count. Hours that were never scanned are unknown, not "
-    "zero."
+    "Daily stars come from GitHub's star-history endpoint: net counts of the current stars "
+    "by star date (un-stars are netted out; no identities). Day labels are the endpoint's own and "
+    "are not UTC-aligned (inferred US Pacific). Days that were never fetched are unknown, not "
+    "zero. Detection numbers on older cases were computed by the removed global detection "
+    "(GH Archive, about 0.7% of public stars, ADR-028) and are shown as recorded."
 )
 UNCODED_NOTE = "Uncoded preview: events are raw captures, not coded (codebook not applied yet)."
 MAX_HOURLY_SPAN = timedelta(days=60)
@@ -56,7 +58,6 @@ ROLES = (
     "hn_mention",
     "hn_mention_item",
     "hn_rank_poll",
-    "gharchive_hour",
 )
 EVENT_ROLES = ("case", "repo", "hn_story", "hn_mention", "hn_mention_item")
 
@@ -172,31 +173,6 @@ def get_case(conn: Conn, case_id: str) -> dict[str, Any] | None:
     if c is None:
         return None
     det = c["detection"]
-    detection_hours: list[dict[str, Any]] = []
-    hours_source: str | None = None
-    if det and det.get("rule_version") == "detection-v1":
-        hours_source = "github_counts"
-        detection_hours = _v1_count_snapshots(conn, c["host_id"], det)
-    elif det and det.get("detected_hour"):
-        hours_source = "gharchive"
-        end = datetime.fromisoformat(det["detected_hour"])
-        start = end - timedelta(hours=47)
-        # The 48 hourly buckets behind stars_48h, each with the GH Archive dump it came from.
-        detection_hours = _rows(
-            conn,
-            """
-            SELECT gs.hour, g.status AS scan_status, g.evidence_id,
-                   coalesce(a.stars_raw, 0) AS stars_raw,
-                   coalesce(a.stars_filtered, 0) AS stars_filtered,
-                   coalesce(a.forks_filtered, 0) AS forks_filtered,
-                   coalesce(a.lockstep_flag, false) AS lockstep
-            FROM generate_series(%(s)s::timestamptz, %(e)s::timestamptz, interval '1 hour') gs(hour)
-            LEFT JOIN gharchive_hours g ON g.hour = gs.hour
-            LEFT JOIN repo_hourly_activity a ON a.hour = gs.hour AND a.repo_host_id = %(hid)s
-            ORDER BY gs.hour
-            """,
-            {"s": start, "e": end, "hid": c["host_id"]},
-        )
     counts = _rows(
         conn,
         _case_refs_sql("SELECT r.role, count(DISTINCT r.evidence_id) AS n FROM refs r GROUP BY 1"),
@@ -223,49 +199,10 @@ def get_case(conn: Conn, case_id: str) -> dict[str, Any] | None:
         },
         "detection": det,
         "coverage": det.get("coverage") if det else None,
-        "detection_hours": detection_hours,
-        "detection_hours_source": hours_source,
         "evidence_counts": {r["role"]: r["n"] for r in counts},
         "caveats": [COVERAGE_CAVEAT, UNCODED_NOTE],
         "coded": False,
     }
-
-
-def _v1_count_snapshots(conn: Conn, host_id: int, det: dict[str, Any]) -> list[dict[str, Any]]:
-    """M1-T28: the hourly GraphQL count snapshots behind a detection-v1 `stars_48h`.
-
-    Detection v1 (ADR-037) computes `stars_48h = L.stars - F.stars` from `repo_count_snapshot`
-    over the coverage window [F, L]; each row carries its batch snapshot's evidence id and the
-    change since the previous row (net of un-stars; no bot filtering at this step, ADR-037.1).
-    """
-    cov = det.get("coverage") or {}
-    if not cov.get("window_start") or not cov.get("window_end"):
-        return []
-    rows = _rows(
-        conn,
-        """
-        SELECT observed_at, stars, forks, evidence_id FROM repo_count_snapshot
-        WHERE repo_host_id = %(hid)s AND observed_at >= %(s)s::timestamptz
-          AND observed_at <= %(e)s::timestamptz
-        ORDER BY observed_at
-        """,
-        {"hid": host_id, "s": cov["window_start"], "e": cov["window_end"]},
-    )
-    out: list[dict[str, Any]] = []
-    prev: dict[str, Any] | None = None
-    for r in rows:
-        out.append(
-            {
-                "observed_at": r["observed_at"],
-                "stars": r["stars"],
-                "forks": r["forks"],
-                "stars_delta": None if prev is None else r["stars"] - prev["stars"],
-                "forks_delta": None if prev is None else r["forks"] - prev["forks"],
-                "evidence_id": r["evidence_id"],
-            }
-        )
-        prev = r
-    return out
 
 
 # --- evidence belonging to a case ----------------------------------------------------------------
@@ -303,11 +240,6 @@ def _case_refs_sql(tail: str | sql.Composed) -> sql.Composed:
             JOIN hn_rank_observation o ON o.item_id = s.item_id
             JOIN hn_rank_poll p ON p.observed_at = o.observed_at
             WHERE p.evidence_id IS NOT NULL
-            UNION ALL
-            SELECT g.evidence_id, 'gharchive_hour'
-            FROM c JOIN repo_hourly_activity a ON a.repo_host_id = c.host_id
-            JOIN gharchive_hours g ON g.hour = a.hour
-            WHERE g.evidence_id IS NOT NULL
         )
         """
     ) + (sql.SQL(tail) if isinstance(tail, str) else tail)
@@ -376,13 +308,15 @@ def _extent(conn: Conn, c: dict[str, Any]) -> tuple[datetime, datetime]:
         conn,
         """
         SELECT least(
-                 (SELECT min(hour) FROM repo_hourly_activity WHERE repo_host_id = %(hid)s),
+                 (SELECT min(day)::timestamp AT TIME ZONE 'UTC' FROM repo_star_daily
+                   WHERE repo_host_id = %(hid)s),
                  (SELECT min(o.observed_at) FROM hn_rank_observation o
                    JOIN hn_story s ON s.item_id = o.item_id
                    WHERE s.repo_id = %(rid)s OR s.repo_full_name = %(lname)s),
                  %(opened)s::timestamptz - interval '1 day') AS lo,
                greatest(
-                 (SELECT max(hour) FROM repo_hourly_activity WHERE repo_host_id = %(hid)s),
+                 (SELECT max(day)::timestamp AT TIME ZONE 'UTC' + interval '23 hours'
+                   FROM repo_star_daily WHERE repo_host_id = %(hid)s),
                  (SELECT max(o.observed_at) FROM hn_rank_observation o
                    JOIN hn_story s ON s.item_id = o.item_id
                    WHERE s.repo_id = %(rid)s OR s.repo_full_name = %(lname)s),
@@ -445,57 +379,22 @@ def timeline(
         "lname": c["full_name"].lower(),
         "cid": case_id,
     }
+    # Star history is daily (endpoint day labels, not UTC-aligned): one point per day, whatever
+    # the bucket; `t` is the day label at 00:00 UTC. Unfetched days are absent (unknown).
     github = _rows(
         conn,
         """
-        WITH hours AS (
-            SELECT hour, status, evidence_id FROM gharchive_hours
-            WHERE hour >= %(f)s AND hour < %(t)s
-        ),
-        act AS (
-            SELECT * FROM repo_hourly_activity
-            WHERE repo_host_id = %(hid)s AND hour >= %(f)s AND hour < %(t)s
-        ),
-        j AS (
-            SELECT coalesce(h.hour, a.hour) AS hour, h.status, h.evidence_id,
-                   (h.status = 'ok' OR a.hour IS NOT NULL) AS observed,
-                   a.stars_raw, a.stars_filtered, a.stars_bot, a.stars_lockstep,
-                   a.forks_raw, a.forks_filtered, a.lockstep_flag
-            FROM hours h FULL JOIN act a ON a.hour = h.hour
-        )
-        SELECT date_trunc(%(b)s, hour) AS t,
-               count(*) FILTER (WHERE observed) AS hours_observed,
-               count(*) FILTER (WHERE status = 'missing' AND NOT observed) AS hours_missing,
-               sum(coalesce(stars_raw, 0)) FILTER (WHERE observed) AS stars_raw,
-               sum(coalesce(stars_filtered, 0)) FILTER (WHERE observed) AS stars_filtered,
-               sum(coalesce(stars_bot, 0)) FILTER (WHERE observed) AS stars_bot,
-               sum(coalesce(stars_lockstep, 0)) FILTER (WHERE observed) AS stars_lockstep,
-               sum(coalesce(forks_raw, 0)) FILTER (WHERE observed) AS forks_raw,
-               sum(coalesce(forks_filtered, 0)) FILTER (WHERE observed) AS forks_filtered,
-               coalesce(bool_or(lockstep_flag), false) AS lockstep,
-               coalesce(array_agg(evidence_id ORDER BY hour)
-                        FILTER (WHERE evidence_id IS NOT NULL AND stars_raw IS NOT NULL),
-                        '{}') AS evidence_ids,
-               coalesce(array_agg(evidence_id ORDER BY hour)
-                        FILTER (WHERE evidence_id IS NOT NULL), '{}') AS scan_evidence_ids
-        FROM j GROUP BY 1 ORDER BY 1
+        SELECT day::timestamp AT TIME ZONE 'UTC' AS t, stars_net, is_partial,
+               CASE WHEN evidence_id IS NULL THEN '{}'::text[] ELSE ARRAY[evidence_id] END
+                   AS evidence_ids
+        FROM repo_star_daily
+        WHERE repo_host_id = %(hid)s
+          AND day >= (%(f)s::timestamptz AT TIME ZONE 'UTC')::date
+          AND day < (%(t)s::timestamptz AT TIME ZONE 'UTC')::date + 1
+        ORDER BY day
         """,
         p,
     )
-    for g in github:
-        for k in (
-            "stars_raw",
-            "stars_filtered",
-            "stars_bot",
-            "stars_lockstep",
-            "forks_raw",
-            "forks_filtered",
-        ):
-            g[k] = int(g[k]) if g[k] is not None else None
-        # A zero is backed by the scanned dumps even when the repo had no events in them.
-        if not g["evidence_ids"]:
-            g["evidence_ids"] = g["scan_evidence_ids"][:24]
-        g.pop("scan_evidence_ids")
 
     stories = _rows(
         conn,
@@ -586,7 +485,12 @@ def get_evidence(conn: Conn, evidence_id: str) -> dict[str, Any] | None:
     if r is None:
         return None
     p = {"id": evidence_id}
-    gh = _rows(conn, "SELECT hour, status FROM gharchive_hours WHERE evidence_id = %(id)s", p)
+    days = _rows(
+        conn,
+        "SELECT repo_host_id, day FROM repo_star_daily WHERE evidence_id = %(id)s"
+        " ORDER BY repo_host_id, day LIMIT 400",
+        p,
+    )
     polls = _rows(conn, "SELECT observed_at FROM hn_rank_poll WHERE evidence_id = %(id)s", p)
     stories = _rows(
         conn, "SELECT item_id, repo_id FROM hn_story WHERE evidence_id = %(id)s ORDER BY 1", p
@@ -607,7 +511,7 @@ def get_evidence(conn: Conn, evidence_id: str) -> dict[str, Any] | None:
         "links": {
             "case_id": r["case_id"],
             "repo_id": r["repo_id"],
-            "gharchive_hours": gh,
+            "star_history_days": days,
             "hn_rank_polls": [x["observed_at"] for x in polls],
             "hn_stories": stories,
             "hn_mentions": mentions,

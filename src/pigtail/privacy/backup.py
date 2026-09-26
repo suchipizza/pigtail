@@ -611,7 +611,6 @@ def replay_tombstones(
     deleted_ids: list[str] = []
     for logged_at, reason, action, h, eid in rows:
         if action == "evidence_deleted":
-            q("UPDATE gharchive_hours SET evidence_id = NULL WHERE evidence_id = %s", (eid,))
             n = q("DELETE FROM evidence WHERE id = %s", (eid,)).rowcount
             rep.evidence_deleted += n
             if n:

@@ -45,9 +45,9 @@ def seed(db: Any) -> None:
         (T0,),
     )
     x(
-        "INSERT INTO gharchive_hours (hour, status, events, filter_window, bot_filter_version)"
-        " VALUES (%s, 'ok', 3, tstzrange(%s, %s, '[)'), 'bf-v0')",
-        (T0, T0 - timedelta(days=7), T0),
+        "INSERT INTO launch_mode_window (scope, repo_id, starts_at, ends_at, created_at)"
+        " VALUES ('tracked_project', 'github:1000001', %s, %s, %s)",
+        (T0 - timedelta(days=7), T0, T0),
     )
     x(
         "INSERT INTO hn_mention (repo_full_name, item_id, item_type, author, match_kind,"
@@ -92,10 +92,10 @@ def test_m1_t20_default_export_is_project_level_sorted_and_versioned(capture_db,
     repos = lines(out / "repos.jsonl")
     assert [r["id"] for r in repos] == ["github:1000001", "github:1000002"]  # primary-key order
     assert all(r["schema_version"] == "v0" for r in repos)  # the row's own version
-    (hour,) = lines(out / "gharchive_hours.jsonl")
-    assert hour["schema_version"] == f"db-{res.db_schema_version}"
-    assert hour["hour"] == "2026-09-20T12:00:00+00:00"  # UTC ISO 8601
-    assert hour["filter_window"] == "[2026-09-13T12:00:00+00:00,2026-09-20T12:00:00+00:00)"
+    (win,) = lines(out / "launch_mode_window.jsonl")
+    assert win["schema_version"] == f"db-{res.db_schema_version}"
+    assert win["ends_at"] == "2026-09-20T12:00:00+00:00"  # UTC ISO 8601
+    assert win["starts_at"] == "2026-09-13T12:00:00+00:00"
     (case,) = lines(out / "cases.jsonl")
     assert case["detection"] == {"rule_version": "velocity-v0", "z_score": 4.5}
     raw = (out / "cases.jsonl").read_text()

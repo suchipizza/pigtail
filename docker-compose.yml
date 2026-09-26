@@ -1,5 +1,6 @@
-# pigtail stack (PRD §10 self-hosting). M0 skeleton: Postgres + S3-compatible object storage.
-# App services: `scheduler` (M1-T21); API/UI are added separately.
+# pigtail stack (PRD §10 self-hosting): Postgres + S3-compatible object storage, the private UI,
+# and an optional long-running `scheduler` (profile `server`, ADR-048.6). Runs are batch runs
+# (`pigtail scheduler run --once`, ADR-048, ADR-049.1): nothing collects between runs by default.
 name: pigtail
 
 services:
@@ -64,9 +65,13 @@ services:
       echo 'object store writable'"
 
   scheduler:
-    # Unattended runtime (M1-T21): capture, retention, deletion sync, /healthz, alerts.
+    # Optional long-running scheduler loop (M1-T21) for the server path only (ADR-048.6):
+    # `docker compose --profile server up -d scheduler`. Not started by a plain `docker compose
+    # up` (ADR-049.1: no always-on process by default); batch runs use
+    # `docker compose run --rm scheduler pigtail scheduler run --once`.
     # Same image as other app services (Dockerfile at the repo root). docs/guides/operator.md
-    # "Running unattended".
+    # "Scheduled runs".
+    profiles: ["server"]
     build:
       context: .
       args:

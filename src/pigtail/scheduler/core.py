@@ -14,10 +14,17 @@ Timing per job (`next_due`):
 - last attempt failed: retry with exponential backoff `retry_base * 2**(n-1)`, capped at
   `every`, for up to `max_retries` consecutive failures; after that, back to `every`.
 
+Batch runs (ADR-048, ADR-049.1). A job with `run_at_start = true` runs once at the start of
+every scheduler run (each `pigtail scheduler run --once`, or the first tick of the loop), due or
+not. A job with `launch_mode_only = true` is otherwise due on its interval only while launch mode
+is active (`launch_mode`, see `pigtail.scheduler.launch_mode`). The HN rank poller uses both: one
+front-page snapshot per scheduled run, continuous polling only in launch mode.
+
 `run_job` takes the job's lock, re-checks that the job is still due (another scheduler may have
-just run it), plans, then runs the commands inside a `RunRecorder`, so each attempt writes one
-`run` record (`succeeded`, `failed` with scrubbed error text, or `succeeded` with
-`counts.skipped = 1` when a precondition such as the ADR-022 hold makes it skip).
+just run it; skipped for a start-of-run execution), plans, then runs the commands inside a
+`RunRecorder`, so each attempt writes one `run` record (`succeeded`, `failed` with scrubbed
+error text, or `succeeded` with `counts.skipped = 1` when a precondition such as the ADR-022
+hold makes it skip).
 """
 
 from __future__ import annotations
@@ -32,6 +39,7 @@ from typing import Literal
 from pigtail.capture.runs import RunRecorder, git_commit, utcnow
 from pigtail.scheduler.config import JobSpec, ScheduleConfig
 from pigtail.scheduler.jobs import Planner
+from pigtail.scheduler.launch_mode import LaunchMode
 from pigtail.scheduler.locks import JobLocks
 from pigtail.scheduler.runner import Runner
 from pigtail.scheduler.state import JobStats, StateStore
@@ -69,6 +77,7 @@ class Scheduler:
         code_commit: str | None = None,
         on_alert_tick: Callable[[], None] | None = None,
         heartbeat: Callable[[datetime, datetime, int], None] | None = None,
+        launch_mode: LaunchMode | None = None,
     ) -> None:
         self.cfg = cfg
         self.store = store
@@ -86,16 +95,45 @@ class Scheduler:
         self._last_alert_at: datetime | None = None
         self._running: set[str] = set()
         self._mu = threading.Lock()
+        self.launch_mode = launch_mode  # None: never in launch mode
+        self._lm_cache: tuple[datetime, bool] | None = None
+        # jobs still owed their start-of-run execution (ADR-049.1)
+        self._start_pending: set[str] = {j.name for j in cfg.enabled_jobs if j.run_at_start}
 
     # --- decisions ------------------------------------------------------------------------
+    def in_launch_mode(self, now: datetime) -> bool:
+        """Launch mode at `now`, re-read at most once a minute (one query per minute)."""
+        if self.launch_mode is None:
+            return False
+        c = self._lm_cache
+        if c is not None and timedelta(0) <= now - c[0] < timedelta(minutes=1):
+            return c[1]
+        try:
+            on = bool(self.launch_mode(now))
+        except Exception as e:  # never stop the loop over it; batch cadence is the safe default
+            log.warning("launch mode check failed (treated as off): %s", type(e).__name__)
+            on = False
+        self._lm_cache = (now, on)
+        return on
+
     def due_jobs(self, now: datetime) -> list[JobSpec]:
         specs = self.cfg.enabled_jobs
         stats = self.store.stats([s.run_job for s in specs], now)
         with self._mu:
             running = set(self._running)
-        return [
-            s for s in specs if s.name not in running and next_due(s, stats[s.run_job], now) <= now
-        ]
+            start = set(self._start_pending)
+        out = []
+        for s in specs:
+            if s.name in running:
+                continue
+            if s.name in start:
+                out.append(s)
+                continue
+            if s.launch_mode_only and not self.in_launch_mode(now):
+                continue
+            if next_due(s, stats[s.run_job], now) <= now:
+                out.append(s)
+        return out
 
     def alive(self, now: datetime | None = None) -> bool:
         """The loop has ticked recently (for `/healthz`)."""
@@ -105,27 +143,28 @@ class Scheduler:
         return (now or self.clock()) - self.last_tick_at <= limit
 
     # --- execution ------------------------------------------------------------------------
-    def run_job(self, spec: JobSpec) -> Outcome:
+    def run_job(self, spec: JobSpec, *, at_start: bool = False) -> Outcome:
         try:
             with self.locks.hold(spec.name) as got:
                 if not got:
                     log.info("job %s: another run holds the lock; not starting", spec.name)
                     return "locked"
-                return self._run_locked(spec)
+                return self._run_locked(spec, at_start=at_start)
         except Exception as e:  # lock or state store unreachable
             log.warning("job %s could not start: %s", spec.name, type(e).__name__)
             return "error"
 
-    def _run_locked(self, spec: JobSpec) -> Outcome:
+    def _run_locked(self, spec: JobSpec, *, at_start: bool = False) -> Outcome:
         now = self.clock()
         if n := self.store.close_orphans(spec.run_job, now):
             log.warning("job %s: marked %d abandoned run(s) as failed", spec.name, n)
         st = self.store.stats([spec.run_job], now)[spec.run_job]
-        if next_due(spec, st, now) > now:
+        if not at_start and next_due(spec, st, now) > now:
             return "not_due"  # another scheduler finished it while we waited
         plan = self.planner.plan(spec, now)
         config: dict[str, object] = {
             "kind": spec.kind,
+            **({"at_start": True} if at_start else {}),
             "attempt": st.consecutive_failures + 1,
             "timeout_s": int(spec.timeout.total_seconds()),
             **plan.config,
@@ -189,13 +228,15 @@ class Scheduler:
                 if spec.name in self._running:
                     continue
                 self._running.add(spec.name)
+                at_start = spec.name in self._start_pending
+                self._start_pending.discard(spec.name)
             if executor is None:
                 try:
-                    out[spec.name] = self.run_job(spec)
+                    out[spec.name] = self.run_job(spec, at_start=at_start)
                 finally:
                     self._release(spec.name)
             else:
-                fut: Future[Outcome] = executor.submit(self.run_job, spec)
+                fut: Future[Outcome] = executor.submit(self.run_job, spec, at_start=at_start)
                 fut.add_done_callback(self._releaser(spec.name))
         self._maybe_alert(now, background=executor is not None)
         return out

@@ -123,127 +123,6 @@ def cmd_db_migrate(_: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_capture_scan(args: argparse.Namespace) -> int:
-    """R1.1: scan GH Archive hours [start, end) for star/fork velocity and open cases."""
-    import logging
-
-    from pigtail.capture.db import CaptureDB
-    from pigtail.capture.retention import purge_raw
-    from pigtail.capture.runs import RunRecorder
-    from pigtail.capture.snapshots import build_store
-    from pigtail.capture.velocity import VelocityConfig, VelocityScanner, scan_config_dict
-    from pigtail.config import Settings
-    from pigtail.connectors.gharchive import GHArchiveConnector
-    from pigtail.db.migrate import migrate
-    from pigtail.logsafe import configure_logging
-    from pigtail.privacy import suppression
-    from pigtail.pseudonymize import Pseudonymizer
-
-    configure_logging()  # CB-18: handles, e-mails and payloads never reach the log
-    s = Settings.from_env()
-    if not s.database_url:
-        print("DATABASE_URL is not set", file=sys.stderr)
-        return 2
-    if not s.pseudonym_key:
-        print("PSEUDONYM_KEY is not set (>= 16 chars; PRD §10)", file=sys.stderr)
-        return 2
-    migrate(s.database_url)
-    _warn_unencrypted(s, logging.getLogger("pigtail.capture"))
-    cfg = VelocityConfig(min_stars_48h=args.min_stars, sigma=args.sigma)
-    db = CaptureDB.connect(s.database_url)
-    config = scan_config_dict(
-        cfg,
-        start=args.start.isoformat(),
-        end=args.end.isoformat(),
-        force=args.force,
-        snapshot_backend=s.snapshot_backend,
-    )
-    try:
-        with RunRecorder("capture.scan", config, sink=db.upsert_run) as run:
-            conn = GHArchiveConnector(
-                store=build_store(s),
-                pseudonymizer=Pseudonymizer(s.pseudonym_key),
-                run=run,
-                evidence_sink=db.upsert_evidence,
-                suppression=suppression.load(db),  # CB-13: refusals dropped at ingest
-            )
-            res = VelocityScanner(connector=conn, db=db, cfg=cfg, run=run).scan(
-                args.start, args.end, force=args.force
-            )
-            purged = purge_raw(
-                db,
-                conn.store,
-                source=conn.name,
-                retention_days=s.gharchive_raw_retention_days,
-            )
-            run.incr("raw_snapshots_purged", purged)
-    finally:
-        db.close()
-    out = {
-        "run_id": run.id,
-        "hours_ok": res.hours_ok,
-        "hours_missing": res.hours_missing,
-        "hours_skipped": res.hours_skipped,
-        "events": res.events,
-        "cases_opened": [c.id for c in res.cases],
-        "raw_snapshots_purged": purged,
-    }
-    print(json.dumps(out, indent=2))
-    return 0
-
-
-def cmd_capture_backfill_gharchive(args: argparse.Namespace) -> int:
-    """M1-T19: retry missing GH Archive hours (with backoff) up to --days back."""
-    from pigtail.capture.db import CaptureDB
-    from pigtail.capture.gharchive_backfill import BackfillConfig, backfill_missing
-    from pigtail.capture.runs import RunRecorder
-    from pigtail.capture.snapshots import build_store
-    from pigtail.capture.velocity import VelocityConfig, VelocityScanner, scan_config_dict
-    from pigtail.config import Settings
-    from pigtail.connectors.gharchive import GHArchiveConnector
-    from pigtail.db.migrate import migrate
-    from pigtail.privacy import suppression
-    from pigtail.pseudonymize import Pseudonymizer
-
-    s = Settings.from_env()
-    if not s.database_url:
-        print("DATABASE_URL is not set", file=sys.stderr)
-        return 2
-    if not s.pseudonym_key:
-        print("PSEUDONYM_KEY is not set (>= 16 chars; PRD §10)", file=sys.stderr)
-        return 2
-    try:
-        bcfg = BackfillConfig(max_days=args.days, max_hours=args.max_hours)
-    except ValueError as e:
-        print(str(e), file=sys.stderr)
-        return 2
-    migrate(s.database_url)
-    cfg = VelocityConfig(min_stars_48h=args.min_stars, sigma=args.sigma)
-    db = CaptureDB.connect(s.database_url)
-    config = scan_config_dict(
-        cfg,
-        backfill_days=bcfg.max_days,
-        max_hours=bcfg.max_hours,
-        snapshot_backend=s.snapshot_backend,
-    )
-    try:
-        with RunRecorder("capture.backfill_gharchive", config, sink=db.upsert_run) as run:
-            conn = GHArchiveConnector(
-                store=build_store(s),
-                pseudonymizer=Pseudonymizer(s.pseudonym_key),
-                run=run,
-                evidence_sink=db.upsert_evidence,
-                suppression=suppression.load(db),
-            )
-            res = backfill_missing(
-                VelocityScanner(connector=conn, db=db, cfg=cfg, run=run), cfg=bcfg
-            )
-    finally:
-        db.close()
-    print(json.dumps({"run_id": run.id, **res.to_dict()}, indent=2))
-    return 0
-
-
 def cmd_capture_purge_raw(args: argparse.Namespace) -> int:
     """DPIA CB-04: drop raw GH Archive dumps older than the retention (hash + URL are kept)."""
     from pigtail.capture.db import CaptureDB
@@ -467,20 +346,6 @@ def cmd_report_hn_frontpage(args: argparse.Namespace) -> int:
         db.close()
     print(json.dumps(rep.to_dict(), indent=2))
     return 0
-
-
-def _warn_unencrypted(s: Any, log: Any) -> None:
-    """CB-03: warn at startup when the snapshot store is not known to be encrypted."""
-    from pigtail.privacy.doctor import run_checks
-
-    try:
-        checks = run_checks(s, db_check=False)
-    except Exception as e:  # the check must never block a scan
-        log.warning("encryption check failed: %s", type(e).__name__)
-        return
-    for c in checks:
-        if c.name == "snapshot_bucket_encryption" and c.status != "ok":
-            log.warning("CB-03 %s: %s", c.status, c.detail)
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -1201,21 +1066,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     cap = sub.add_parser("capture", help="capture layer (PRD F1)")
     cap_sub = cap.add_subparsers(dest="capture_command", required=True)
-    scan = cap_sub.add_parser("scan", help="GH Archive velocity scan + case opening (R1.1)")
-    scan.add_argument("--start", type=_parse_hour, required=True, help="first hour, UTC")
-    scan.add_argument("--end", type=_parse_hour, required=True, help="end hour (exclusive), UTC")
-    scan.add_argument("--min-stars", type=int, default=100, help="48 h star threshold")
-    scan.add_argument("--sigma", type=float, default=3.0, help="z threshold vs 30-day baseline")
-    scan.add_argument("--force", action="store_true", help="re-aggregate already scanned hours")
-    scan.set_defaults(func=cmd_capture_scan)
-    bf = cap_sub.add_parser(
-        "backfill-gharchive", help="retry missing GH Archive hours with backoff (M1-T19)"
-    )
-    bf.add_argument("--days", type=int, default=7, help="retry hours up to N days back (1-30)")
-    bf.add_argument("--max-hours", type=int, default=48, help="downloads per run")
-    bf.add_argument("--min-stars", type=int, default=100, help="48 h star threshold")
-    bf.add_argument("--sigma", type=float, default=3.0, help="z threshold vs 30-day baseline")
-    bf.set_defaults(func=cmd_capture_backfill_gharchive)
     purge = cap_sub.add_parser("purge-raw", help="drop raw GH Archive dumps past retention")
     purge.add_argument("--retention-days", type=int, help="default GHARCHIVE_RAW_RETENTION_DAYS")
     purge.set_defaults(func=cmd_capture_purge_raw)
@@ -1224,7 +1074,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     mode = ranks.add_mutually_exclusive_group(required=True)
     mode.add_argument("--once", action="store_true", help="one poll, then exit")
-    mode.add_argument("--loop", action="store_true", help="poll every --interval-minutes")
+    mode.add_argument(
+        "--loop", action="store_true", help="poll every --interval-minutes (manual; ADR-049.1)"
+    )
     ranks.add_argument("--interval-minutes", type=float, default=5.0, help="loop interval (>= 1)")
     ranks.add_argument("--max-polls", type=int, help="loop: stop after N polls")
     ranks.add_argument("--items", type=int, default=30, help="item metadata for ranks 1..N")

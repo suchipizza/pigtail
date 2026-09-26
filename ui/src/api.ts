@@ -90,32 +90,9 @@ export interface Detection {
   coverage: Coverage;
 }
 
-export interface DetectionHour {
-  hour: string;
-  scan_status: "ok" | "missing" | null;
-  evidence_id: string | null;
-  stars_raw: number;
-  stars_filtered: number;
-  forks_filtered: number;
-  lockstep: boolean;
-}
-
-/** M1-T28: a GraphQL count snapshot behind a detection-v1 `stars_48h` (net of un-stars). */
-export interface CountSnapshot {
-  observed_at: string;
-  stars: number;
-  forks: number;
-  stars_delta: number | null;
-  forks_delta: number | null;
-  evidence_id: string | null;
-}
-
-export type DetectionHours =
-  | { detection_hours_source: "gharchive"; detection_hours: DetectionHour[] }
-  | { detection_hours_source: "github_counts"; detection_hours: CountSnapshot[] }
-  | { detection_hours_source: null; detection_hours: [] };
-
-export type CaseDetail = CaseDetailBase & DetectionHours;
+/** Case detail (D1). Detection numbers on older cases are shown as recorded: the hourly data
+ * behind them was dropped with the global detection in M11 (ADR-047.6). */
+export type CaseDetail = CaseDetailBase;
 
 export interface CaseDetailBase {
   case: {
@@ -135,17 +112,11 @@ export interface CaseDetailBase {
   coded: boolean;
 }
 
+/** One star-history day (endpoint day label at 00:00 UTC; net of un-stars; ADR-032.3). */
 export interface GithubPoint {
   t: string;
-  hours_observed: number;
-  hours_missing: number;
-  stars_raw: number | null;
-  stars_filtered: number | null;
-  stars_bot: number | null;
-  stars_lockstep: number | null;
-  forks_raw: number | null;
-  forks_filtered: number | null;
-  lockstep: boolean;
+  stars_net: number;
+  is_partial: boolean;
   evidence_ids: string[];
 }
 
@@ -216,7 +187,7 @@ export interface EvidenceDetail {
   links: {
     case_id: string | null;
     repo_id: string | null;
-    gharchive_hours: { hour: string; status: string }[];
+    star_history_days: { repo_host_id: number; day: string }[];
     hn_rank_polls: string[];
     hn_stories: { item_id: number; repo_id: string | null }[];
     hn_mentions: { item_id: number; repo_id: string | null; case_id: string | null }[];

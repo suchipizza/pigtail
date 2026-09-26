@@ -194,8 +194,8 @@ def test_cb13b_cli_rekey(capture_db, pg_url, tmp_path, monkeypatch, capsys):
 def test_cb13b_purge_by_legacy_key_still_finds_the_name(capture_db, pz):
     """Until converted, a legacy entry still reaches data held by name (reapply after restore)."""
     capture_db.conn.execute(
-        "INSERT INTO watchlist (full_name, source, added_at, last_nominated_at)"
-        " VALUES ('org-a/repo-1', 'manual', now(), now())"
+        "INSERT INTO repos (id, host, host_id, full_name, first_seen_at)"
+        " VALUES ('github:1000001', 'github', 1000001, 'org-a/repo-1', now())"
     )
     legacy = suppression.legacy_repo_name_key("org-a/repo-1")
     assert requests.names_for_key(capture_db, legacy, requests._keyer(legacy, pz, "github")) == [

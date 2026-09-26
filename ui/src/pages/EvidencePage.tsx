@@ -58,9 +58,9 @@ export function EvidencePage({ id }: { id: string }) {
           </li>
         )}
         {links.repo_id && <li>Repo {links.repo_id}</li>}
-        {links.gharchive_hours.map((g) => (
-          <li key={g.hour}>
-            GH Archive hour {fmtTime(g.hour)} ({g.status})
+        {links.star_history_days.map((d) => (
+          <li key={`${d.repo_host_id}-${d.day}`}>
+            Star history, repo {d.repo_host_id}, day {d.day}
           </li>
         ))}
         {links.hn_rank_polls.map((t) => (

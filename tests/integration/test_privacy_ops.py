@@ -223,7 +223,7 @@ class Archive:
 
 @pytest.fixture
 def ingested(capture_db, tmp_path, pz):
-    """Two synthetic GH Archive hours snapshotted with evidence, as `capture scan` does."""
+    """Two synthetic GH Archive hours snapshotted with evidence by the GH Archive connector."""
     store = LocalSnapshotStore(tmp_path / "snapshots")
     conn = GHArchiveConnector(
         store=store,
@@ -332,9 +332,10 @@ def test_cb13_optout_repo_purges_project_rows(capture_db, tmp_path, pz):
         (YOUNG,),
     )
     db.conn.execute(
-        "INSERT INTO repo_hourly_activity (repo_host_id, hour, repo_name, stars_raw)"
-        " VALUES (1000009, %s, 'org-a/repo-9', 5), (1000003, %s, 'org-c/repo-3', 3)",
-        (YOUNG, YOUNG),
+        "INSERT INTO repo_star_daily (repo_host_id, day, stars_net, week_label, day_boundary_tz,"
+        " is_partial, fetched_at) VALUES (1000009, %s, 5, 'w', 'x', false, %s),"
+        " (1000003, %s, 3, 'w', 'x', false, %s)",
+        (YOUNG.date(), YOUNG, YOUNG.date(), YOUNG),
     )
     db.conn.execute(
         "INSERT INTO cases (id, repo_id, opened_at, trigger, status)"
@@ -356,7 +357,7 @@ def test_cb13_optout_repo_purges_project_rows(capture_db, tmp_path, pz):
     )
     assert {
         "suppression_added": 1,
-        "hourly_rows_deleted": 1,
+        "repo_star_daily_rows_deleted": 1,
         "evidence_deleted": 1,
         "cases_deleted": 1,
         "llm_cache_rows_deleted": 1,
@@ -364,7 +365,7 @@ def test_cb13_optout_repo_purges_project_rows(capture_db, tmp_path, pz):
     assert res.counts["name_suppression_added"] == 1  # M1-T23: the repo's name, as a hash
     assert not store.exists(ev.content_hash)
     assert db.conn.execute("SELECT count(*) FROM repos").fetchone() == (0,)
-    assert db.conn.execute("SELECT count(*) FROM repo_hourly_activity").fetchone() == (1,)
+    assert db.conn.execute("SELECT count(*) FROM repo_star_daily").fetchone() == (1,)
     assert "github:1000009" in suppression.load(db, pz).repos
 
 

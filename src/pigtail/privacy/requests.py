@@ -15,14 +15,14 @@ discarded: it is never written to the database, the request log, the deletion lo
   the pseudonym are deleted. Project-level aggregates with no pseudonym are kept
   (retention-policy.md §5).
 - `purge_repo()`: a project owner's opt-out (CB-13, CB-13c). Deletes or clears every row keyed
-  to the repo in the tables registered in `deletion.REPO_TABLES` (GH Archive hourly rows, GitHub
-  counts, star history, events, detection agreement, watch list, settle-lag rows, the ETag
-  cache, HN mentions and links, cases, linked evidence with raw bytes first, and the `repos`
-  row), matched by id, GitHub id and every `owner/name` pigtail associates with the id.
+  to the repo in the tables registered in `deletion.REPO_TABLES` (star history, events, the
+  ETag cache, launch-mode windows, HN mentions and links, cases, linked evidence with raw bytes
+  first, and the `repos` row), matched by id, GitHub id and every `owner/name` pigtail
+  associates with the id.
 - `purge_repo_name()` (M1-T23): the same opt-out matched by normalized `owner/name`, which also
   reaches data about repos not in `repos`: HN mentions (rows and their snapshots), story titles
-  and urls from the rank poller (the rank history keeps only the item id), Show HN screen links,
-  watch-list entries (deleted; the refusal list is the tombstone) and per-repo API pages. The
+  and urls from the rank poller (the rank history keeps only the item id) and per-repo API
+  pages (the refusal list is the tombstone). The
   refusal list holds only a keyed hash of the name (`suppression.repo_name_key`, HMAC with
   `PSEUDONYM_KEY`, CB-13b).
 - `rekey_unkeyed_names()` (CB-13b): converts legacy unkeyed name entries (before migration 0009)
@@ -483,9 +483,6 @@ def _delete_evidence(
             store.delete(h)
             log.write("raw_dropped", "snapshot", rows=1, content_hash=h)
     if ids:
-        db.conn.execute(
-            "UPDATE gharchive_hours SET evidence_id = NULL WHERE evidence_id = ANY(%s)", (ids,)
-        )
         db.conn.execute("DELETE FROM evidence WHERE id = ANY(%s)", (ids,))
         for eid, h in evs:
             log.write("evidence_deleted", "evidence", rows=1, content_hash=h, evidence_id=eid)
@@ -498,14 +495,12 @@ def _delete_evidence(
 
 
 def _repo_names_for_id(db: CaptureDB, repo_key: str, host_id: int | None) -> set[str]:
-    """Every `owner/name` pigtail associates with a repo id (lowercase): `repos.full_name` and,
-    for GitHub, watch-list names and GH Archive names (renames included)."""
+    """Every `owner/name` pigtail associates with a repo id (lowercase): `repos.full_name`, and
+    for GitHub every `repos` row with the same GitHub id (renames included)."""
     rows = db.conn.execute("SELECT full_name FROM repos WHERE id = %s", (repo_key,)).fetchall()
     if host_id is not None:
         rows += db.conn.execute(
-            "SELECT full_name FROM watchlist WHERE repo_host_id = %(h)s"
-            " UNION SELECT DISTINCT repo_name FROM repo_hourly_activity WHERE repo_host_id = %(h)s",
-            {"h": host_id},
+            "SELECT full_name FROM repos WHERE host = 'github' AND host_id = %s", (host_id,)
         ).fetchall()
     return {str(r[0]).lower() for r in rows if r[0]}
 
@@ -557,8 +552,8 @@ def _repo_evidence(
 ) -> list[tuple[str, str]]:
     """Evidence `(id, content_hash)` of one repo (CB-13c): linked by `repo_id` or through its
     cases; per-repo GitHub API pages (by URL, and pages behind its star-history rows); HN
-    mention snapshots of the repo that no other repo's mention uses. Shared snapshots (GraphQL
-    count batches, GH Archive dumps, HN front pages) stay: they hold every other repo too."""
+    mention snapshots of the repo that no other repo's mention uses. Shared snapshots (GH Archive
+    dumps, HN front pages) stay: they hold every other repo too."""
     parts: list[sql.Composable] = []
     params: dict[str, Any] = {"key": key, "host_id": host_id, "names": list(names)}
     if key is not None:
@@ -569,7 +564,7 @@ def _repo_evidence(
             )
         )
     if host_id is not None:
-        for table in ("repo_star_daily", "star_history_settle_obs"):
+        for table in ("repo_star_daily",):
             parts.append(
                 sql.SQL(
                     "SELECT t.evidence_id FROM {t} t WHERE t.repo_host_id = %(host_id)s"
@@ -704,8 +699,6 @@ def names_for_key(
         """
         SELECT repo_full_name FROM hn_mention
         UNION SELECT repo_full_name FROM hn_story WHERE repo_full_name IS NOT NULL
-        UNION SELECT repo_full_name FROM hn_show_screen WHERE repo_full_name IS NOT NULL
-        UNION SELECT lower(full_name) FROM watchlist
         UNION SELECT lower(full_name) FROM repos WHERE host = %s
         """,
         (host,),
@@ -771,7 +764,7 @@ def purge_repo_name(
     """M1-T23 / CB-13c: remove what pigtail holds about an opted-out repo matched by name
     (`name_key`: keyed `rk_`, or a legacy unkeyed `rn_` entry, CB-13b).
 
-    Every repo id known for that name (`repos`, and the GitHub watch list) is added to the
+    Every repo id known for that name (`repos`) is added to the
     refusal list by id and purged with `purge_repo`. Then the rows matched by name alone are
     removed: HN mention rows and the snapshots they came from (unless another repo's mention
     still uses the same snapshot), rank-poller story titles, urls and repo links (the rank history
@@ -787,15 +780,6 @@ def purge_repo_name(
                 "SELECT id FROM repos WHERE host = %s AND lower(full_name) = %s", (host, name)
             ).fetchall()
         }
-        if host == "github":
-            ids |= {
-                f"github:{r[0]}"
-                for r in db.conn.execute(
-                    "SELECT repo_host_id FROM watchlist WHERE lower(full_name) = %s"
-                    " AND repo_host_id IS NOT NULL",
-                    (name,),
-                ).fetchall()
-            }
         for rid in sorted(ids):
             suppression.add(db, "repo", rid, platform=host, reason="objection")
             for k, v in purge_repo(db, store, rid, log, llm_store=llm_store, tables=tables).items():

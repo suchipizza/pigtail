@@ -346,8 +346,8 @@ def test_cb26_repo_name_mapped_from_names_held_locally(capture_db):
         platform="github", reason="objection",
     )  # fmt: skip
     db.conn.execute(
-        "INSERT INTO watchlist (full_name, source, added_at, last_nominated_at)"
-        " VALUES ('Org-A/Repo-9', 'manual', now(), now())"
+        "INSERT INTO repos (id, host, host_id, full_name, first_seen_at)"
+        " VALUES ('github:1000009', 'github', 1000009, 'Org-A/Repo-9', now())"
     )
     rep = rekey.rekey(db, None, OLD, NEW, require_exclusive=False)
     assert rep.counts["mapped_from_local_names"] == 1

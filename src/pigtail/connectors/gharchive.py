@@ -8,6 +8,11 @@ Each hourly dump is snapshotted whole (it contains person-level data: retention 
 event: `{event_id, type, repo_id, repo_name, actor, created_at}`. The bot filter v0 (login-based
 part) runs in `_pre_pseudonymize()` on the raw login; everything downstream only ever sees the
 keyed pseudonym (namespace "github"), or `actor=None` plus `is_bot=True` for bots.
+
+Status since M11 (ADR-047.1, ADR-047.6, ADR-047.8): the global velocity scan that used this
+connector was removed. The connector is kept, unused by any job, for brief-restricted discovery
+signals in M13 (GH Archive restricted to a brief's repos/topics, discovery only; since mid-2025
+the dumps are nearly push-events only, so stars and forks come from the GitHub API).
 """
 
 from __future__ import annotations

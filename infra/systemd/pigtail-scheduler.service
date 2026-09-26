@@ -1,4 +1,5 @@
-# pigtail scheduler as a systemd service (M1-T21), for hosts without Docker.
+# pigtail scheduler loop as a systemd service (M1-T21), for the optional server path only
+# (ADR-048.6). The default is batch runs (`pigtail scheduler run --once`, ADR-048, ADR-049.1).
 # Install (see docs/guides/operator.md "Running unattended"):
 #   sudo useradd --system --home-dir /var/lib/pigtail --shell /usr/sbin/nologin pigtail
 #   sudo install -d -o root -g root /opt/pigtail && (checkout + `uv sync --locked --no-dev`)
@@ -7,7 +8,7 @@
 #   sudo systemctl daemon-reload && sudo systemctl enable --now pigtail-scheduler
 #   curl -s http://127.0.0.1:8787/healthz
 [Unit]
-Description=pigtail scheduler (capture, retention, deletion sync, health, alerts)
+Description=pigtail scheduler loop (server path: batch jobs, launch mode, health, alerts)
 Documentation=https://github.com/suchipizza/pigtail/blob/main/docs/guides/operator.md
 Wants=network-online.target
 After=network-online.target postgresql.service

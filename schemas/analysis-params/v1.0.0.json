@@ -1,0 +1,46 @@
+{
+  "id": "pigtail-analysis-params",
+  "version": "1.0.0",
+  "created": "2026-09-26",
+  "status": "active",
+  "moved_from": "schemas/outcome-thresholds/v0.2.0.json (burst_detection, fake_star_filter) and the velocity-v0 baseline defaults of the removed detection code (git tag archive/global-collection: src/pigtail/capture/detection_v1.py DetectionV1Config)",
+  "reason": "The thresholds JSON is retired as a selection method (ADR-049.12); the per-repo burst rule and the fake-star filter parameters are still needed per brief (codebook v0.3.0 §3.2-3.3, outcome model v2 §2.1, §4). M11.",
+  "implementation": "src/pigtail/analysis/params.py mirrors this file (a test keeps them equal); src/pigtail/analysis/bursts.py applies the burst block.",
+  "change_rule": "Any change is a new version of this file and of PARAMS_VERSION, logged in ops/DECISIONS.md; for a brief, the version in force is fixed before its outcome sort (outcome model v2 §5.8).",
+  "star_history_day_tz": "America/Los_Angeles",
+  "burst": {
+    "rule_version": "velocity-v0",
+    "series": "raw star-history daily net counts n(d), endpoint days (ADR-032.3)",
+    "min_net_stars_48h": 100,
+    "sigma": 3.0,
+    "baseline_days": 30,
+    "min_sigma": 1.0,
+    "full_baseline_coverage": 0.9,
+    "min_full_blocks": 3,
+    "onset_sigma": 3.0,
+    "onset_hours_per_day": 24,
+    "end_quiet_days": 3,
+    "merge_gap_days": 7,
+    "min_quiet_days": 7,
+    "shape": {
+      "sudden_peak_max_index": 1,
+      "decay_within_index": 7,
+      "decay_share": 0.5,
+      "gradual_peak_min_index": 8
+    }
+  },
+  "fake_star_filter": {
+    "id": "starscout-v0",
+    "n": 50,
+    "m": 10,
+    "delta_t_days": 30,
+    "rho": 0.5,
+    "level": "campaign",
+    "campaign_rule": {
+      "min_fake_stars_in_month": 50,
+      "min_fake_share_in_month": 0.5,
+      "min_fake_share_all_time": 0.1,
+      "comparators": "strictly greater than"
+    }
+  }
+}

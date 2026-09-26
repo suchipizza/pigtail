@@ -17,10 +17,12 @@ file_max_bytes = 1000000     # CB-31: rotate ALERTS.md / alerts.jsonl at this si
 file_rotate_after = "30d"    # ... or when their first event is this old
 
 [jobs.hn_ranks]
-kind = "command"             # command | gharchive_scan | hn_mentions
+kind = "command"             # command | hn_mentions
 command = ["capture", "hn-ranks", "--once"]
 every = "5m"
 timeout = "4m"
+run_at_start = true          # ADR-049.1: once at the start of every scheduler run, due or not
+launch_mode_only = true      # ADR-049.1: between starts, due on `every` only in launch mode
 ```
 """
 
@@ -35,8 +37,8 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any, Literal
 
-JobKind = Literal["command", "gharchive_scan", "hn_mentions"]
-JOB_KINDS: tuple[JobKind, ...] = ("command", "gharchive_scan", "hn_mentions")
+JobKind = Literal["command", "hn_mentions"]
+JOB_KINDS: tuple[JobKind, ...] = ("command", "hn_mentions")
 _NAME = re.compile(r"^[a-z0-9_]{1,48}$")
 _DUR = re.compile(r"(\d+)\s*([smhd])")
 _UNIT = {"s": 1, "m": 60, "h": 3600, "d": 86400}
@@ -77,6 +79,12 @@ class JobSpec:
     params: Mapping[str, Any] = field(default_factory=dict)
     max_retries: int = 5  # backoff retries before falling back to the normal interval
     retry_base: timedelta = timedelta(minutes=1)
+    # ADR-049.1: run once at the start of every scheduler run (`scheduler run --once`, or the
+    # first tick of the loop), whether due or not
+    run_at_start: bool = False
+    # ADR-049.1: apart from the start-of-run execution, due on `every` only while a launch-mode
+    # window is active (`pigtail.scheduler.launch_mode`)
+    launch_mode_only: bool = False
 
     @property
     def run_job(self) -> str:
@@ -149,7 +157,20 @@ def _job(name: str, raw: Mapping[str, Any]) -> JobSpec:
     timeout = parse_duration(raw.get("timeout", fmt_duration(every)))
     if timeout <= timedelta(0):
         raise ScheduleError(f"job {name}: timeout must be positive")
-    known = {"kind", "command", "every", "timeout", "enabled", "max_retries", "retry_base"}
+    known = {
+        "kind",
+        "command",
+        "every",
+        "timeout",
+        "enabled",
+        "max_retries",
+        "retry_base",
+        "run_at_start",
+        "launch_mode_only",
+    }
+    for flag in ("run_at_start", "launch_mode_only"):
+        if not isinstance(raw.get(flag, False), bool):
+            raise ScheduleError(f"job {name}: `{flag}` must be true or false")
     params = {k: v for k, v in raw.items() if k not in known}
     return JobSpec(
         name=name,
@@ -161,6 +182,8 @@ def _job(name: str, raw: Mapping[str, Any]) -> JobSpec:
         params=params,
         max_retries=int(raw.get("max_retries", 5)),
         retry_base=parse_duration(raw.get("retry_base", "1m")),
+        run_at_start=bool(raw.get("run_at_start", False)),
+        launch_mode_only=bool(raw.get("launch_mode_only", False)),
     )
 
 

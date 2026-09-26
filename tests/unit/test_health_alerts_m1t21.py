@@ -71,7 +71,7 @@ def probes(
 CFG = ScheduleConfig(
     jobs=(
         jspec("hn_ranks", timedelta(minutes=5)),
-        jspec("gharchive_scan", timedelta(hours=1)),
+        jspec("gh_star_history", timedelta(hours=1)),
         jspec("off", timedelta(hours=1), enabled=False),
     )
 )
@@ -102,15 +102,31 @@ def test_m1t21_job_health_lag_and_stale() -> None:
     )
 
 
+def test_adr049_1_launch_mode_only_job_is_never_stale() -> None:
+    """ADR-049.1: the HN rank poller is idle between scheduled runs by design; only its
+    failures raise alerts until M14 makes staleness launch-mode aware."""
+    s = JobSpec(
+        "hn_ranks", "command", timedelta(minutes=5), timedelta(minutes=4),
+        command=("x",), run_at_start=True, launch_mode_only=True,
+    )  # fmt: skip
+    idle = JobStats("scheduler.hn_ranks", last_success_at=NOW - timedelta(days=7))
+    h = job_health(s, idle, NOW, ACFG)
+    assert not h.stale and h.status == "ok"
+    failing = JobStats(
+        "j", last_success_at=NOW - timedelta(days=7), consecutive_failures=3, last_status="failed"
+    )
+    assert job_health(s, failing, NOW, ACFG).status == "fail"
+
+
 def test_m1t21_report_overall_status_and_text() -> None:
     ok = {
         "scheduler.hn_ranks": JobStats("x", last_success_at=NOW),
-        "scheduler.gharchive_scan": JobStats("x", last_success_at=NOW),
+        "scheduler.gh_star_history": JobStats("x", last_success_at=NOW),
     }
     r = build_report(CFG, probes(ok), NOW)
     assert r.status == "ok"
     d = r.to_dict()
-    assert {j["job"] for j in d["jobs"]} == {"hn_ranks", "gharchive_scan", "off"}
+    assert {j["job"] for j in d["jobs"]} == {"hn_ranks", "gh_star_history", "off"}
     assert {c["name"] for c in d["checks"]} == {"database", "object_store", "disk", "deletion_sla"}
     assert "hn_ranks" in render_text(r)
     assert build_report(CFG, probes(ok, disk=91), NOW).status == "fail"
@@ -143,7 +159,7 @@ def test_m1t21_alert_rules_each_fire() -> None:
             consecutive_failures=3,
             last_status="failed",
         ),
-        "scheduler.gharchive_scan": JobStats("x", last_success_at=NOW),
+        "scheduler.gh_star_history": JobStats("x", last_success_at=NOW),
     }
     doc = [
         HealthCheck("doctor.snapshot_bucket_encryption", "warn", "no SSE"),
@@ -165,7 +181,7 @@ def test_m1t21_alert_rules_each_fire() -> None:
 def test_m1t21_no_alerts_when_healthy() -> None:
     ok = {
         "scheduler.hn_ranks": JobStats("x", last_success_at=NOW),
-        "scheduler.gharchive_scan": JobStats("x", last_success_at=NOW),
+        "scheduler.gh_star_history": JobStats("x", last_success_at=NOW),
     }
     assert evaluate(build_report(CFG, probes(ok), NOW), ACFG) == []
 

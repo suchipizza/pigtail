@@ -1,19 +1,17 @@
 """Per-repo events polling for tracked cases and the bot-filter confirmation step (M1-T24;
 ADR-032.2; TM-33; ADR-022/ADR-036; CB-22, CB-23).
 
-**What is polled.** Only repos with an open detection case opened in the last `case_days`
-(default 14), plus, if `include_prethreshold`, watch-list repos whose public star count grew by
-≥ `prethreshold_stars_24h` (30) in 24 h (TM-33: open cases, tracked repos, or above the
-pre-threshold; nothing else).
+**What is polled.** Only repos with a live case opened in the last `case_days` (default 14)
+(TM-33: open cases and tracked repos; nothing else). The watch-list "pre-threshold" targets were
+removed with the watch list in M11 (ADR-047.6).
 
-**Cadence.** A repo is due when `max(interval, X-Poll-Interval)` has passed since its last poll:
-15 min for cases, 60 min for pre-threshold repos (replan §6.1), never faster than GitHub's
-`X-Poll-Interval` (60 s measured). Page 1 is requested with `If-None-Match`; a `304` costs no
-rate limit and ends the poll. Pages 2–3 (the 300-event window) are read while the previous page
-is full and all its events are newer than the newest event of the previous poll (on a repo's
-first poll: while pages are full, to cover as much of the case window as GitHub keeps). If page 3
-is full and still newer than the previous poll, events may have rolled out unseen: the poll is
-marked `overflow` (replan §1.3, §8 M5).
+**Cadence.** A repo is due when `max(interval, X-Poll-Interval)` has passed since its last poll (15
+min minimum, replan §6.1), never faster than GitHub's `X-Poll-Interval` (60 s measured). Page 1 is
+requested with `If-None-Match`; a `304` costs no rate limit and ends the poll. Pages 2–3 (the
+300-event window) are read while the previous page is full and all its events are newer than the
+newest event of the previous poll (on a repo's first poll: while pages are full, to cover as much of
+the case window as GitHub keeps). If page 3 is full and still newer than the previous poll, events
+may have rolled out unseen: the poll is marked `overflow` (replan §1.3, §8 M5).
 
 **Minimisation.** The connector keeps only `WatchEvent` and `ForkEvent` (CB-23), drops bot logins
 before hashing, and pseudonymizes actors (namespace `github`). Each events page's raw bytes are
@@ -76,13 +74,10 @@ MAX_PAGES = 3  # 300-event window at per_page=100
 @dataclass(frozen=True)
 class EventsConfig:
     case_interval_min: int = 15
-    prethreshold_interval_min: int = 60
     case_days: int = 14
-    include_prethreshold: bool = False
-    prethreshold_stars_24h: int = 30
 
     def __post_init__(self) -> None:
-        if self.case_interval_min < 15 or self.prethreshold_interval_min < 15:
+        if self.case_interval_min < 15:
             raise ValueError("per-repo events are polled every 15-60 min (ADR-032.2, TM-33)")
 
 
@@ -91,7 +86,7 @@ class Target:
     repo_host_id: int
     full_name: str
     interval: timedelta
-    kind: str  # "case" | "prethreshold"
+    kind: str  # "case"
 
 
 @dataclass
@@ -158,11 +153,9 @@ class RepoEventsPoller:
         cfg = self.cfg
         rows = self.db.conn.execute(
             """
-            SELECT DISTINCT r.host_id, COALESCE(w.full_name, r.full_name)
+            SELECT DISTINCT r.host_id, r.full_name
             FROM cases c JOIN repos r ON r.id = c.repo_id AND r.host = 'github'
-            LEFT JOIN watchlist w ON w.repo_host_id = r.host_id
-            WHERE c.status = 'live' AND c.trigger = 'velocity'
-              AND c.opened_at >= %s - make_interval(days => %s)
+            WHERE c.status = 'live' AND c.opened_at >= %s - make_interval(days => %s)
             ORDER BY 1
             """,
             (now, cfg.case_days),
@@ -171,24 +164,6 @@ class RepoEventsPoller:
             Target(int(h), str(n), timedelta(minutes=cfg.case_interval_min), "case")
             for h, n in rows
         ]
-        if cfg.include_prethreshold:
-            seen = {t.repo_host_id for t in out}
-            pre = self.db.conn.execute(
-                """
-                SELECT w.repo_host_id, w.full_name FROM watchlist w
-                WHERE w.active AND w.repo_host_id IS NOT NULL AND (
-                    SELECT max(s.stars) - min(s.stars) FROM repo_count_snapshot s
-                    WHERE s.repo_host_id = w.repo_host_id AND s.observed_at > %s - interval '24 h'
-                ) >= %s
-                ORDER BY 1
-                """,
-                (now, cfg.prethreshold_stars_24h),
-            ).fetchall()
-            out += [
-                Target(int(h), str(n), timedelta(minutes=cfg.prethreshold_interval_min), "pre")
-                for h, n in pre
-                if int(h) not in seen
-            ]
         return out
 
     def is_due(self, t: Target, now: datetime) -> bool:

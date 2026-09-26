@@ -133,7 +133,7 @@ export function CasesPage() {
                   <th>Status</th>
                   <th>Trigger</th>
                   <th>Opened</th>
-                  <th className="num" title="Bot-filtered GH Archive stars in the 48 h detection window">
+                  <th className="num" title="48 h stars as recorded when the case was opened (by the global detection removed in M11)">
                     Stars 48 h
                   </th>
                   <th className="num">z</th>

@@ -8,7 +8,8 @@ Two layers:
    with no actor login are treated like bot events. Bot events are counted (`stars_bot`) and
    excluded from filtered counts; their logins are neither stored nor hashed.
 
-2. **Lockstep bursts** (applied per repo-hour, on pseudonyms, in `pigtail.capture.velocity`):
+2. **Lockstep bursts** (per repo-hour, on pseudonyms; applied by the GH Archive velocity scan,
+   which was removed in M11 (ADR-047.6), and reported as not applied by per-repo events):
    a *star-only* actor is one whose every event in the filter window (the scan chunk: the UTC day
    intersected with the requested range) is a WatchEvent. A repo-hour is flagged when it has at
    least `lockstep_min_stars` star-only actors **and** they make up at least `lockstep_share` of

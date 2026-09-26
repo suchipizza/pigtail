@@ -417,3 +417,16 @@ def _legacy_optout_check(url: str) -> Check | None:
 def exit_code(checks: list[Check], strict: bool = False) -> int:
     bad: set[str] = {"fail", "warn"} if strict else {"fail"}
     return 1 if any(c.status in bad for c in checks) else 0
+
+
+def warn_unencrypted(s: Settings, log: Any) -> None:
+    """CB-03: warn at the start of a scheduled run when the snapshot store is not known to be
+    encrypted (it used to run at the start of the removed GH Archive scan)."""
+    try:
+        checks = run_checks(s, db_check=False)
+    except Exception as e:  # the check must never block a run
+        log.warning("encryption check failed: %s", type(e).__name__)
+        return
+    for c in checks:
+        if c.name == "snapshot_bucket_encryption" and c.status != "ok":
+            log.warning("CB-03 %s: %s", c.status, c.detail)
