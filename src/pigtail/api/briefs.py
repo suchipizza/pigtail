@@ -10,6 +10,16 @@
     POST /api/briefs/{id}/expansion           propose an LLM expansion (R18.7); nothing is saved
     GET  /api/briefs/{id}/diff?from=&to=      field-level and unified diff
     GET  /api/briefs/{id}/estimate?version=   cost estimate (label: estimate)
+    GET  /api/briefs/{id}/shortlist?version=&verdict=&panel=&distance=
+                                              shortlist review (R4.7): candidates, verdicts,
+                                              reasons, decisions, precision, references to confirm
+    POST /api/briefs/{id}/shortlist/decisions accept/reject candidates (or by filter), with reason
+    POST /api/briefs/{id}/shortlist/add       add a repo by URL (optionally resolving a reference)
+    POST /api/briefs/{id}/shortlist/finalize  mark the shortlist final
+
+Shortlist writes (M22, D7) use the write pool, are same-origin JSON POSTs like every other write,
+log each decision in `shortlist_decision` (reviewer role `user`, `via: ui`, time) and are audited
+by event only (`shortlist_decision`, `shortlist_finalize`: no names, no reasons).
 
 Writes are POSTs with a same-origin JSON body, exactly like the login (CSRF: JSON content type
 required, `Sec-Fetch-Site`/`Origin` checked, SameSite=Strict session cookie) and are audited
@@ -74,6 +84,29 @@ class BriefBody(BaseModel):
     force_latest: bool = False
 
 
+class DecisionBody(BaseModel):
+    version: int | None = Field(default=None, ge=1)
+    decision: str = Field(pattern="^(accept|reject)$")
+    reason: str = Field(min_length=1, max_length=1000)
+    candidates: list[str] = Field(default_factory=list, max_length=2000)
+    # bulk by filter when `candidates` is empty (undecided candidates only)
+    verdict: str | None = Field(default=None, pattern="^(relevant|not_relevant|uncertain|none)$")
+    panel: str | None = Field(default=None, pattern="^(field|exemplar|reference)$")
+    distance: int | None = Field(default=None, ge=0, le=2)
+
+
+class AddBody(BaseModel):
+    version: int | None = Field(default=None, ge=1)
+    url: str = Field(min_length=3, max_length=300)
+    reason: str = Field(min_length=1, max_length=1000)
+    panel: str = Field(default="field", pattern="^(field|exemplar|reference)$")
+    resolves: str | None = Field(default=None, max_length=40)
+
+
+class FinalizeBody(BaseModel):
+    version: int | None = Field(default=None, ge=1)
+
+
 class ExpandBody(BaseModel):
     version: int | None = Field(default=None, ge=1)
     approve_paid: bool = False
@@ -118,6 +151,7 @@ def make_router(
     same_origin: Callable[[Request], None],
     audit: Callable[[str, str, Request, int], None],
     read_conn: Callable[[], Iterator[psycopg.Connection[Any]]],
+    write_conn: Callable[[], Iterator[psycopg.Connection[Any]]] | None = None,
     llm_client: Callable[[], Any] | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api", dependencies=[Depends(require_operator)])
@@ -328,6 +362,109 @@ def make_router(
             brief_spent_usd=PgCostLedger(conn).brief_total(brief_id),
         )
         return est.to_dict()
+
+    # --- shortlist review (R4.7, M22) ------------------------------------------------------
+    WConn = Annotated[psycopg.Connection[Any], Depends(write_conn or read_conn)]
+
+    def shortlist_of(conn: psycopg.Connection[Any], brief_id: str, version: int | None) -> Any:
+        from pigtail.briefs.shortlist import Shortlist
+
+        return Shortlist(conn, get_or_404(brief_id, version).brief)
+
+    def sl_error(e: Exception) -> HTTPException:
+        from pigtail.briefs.shortlist import NoShortlist, ShortlistFinal
+
+        if isinstance(e, NoShortlist):
+            return HTTPException(404, str(e))
+        if isinstance(e, ShortlistFinal):
+            return HTTPException(409, str(e))
+        return HTTPException(422, str(e))
+
+    @router.get("/briefs/{brief_id}/shortlist")
+    def shortlist(
+        brief_id: str,
+        conn: Conn,
+        version: Annotated[int | None, Query(ge=1)] = None,
+        verdict: Annotated[
+            str | None, Query(pattern="^(relevant|not_relevant|uncertain|not_judged)$")
+        ] = None,
+        panel: Annotated[str | None, Query(pattern="^(field|exemplar|reference)$")] = None,
+        distance: Annotated[int | None, Query(ge=0, le=2)] = None,
+    ) -> Any:
+        """D7 shortlist review: every candidate with its sources, verdict, reason, rubric version
+        and latest decision; precision against the 80 % target; reference cases to confirm."""
+        sl = shortlist_of(conn, brief_id, version)
+        return jsonable(sl.view(verdict=verdict, panel=panel, distance=distance))
+
+    @router.post("/briefs/{brief_id}/shortlist/decisions")
+    def shortlist_decide(brief_id: str, body: DecisionBody, request: Request, conn: WConn) -> Any:
+        from pigtail.briefs.candidates import BadCandidate
+        from pigtail.briefs.shortlist import ShortlistError
+
+        same_origin(request)
+        sl = shortlist_of(conn, brief_id, body.version)
+        decision = "accept" if body.decision == "accept" else "reject"
+        try:
+            if body.candidates:
+                n = sl.decide(body.candidates, decision, body.reason, reviewer="user", via="ui")
+            elif body.verdict or body.panel or body.distance is not None:
+                n = sl.decide_where(
+                    decision,
+                    body.reason,
+                    verdict=body.verdict,
+                    panel=body.panel,
+                    distance=body.distance,
+                    reviewer="user",
+                    via="ui",
+                )
+            else:
+                raise HTTPException(422, "give candidates or a filter")
+        except (ShortlistError, BadCandidate) as e:
+            audit("shortlist_decision", "/api/briefs/{id}/shortlist/decisions", request, 409)
+            raise sl_error(e) from None
+        audit("shortlist_decision", "/api/briefs/{id}/shortlist/decisions", request, 200)
+        return {"decisions": n, "precision": sl.precision()}
+
+    @router.post("/briefs/{brief_id}/shortlist/add")
+    def shortlist_add(brief_id: str, body: AddBody, request: Request, conn: WConn) -> Any:
+        from pigtail.briefs.candidates import BadCandidate
+        from pigtail.briefs.shortlist import ShortlistError
+
+        same_origin(request)
+        sl = shortlist_of(conn, brief_id, body.version)
+        panel = (
+            "reference"
+            if body.panel == "reference"
+            else ("exemplar" if body.panel == "exemplar" else "field")
+        )
+        try:
+            ref = sl.add(
+                body.url,
+                body.reason,
+                panel=panel,
+                resolves=body.resolves,
+                reviewer="user",
+                via="ui",
+            )
+        except (ShortlistError, BadCandidate) as e:
+            audit("shortlist_decision", "/api/briefs/{id}/shortlist/add", request, 409)
+            raise sl_error(e) from None
+        audit("shortlist_decision", "/api/briefs/{id}/shortlist/add", request, 200)
+        return {"candidate_ref": ref}
+
+    @router.post("/briefs/{brief_id}/shortlist/finalize")
+    def shortlist_finalize(brief_id: str, body: FinalizeBody, request: Request, conn: WConn) -> Any:
+        from pigtail.briefs.shortlist import ShortlistError
+
+        same_origin(request)
+        sl = shortlist_of(conn, brief_id, body.version)
+        try:
+            res = sl.finalize(reviewer="user", via="ui")
+        except ShortlistError as e:
+            audit("shortlist_finalize", "/api/briefs/{id}/shortlist/finalize", request, 409)
+            raise sl_error(e) from None
+        audit("shortlist_finalize", "/api/briefs/{id}/shortlist/finalize", request, 200)
+        return jsonable(res)
 
     return router
 

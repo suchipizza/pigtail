@@ -179,7 +179,7 @@ def test_d7_estimate_and_template(env):
     assert t["brief"]["brief_id"] == BID and "schema_version: brief/v1" in t["yaml"]
     client.post("/api/briefs", json={"brief": example()})
     e = client.get(f"/api/briefs/{BID}/estimate").json()
-    assert e["label"] == "estimate" and e["model"] == "estimate-v2"
+    assert e["label"] == "estimate" and e["model"] == "estimate-v3"
     # R15.11: USD per stage (api backend), against the brief's and the monthly cap
     assert e["money"]["requires_approval"] is True and e["money"]["usd"] > 0
     assert e["caps"]["brief"]["cap_usd"] == 150.0 and e["caps"]["month"]["cap_usd"] == 200.0

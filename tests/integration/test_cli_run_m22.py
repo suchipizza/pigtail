@@ -1,0 +1,179 @@
+"""M22 CLI: `pigtail run --brief` shows the cost estimate first, `--dry-run` does nothing, paid
+steps need `--approve-paid` (R18.5, R19.1); `pigtail brief shortlist show|accept|reject|add|
+finalize` (R4.7). Synthetic example brief in a tmp briefs dir; no network."""
+
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from pigtail.briefs.candidates import Candidate, CandidateStore
+from pigtail.briefs.shortlist import Shortlist
+from pigtail.briefs.store import BriefStore
+from pigtail.cli import main
+
+pytestmark = pytest.mark.db
+
+NOW = datetime(2026, 9, 25, 18, 0, tzinfo=UTC)
+BID = "example-config-linter"
+
+
+@pytest.fixture
+def cli_env(capture_db: Any, pg_url: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    capture_db.conn.autocommit = True
+    monkeypatch.setenv("DATABASE_URL", pg_url)
+    monkeypatch.setenv("PIGTAIL_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("LLM_BACKEND", "api")
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    assert main(["brief", "new", "--example", "--id", BID]) == 0
+    return capture_db
+
+
+def n_runs(db: Any) -> int:
+    return int(db.conn.execute("SELECT count(*) FROM brief_runs").fetchone()[0])
+
+
+def test_r19_1_r18_5_run_shows_estimate_first_dry_run_and_approval(cli_env, capsys):
+    db = cli_env
+    capsys.readouterr()
+    assert main(["run", "--brief", BID, "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "Cost ESTIMATE" in out and "This run (discovery, relevance, shortlist" in out
+    assert "relevance filter:" in out and "claude-haiku-4-5" in out and "DRY RUN" in out
+    assert main(["run", "--brief", BID, "--dry-run", "--json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["dry_run"] == {
+        "would": "new",
+        "run": None,
+        "stages": ["discovery", "relevance", "shortlist"],
+        "incremental": False,
+        "network_calls": 0,
+        "writes": 0,
+    }
+    assert d["run_scope"]["requires_approval"] is True and d["run_scope"]["api_usd"] > 0
+    assert d["run_scope"]["llm"]["mode"] == "batch"
+    assert n_runs(db) == 0
+    # paid steps (api backend) without approval: nothing starts
+    assert main(["run", "--brief", BID]) == 3
+    assert "--approve-paid" in capsys.readouterr().err and n_runs(db) == 0
+    # approved, but no GitHub token for discovery: a usage error, recorded as failed
+    assert main(["run", "--brief", BID, "--approve-paid", "--stage", "discovery"]) == 2
+
+
+def test_r4_7_shortlist_cli(cli_env, capsys):
+    db = cli_env
+    from pigtail.config import Settings
+
+    brief = BriefStore.from_settings(Settings.from_env()).get(BID).brief
+    st = CandidateStore(db.conn, BID, 1)
+    for name, verdict in (
+        ("org-s/lint-a", "relevant"),
+        ("org-s/lint-b", "relevant"),
+        ("org-s/maybe-c", "uncertain"),
+    ):
+        st.upsert(
+            Candidate(
+                ref=f"gh:{name}",
+                repo_full_name=name,
+                sources=[{"source": "github_topic", "term": "yaml"}],
+            ),
+            brief_run_id=None,
+            now=NOW,
+        )
+        st.set_verdict(
+            f"gh:{name}",
+            verdict=verdict,
+            reason="synthetic",
+            distance=0,  # type: ignore[arg-type]
+            model_panel="field",
+            rubric_version="rubric-v1-t",
+            provenance={},
+            judged_at=NOW,
+            brief_run_id=None,
+        )
+    capsys.readouterr()
+    assert main(["brief", "shortlist", "show", BID]) == 0
+    assert "not started" in capsys.readouterr().out
+    Shortlist(db.conn, brief).ensure(None)
+    capsys.readouterr()
+    assert main(["brief", "shortlist", "show", BID, "--json", "--verdict", "relevant"]) == 0
+    v = json.loads(capsys.readouterr().out)
+    assert [c["candidate_ref"] for c in v["candidates"]] == ["gh:org-s/lint-a", "gh:org-s/lint-b"]
+    assert (
+        main(
+            [
+                "brief",
+                "shortlist",
+                "accept",
+                BID,
+                "org-s/lint-a",
+                "--reason",
+                "fits",
+                "--as",
+                "owner",
+            ]
+        )
+        == 0
+    )
+    assert (
+        main(
+            [
+                "brief",
+                "shortlist",
+                "reject",
+                BID,
+                "--verdict",
+                "uncertain",
+                "--reason",
+                "unclear",
+                "--as",
+                "owner",
+            ]
+        )
+        == 0
+    )
+    assert main(["brief", "shortlist", "finalize", BID]) == 1  # lint-b undecided
+    assert "undecided" in capsys.readouterr().err
+    assert (
+        main(
+            [
+                "brief",
+                "shortlist",
+                "reject",
+                BID,
+                "gh:org-s/lint-b",
+                "--reason",
+                "no",
+                "--as",
+                "owner",
+            ]
+        )
+        == 0
+    )
+    assert (
+        main(
+            [
+                "brief",
+                "shortlist",
+                "add",
+                BID,
+                "https://github.com/org-y/extra",
+                "--reason",
+                "missed",
+                "--as",
+                "owner",
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    assert main(["brief", "shortlist", "finalize", BID, "--as", "owner"]) == 0
+    out = capsys.readouterr().out
+    assert "final: 2 repos" in out and "50 %" in out and "BELOW TARGET" in out
+    assert main(["brief", "shortlist", "accept", BID, "org-s/lint-b", "--reason", "x"]) == 1
+    roles = {r[0] for r in db.conn.execute("SELECT DISTINCT reviewer_role FROM shortlist_decision")}
+    assert roles == {"owner"}

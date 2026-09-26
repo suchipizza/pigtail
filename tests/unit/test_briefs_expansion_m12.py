@@ -279,7 +279,7 @@ def test_r18_7_estimate_run_makes_no_expansion_call_and_reports_the_proposal_cos
     stage = next(s for s in e.stages if s.stage == "expansion")
     assert stage.llm_calls == 0
     d = e.to_dict()
-    assert d["model"] == "estimate-v2"
+    assert d["model"] == "estimate-v3"
     assert d["expansion"]["status"] == "written_by_user"
     assert d["expansion"]["run_llm_calls"] == 0
     assert d["expansion"]["proposal"]["llm_calls"] == 1

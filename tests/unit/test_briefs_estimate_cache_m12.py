@@ -51,7 +51,7 @@ def test_r18_5_estimate_on_subscription_reports_calls_tokens_and_zero_money():
     b = brief(budget__llm_backend="subscription", budget__money_usd=0)
     e = estimate(b)
     d = e.to_dict()
-    assert d["label"] == "estimate" and d["model"] == ESTIMATE_MODEL == "estimate-v2"
+    assert d["label"] == "estimate" and d["model"] == ESTIMATE_MODEL == "estimate-v3"
     assert set(d["github"]["requests"]) == {"core", "graphql", "search"}
     assert all(v > 0 for v in d["github"]["requests"].values())
     assert d["llm"]["calls"] > 0 and d["llm"]["tokens"] > 0

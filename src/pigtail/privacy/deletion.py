@@ -137,6 +137,10 @@ REPO_TABLES: tuple[RepoTable, ...] = (
     # brief stage cache items and shortlist decisions about the repo (M12, R18.4, R4.7)
     RepoTable("brief_stage_cache", "repo_id", "id", "delete"),
     RepoTable("shortlist_decision", "candidate_repo_id", "id", "delete"),
+    # M22 (0021): discovery candidates and verdicts of the repo, by id and by name
+    RepoTable("brief_candidate", "repo_id", "id", "delete", "candidate_rows_deleted"),
+    RepoTable("brief_candidate", "repo_full_name", "name", "delete", "candidate_rows_deleted"),
+    RepoTable("brief_candidate", "repo_host_id", "host_id", "delete", "candidate_rows_deleted"),
     # mention scope (Directive §8.3, migration 0019): an opted-out repo leaves every shortlist
     RepoTable("brief_shortlist_entry", "repo_id", "id", "delete", "shortlist_entry_rows_deleted"),
     RepoTable(

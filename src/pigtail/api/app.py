@@ -137,6 +137,11 @@ def create_app(
         with pools["read"].connection() as conn:
             yield conn
 
+    def write_conn() -> Iterator[psycopg.Connection[Any]]:
+        """D7 shortlist decisions (M22): committed when the request succeeds."""
+        with pools["write"].connection() as conn:
+            yield conn
+
     def client_of(request: Request) -> str | None:
         return client_key(request.client.host if request.client else None, ui.password_hash)
 
@@ -428,6 +433,7 @@ def create_app(
             same_origin=same_origin,
             audit=audit_write,
             read_conn=read_conn,
+            write_conn=write_conn,
             llm_client=llm_client or shared_llm_client,
         )
     )

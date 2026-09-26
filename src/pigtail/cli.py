@@ -1407,6 +1407,9 @@ def build_parser() -> argparse.ArgumentParser:
     from pigtail.briefs.cli import add_commands as add_brief_commands
 
     add_brief_commands(sub)  # `pigtail brief ...` (M12, PRD F18)
+    from pigtail.briefs.cli import add_run_command
+
+    add_run_command(sub)  # `pigtail run --brief <id>` (M22, PRD R19.1)
 
     from pigtail.api.cli import add_parser as add_ui_parser
 

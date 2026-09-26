@@ -100,7 +100,7 @@ describe("D7 briefs", () => {
   it("R18.5: the estimate is labelled an estimate and flags paid steps", () => {
     const e: Estimate = {
       label: "estimate",
-      model: "estimate-v2",
+      model: "estimate-v3",
       github: { requests: { core: 10, graphql: 2, search: 3 }, hours_at_default_caps: 0.1 },
       other_requests: { hn_algolia: 4 },
       counts: { candidates: 10, shortlisted: 5, cases: 40 },
@@ -138,7 +138,7 @@ describe("D7 briefs", () => {
     });
     const e: Estimate = {
       label: "estimate",
-      model: "estimate-v2",
+      model: "estimate-v3",
       github: { requests: { core: 1, graphql: 1, search: 1 }, hours_at_default_caps: 0.1 },
       other_requests: {},
       counts: { candidates: 10, shortlisted: 5, cases: 4 },

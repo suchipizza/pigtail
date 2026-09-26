@@ -712,6 +712,7 @@ def names_for_key(
         SELECT repo_full_name FROM hn_mention
         UNION SELECT repo_full_name FROM hn_story WHERE repo_full_name IS NOT NULL
         UNION SELECT repo_full_name FROM brief_shortlist_entry
+        UNION SELECT repo_full_name FROM brief_candidate WHERE repo_full_name IS NOT NULL
         UNION SELECT lower(full_name) FROM repos WHERE host = %s
         """,
         (host,),

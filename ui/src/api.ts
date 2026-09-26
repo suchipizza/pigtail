@@ -292,7 +292,101 @@ export const api = {
   /** R18.7: an LLM expansion proposal. Nothing is saved until the user saves the brief. */
   proposeExpansion: (id: string, body: { version?: number; approve_paid?: boolean }) =>
     request<ExpansionProposal>(`/api/briefs/${encodeURIComponent(id)}/expansion`, json(body)),
+  // D7 shortlist review (M22, R4.7). Every decision needs a reason and is logged.
+  shortlist: (id: string, q: Query = {}) =>
+    request<ShortlistView>(withQuery(`/api/briefs/${encodeURIComponent(id)}/shortlist`, q)),
+  shortlistDecide: (id: string, body: ShortlistDecisionBody) =>
+    request<{ decisions: number; precision: Precision }>(
+      `/api/briefs/${encodeURIComponent(id)}/shortlist/decisions`,
+      json(body),
+    ),
+  shortlistAdd: (id: string, body: { version?: number; url: string; reason: string; panel?: Panel; resolves?: string }) =>
+    request<{ candidate_ref: string }>(`/api/briefs/${encodeURIComponent(id)}/shortlist/add`, json(body)),
+  shortlistFinalize: (id: string, body: { version?: number }) =>
+    request<{ status: string; shortlisted: number; precision: Precision }>(
+      `/api/briefs/${encodeURIComponent(id)}/shortlist/finalize`,
+      json(body),
+    ),
 };
+
+// --- D7 shortlist review (M22) ------------------------------------------------------------------
+
+export type Verdict = "relevant" | "not_relevant" | "uncertain";
+export type Panel = "field" | "exemplar" | "reference";
+
+export interface ShortlistDecision {
+  decision: "accept" | "reject" | "add";
+  reason: string;
+  reviewer_role: "user" | "owner" | "verifier";
+  via: "cli" | "ui" | null;
+  decided_at: string;
+}
+
+export interface RepoMatch {
+  full_name: string;
+  url: string;
+  description: string | null;
+  stars: number | null;
+}
+
+export interface ShortlistCandidate {
+  candidate_ref: string;
+  repo_full_name: string | null;
+  url: string | null;
+  panel: Panel;
+  named_index: number | null;
+  named_as?: string | null;
+  resolution: "resolved" | "unresolved" | "confirmed";
+  resolution_rule: string | null;
+  matches: RepoMatch[];
+  sources: Array<Record<string, unknown> & { source: string }>;
+  description: string | null;
+  stars: number | null;
+  created_at: string | null;
+  first_seen_at: string | null;
+  verdict: Verdict | null;
+  reason: string | null;
+  distance: 0 | 1 | 2 | null;
+  model_panel: Panel | null;
+  rubric_version: string | null;
+  decision: ShortlistDecision | null;
+  on_shortlist: boolean | null;
+  proposed: boolean;
+}
+
+export interface Precision {
+  value: number | null;
+  kept: number;
+  decided: number;
+  model_relevant: number;
+  undecided: number;
+  target: number;
+  meets_target: boolean | null;
+  label: string;
+  rubric_versions: string[];
+  definition: string;
+}
+
+export interface ShortlistView {
+  brief_id: string;
+  brief_version: number;
+  status: "in_review" | "final" | null;
+  counts: { candidates: number; by_verdict: Record<string, number>; on_shortlist: number; proposed: number; undecided: number };
+  precision: Precision;
+  candidates: ShortlistCandidate[];
+  reference_cases_to_confirm: ShortlistCandidate[];
+  brief_warnings: string[];
+}
+
+export interface ShortlistDecisionBody {
+  version?: number;
+  decision: "accept" | "reject";
+  reason: string;
+  candidates?: string[];
+  verdict?: Verdict | "none";
+  panel?: Panel;
+  distance?: number;
+}
 
 // --- D7 briefs --------------------------------------------------------------------------------
 

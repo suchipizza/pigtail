@@ -454,3 +454,104 @@ def parse_algolia_hit(hit: dict[str, Any]) -> Record | None:
         "evidence_type": "community_post",
         "capture_mode": "api_json",
     }
+
+
+# --- Show HN discovery (M22, PRD R4.5): project-level story metadata only --------------------
+SHOW_HN_FIELDS = ("title", "url", "points", "created_at_i")
+
+
+@dataclass(frozen=True)
+class ShowHNStory:
+    """One Show HN story as discovery keeps it: project-level fields only (no author, no text,
+    no comments)."""
+
+    item_id: int
+    title: str | None
+    url: str | None
+    points: int | None
+    created_at: datetime | None
+    repo_full_name: str | None  # the GitHub repo the story links to, if any
+
+
+def parse_show_hn_page(data: bytes) -> tuple[list[ShowHNStory], int]:
+    """Stories and `nbHits` from one Algolia page. Reads only `objectID` and `SHOW_HN_FIELDS`:
+    `author`, `_tags` and `_highlightResult` (which can name the poster) are never read."""
+    body = json.loads(data)
+    out: list[ShowHNStory] = []
+    for hit in body.get("hits") or []:
+        try:
+            item_id = int(hit["objectID"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        url = hit.get("url") if isinstance(hit.get("url"), str) else None
+        ts = hit.get("created_at_i")
+        points = hit.get("points")
+        title = hit.get("title")
+        out.append(
+            ShowHNStory(
+                item_id=item_id,
+                title=html.unescape(title)[:300] if isinstance(title, str) else None,
+                url=url,
+                points=int(points) if isinstance(points, int) else None,
+                created_at=datetime.fromtimestamp(ts, UTC) if isinstance(ts, int) else None,
+                repo_full_name=normalize_github_repo(url),
+            )
+        )
+    return out, int(body.get("nbHits") or 0)
+
+
+class HNShowDiscoveryConnector(Connector):
+    """Show HN stories matching a brief's keywords in its time window (M22 discovery, R4.5).
+
+    **Why this runs before CB-12 (ADR-022 as amended by ADR-073.2).** The hold covers
+    *person-level* sources (HN mentions and comments, Bluesky, per-repo events). This connector
+    collects **project-level story metadata only** (title, url, points, time) of `show_hn`
+    stories: it asks Algolia for those attributes only (`attributesToRetrieve`, no highlight),
+    never reads `author`, `_tags`, story text or comments, never searches for a person, and the
+    raw page is dropped right after parsing (`pigtail.privacy.deletion.drop_after_parse`, the
+    CB-24 pattern) in case the API returned more than was asked. Nothing person-level is stored,
+    so `person_level_hold` is off. The page is still classed `person_level_24m` until dropped,
+    because the response could carry a poster name. Terms: TM-03 (Algolia), same limiter.
+    Enabled by default; `PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false` turns it off.
+    """
+
+    name: ClassVar[str] = "hn_showhn"
+    version: ClassVar[str] = "0.1.0"
+    terms: ClassVar[TermsMetadata] = ALGOLIA_TERMS
+    enabled_by_default: ClassVar[bool] = True
+    person_level_hold: ClassVar[bool] = False
+    rate_per_second: ClassVar[float] = 10_000 / 3600
+    safety_margin: ClassVar[float] = 0.5
+    retention_class = "person_level_24m"
+    reliability = "high"
+    handle_fields: ClassVar[tuple[str, ...]] = ()
+    timeout_seconds: ClassVar[float] = 30.0
+
+    def search_show_hn(
+        self, query: str, *, since: datetime | None, until: datetime | None, hits: int = 50
+    ) -> Fetched:
+        """One relevance-ranked page of Show HN stories for `query` (not parsed here)."""
+        lo = int(since.timestamp()) if since else HN_EPOCH
+        hi = int((until or self.clock()).timestamp()) + 1
+        return self.fetch(
+            f"{ALGOLIA_BASE}/search",
+            params={
+                "query": query,
+                "tags": "show_hn",
+                "numericFilters": f"created_at_i>={lo},created_at_i<{hi}",
+                "hitsPerPage": max(1, min(hits, HITS_PER_PAGE)),
+                "attributesToRetrieve": ",".join(SHOW_HN_FIELDS),
+                "attributesToHighlight": "",
+            },
+        )
+
+    def _parse(self, data: bytes, meta: SnapshotMeta) -> Iterator[Record]:
+        stories, _ = parse_show_hn_page(data)
+        for st in stories:
+            yield {
+                "item_id": st.item_id,
+                "title": st.title,
+                "url": st.url,
+                "points": st.points,
+                "repo_full_names": [st.repo_full_name] if st.repo_full_name else [],
+            }

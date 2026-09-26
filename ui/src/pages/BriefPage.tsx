@@ -1,5 +1,5 @@
 // D7 `/briefs/:id`: the current version, its versions with a diff between any two, and the cost
-// estimate shown before a run (R18.4, R18.5). The shortlist review arrives with M13.
+// estimate shown before a run (R18.4, R18.5), and the link to the shortlist review (M22, R4.7).
 import { useState } from "react";
 import { api } from "../api";
 import { BriefDiffView } from "../components/BriefDiffView";
@@ -45,6 +45,7 @@ export function BriefPage({ id }: { id: string }) {
       <p>{project.description}</p>
       <div className="filters">
         <Link href={`/briefs/${id}/edit`}>Edit (creates a new version)</Link>
+        <Link href={`/briefs/${id}/shortlist`}>Shortlist review</Link>
         <a href={`data:text/yaml;charset=utf-8,${encodeURIComponent(d.yaml)}`} download={`${id}.v${d.version}.yaml`}>
           Export YAML
         </a>

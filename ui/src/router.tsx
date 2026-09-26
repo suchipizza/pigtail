@@ -31,6 +31,7 @@ export type Route =
   | { name: "briefNew" }
   | { name: "brief"; id: string }
   | { name: "briefEdit"; id: string }
+  | { name: "briefShortlist"; id: string }
   | { name: "notFound" };
 
 export function matchRoute(path: string): Route {
@@ -44,6 +45,9 @@ export function matchRoute(path: string): Route {
   if (path === "/briefs/new" || path === "/briefs/new/") return { name: "briefNew" };
   m = /^\/briefs\/([a-z0-9-]+)\/edit\/?$/.exec(path);
   if (m?.[1]) return { name: "briefEdit", id: m[1] };
+  // D7 shortlist review (M22)
+  m = /^\/briefs\/([a-z0-9-]+)\/shortlist\/?$/.exec(path);
+  if (m?.[1]) return { name: "briefShortlist", id: m[1] };
   m = /^\/briefs\/([a-z0-9-]+)\/?$/.exec(path);
   if (m?.[1]) return { name: "brief", id: m[1] };
   return { name: "notFound" };

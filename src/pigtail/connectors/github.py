@@ -44,7 +44,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, ClassVar, Protocol
@@ -429,6 +429,10 @@ class SearchRepo:
     owner_type: str | None  # "User" | "Organization"; never the login itself
     archived: bool
     fork: bool
+    # M22 discovery (R4.5, R4.6): public project metadata the relevance filter reads
+    description: str | None = None
+    topics: tuple[str, ...] = ()
+    language: str | None = None
 
 
 @dataclass(frozen=True)
@@ -515,6 +519,9 @@ def parse_search_page(data: bytes) -> SearchPage:
                 owner_type=owner.get("type") if isinstance(owner, dict) else None,
                 archived=bool(it.get("archived")),
                 fork=bool(it.get("fork")),
+                description=_opt_str(it.get("description")),
+                topics=tuple(t for t in it.get("topics") or [] if isinstance(t, str)),
+                language=_opt_str(it.get("language")),
             )
         )
     return SearchPage(
@@ -522,6 +529,80 @@ def parse_search_page(data: bytes) -> SearchPage:
         incomplete_results=bool(doc.get("incomplete_results")),
         items=items,
     )
+
+
+def _opt_str(v: Any) -> str | None:
+    return v if isinstance(v, str) and v.strip() else None
+
+
+@dataclass(frozen=True)
+class RepoMeta:
+    """Project-level metadata of one repo from GraphQL (M22 discovery; no identities: the owner
+    is reduced to its type)."""
+
+    host_id: int
+    full_name: str
+    stars: int
+    forks: int
+    created_at: datetime | None
+    pushed_at: datetime | None
+    owner_type: str | None
+    archived: bool
+    fork: bool
+    description: str | None = None
+    topics: tuple[str, ...] = ()
+    language: str | None = None
+
+
+REPO_META_FIELDS = (
+    "databaseId nameWithOwner stargazerCount forkCount createdAt pushedAt description"
+    " isArchived isFork primaryLanguage { name } repositoryTopics(first: 20) { nodes { topic"
+    " { name } } } owner { __typename }"
+)
+
+
+def repo_meta_query(names: Sequence[str]) -> tuple[str, dict[str, str]]:
+    """One aliased GraphQL query for up to 50 `owner/name` repos (`r0`, `r1`, ...)."""
+    parts: list[str] = []
+    variables: dict[str, str] = {}
+    decl: list[str] = []
+    for i, full in enumerate(names):
+        owner, _, name = full.partition("/")
+        variables[f"o{i}"], variables[f"n{i}"] = owner, name
+        decl += [f"$o{i}: String!", f"$n{i}: String!"]
+        parts.append(f"r{i}: repository(owner: $o{i}, name: $n{i}) {{ {REPO_META_FIELDS} }}")
+    body = " ".join(parts)
+    q = f"query({', '.join(decl)}) {{ {body} rateLimit {{ cost remaining limit resetAt }} }}"
+    return q, variables
+
+
+def parse_repo_node(node: Any) -> RepoMeta | None:
+    if not isinstance(node, dict) or node.get("databaseId") is None:
+        return None
+    owner = node.get("owner") or {}
+    lang = node.get("primaryLanguage") or {}
+    topics = [
+        ((n or {}).get("topic") or {}).get("name")
+        for n in ((node.get("repositoryTopics") or {}).get("nodes") or [])
+    ]
+    return RepoMeta(
+        host_id=int(node["databaseId"]),
+        full_name=str(node["nameWithOwner"]),
+        stars=int(node.get("stargazerCount") or 0),
+        forks=int(node.get("forkCount") or 0),
+        created_at=_dt(node.get("createdAt")),
+        pushed_at=_dt(node.get("pushedAt")),
+        owner_type=owner.get("__typename") if isinstance(owner, dict) else None,
+        archived=bool(node.get("isArchived")),
+        fork=bool(node.get("isFork")),
+        description=_opt_str(node.get("description")),
+        topics=tuple(t for t in topics if isinstance(t, str)),
+        language=_opt_str(lang.get("name") if isinstance(lang, dict) else None),
+    )
+
+
+def readme_url(full_name: str) -> str:
+    return f"{API}/repos/{full_name}/readme"
 
 
 def star_history_url(full_name: str) -> str:
@@ -608,6 +689,35 @@ class GitHubConnector(GitHubAPI):
             return f, parse_search_page(f.data)
         except PARSE_ERRORS as e:
             raise self.parse_failed(f, e) from e
+
+    def readme(self, full_name: str, *, repo_id: str | None = None) -> Fetched | None:
+        """A repo's README as raw text (`GET /repos/{owner}/{repo}/readme`, core bucket), or None
+        when the repo has none. Project page, snapshotted as project-level (ADR-072.7: project
+        pages only); the relevance filter sends a trimmed, redacted excerpt (M22, R4.6)."""
+        try:
+            return self.fetch(
+                readme_url(full_name),
+                headers={"Accept": "application/vnd.github.raw+json"},
+                repo_id=repo_id,
+                retention_class="project_level",
+            )
+        except NotFound:
+            return None
+
+    def repos_metadata(self, names: Sequence[str]) -> dict[str, RepoMeta]:
+        """Project-level metadata for `owner/name` repos, 50 per GraphQL query (M22 discovery).
+        Keys are lowercase `owner/name` as asked; repos that don't resolve are left out."""
+        out: dict[str, RepoMeta] = {}
+        uniq = list(dict.fromkeys(n.strip() for n in names if n.strip()))
+        for start in range(0, len(uniq), 50):
+            chunk = uniq[start : start + 50]
+            q, v = repo_meta_query(chunk)
+            res = self.graphql(q, v, est_cost=1)
+            for i, full in enumerate(chunk):
+                meta = parse_repo_node(res.data.get(f"r{i}"))
+                if meta is not None:
+                    out[full.lower()] = meta
+        return out
 
     def star_history(
         self,

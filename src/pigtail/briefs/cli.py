@@ -14,16 +14,28 @@
                                                              propose an LLM expansion (R18.7)
     pigtail brief expand ID --accept FILE                    save an (edited) proposal
     pigtail brief expand ID --edit                           propose, edit in $EDITOR, save
+    pigtail brief shortlist show ID [--version N] [--verdict V] [--panel P] [--distance D] [--json]
+    pigtail brief shortlist accept|reject ID [CANDIDATE ...] --reason R
+                            [--verdict V] [--panel P] [--distance D] [--as ROLE]
+                                                             review decisions (R4.7), bulk by filter
+    pigtail brief shortlist add ID URL --reason R [--panel P] [--resolves named:reference:0]
+    pigtail brief shortlist finalize ID [--as ROLE]         mark the shortlist final
     pigtail brief schema                                     print schemas/brief/v1.2.json
     pigtail brief migrate-store --from DIR [--dry-run]       move briefs to PIGTAIL_BRIEFS_DIR
+
+    pigtail run --brief ID [--version N] [--incremental] [--stage S ...] [--dry-run]
+                [--approve-paid] [--wait-minutes M] [--json]
+                                                             run the brief's stages (R19.1, M22)
 
 `edit` refuses a stale edit: the base version is `--base-version`, else the file's `version:`
 field. A file without `version:` is refused unless `--force-latest` says to treat it as an edit
 of the latest version (M12 follow-up, ADR-058.2).
 
-Exit codes: 0 ok; 1 invalid brief, not found or stale edit; 2 usage/config error; 3 paid steps
-not approved (`--approve-paid`); 4 a budget cap (H6) or LLM limit stopped the work (nothing was
-saved), or the estimate exceeds a cap.
+Exit codes: 0 ok; 1 invalid brief, not found or stale edit (run: a stage failed; resumable);
+2 usage/config error; 3 paid steps not approved (`--approve-paid`); 4 a budget cap (H6), the
+GitHub request budget or an LLM limit stopped the work (run: resumable checkpoint), or the
+estimate exceeds a cap; 5 (run) a Message Batch is still running: run the same command again to
+collect it; 6 (run) another run of the brief is in progress.
 Briefs are private: they live in PIGTAIL_BRIEFS_DIR (default ~/.pigtail/briefs), outside git,
 and are included in the encrypted backup (R18.9, ADR-071.3).
 """
@@ -618,6 +630,399 @@ def cmd_migrate_store(args: argparse.Namespace) -> int:
     return 0
 
 
+# --- pigtail run (R19.1, M22) -----------------------------------------------------------------
+
+
+def _discovery_config() -> Any:
+    from pigtail.briefs.discovery import DiscoveryConfig
+
+    raw = (os.environ.get("PIGTAIL_DISCOVERY_GHARCHIVE_HOURS") or "").strip()
+    hours = int(raw) if raw else 0
+    if not 0 <= hours <= 48:
+        raise ValueError("PIGTAIL_DISCOVERY_GHARCHIVE_HOURS must be 0..48 (0: off)")
+    return DiscoveryConfig(gharchive_hours=hours)
+
+
+def _connectors(s: Any, db: Any, recorder: Any, need_github: bool) -> tuple[Any, Any, Any]:
+    """GitHub (with the per-hour request budget and a per-run cap), Show HN, GH Archive."""
+    from pigtail.capture.snapshots import build_store
+    from pigtail.connectors.github import TOKEN_ENV, GitHubConnector, PostgresCache
+    from pigtail.connectors.github_budget import Budget, BudgetConfig, JobCaps, PostgresLedger
+    from pigtail.connectors.hn import HNShowDiscoveryConnector
+    from pigtail.privacy import suppression
+
+    snaps = build_store(s)
+    github = None
+    if (os.environ.get(TOKEN_ENV) or "").strip():
+        budget = Budget(
+            BudgetConfig.from_env(os.environ),
+            PostgresLedger(db.conn),
+            job=JobCaps({"search": 600, "graphql": 1000, "core": 4000}),
+        )
+        github = GitHubConnector(
+            store=snaps,
+            pseudonymizer=None,
+            run=recorder,
+            evidence_sink=db.upsert_evidence,
+            suppression=suppression.load(db),
+            budget=budget,
+            cache=PostgresCache(db.conn),
+        )
+    elif need_github:
+        raise ValueError(f"{TOKEN_ENV} is not set: discovery makes no GitHub call without it")
+    hn = None
+    if HNShowDiscoveryConnector.enabled_from_env(os.environ):
+        hn = HNShowDiscoveryConnector(
+            store=snaps, pseudonymizer=None, run=recorder, evidence_sink=db.upsert_evidence
+        )
+    gharchive = None
+    if _discovery_config().gharchive_hours > 0:
+        from pigtail.connectors.gharchive import GHArchiveConnector
+        from pigtail.pseudonymize import OptoutKey, optout_key_from_env
+
+        key = optout_key_from_env()
+        if key:
+            gharchive = GHArchiveConnector(
+                store=snaps,
+                pseudonymizer=OptoutKey(key),
+                run=recorder,
+                evidence_sink=db.upsert_evidence,
+                suppression=suppression.load(db),
+            )
+    return github, hn, gharchive
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    """R19.1: run (or resume) a brief's stages; the cost estimate is shown first (R18.5)."""
+    from pigtail.briefs.estimate import (
+        RUN_STAGES,
+        estimate_for,
+        render_scope_text,
+        render_text,
+        run_scope,
+    )
+    from pigtail.briefs.runner import RunDeps, RunOptions, find_run, run_brief
+
+    s = _settings()
+    store = _store()
+    try:
+        brief = store.get(args.brief, args.version).brief
+    except (BriefNotFound, BriefInvalid) as e:
+        print(str(e), file=sys.stderr)
+        return EXIT_INVALID
+    stages = tuple(args.stage) if args.stage else RUN_STAGES
+    est, _plan = estimate_for(
+        brief,
+        store=store,
+        data_dir=s.data_dir,
+        models=dict(s.llm_models),
+        batch=s.llm_batch,
+        month_cap_usd=s.budget_usd_month,
+        last_run_version=_last_run_version(s, brief.brief_id),
+        brief_spent_usd=_brief_spent(s, brief.brief_id),
+    )
+    scope = run_scope(est, stages)
+    out: dict[str, Any] = {"estimate": est.to_dict(), "run_scope": scope}
+    if not args.json:
+        print(render_text(est, brief))
+        print()
+        print(render_scope_text(scope))
+    for w in brief.warnings():
+        print(f"warning: {w}", file=sys.stderr)
+    if not s.database_url:
+        print("DATABASE_URL is not set: runs keep their checkpoints in Postgres", file=sys.stderr)
+        return EXIT_USAGE
+    import psycopg
+
+    from pigtail.db.migrate import migrate
+
+    if args.dry_run:
+        try:
+            with psycopg.connect(s.database_url, connect_timeout=3) as conn:
+                kind, row = find_run(conn, brief)
+        except psycopg.Error as e:
+            kind, row = f"unknown ({type(e).__name__})", None
+        out["dry_run"] = {
+            "would": kind,
+            "run": row["id"] if row else None,
+            "stages": list(stages),
+            "incremental": args.incremental,
+            "network_calls": 0,
+            "writes": 0,
+        }
+        if args.json:
+            _json(out)
+        else:
+            what = {"new": "start a new run", "resume": "resume run", "complete": "do nothing"}
+            print(
+                f"\nDRY RUN: nothing was started. Would {what.get(kind, kind)}"
+                + (f" {row['id']}" if row else "")
+                + (" (--incremental: refresh)" if args.incremental and kind == "complete" else "")
+                + "."
+            )
+        return 0
+    migrate(s.database_url)
+    conn = psycopg.connect(s.database_url, autocommit=True)
+    try:
+        kind, row = find_run(conn, brief)
+        approved = args.approve_paid or bool(row and kind == "resume" and row.get("approved_paid"))
+        if scope["requires_approval"] and not approved:
+            print(
+                "\nThis run has paid steps (LLM calls on the api backend). Nothing was started. "
+                "Approve the estimate explicitly with --approve-paid (ADR-053.1, H6).",
+                file=sys.stderr,
+            )
+            return EXIT_NEEDS_APPROVAL
+        if scope["within_caps"] is False:
+            print(
+                "warning: the estimate exceeds a cap; the run will hard-stop there with a "
+                "resumable checkpoint (H6)",
+                file=sys.stderr,
+            )
+        from pigtail.capture.db import CaptureDB
+        from pigtail.capture.runs import RunRecorder
+
+        db = CaptureDB(conn)
+        try:
+            client = _llm_client()
+        except ValueError as e:
+            print(f"LLM client not configured: {e}", file=sys.stderr)
+            return EXIT_USAGE
+        config = {
+            "brief_id": brief.brief_id,
+            "brief_version": brief.version,
+            "stages": list(stages),
+            "incremental": args.incremental,
+        }
+        with RunRecorder("brief.run", config, sink=db.upsert_run) as rec:
+            try:
+                github, hn, gha = _connectors(s, db, rec, need_github="discovery" in stages)
+                opts = RunOptions(
+                    stages=stages,
+                    incremental=args.incremental,
+                    approve_paid=args.approve_paid,
+                    wait_seconds=args.wait_minutes * 60 if args.wait_minutes is not None else None,
+                    discovery=_discovery_config(),
+                    estimate=out,
+                )
+            except ValueError as e:
+                print(str(e), file=sys.stderr)
+                return EXIT_USAGE
+            deps = RunDeps(
+                conn=conn,
+                client=client,
+                github=github,
+                hn=hn,
+                gharchive=gha,
+                month_cap_usd=s.budget_usd_month,
+                run_record_id=rec.id,
+                recorder=rec,
+            )
+            outcome = run_brief(brief, deps, opts)
+    finally:
+        conn.close()
+    out["outcome"] = outcome.to_dict()
+    if args.json:
+        _json(out)
+    else:
+        print(f"\n{outcome.status}: {outcome.message}")
+        if outcome.brief_run_id:
+            print(f"brief run: {outcome.brief_run_id}")
+    if outcome.exit_code not in (0,):
+        print(outcome.message, file=sys.stderr)
+    return outcome.exit_code
+
+
+def add_run_command(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    from pigtail.briefs.estimate import RUN_STAGES
+
+    p = sub.add_parser("run", help="run (or resume) a brief's stages (R19.1)")
+    p.add_argument("--brief", required=True, help="brief id")
+    p.add_argument("--version", type=int, help="brief version (default: latest)")
+    p.add_argument("--incremental", action="store_true", help="refresh a completed run")
+    p.add_argument(
+        "--stage", action="append", choices=RUN_STAGES, help="run only these stages (repeatable)"
+    )
+    p.add_argument("--dry-run", action="store_true", help="show the estimate and plan; do nothing")
+    p.add_argument("--approve-paid", action="store_true", help="approve the paid steps shown")
+    p.add_argument(
+        "--wait-minutes",
+        type=float,
+        help="poll a Message Batch this long, then leave it running (default: until it ends)",
+    )
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_run)
+
+
+# --- pigtail brief shortlist (R4.7, D7) -----------------------------------------------------
+
+
+def _shortlist(args: argparse.Namespace) -> tuple[Any, Any] | int:
+    import psycopg
+
+    from pigtail.briefs.shortlist import Shortlist
+
+    s = _settings()
+    if not s.database_url:
+        print("DATABASE_URL is not set", file=sys.stderr)
+        return EXIT_USAGE
+    try:
+        brief = _store().get(args.brief_id, args.version).brief
+    except (BriefNotFound, BriefInvalid) as e:
+        print(str(e), file=sys.stderr)
+        return EXIT_INVALID
+    conn = psycopg.connect(s.database_url, autocommit=True)
+    return conn, Shortlist(conn, brief)
+
+
+def _print_view(v: dict[str, Any]) -> None:
+    p = v["precision"]
+    c = v["counts"]
+    print(
+        f"Shortlist {v['brief_id']} v{v['brief_version']}: {v['status'] or 'not started'}; "
+        f"{c['candidates']} candidates {c['by_verdict']}, on the shortlist {c['on_shortlist']}, "
+        f"proposed {c['proposed']}, undecided {c['undecided']}"
+    )
+    val = "n/a" if p["value"] is None else f"{p['value'] * 100:.0f} %"
+    print(
+        f"Precision {val} ({p['kept']}/{p['decided']} of {p['model_relevant']} model-relevant; "
+        f"target {p['target'] * 100:.0f} %; {p['label']})"
+    )
+    for r in v["candidates"]:
+        d = r["decision"]
+        mark = "+" if r["on_shortlist"] else ("?" if r["on_shortlist"] is None else "-")
+        dist = "" if r["distance"] is None else f" d{r['distance']}"
+        print(
+            f"{mark} {r['candidate_ref']:<45} {r['panel']:<9} {r['verdict'] or 'not judged':<12}"
+            f"{dist:<4} {r['stars'] if r['stars'] is not None else '':>7}  {r['reason'] or ''}"
+            + (f"  [{d['decision']}: {d['reason']}]" if d else "")
+        )
+    if v["reference_cases_to_confirm"]:
+        print("\nReference cases to confirm (add <url> --resolves <ref>):")
+        for r in v["reference_cases_to_confirm"]:
+            print(f"  {r['candidate_ref']} ({r.get('named_as') or '?'}): {r['resolution_rule']}")
+            for m in r["matches"]:
+                print(f"    {m['url']}  {m.get('stars') or ''}  {m.get('description') or ''}")
+
+
+def cmd_shortlist(args: argparse.Namespace) -> int:
+    from pigtail.briefs.candidates import BadCandidate
+    from pigtail.briefs.shortlist import ShortlistError
+
+    got = _shortlist(args)
+    if isinstance(got, int):
+        return got
+    conn, sl = got
+    try:
+        action = args.shortlist_command
+        if action == "show":
+            v = sl.view(verdict=args.verdict, panel=args.panel, distance=args.distance)
+            if args.json:
+                _json(v)
+            else:
+                _print_view(v)
+            return 0
+        if action in ("accept", "reject"):
+            if args.candidates:
+                n = sl.decide(args.candidates, action, args.reason, reviewer=args.role, via="cli")
+            elif args.verdict or args.panel or args.distance is not None:
+                n = sl.decide_where(
+                    action,
+                    args.reason,
+                    verdict=args.verdict,
+                    panel=args.panel,
+                    distance=args.distance,
+                    reviewer=args.role,
+                    via="cli",
+                )
+            else:
+                print(
+                    "give candidates, or a filter (--verdict/--panel/--distance)", file=sys.stderr
+                )
+                return EXIT_USAGE
+            print(f"{action}: {n} decision(s) logged")
+            return 0
+        if action == "add":
+            ref = sl.add(
+                args.url,
+                args.reason,
+                panel=args.panel or "field",
+                resolves=args.resolves,
+                reviewer=args.role,
+                via="cli",
+            )
+            print(f"added {ref} (metadata is filled by the next run --incremental)")
+            return 0
+        if action == "finalize":
+            res = sl.finalize(reviewer=args.role, via="cli")
+            p = res["precision"]
+            val = "n/a" if p["value"] is None else f"{p['value'] * 100:.0f} %"
+            print(
+                f"final: {res['shortlisted']} repos on the shortlist; precision {val} "
+                f"({p['label']}; target {p['target'] * 100:.0f} %"
+                + ("; BELOW TARGET" if p["meets_target"] is False else "")
+                + ")"
+            )
+            if res["unresolved_named"]:
+                print(f"unresolved named projects (not blocking): {len(res['unresolved_named'])}")
+            return 0
+    except (ShortlistError, BadCandidate) as e:
+        print(str(e), file=sys.stderr)
+        return EXIT_INVALID
+    finally:
+        conn.close()
+    return EXIT_USAGE
+
+
+def _add_shortlist_commands(bs: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    sp = bs.add_parser("shortlist", help="shortlist review (R4.7): show, decide, add, finalize")
+    ss = sp.add_subparsers(dest="shortlist_command", required=True)
+
+    def common(p: argparse.ArgumentParser) -> None:
+        p.add_argument("brief_id")
+        p.add_argument("--version", type=int, help="brief version (default: latest)")
+
+    def filters(p: argparse.ArgumentParser) -> None:
+        p.add_argument("--verdict", choices=["relevant", "not_relevant", "uncertain", "none"])
+        p.add_argument("--panel", choices=["field", "exemplar", "reference"])
+        p.add_argument("--distance", type=int, choices=[0, 1, 2])
+
+    def role(p: argparse.ArgumentParser) -> None:
+        p.add_argument(
+            "--as",
+            dest="role",
+            choices=["user", "owner", "verifier"],
+            default="user",
+            help="reviewer role logged with the decision (default: user)",
+        )
+
+    p = ss.add_parser("show", help="candidates, verdicts, reasons, decisions and precision")
+    common(p)
+    filters(p)
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_shortlist)
+    for action in ("accept", "reject"):
+        p = ss.add_parser(action, help=f"{action} candidates (or all matching a filter)")
+        common(p)
+        p.add_argument("candidates", nargs="*", help="owner/name, URL or candidate ref")
+        p.add_argument("--reason", required=True, help="why (logged with the decision)")
+        filters(p)
+        role(p)
+        p.set_defaults(func=cmd_shortlist)
+    p = ss.add_parser("add", help="add a repo the filter missed, by URL")
+    common(p)
+    p.add_argument("url", help="https://github.com/owner/name or owner/name")
+    p.add_argument("--reason", required=True)
+    p.add_argument("--panel", choices=["field", "exemplar", "reference"])
+    p.add_argument("--resolves", help="the unresolved named project this repo stands for")
+    role(p)
+    p.set_defaults(func=cmd_shortlist)
+    p = ss.add_parser("finalize", help="mark the shortlist final (mention scope: final)")
+    common(p)
+    role(p)
+    p.set_defaults(func=cmd_shortlist)
+
+
 def add_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     br = sub.add_parser("brief", help="research briefs (PRD F18; private, never in git)")
     bs = br.add_subparsers(dest="brief_command", required=True)
@@ -691,6 +1096,8 @@ def add_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> No
     p.add_argument("--accept", metavar="FILE", help="save an (edited) proposal file, or -")
     p.add_argument("--edit", action="store_true", help="edit the proposal in $EDITOR, then save")
     p.set_defaults(func=cmd_expand)
+
+    _add_shortlist_commands(bs)
 
     bs.add_parser("schema", help="print the brief JSON Schema (v1.2)").set_defaults(func=cmd_schema)
 

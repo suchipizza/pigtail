@@ -64,6 +64,9 @@ TABLE_LEVELS: dict[str, Level] = {
     "brief_runs": "project",  # M12: ids, versions, content hashes, estimates; no brief content
     "shortlist_decision": "project",  # R4.7 (M13): project-level decisions with reasons
     "brief_shortlist_entry": "project",  # mention scope (0019): repo names and status
+    # M22 (0021): candidates (public repo metadata, signals, verdicts) and shortlist status
+    "brief_candidate": "project",
+    "brief_shortlist": "project",
     "brief_report_final": "project",  # R19.9 anchor (0018): ids, versions, timestamps
     "brief_evidence": "project",  # R19.9 anchor (0018): brief run -> evidence ids
     # LLM-derived stage results may quote evidence (as the LLM cache does, CB-05)

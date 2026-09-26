@@ -8,6 +8,7 @@ import { CasePage } from "./pages/CasePage";
 import { CasesPage } from "./pages/CasesPage";
 import { EvidencePage } from "./pages/EvidencePage";
 import { LoginPage } from "./pages/LoginPage";
+import { ShortlistPage } from "./pages/ShortlistPage";
 import { Link, matchRoute, useLocation } from "./router";
 
 type Auth = "checking" | "in" | "out";
@@ -66,6 +67,8 @@ export function App() {
           <BriefPage id={route.id} />
         ) : route.name === "briefEdit" ? (
           <BriefEditorPage key={route.id} id={route.id} />
+        ) : route.name === "briefShortlist" ? (
+          <ShortlistPage key={route.id} id={route.id} />
         ) : (
           <p>
             Page not found. <Link href="/cases">Back to cases</Link>

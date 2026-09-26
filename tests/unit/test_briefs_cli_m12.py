@@ -100,7 +100,7 @@ def test_r15_11_cli_estimate_per_stage_usd_against_the_caps(capsys, monkeypatch)
     capsys.readouterr()
     assert main(["brief", "estimate", "synthetic-demo", "--json"]) == 3  # api: needs approval
     out = json.loads(capsys.readouterr().out)
-    assert out["model"] == "estimate-v2"
+    assert out["model"] == "estimate-v3"
     assert out["caps"]["brief"]["cap_usd"] == 150.0 and out["caps"]["month"]["cap_usd"] == 200.0
     models = {s["stage"]: s["model"] for s in out["llm"]["stages"] if s["llm_calls"]}
     assert models["relevance"] == "claude-haiku-4-5-20251001"

@@ -169,21 +169,106 @@ default 70 % caps, the LLM calls, tokens and **USD per stage and model** (batch 
 cached prefix priced at the cache rates), and the total against the brief's cap (minus what the
 brief has already spent) and the monthly cap (minus this month's spend). Prices come from a dated
 table in `src/pigtail/llm/pricing.py` (list prices as of 2026-06-24; check the pricing page before
-a large run). **Every figure is an estimate** from the `estimate-v2` planning model; the pilot's
+a large run). **Every figure is an estimate** from the `estimate-v3` planning model; the pilot's
 measured cost per case replaces the per-unit placeholders (M23). For the synthetic example brief
-on `api`, expect roughly 6,000 GitHub requests (under 2 hours of API time), about 14M LLM tokens
-and about USD 19 at list price with batching (about USD 33 without). The estimate exits with code 3
+on `api`, expect roughly 7,700 GitHub requests (about 2 hours of API time), about 12M LLM tokens
+and about USD 17 at list price with batching (about USD 30 without); of that, a `pigtail run`
+of the M22 stages (discovery, relevance filter, shortlist) is about USD 0.56 (75 batch requests
+of ~20 candidates on the relevance model, an upper bound of 1,500 candidates). The estimate exits with code 3
 when paid steps need approval, and with code 4 (approval not recorded) when the estimate exceeds a
 cap. When you re-run an edited brief, the estimate and the run record list which stages are reused
 and which are recomputed (R18.4).
 
-**5. Run it.** Discovery and the shortlist arrive in M13 and `pigtail run` with the launchd
-schedule in M14; until then the brief, its versions and its estimate are what you can prepare.
-Runs will record the brief version and content hash, the data version and the code, codebook,
-prompt and model versions (`brief_runs`, R18.6), and a run that reaches its budget stops with a
-resumable checkpoint (status `paused_budget`). The actual cost of every model call (tokens in and
-out, prompt-cache reads and writes, batch id, USD) goes to the cost ledger with its brief run and
-case (`llm_cost_ledger`), which the pilot report uses for the cost per case.
+**5. Run it.** See "Running a brief (discovery and shortlist)" below. Runs record the brief
+version and content hash, the data version and the code, prompt, rubric and model versions
+(`brief_runs`, R18.6), and a run that reaches its budget stops with a resumable checkpoint
+(status `paused_budget`). The actual cost of every model call (tokens in and out, prompt-cache
+reads and writes, batch id, USD) goes to the cost ledger with its brief run and case
+(`llm_cost_ledger`), which the pilot report uses for the cost per case.
+
+## Running a brief (discovery and shortlist) (M22; PRD R4.5–R4.7, R4.11, R19.1)
+`pigtail run` runs a brief's stages on your machine, with Postgres (`DATABASE_URL`) holding the
+checkpoints. M22 has three stages; later milestones add the outcome sort and deep forensics.
+```bash
+uv run pigtail run --brief my-project --dry-run         # estimate and plan; no call, no write
+uv run pigtail run --brief my-project --approve-paid    # run (or resume) discovery → relevance → shortlist
+uv run pigtail run --brief my-project --stage discovery # only some stages (repeatable)
+uv run pigtail run --brief my-project --incremental     # refresh a completed run
+uv run pigtail run --brief my-project --wait-minutes 30 # leave a batch running after 30 min
+```
+**Before it starts** it prints the cost estimate (the whole brief, then "This run": GitHub and
+HN requests, the relevance filter's requests, model and USD) against the brief's remaining cap
+and the monthly cap. On the `api` backend it starts only with `--approve-paid` (or an approval
+recorded by `pigtail brief estimate --approve-paid`); an estimate above a cap is a warning, and
+the run then hard-stops at the cap. Discovery needs `GITHUB_TOKEN`.
+
+**1. Discovery (R4.5).** From the brief's accepted expansion and field: one GitHub search per
+keyword, search query and the core field (`<term> in:name,description,topics`) and one per
+GitHub topic (`topic:<slug>`), each limited to repos created in the brief's window with at least
+10 stars (not archived, no forks; one page of 100, sorted by stars); **Show HN** stories matching
+each keyword in the window that link a GitHub repo (project-level metadata only: title, URL,
+points, time; the poster is never read or stored and the raw page is dropped at once, so this
+runs before the person-level hold is lifted); **awesome lists** named in the brief (a GitHub URL
+whose repo name starts with `awesome`) or found through the brief's GitHub topics, whose README
+links become candidates when the linked repo was created in the window. GH Archive adds activity
+signals to candidates already found only if you set `PIGTAIL_DISCOVERY_GHARCHIVE_HOURS` (sampled
+hourly dumps; off by default). Every **reference case** and **distribution exemplar** in the
+brief is always added, with its repo chosen by the launch-link rule (ADR-054.3): the brief's
+`repo`, else a GitHub URL in its `urls`, else the repo its Show HN launch posts linked to. When
+that gives several repos or none, it is kept as **unresolved** with candidate matches for you to
+confirm in the review; it never blocks the run. Candidates are stored per brief version,
+project-level only (repo name and id, public description with identifiers and the owner login
+removed, topics, stars, dates, and which sources found it), de-duplicated, capped at 1,500. Repos
+on the refusal list are skipped. The GitHub request budget (70 % caps per hour, plus a per-run
+cap) pauses discovery with a checkpoint; run the command again later to continue.
+
+**2. Relevance filter (R4.6).** Every candidate is judged against a **rubric written from your
+brief** (core field, include and exclude lists, widening steps, target users, problem
+statement; never the project name, reference names, audience or budget) by the relevance model
+(`LLM_MODEL_RELEVANCE`, Haiku) through the Message Batches API, about 20 candidates per request.
+The model sees public repo metadata only: the repo name *without its owner*, the owner type,
+description, topics, language and a README excerpt of at most 1,200 characters, with identifiers
+replaced by per-call aliases. For each candidate it returns a verdict (`relevant`,
+`not_relevant`, `uncertain`), a reason (at most 30 words), the distance from the core field
+(0 core, 1–2 widening steps) and the panel. Each verdict is stored with the rubric version
+(`rubric-v1-<hash>`: a new rubric means new verdicts), prompt version, model, batch id and input
+hash. A batch that is still running when `--wait-minutes` runs out leaves the run
+`waiting_batch` (exit code 5): run the same command again and it collects that batch; nothing is
+submitted or paid twice.
+
+**3. Shortlist review (R4.7, D7).** The run ends `awaiting_review`. Review in the web app
+(`/briefs/<id>/shortlist`) or on the command line:
+```bash
+uv run pigtail brief shortlist show my-project [--verdict relevant] [--panel field] [--distance 0]
+uv run pigtail brief shortlist accept my-project owner/name ... --reason "fits the core field"
+uv run pigtail brief shortlist reject my-project --verdict uncertain --reason "..."   # bulk
+uv run pigtail brief shortlist add my-project https://github.com/owner/name --reason "missed"
+uv run pigtail brief shortlist add my-project <url> --resolves named:reference:0 --reason "..."
+uv run pigtail brief shortlist finalize my-project [--as owner]
+```
+Every decision needs a reason and is logged (never edited) with the brief version, the run, the
+reviewer role (`--as user|owner|verifier`, default `user`; the web app logs `user`), where it was
+made and the time. Undecided model-`relevant` candidates are *proposed*; finalizing is refused
+while any `relevant` or `uncertain` candidate is undecided (use the bulk actions). Named
+reference cases and exemplars that resolved to a repo stay on the shortlist unless you reject
+them; for an unresolved one, pick one of its candidate repos (`add … --resolves`, or *Use this
+repo* in the web app). **Precision** is the share of model-`relevant` field candidates you kept
+among those you decided on; the target is 80 %, a lower value is shown, not hidden, and the label
+says who checked (`owner-checked`, `verifier-checked, not owner-checked`, `user-checked`). While
+in review, proposed and accepted repos are in the mention scope as `in_review`; finalizing writes
+the final set as `final` and the rest `removed`. An added repo's metadata is filled by the next
+`pigtail run --incremental`.
+
+**Resuming and exit codes.** A run is resumable after anything: a crash, a budget stop
+(`paused_budget`, exit 4; exit 3 when approval is missing), the GitHub request budget (exit 4), a
+failure (exit 1) or a batch still running (exit 5). Running the same command again resumes the
+same run: completed stages are skipped, discovery skips the queries it did, and the relevance
+filter rebuilds the same requests, so answered ones come from the LLM cache and in-flight batches
+are collected by their stored ids. Only one run per brief at a time (exit 6 otherwise). A version
+whose run is complete is not run again; `--incremental` starts a refresh run that adds repos
+created since the last discovery, judges only new candidates and keeps your decisions (a final
+shortlist returns to review only when new candidates need a decision). Editing the brief creates
+a new version with its own candidates and review.
 
 ## LLM backend (`LLM_BACKEND`, PRD F15)
 **Redaction on the LLM path (CB-06; ADR-066 follow-up, M21b, ADR-074).** Before any input leaves the
@@ -781,6 +866,11 @@ it may be enabled; its account-level deletion signals will have to be resolved t
 source itself, since pigtail no longer stores who wrote what.
 
 ### Hacker News sources (M1-T4, M1-T14)
+- **Show HN discovery** (`hn_showhn`, M22, enabled by default;
+  `PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false` turns it off). Used only by a brief's discovery
+  stage: Algolia `show_hn` stories matching the brief's keywords, asked for title, URL, points and
+  time only. Project-level: the poster, story text and comments are never read or stored, and
+  each raw page is dropped right after parsing, so it does not need the ADR-022 flag.
 - **Rank poller** (`hn_ranks`, enabled by default; `PIGTAIL_CONNECTOR_HN_RANKS_ENABLED=false`
   turns it off). Project-level only: story ids, ranks, urls, titles, scores, comment counts. It
   keeps no usernames (the item's `by` is dropped, and item raw JSON is deleted right after

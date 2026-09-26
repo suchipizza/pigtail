@@ -119,6 +119,11 @@ def seed(db: Any, store: LocalSnapshotStore, repo: tuple[int, str]) -> dict[str,
         " status) VALUES ('brief_synthetic', 1, %s, %s, 'final')",
         (name.lower(), key),
     )
+    q(  # M22 (0021): a discovery candidate of the repo
+        "INSERT INTO brief_candidate (brief_id, brief_version, candidate_ref, repo_full_name,"
+        " repo_host_id, repo_id) VALUES ('brief_synthetic', 1, %s, %s, %s, %s)",
+        ("gh:" + name.lower(), name.lower(), hid, key),
+    )
     q(
         "INSERT INTO repo_event_poll (repo_host_id, polled_at, status, pages)"
         " VALUES (%s, %s, 200, 1)",

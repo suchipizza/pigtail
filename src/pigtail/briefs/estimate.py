@@ -47,9 +47,11 @@ from pigtail.connectors.github_budget import DEFAULT_CAP_FRACTION, GITHUB_LIMITS
 from pigtail.llm.pricing import TokenUsage, canonical_model, cost_usd, pricing_table
 from pigtail.llm.stages import stage_for, time_sensitive
 
-# v2 (M21b): per-stage models, Batch API discount, prompt caching, the brief's total money cap
-# and the monthly cap. v1 (ADR-058.4): expansion is an on-demand call, not a run stage.
-ESTIMATE_MODEL = "estimate-v2"
+# v3 (M22): the relevance filter sends ~20 candidates per request; discovery fetches one README
+# per candidate (core bucket). v2 (M21b): per-stage models, Batch API discount, prompt caching,
+# the brief's total money cap and the monthly cap. v1 (ADR-058.4): expansion is an
+# on-demand call, not a run stage.
+ESTIMATE_MODEL = "estimate-v3"
 
 # --- planning assumptions (placeholders until the pilot measures them, M23) ---------------
 SEARCH_PAGES_PER_QUERY = 2  # 100 results per page
@@ -64,10 +66,13 @@ GRAPHQL_BATCH = 50  # candidates per GraphQL metadata query
 GRAPHQL_POINTS_PER_BATCH = 2
 HN_QUERIES_PER_TERM_SLICE = 1
 
+# Relevance filter (M22, R4.6): about 20 candidates per request, each ~350 input tokens
+# (name, description, topics, README excerpt of <= 1,200 chars) and ~70 output tokens.
+RELEVANCE_PER_REQUEST = 20
 # (input tokens, output tokens) per call, after evidence trimming (R15.10)
 TOKENS = {
     "expansion": EXPANSION_TOKENS,
-    "relevance": (1_500, 250),
+    "relevance": (1_000 + RELEVANCE_PER_REQUEST * 350, RELEVANCE_PER_REQUEST * 70),
     "extraction": (8_000, 1_500),
     "adjudication": (6_000, 1_000),
     "patterns": (20_000, 3_000),
@@ -369,8 +374,10 @@ def estimate(
     def gh(stage: str, n: int) -> int:
         return 0 if stage in reused else n
 
-    core = gh("evidence", shortlisted * (CORE_PER_SHORTLISTED + star_pages)) + gh(
-        "extraction", cases * CORE_PER_CASE
+    core = (
+        gh("evidence", shortlisted * (CORE_PER_SHORTLISTED + star_pages))
+        + gh("extraction", cases * CORE_PER_CASE)
+        + gh("relevance", candidates)  # one README per candidate (M22)
     )
     graphql = gh("discovery", math.ceil(candidates / GRAPHQL_BATCH) * GRAPHQL_POINTS_PER_BATCH)
     requests = {"core": core, "graphql": graphql, "search": gh("discovery", search)}
@@ -408,7 +415,7 @@ def estimate(
     stages = [
         # R18.7: the run uses the accepted expansion; proposing one is a separate, on-demand call.
         cost("expansion", 0),
-        cost("relevance", candidates),
+        cost("relevance", math.ceil(candidates / RELEVANCE_PER_REQUEST)),
         cost("extraction", chunks * CODERS),
         cost("adjudication", math.ceil(chunks * ADJUDICATION_SHARE), reused_by="extraction"),
         cost("patterns", PATTERN_CALLS),
@@ -575,4 +582,68 @@ def render_text(e: Estimate, brief: Brief) -> str:
     if e.reuse is not None:
         lines += ["", f"Re-run from v{e.reuse['from_version']}:"]
         lines += [f"  {s['stage']:<13} {s['action']}" for s in e.reuse["stages"]]
+    return "\n".join(lines)
+
+
+# --- the stages of one `pigtail run` (M22: discovery, relevance, shortlist; R19.1) ---------------
+RUN_STAGES = ("discovery", "relevance", "shortlist")
+
+
+def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any]:
+    """The part of the estimate that `pigtail run` will spend with these stages (R18.5): GitHub
+    and HN requests of discovery (plus one README per candidate for relevance), and the relevance
+    filter's LLM calls and USD, against the brief's remaining cap and the monthly cap. The
+    shortlist stage makes no paid call. Later milestones add their stages here."""
+    st = set(stages)
+    by = {s.stage: s for s in e.stages}
+    rel = by["relevance"]
+    github = {
+        "search": e.github_requests["search"] if "discovery" in st else 0,
+        "graphql": e.github_requests["graphql"] if "discovery" in st else 0,
+        "core": e.candidates if "relevance" in st and not rel.reused else 0,
+    }
+    llm = rel.to_dict() if "relevance" in st and not rel.reused else None
+    usd: float | None = 0.0
+    if llm is not None and e.llm_backend == "api":
+        usd = rel.usd
+    brief_left = max(0.0, e.brief_cap_usd - e.brief_spent_usd)
+    month_left = max(0.0, e.month_cap_usd - e.month_spent_usd)
+    within = None if usd is None else (usd <= brief_left + 1e-9 and usd <= month_left + 1e-9)
+    return {
+        "label": "estimate",
+        "model": e.model,
+        "stages": [s for s in RUN_STAGES if s in st],
+        "candidates": e.candidates,
+        "github_requests": github,
+        "hn_algolia_requests": e.other_requests.get("hn_algolia", 0) if "discovery" in st else 0,
+        "llm": llm,
+        "api_usd": None if usd is None else round(usd, 4),
+        "requires_approval": e.llm_backend == "api" and (usd is None or usd > 0),
+        "brief_remaining_usd": round(brief_left, 2),
+        "month_remaining_usd": round(month_left, 2),
+        "within_caps": within,
+        "on_exceed": "the run hard-stops at the cap with a resumable checkpoint (H6)",
+    }
+
+
+def render_scope_text(scope: dict[str, Any]) -> str:
+    g = scope["github_requests"]
+    lines = [
+        f"This run ({', '.join(scope['stages']) or 'no stage'}; {scope['model']}, ESTIMATE):",
+        f"  ~{scope['candidates']:,} candidates; GitHub requests: search {g['search']:,}, "
+        f"graphql {g['graphql']:,}, core {g['core']:,} (READMEs); HN Algolia "
+        f"{scope['hn_algolia_requests']:,}",
+    ]
+    llm = scope["llm"]
+    if llm:
+        lines.append(
+            f"  relevance filter: {llm['llm_calls']:,} requests of ~20 candidates on "
+            f"{llm['model']} ({llm['mode']}), {llm['input_tokens'] + llm['output_tokens']:,} "
+            f"tokens, {_usd(scope['api_usd'])}"
+        )
+    fits = {True: "fits", False: "EXCEEDS a cap: the run will stop there", None: "unknown"}
+    lines.append(
+        f"  remaining: brief ${scope['brief_remaining_usd']:,.2f}, month "
+        f"${scope['month_remaining_usd']:,.2f}: {fits[scope['within_caps']]}"
+    )
     return "\n".join(lines)

@@ -75,10 +75,15 @@ file with `uv run pigtail brief schema > schemas/brief/v1.2.json`, a test fails 
 briefs onto v1.2 when they load), `store` (private, immutable versions under
 `PIGTAIL_BRIEFS_DIR`, default `~/.pigtail/briefs`; stale edits are refused; `migrate_store`),
 `backup` (the briefs archive in `pigtail backup create/restore/prune`),
-`diff`, `estimate` (`estimate-v2` planning model: USD per stage and model against the brief's
+`diff`, `estimate` (`estimate-v3` planning model: USD per stage and model against the brief's
 and the monthly cap), `expansion` (R18.7: the versioned
 `brief_expansion` prompt, `propose_expansion` and `apply_expansion`; tests use the fake backend
-from `tests/conftest.py`), `budget` and `cache`. Stages built from M13 on must:
+from `tests/conftest.py`), `budget` and `cache`. M22 adds `candidates` (the `brief_candidate` store),
+`discovery` (R4.5), `relevance` (R4.6: rubric, prompt, chunked batch requests), `shortlist` (R4.7:
+decisions, precision, finalize, mention scope) and `runner` (`pigtail run --brief`: stages,
+checkpoints, in-place resume, budget). Tests use the fakes in `tests/discovery_fake.py` (GitHub
+search, READMEs, GraphQL, Show HN) and `tests/relevance_fake.py` (a batch-capable `api` backend).
+Stages built from M13 on must:
 - call `BudgetGuard.check_llm(step, est_usd=...)` before each LLM call or batch (or pass
   `guard.before_submit` to `run_batch`), `charge_api` after it, `check_paid`/`charge_paid` around
   any other paid request and `check_backend` before routing a job; start the guard with the

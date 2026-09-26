@@ -56,6 +56,8 @@ TABLES: tuple[TableSpec, ...] = (
     TableSpec("brief_runs", "operational", None, "created_at"),
     TableSpec("shortlist_decision", "operational", "candidate_repo_id", "decided_at"),
     TableSpec("brief_shortlist_entry", "operational", "repo_full_name", "updated_at"),
+    TableSpec("brief_candidate", "operational", "repo_full_name", "first_seen_at"),
+    TableSpec("brief_shortlist", "operational", None, "created_at"),
     TableSpec("brief_report_final", "operational", None, "report_final_at"),
     TableSpec("brief_evidence", "operational", None, "linked_at"),
     # M21b (0020): Message Batches state and the actual-cost ledger (counts only)
