@@ -11,10 +11,10 @@ Owner: answer inline and commit. **This repo is public:** never write secrets, b
 
 Required:
 - [x] Anthropic API key for product calls (`LLM_BACKEND=api`, Commercial Terms) — verified 2026-09-26; the three models of ADR-064.3 were visible on the key
-- [ ] **Spend limits set on that key in the Anthropic Console** — owner to confirm. They should not exceed the monthly API cap of USD 200 (H6, ADR-064.4). Please tick only; don't write amounts or balances here.
+- [x] **Spend limits set on that key in the Anthropic Console** — confirmed by the owner 2026-09-26 (matches the monthly API cap).
 - [x] GitHub token (fine-grained, read-only public data) — set in the local `.env`, verified 2026-09-26 (full rate limit)
 - [x] FileVault on — verified 2026-09-26 with `fdesetup status`
-- [ ] **Encrypted local backup location** (external or private storage) for `pigtail backup create`: set `BACKUP_DIR` and `BACKUP_RECIPIENT` in the host environment. It must also cover the briefs directory `~/.pigtail/briefs` (ADR-071.3).
+- [~] **Encrypted local backup location** — owner chose an external drive (2026-09-26). Still to do: set `BACKUP_DIR` to the drive's path and `BACKUP_RECIPIENT` to an age public key, then run a first `pigtail backup create` (the briefs directory is included from M21).
 - [x] Claude subscription login for the agents (`AGENT_BACKEND=subscription`) — verified by agent 2026-09-25 with `claude auth status`
 
 Optional:
@@ -52,7 +52,7 @@ No findings, data or reports leave your instance, and there is no public mode, u
 
 ## H5 — External actions on your behalf  [OPEN — one item]
 **Rule (Directive §10):** agents take no external action on your behalf without your approval. Default: don't act.
-- [ ] **Privacy notice publication (ADR-071.4).** The notice for your instance goes in a separate repo on GitHub Pages (it describes your instance, not the tool). It will name you as controller, a **dedicated contact alias** (please don't use or write your personal e-mail here), purpose, sources, what is and isn't stored (roles and buckets, no handles), retention (report final + 12 months), legal basis, how to opt out or object (the opt-out fingerprint), and US processing. **The draft will be shown to you before anything is published.** Needed from you: approval of the draft, and the contact alias. Until the notice is published (and CB-06b is done), the person-level sources held by ADR-022 (HN mentions and comments, Bluesky, per-repo events) stay off (CB-12, ADR-049.2; ADR-022 as amended by ADR-073.2).
+- [~] **Privacy notice publication (ADR-071.4).** The notice for your instance goes in a separate repo on GitHub Pages (it describes your instance, not the tool). It will name you as controller, a **dedicated contact alias** (please don't use or write your personal e-mail here), purpose, sources, what is and isn't stored (roles and buckets, no handles), retention (report final + 12 months), legal basis, how to opt out or object (the opt-out fingerprint), and US processing. **The draft will be shown to you before anything is published.** Needed from you: approval of the draft, and the contact alias. Until the notice is published (and CB-06b is done), the person-level sources held by ADR-022 (HN mentions and comments, Bluesky, per-repo events) stay off (CB-12, ADR-049.2; ADR-022 as amended by ADR-073.2). **Status 2026-09-26:** owner's v1.1 draft adopted (private); contact address chosen; still to fill: email provider name; to verify: Anthropic contracting entity and default API retention; publication waits for the H2 answers (postal address, EU representative) and the owner's approval (H5).
 
 ## H6 — Spend above the caps  [standing rule — Directive §6.4 and §10, ADR-064.4]
 **Caps:** each brief's own API cap (your first full brief: USD 150); USD 200 per month on the API; USD 0 for any other paid service (BigQuery free tier only; Trendshift and X off).
