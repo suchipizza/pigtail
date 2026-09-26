@@ -138,7 +138,7 @@ def test_d7_shortlist_review_through_the_api(env):
         " FROM shortlist_decision ORDER BY id"
     ).fetchall()
     assert [r[0] for r in rows] == ["accept", "reject", "reject", "add"]
-    assert all(r[1] and r[2] == "user" and r[3] == "ui" and r[4] for r in rows)
+    assert all(r[1] and r[2] == "owner" and r[3] == "ui" and r[4] for r in rows)
     events = [r[0] for r in db.conn.execute("SELECT event FROM ui_audit_log ORDER BY at, id")]
     assert events.count("shortlist_decision") == 6 and events.count("shortlist_finalize") == 1
     # audited by event only: no repo names or reasons in the audit trail

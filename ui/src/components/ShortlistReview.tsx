@@ -258,11 +258,11 @@ export function ShortlistReview({ view, busy = false, onDecide, onAdd, onFinaliz
         </button>
       </div>
 
-      <h2>Reference cases to confirm</h2>
+      <h2>Named projects to confirm (reference cases and distribution examples)</h2>
       {view.reference_cases_to_confirm.length === 0 ? (
         <p className="muted">None: every named project resolved to a repo.</p>
       ) : (
-        <ul aria-label="Reference cases to confirm">
+        <ul aria-label="Named projects to confirm (reference cases and distribution examples)">
           {view.reference_cases_to_confirm.map((r) => (
             <li key={r.candidate_ref}>
               <strong>{r.named_as ?? r.candidate_ref}</strong> <span className="muted small">({r.panel}; {r.resolution_rule})</span>

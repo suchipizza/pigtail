@@ -18,8 +18,9 @@
     POST /api/briefs/{id}/shortlist/finalize  mark the shortlist final
 
 Shortlist writes (M22, D7) use the write pool, are same-origin JSON POSTs like every other write,
-log each decision in `shortlist_decision` (reviewer role `user`, `via: ui`, time) and are audited
-by event only (`shortlist_decision`, `shortlist_finalize`: no names, no reasons).
+log each decision in `shortlist_decision` (reviewer role `owner`: the web app's one login is the
+instance operator, who owns its briefs, ADR-072.8; `via: ui`; time) and are audited by event
+only (`shortlist_decision`, `shortlist_finalize`: no names, no reasons).
 
 Writes are POSTs with a same-origin JSON body, exactly like the login (CSRF: JSON content type
 required, `Sec-Fetch-Site`/`Origin` checked, SameSite=Strict session cookie) and are audited
@@ -406,7 +407,7 @@ def make_router(
         decision = "accept" if body.decision == "accept" else "reject"
         try:
             if body.candidates:
-                n = sl.decide(body.candidates, decision, body.reason, reviewer="user", via="ui")
+                n = sl.decide(body.candidates, decision, body.reason, reviewer="owner", via="ui")
             elif body.verdict or body.panel or body.distance is not None:
                 n = sl.decide_where(
                     decision,
@@ -414,7 +415,7 @@ def make_router(
                     verdict=body.verdict,
                     panel=body.panel,
                     distance=body.distance,
-                    reviewer="user",
+                    reviewer="owner",
                     via="ui",
                 )
             else:
@@ -443,7 +444,7 @@ def make_router(
                 body.reason,
                 panel=panel,
                 resolves=body.resolves,
-                reviewer="user",
+                reviewer="owner",
                 via="ui",
             )
         except (ShortlistError, BadCandidate) as e:
@@ -459,7 +460,7 @@ def make_router(
         same_origin(request)
         sl = shortlist_of(conn, brief_id, body.version)
         try:
-            res = sl.finalize(reviewer="user", via="ui")
+            res = sl.finalize(reviewer="owner", via="ui")
         except ShortlistError as e:
             audit("shortlist_finalize", "/api/briefs/{id}/shortlist/finalize", request, 409)
             raise sl_error(e) from None

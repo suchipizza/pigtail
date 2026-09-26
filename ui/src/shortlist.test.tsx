@@ -143,7 +143,7 @@ describe("D7 shortlist review (M22)", () => {
     fireEvent.change(screen.getByLabelText("GitHub URL"), { target: { value: "https://github.com/org-y/new-tool" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(onAdd).toHaveBeenLastCalledWith({ url: "https://github.com/org-y/new-tool", reason: "missed by search", panel: "field" });
-    const refs = screen.getByRole("list", { name: "Reference cases to confirm" });
+    const refs = screen.getByRole("list", { name: "Named projects to confirm (reference cases and distribution examples)" });
     expect(within(refs).getByText("Synthetic Reference")).toBeTruthy();
     expect(within(refs).getByText(/42 stars · one line/)).toBeTruthy();
     fireEvent.click(within(refs).getByRole("button", { name: "Use this repo" }));

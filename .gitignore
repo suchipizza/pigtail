@@ -17,3 +17,5 @@ dist/
 raw/
 ui/dist/
 *.tsbuildinfo
+.DS_Store
+.claude/worktrees/
