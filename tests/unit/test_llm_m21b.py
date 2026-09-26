@@ -306,6 +306,26 @@ def test_r15_11_budget_hook_runs_before_submit_and_can_stop_it():
     assert seen == [("extraction", 2, 0.02)] and fb.submitted == []
 
 
+def test_r15_11_fallback_calls_get_their_own_budget_check_first():
+    """M22 verifier: standard fallback calls for failed batch items are checked against the
+    budget (at twice the batch price) before any is made; a stop makes none."""
+    fb = FakeBatchBackend(polls_until_end=0)
+    c = client({"api": fb})
+    seen: list[tuple[str, int, float | None]] = []
+
+    def hook(job: str, n: int, usd: float | None) -> None:
+        seen.append((job, n, usd))
+        if len(seen) > 1:
+            raise RuntimeError("budget stop")
+
+    with pytest.raises(RuntimeError):
+        c.run_batch(PROMPT, items("ok", "ERR", "BAD", "SCHEMA"), Echo, job="extraction",
+                    before_submit=hook, est_usd_per_item=0.01, sleep=lambda s: None)  # fmt: skip
+    # the batch check (4 requests), then one check for the 2 retryable failures ("BAD" isn't)
+    assert seen == [("extraction", 4, 0.04), ("extraction", 2, 0.04)]
+    assert fb.standard.calls == []  # stopped before any standard call
+
+
 def test_r15_9_time_sensitive_jobs_and_subscription_use_standard_calls():
     fb = FakeBatchBackend()
     fb.standard.script = [{"value": 1, "label": "a"}] * 2

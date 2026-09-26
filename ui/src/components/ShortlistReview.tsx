@@ -97,9 +97,22 @@ export function ShortlistReview({ view, busy = false, onDecide, onAdd, onFinaliz
           )}
         </p>
         <p className="muted small">{p.definition}</p>
+        {view.defaulted_fields.length > 0 && (
+          <details>
+            <summary>Brief fields to confirm ({view.defaulted_fields.length} still at their default)</summary>
+            <p className="muted small">Confirm these defaults, or edit the brief (a new version starts a new review).</p>
+            <ul className="small">
+              {view.defaulted_fields.map((f) => (
+                <li key={f.field}>
+                  <code>{f.field}</code>: {JSON.stringify(f.value)}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
         {view.brief_warnings.length > 0 && (
           <details>
-            <summary>Brief fields to confirm ({view.brief_warnings.length})</summary>
+            <summary>Brief warnings ({view.brief_warnings.length})</summary>
             <ul className="small">
               {view.brief_warnings.map((w) => (
                 <li key={w}>{w}</li>

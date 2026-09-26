@@ -393,7 +393,8 @@ class LLMClient:
         batch has ended, then fills the cache from the results. With `timeout_seconds` set and
         a batch still running, raises `BatchPending` (ids are stored: calling again resumes).
         Items whose batch request failed in a retryable way (errored, expired, canceled, or
-        invalid output) get one standard call when `fallback_standard`. Otherwise (subscription
+        invalid output) get one standard call when `fallback_standard`, after one more
+        `before_submit` for all of them at the standard price. Otherwise (subscription
         backend, time-sensitive job, `LLM_BATCH=0`) every item is a standard call.
         """
         run = BatchRun()
@@ -525,8 +526,18 @@ class LLMClient:
             sleep(poll_seconds)
             pending = still
 
-        # 4. Results from the cache; one standard call for retryable failures.
+        # 4. Results from the cache; one standard call for retryable failures, after a budget
+        #    check of its own (standard calls cost twice the batch price; M22 verifier fix).
         failed_types = self._failures(run.batch_ids)
+        if fallback_standard and before_submit is not None:
+            redo = [
+                k
+                for k in by_key
+                if self.store.cache_get(k) is None and failed_types.get(k, ("missing", True))[1]
+            ]
+            if redo:
+                est = 2 * est_usd_per_item * len(redo) if est_usd_per_item is not None else None
+                before_submit(job, len(redo), est)
         for k, group in by_key.items():
             hit = self.store.cache_get(k)
             for p in group:

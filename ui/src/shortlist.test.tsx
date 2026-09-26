@@ -74,6 +74,7 @@ const view: ShortlistView = {
     }),
   ],
   brief_warnings: ["field.widening_steps is empty"],
+  defaulted_fields: [{ field: "panel.winners", value: 20 }],
 };
 
 function setup(v: ShortlistView = view) {
@@ -98,6 +99,13 @@ describe("D7 shortlist review (M22)", () => {
     expect(within(table).getAllByText("github_keyword").length).toBe(3);
     expect(screen.getByLabelText("Precision").textContent).toMatch(/50 %/);
     expect(screen.getByRole("alert").textContent).toMatch(/Below the 80 % target/);
+  });
+
+  it("R4.7/D7: lists the brief fields still at their default, apart from warnings", () => {
+    setup();
+    expect(screen.getByText(/Brief fields to confirm \(1 still at their default\)/)).toBeTruthy();
+    expect(screen.getByText("panel.winners")).toBeTruthy();
+    expect(screen.getByText(/Brief warnings \(1\)/)).toBeTruthy();
   });
 
   it("filters by verdict, panel and distance", () => {

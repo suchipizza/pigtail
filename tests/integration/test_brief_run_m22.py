@@ -18,6 +18,7 @@ import psycopg
 import pytest
 
 from pigtail.briefs.candidates import CandidateStore
+from pigtail.briefs.discovery import GITHUB_SEARCH_EVIDENCE
 from pigtail.briefs.model import Brief, Budget, load_brief_text
 from pigtail.briefs.runner import RunDeps, RunOptions, RunOutcome, run_brief
 from pigtail.briefs.shortlist import Shortlist, ShortlistError, ShortlistFinal
@@ -316,6 +317,68 @@ def test_m22_refused_repo_never_becomes_a_candidate(w, tmp_path):
     assert run(w, RelevanceBatchBackend(), github=gh).exit_code == 0
     assert "gh:org-s/yaml-guard" not in cands(w)
     assert runs(w)[0]["stages"]["discovery"]["result"]["suppressed"] >= 1
+
+
+NAMED_TRACES = (
+    "example schema checker",
+    "example+schema+checker",
+    "example%20schema%20checker",
+    "example launch showcase",
+    "example+launch+showcase",
+    "example%20launch%20showcase",
+    "example.com/schema-checker",
+    "example.org/launch-showcase",
+    "synthetic placeholder",
+)
+
+
+@pytest.mark.parametrize("launch_posts", [True, False])
+def test_m22_named_projects_names_and_urls_never_reach_the_database(w, launch_posts):
+    """ADR-076.6 (M22 verifier): the named projects' names, URLs and notes are not stored; the
+    name searches (Show HN, then GitHub `in:name`) record `named:<panel>:<i>` as their query."""
+    if not launch_posts:
+        w.hn.hits = []  # no launch post: resolution falls back to the GitHub name search
+    assert run(w, RelevanceBatchBackend()).exit_code == 0
+    dump = dump_all_tables(w.db).lower()
+    for t in NAMED_TRACES:
+        assert t not in dump, t
+    urls = {r[0] for r in w.conn.execute("SELECT url FROM evidence").fetchall()}
+    assert any("[named:reference:0]" in u for u in urls)
+    if not launch_posts:
+        assert any(u.startswith(GITHUB_SEARCH_EVIDENCE) and "[named:" in u for u in urls)
+
+
+def test_m22_refused_repo_cannot_be_added_back_or_shown_as_a_match(w):
+    """CB-13 (M22 verifier): a repo refused after discovery is off the shortlist, can't be added
+    by the reviewer, and is not offered as a match for an unresolved named project."""
+    assert run(w, RelevanceBatchBackend()).exit_code == 0
+    sup = Suppressions(repos=frozenset({"github:9100000"}))  # org-s/yaml-guard
+    sl = Shortlist(w.conn, example(), suppressions=sup)
+    on, proposed = sl.members()
+    assert "org-s/yaml-guard" not in on + proposed
+    with pytest.raises(ShortlistError, match="refusal list"):
+        sl.add("https://github.com/org-s/yaml-guard", "the filter missed it")
+    by_name = Suppressions(
+        repo_names=frozenset({"rk_x"}),
+        name_key=lambda n, h: "rk_x" if "showcase-site" in n else "no",
+    )
+    view = Shortlist(w.conn, example(), suppressions=by_name).view()
+    confirm = view["reference_cases_to_confirm"]
+    (ex,) = [r for r in confirm if r["candidate_ref"] == "named:exemplar:0"]
+    shown = {m["full_name"] for m in ex["matches"]}
+    assert "org-z/showcase-site" not in shown and "org-z/showcase-engine" in shown
+    rows = Shortlist(w.conn, example(), suppressions=sup).view()["candidates"]
+    assert rows and all(r["repo_full_name"] != "org-s/yaml-guard" for r in rows)
+    assert all(c.repo_full_name != "org-s/yaml-guard" for c in sl.undecided())
+
+
+def test_m22_view_lists_brief_fields_still_at_their_default(w):
+    """R4.7 / D7 (M22 verifier): the review lists defaulted brief fields, apart from warnings."""
+    assert run(w, RelevanceBatchBackend()).exit_code == 0
+    view = Shortlist(w.conn, example(), suppressions=Suppressions()).view()
+    fields = {d["field"]: d["value"] for d in view["defaulted_fields"]}
+    assert fields["panel.winners"] == 20 and fields["window.months"] == 18
+    assert "project.name" not in fields and "budget.money_usd" not in fields
 
 
 # --- resumability (R19.1, R15.9) ---------------------------------------------------------------

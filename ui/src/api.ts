@@ -376,6 +376,7 @@ export interface ShortlistView {
   candidates: ShortlistCandidate[];
   reference_cases_to_confirm: ShortlistCandidate[];
   brief_warnings: string[];
+  defaulted_fields: { field: string; value: unknown }[];
 }
 
 export interface ShortlistDecisionBody {

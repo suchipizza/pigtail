@@ -69,8 +69,11 @@ def search_repos(
     max_pages: int = SEARCH_MAX_RESULTS // PER_PAGE,
     sort: str = "stars",
     run: RunRecorder | None = None,
+    evidence_url: str | None = None,
 ) -> SearchResult:
-    """All reachable results of `query` (at most `max_pages` pages of 100), project-level."""
+    """All reachable results of `query` (at most `max_pages` pages of 100), project-level.
+    `evidence_url` stands in for the request URL in evidence (a query that must not be stored,
+    ADR-076.6); the page number is appended."""
     if conn.evidence_sink is None:
         conn.evidence_sink = db.upsert_evidence
     dlog = DeletionLog(db, "retention", run_id=run.id if run else None)
@@ -80,7 +83,13 @@ def search_repos(
     try:
         while page <= last:
             try:
-                f = conn.fetch_search_page(query, page=page, per_page=PER_PAGE, sort=sort)
+                f = conn.fetch_search_page(
+                    query,
+                    page=page,
+                    per_page=PER_PAGE,
+                    sort=sort,
+                    evidence_url=f"{evidence_url}&page={page}" if evidence_url else None,
+                )
             except FetchError as e:
                 if not (e.status == 422 and page > 1):  # 422 past the end: not a failure
                     res.failed_pages += 1

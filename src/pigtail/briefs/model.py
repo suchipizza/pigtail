@@ -681,6 +681,33 @@ class Brief(_Strict):
         """SHA-256 of the canonical JSON content; equal content → equal hash (R18.4)."""
         return sha256_json(self.content())
 
+    def defaulted_fields(self) -> list[dict[str, Any]]:
+        """Brief fields whose value is still the schema default, to confirm in the shortlist
+        review (R4.7, D7, ADR-062). Stored briefs carry every field, so "defaulted" means equal
+        to the default, not left out. Leaves only (a sub-object is walked), as
+        `{"field": "a.b", "value": ...}`; store metadata, `status`, `expansion` and `notes`
+        are not brief choices and are skipped."""
+        out: list[dict[str, Any]] = []
+        skip = {*METADATA_FIELDS, "schema_version", "status", "expansion", "notes"}
+
+        def walk(m: BaseModel, prefix: str) -> None:
+            for name, info in type(m).model_fields.items():
+                if not prefix and name in skip:
+                    continue
+                v = getattr(m, name)
+                path = f"{prefix}{name}"
+                if isinstance(v, BaseModel):
+                    walk(v, path + ".")
+                    continue
+                if info.is_required():
+                    continue
+                default = info.get_default(call_default_factory=True)
+                if v == default:
+                    out.append({"field": path, "value": _jsonable(v)})
+
+        walk(self, "")
+        return out
+
     def warnings(self) -> list[str]:
         """Valid but worth a second look (shown by `validate`, the form and `estimate`)."""
         out: list[str] = []
@@ -784,6 +811,10 @@ def parse_yaml(text: str) -> Any:
 
 def load_brief_text(text: str) -> Brief:
     return validate_brief(parse_yaml(text))
+
+
+def _jsonable(v: Any) -> Any:
+    return json.loads(json.dumps(v, default=str))
 
 
 def dump_yaml(brief: Brief) -> str:

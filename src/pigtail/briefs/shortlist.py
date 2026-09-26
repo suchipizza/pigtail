@@ -48,6 +48,7 @@ from pigtail.briefs.candidates import (
     parse_named,
 )
 from pigtail.briefs.model import Brief
+from pigtail.privacy.suppression import Suppressions
 
 Decision = Literal["accept", "reject", "add"]
 Reviewer = Literal["user", "owner", "verifier"]
@@ -82,7 +83,13 @@ class LatestDecision:
 
 
 class Shortlist:
-    def __init__(self, conn: psycopg.Connection[Any], brief: Brief) -> None:
+    def __init__(
+        self,
+        conn: psycopg.Connection[Any],
+        brief: Brief,
+        *,
+        suppressions: Suppressions | None = None,
+    ) -> None:
         if brief.version is None:
             raise ValueError("a shortlist belongs to a stored brief version")
         self.conn = conn
@@ -90,6 +97,28 @@ class Shortlist:
         self.brief_id = brief.brief_id
         self.version: int = brief.version
         self.candidates = CandidateStore(conn, brief.brief_id, brief.version)
+        self._sup = suppressions
+
+    # --- refusal list (CB-13) ------------------------------------------------------------------
+    @property
+    def suppressions(self) -> Suppressions:
+        """The refusal list, loaded on first use (fails closed without the opt-out key when
+        repo-name entries exist)."""
+        if self._sup is None:
+            from pigtail.capture.db import CaptureDB
+            from pigtail.privacy import suppression
+
+            self._sup = suppression.load(CaptureDB(self.conn))
+        return self._sup
+
+    def refused(self, full_name: str | None, host_id: int | None = None) -> bool:
+        """CB-13: a repo on the refusal list (by id or by name) is never on a shortlist."""
+        sup = self.suppressions
+        if not sup:
+            return False
+        if host_id is not None and f"github:{host_id}" in sup.repos:
+            return True
+        return bool(sup.name_suppressed(full_name))
 
     # --- state ---------------------------------------------------------------------------------
     def status(self) -> dict[str, Any] | None:
@@ -150,6 +179,7 @@ class Shortlist:
             for c in self.candidates.all()
             if c.verdict in ("relevant", "uncertain")
             and not c.is_named
+            and not self.refused(c.repo_full_name, c.repo_host_id)
             and self.included(c, dec.get(c.ref)) is None
         ]
 
@@ -329,6 +359,9 @@ class Shortlist:
         if not ref.startswith("gh:"):
             raise ShortlistError("add takes a GitHub repository URL or owner/name")
         name = ref[3:]
+        known = self.candidates.get(ref)
+        if self.refused(name, known.repo_host_id if known else None):
+            raise ShortlistError("this repository is on the refusal list (CB-13)")
         named_index: int | None = None
         rule = "user_added"
         if resolves is not None:
@@ -369,7 +402,7 @@ class Shortlist:
         on: list[str] = []
         proposed: list[str] = []
         for c in self.candidates.all():
-            if c.repo_full_name is None:
+            if c.repo_full_name is None or self.refused(c.repo_full_name, c.repo_host_id):
                 continue
             inc = self.included(c, dec.get(c.ref))
             if inc is True:
@@ -425,30 +458,34 @@ class Shortlist:
             if c.repo_full_name is None and c.resolution == "unresolved"
         ]
         prec_rec = {**prec, "unresolved_named": unresolved, "shortlisted": len(on)}
-        self.conn.execute(
-            "UPDATE brief_shortlist SET status = 'final', finalized_at = %s, finalized_role = %s,"
-            " finalized_via = %s, precision = %s WHERE brief_id = %s AND brief_version = %s",
-            (at, reviewer, via, Jsonb(prec_rec), self.brief_id, self.version),
-        )
-        db = CaptureDB(self.conn)
-        set_entries(db, self.brief_id, self.version, on, "final")
-        others = [
-            r[0]
-            for r in self.conn.execute(
-                "SELECT repo_full_name FROM brief_shortlist_entry WHERE brief_id = %s AND"
-                " brief_version = %s AND status <> 'removed'",
-                (self.brief_id, self.version),
-            ).fetchall()
-            if r[0] not in set(on)
-        ]
-        if others:
-            set_entries(db, self.brief_id, self.version, others, "removed")
-        # the run whose shortlist this is has done its M22 work
-        self.conn.execute(
-            "UPDATE brief_runs SET status = 'succeeded', finished_at = COALESCE(finished_at, %s)"
-            " WHERE brief_id = %s AND brief_version = %s AND status = 'awaiting_review'",
-            (at, self.brief_id, self.version),
-        )
+        # one transaction: the shortlist is never final without its scope written
+        with self.conn.transaction():
+            self.conn.execute(
+                "UPDATE brief_shortlist SET status = 'final', finalized_at = %s,"
+                " finalized_role = %s, finalized_via = %s, precision = %s"
+                " WHERE brief_id = %s AND brief_version = %s",
+                (at, reviewer, via, Jsonb(prec_rec), self.brief_id, self.version),
+            )
+            db = CaptureDB(self.conn)
+            set_entries(db, self.brief_id, self.version, on, "final")
+            others = [
+                r[0]
+                for r in self.conn.execute(
+                    "SELECT repo_full_name FROM brief_shortlist_entry WHERE brief_id = %s AND"
+                    " brief_version = %s AND status <> 'removed'",
+                    (self.brief_id, self.version),
+                ).fetchall()
+                if r[0] not in set(on)
+            ]
+            if others:
+                set_entries(db, self.brief_id, self.version, others, "removed")
+            # the run whose shortlist this is has done its M22 work
+            self.conn.execute(
+                "UPDATE brief_runs SET status = 'succeeded',"
+                " finished_at = COALESCE(finished_at, %s)"
+                " WHERE brief_id = %s AND brief_version = %s AND status = 'awaiting_review'",
+                (at, self.brief_id, self.version),
+            )
         return {
             "status": "final",
             "finalized_at": at,
@@ -475,6 +512,10 @@ class Shortlist:
             "exemplar": self.brief.distribution_exemplars.projects,
         }
         for c in self.candidates.all():
+            if c.repo_full_name is not None and self.refused(c.repo_full_name, c.repo_host_id):
+                continue
+            if c.matches:
+                c.matches = [m for m in c.matches if not self.refused(m.get("full_name"))]
             d = dec.get(c.ref)
             key = c.verdict or "not_judged"
             counts[key] = counts.get(key, 0) + 1
@@ -524,6 +565,7 @@ class Shortlist:
             "candidates": rows,
             "reference_cases_to_confirm": confirm,
             "brief_warnings": self.brief.warnings(),
+            "defaulted_fields": self.brief.defaulted_fields(),
             "filters": {"verdict": verdict, "panel": panel, "distance": distance},
         }
 

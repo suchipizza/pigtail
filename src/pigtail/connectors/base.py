@@ -402,11 +402,13 @@ class Connector(ABC):
         case_id: str | None = None,
         repo_id: str | None = None,
         retention_class: RetentionClass | None = None,
+        evidence_url: str | None = None,
     ) -> Fetched:
         """GET `url`, snapshot the raw bytes, record evidence. Raises before any parsing.
 
         `retention_class` overrides the class default for this document (e.g. an id list that
-        holds no person-level data).
+        holds no person-level data). `evidence_url` replaces the request URL in the evidence
+        record and snapshot metadata, for queries that must not be stored (ADR-076.6).
         """
         if not self.enabled:
             hint = f"PIGTAIL_CONNECTOR_{self.name.upper()}_ENABLED=true"
@@ -419,7 +421,11 @@ class Connector(ABC):
         if not resp.is_success:
             raise FetchError(url, resp.status_code)
         return self._snapshot_response(
-            resp, case_id=case_id, repo_id=repo_id, retention_class=retention_class
+            resp,
+            url=evidence_url,
+            case_id=case_id,
+            repo_id=repo_id,
+            retention_class=retention_class,
         )
 
     def _snapshot_response(

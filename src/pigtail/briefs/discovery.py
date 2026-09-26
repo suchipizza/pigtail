@@ -64,6 +64,9 @@ log = logging.getLogger("pigtail.briefs.discovery")
 
 DISCOVERY_VERSION = "discovery-v1"
 EARLIEST = "2008-01-01T00:00:00Z"  # GitHub's start: "no lower bound" for awesome lists
+# evidence URLs for named-project searches: the query is replaced by the `named:<panel>:<i>` key
+HN_SEARCH_EVIDENCE = "https://hn.algolia.com/api/v1/search"
+GITHUB_SEARCH_EVIDENCE = "https://api.github.com/search/repositories"
 
 
 @dataclass(frozen=True)
@@ -314,9 +317,17 @@ class Discovery:
                 )
             self._mark(key)
 
-    def _show_hn(self, query: str, since: datetime | None, until: datetime | None) -> list[Any]:
+    def _show_hn(
+        self,
+        query: str,
+        since: datetime | None,
+        until: datetime | None,
+        evidence_url: str | None = None,
+    ) -> list[Any]:
         assert self.hn is not None
-        f = self.hn.search_show_hn(query, since=since, until=until, hits=self.cfg.show_hn_hits)
+        f = self.hn.search_show_hn(
+            query, since=since, until=until, hits=self.cfg.show_hn_hits, evidence_url=evidence_url
+        )
         try:
             stories, _ = parse_show_hn_page(f.data)
         except PARSE_ERRORS:
@@ -433,8 +444,12 @@ class Discovery:
             self._mark(key)
 
     # --- named projects (R4.11, ADR-054.3) -----------------------------------------------------
-    def _resolve(self, p: NamedProject) -> tuple[str | None, str, list[str], dict[str, Any]]:
-        """(repo, rule, candidate repos, evidence) by the launch-link rule."""
+    def _resolve(
+        self, p: NamedProject, key: str
+    ) -> tuple[str | None, str, list[str], dict[str, Any]]:
+        """(repo, rule, candidate repos, evidence) by the launch-link rule. The name searches
+        store `key` (`named:<panel>:<i>`) in place of the query, so the project's name never
+        reaches the database (ADR-076.6)."""
         if p.repo:
             return p.repo.lower(), "brief_repo", [], {}
         from_urls = _dedupe(r for r in (normalize_github_repo(u) for u in p.urls) if r)
@@ -445,7 +460,8 @@ class Discovery:
         launch: list[str] = []
         items: list[int] = []
         if self.hn is not None and self.hn.enabled:
-            for s in self._show_hn(_term(p.name), None, None):
+            ev_url = f"{HN_SEARCH_EVIDENCE}?query=[{key}]&tags=show_hn"
+            for s in self._show_hn(_term(p.name), None, None, evidence_url=ev_url):
                 if s.repo_full_name:
                     launch.append(s.repo_full_name)
                     items.append(s.item_id)
@@ -455,7 +471,14 @@ class Discovery:
         if launch:
             return None, "several_repos_in_launch_posts", launch, {"hn_item_ids": items}
         q = f"{_term(p.name)} in:name created:{EARLIEST}..{_iso(self.clock())} stars:0..*"
-        res = search_repos(self.github, self.db, q, max_pages=1, run=self.run)
+        res = search_repos(
+            self.github,
+            self.db,
+            q,
+            max_pages=1,
+            run=self.run,
+            evidence_url=f"{GITHUB_SEARCH_EVIDENCE}?q=[{key}]",
+        )
         if res.budget_stop:
             raise DiscoveryPaused(res.budget_stop)
         top = [r.full_name.lower() for r in res.items[: self.cfg.reference_matches]]
@@ -471,7 +494,7 @@ class Discovery:
                 key = f"named:{panel}:{i}"
                 if key in self.done:
                     continue
-                repo, rule, options, ev = self._resolve(p)
+                repo, rule, options, ev = self._resolve(p, key)
                 if repo is not None:
                     meta: RepoMeta | None = self._metadata([repo]).get(repo)
                     self._upsert(
@@ -489,6 +512,11 @@ class Discovery:
                     )
                     self.result.named_resolved += 1
                 else:
+                    options = [
+                        o
+                        for o in options
+                        if not self._suppressed(Candidate(ref=gh_ref(o), repo_full_name=o))
+                    ]
                     found = self._metadata(options)
                     matches = [_match(found[o]) for o in options if o in found]
                     matches += [

@@ -663,7 +663,13 @@ class GitHubConnector(GitHubAPI):
             return GraphQLResult(f, data, errors, cost, remaining, limit, reset_at)
 
     def fetch_search_page(
-        self, q: str, *, page: int = 1, per_page: int = 100, sort: str = "stars"
+        self,
+        q: str,
+        *,
+        page: int = 1,
+        per_page: int = 100,
+        sort: str = "stars",
+        evidence_url: str | None = None,
     ) -> Fetched:
         """One page of `GET /search/repositories` (search bucket), snapshotted, not parsed.
 
@@ -676,6 +682,7 @@ class GitHubConnector(GitHubAPI):
             f"{API}/search/repositories",
             params={"q": q, "sort": sort, "order": "desc", "per_page": per_page, "page": page},
             retention_class="person_level_24m",
+            evidence_url=evidence_url,
         )
 
     def search_repositories(

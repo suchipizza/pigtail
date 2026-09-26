@@ -528,9 +528,16 @@ class HNShowDiscoveryConnector(Connector):
     timeout_seconds: ClassVar[float] = 30.0
 
     def search_show_hn(
-        self, query: str, *, since: datetime | None, until: datetime | None, hits: int = 50
+        self,
+        query: str,
+        *,
+        since: datetime | None,
+        until: datetime | None,
+        hits: int = 50,
+        evidence_url: str | None = None,
     ) -> Fetched:
-        """One relevance-ranked page of Show HN stories for `query` (not parsed here)."""
+        """One relevance-ranked page of Show HN stories for `query` (not parsed here).
+        `evidence_url` keeps the query out of the evidence record (ADR-076.6)."""
         lo = int(since.timestamp()) if since else HN_EPOCH
         hi = int((until or self.clock()).timestamp()) + 1
         return self.fetch(
@@ -543,6 +550,7 @@ class HNShowDiscoveryConnector(Connector):
                 "attributesToRetrieve": ",".join(SHOW_HN_FIELDS),
                 "attributesToHighlight": "",
             },
+            evidence_url=evidence_url,
         )
 
     def _parse(self, data: bytes, meta: SnapshotMeta) -> Iterator[Record]:
