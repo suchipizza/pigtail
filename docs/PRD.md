@@ -3,7 +3,7 @@
 Version 2.2 · Owner: Noémie (also pigtail's first user) · Builders: autonomous Claude Code agents (see `WORK_ORDER.md`)
 Repository: https://github.com/suchipizza/pigtail (public, MIT)
 Source plan: `docs/PLAN.md` (background only). Where this PRD and the plan disagree, this PRD wins. Where this PRD and an ADR in `ops/DECISIONS.md` disagree, the later-dated ADR wins until this PRD is updated.
-Binding source for v2.2: `ops/OWNER_DIRECTIVE_001.md` (Owner Directive 001, 2026-09-26; public copy with §4 redacted), logged as ADR-059 to ADR-069, plus the owner's later decisions ADR-070 and ADR-071, which override the directive where they differ. Changes below cite "Directive §n" and the ADR.
+Binding source for v2.2: `ops/OWNER_DIRECTIVE_001.md` (Owner Directive 001, 2026-09-26; public copy with §4 redacted), logged as ADR-059 to ADR-069, plus the owner's later decisions ADR-070 and ADR-071, which override the directive where they differ, and the interpretations in ADR-072 and ADR-073. Changes below cite "Directive §n" and the ADR.
 User-facing deliverables (the pages and their acceptance criteria): `docs/DELIVERABLES.md`. The requirements below exist to deliver D1–D7.
 
 ## Change history

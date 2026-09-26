@@ -61,7 +61,7 @@ Directive §8 (ADR-066) and the owner's decisions in ADR-071:
 
 **Mitigations in force:** all ten above; most relevant are 1, 2, 5 and 10 (no handles kept, an opt-out that works without storing identities, minimal collection, the public notice).
 
-**Default meanwhile:** a public notice only, no individual contact. Person-level mention sources stay off until the notice is published (ADR-022, CB-12). Nothing is published.
+**Default meanwhile:** a public notice only, no individual contact. Person-level mention sources stay off until the notice is published (CB-12, via H5) and the rest of the LLM-path redaction (CB-06b) is done (ADR-022 as amended by ADR-073.2). Nothing is published.
 
 ## Q3 · Reddit's terms (optional)
 

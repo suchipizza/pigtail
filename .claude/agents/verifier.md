@@ -16,5 +16,5 @@ For each review:
   - the sensitivity check present, recomputed, and every definition-sensitive case flagged;
   - every pattern shows n among winners and matched losers, the loser contrast and its counterexamples, and none is called validated.
 - Check that the selection is reproducible: recompute the outcome sort, winners, loser pool and matches from the stored brief version and data version.
-- Check for: fabricated or unresolvable citations, analyses that weren't fixed before the outcome sort (or pre-registered, for the pilot) but are presented as confirmatory, success definitions or thresholds changed after the outcomes were seen, disabled tests, secrets, briefs or person-level data in git, and terms violations.
+- Check for: fabricated or unresolvable citations, analyses that weren't fixed before the outcome sort (pre-registered for every brief, PRD R8.2) but are presented as confirmatory, success definitions or thresholds changed after the outcomes were seen, disabled tests, secrets, briefs or person-level data in git, and terms violations.
 - Return PASS or FAIL, the evidence you checked, and the required fixes. Append the verdict to ops/RUNLOG.md.
