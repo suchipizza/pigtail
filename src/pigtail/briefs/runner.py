@@ -6,7 +6,10 @@ sort, winners and matched losers, balance diagnostics and the sensitivity check;
 `pigtail.briefs.selection_store.run_stage`). Selection runs only once the shortlist is final: a
 run that stops at `awaiting_review` is picked up again by the next `pigtail run --brief <id>`
 after `brief shortlist finalize`, on the same `brief_runs` row, which then runs only the
-selection. Later milestones append deep forensics.
+selection. The selection also needs the brief version's **pre-registration** (PRD R8.2,
+ADR-065, outcome-model §5.8; `pigtail brief preregister`): without it the run is refused with
+exit code 7 before anything is fetched, computed or stored, and the run row is left as it was.
+Later milestones append deep forensics.
 
 **Checkpoints and resume.** A run is one `brief_runs` row (brief version and content hash,
 data version, code commit, prompt, rubric and model versions, estimate, approval, spend, and the
@@ -50,6 +53,7 @@ from pigtail.briefs.candidates import Candidate, CandidateStore
 from pigtail.briefs.discovery import DISCOVERY_VERSION, Discovery, DiscoveryConfig, DiscoveryPaused
 from pigtail.briefs.estimate import RUN_STAGES
 from pigtail.briefs.model import Brief
+from pigtail.briefs.preregistration import EXIT_NOT_PREREGISTERED, PreregistrationMissing, require
 from pigtail.briefs.relevance import JOB as RELEVANCE_JOB
 from pigtail.briefs.relevance import PROMPT_ID, PROMPT_VERSION, Relevance, prompt_for
 from pigtail.briefs.shortlist import Shortlist
@@ -66,6 +70,7 @@ EXIT_NEEDS_APPROVAL = 3
 EXIT_BUDGET = 4
 EXIT_WAITING = 5
 EXIT_BUSY = 6
+EXIT_PREREG = EXIT_NOT_PREREGISTERED  # 7: the selection needs a pre-registration (R8.2)
 
 RESUMABLE = ("planned", "running", "waiting_batch", "paused_budget", "failed")
 COMPLETE = ("awaiting_review", "succeeded")
@@ -249,6 +254,21 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
             )
             code = EXIT_USAGE if wanted_sel and opts.stages == ("selection",) else EXIT_OK
             return RunOutcome(row["id"], row["status"], code, msg, stages=row.get("stages") or {})
+    # R8.2 / ADR-065: no outcome sort before the brief version's pre-registration is recorded;
+    # refused here, before the run row is touched or anything is fetched
+    sel_done = ((row or {}).get("stages") or {}).get("selection", {}).get("status") == "done"
+    if (
+        (selection_due or (kind == "resume" and "selection" in opts.stages and not sel_done))
+        and _shortlist_final(conn, brief)
+        and (why := _prereg_missing(conn, brief)) is not None
+    ):
+        return RunOutcome(
+            row["id"] if row else None,
+            row["status"] if row else "not_started",
+            EXIT_PREREG,
+            why,
+            stages=(row or {}).get("stages") or {},
+        )
     _prompt, rubric_v = prompt_for(brief)
     versions = {
         "prompt_versions": {
@@ -315,6 +335,9 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
         approved_paid=opts.approve_paid or run.approved_paid,
         spent_usd=PgCostLedger(conn).brief_total(brief.brief_id),
         overrides=dict(deps.client.overrides),
+        # re-read before every check: a batch's own charges (e.g. invalid output) count before
+        # its fallback calls are checked (M22 verifier round 2)
+        brief_ledger=lambda: PgCostLedger(conn).brief_total(brief.brief_id),
     )
     if opts.approve_paid and not run.approved_paid:
         run.update(approved_paid=True)
@@ -332,6 +355,7 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
         return RunOutcome(run.id, status, code, msg, resumed, run.stages, stop_rec)
 
     current = ""
+    blocked: str | None = None
     try:
         for name in RUN_STAGES:
             if name not in opts.stages:
@@ -340,6 +364,8 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
                 continue
             if name == "selection" and not _shortlist_final(conn, brief):
                 continue  # R4.8: the outcome sort starts only on a final shortlist
+            if name == "selection" and (blocked := _prereg_missing(conn, brief)) is not None:
+                continue  # R8.2: not before the pre-registration (nothing fetched or computed)
             current = name
             run.stage(name, "running", started_at=deps.clock().isoformat())
             if name == "discovery":
@@ -457,6 +483,8 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
             spend=_spend(conn, run.id, brief.brief_id),
             finished_at=deps.clock() if status != "running" else None,
         )
+        if blocked is not None:
+            return RunOutcome(run.id, status, EXIT_PREREG, f"{msg}. {blocked}", resumed, run.stages)
         return RunOutcome(run.id, status, EXIT_OK, msg, resumed, run.stages)
     except BudgetStop as e:
         run.stage(current, "paused_budget")
@@ -505,6 +533,15 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
             },
         )
         raise
+
+
+def _prereg_missing(conn: psycopg.Connection[Any], brief: Brief) -> str | None:
+    """Why the selection may not run yet (R8.2), or None when the pre-registration is there."""
+    try:
+        require(conn, brief)
+    except PreregistrationMissing as e:
+        return str(e)
+    return None
 
 
 def _shortlist_final(conn: psycopg.Connection[Any], brief: Brief) -> bool:

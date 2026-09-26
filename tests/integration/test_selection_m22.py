@@ -18,6 +18,7 @@ import pytest
 from pigtail.briefs.candidates import Candidate, CandidateStore
 from pigtail.briefs.discovery import window_bounds
 from pigtail.briefs.outcomes import load_inputs, shortlisted
+from pigtail.briefs.preregistration import record as preregister
 from pigtail.briefs.selection import Context, Definition, select
 from pigtail.briefs.selection_store import run_stage, view
 from pigtail.briefs.shortlist import Shortlist
@@ -41,6 +42,13 @@ def w(capture_db: Any, tmp_path: Any) -> World:
     return make_world(capture_db, tmp_path)
 
 
+def prereg(w: World, b: Any, tmp_path: Any) -> None:
+    """Record a synthetic pre-registration (R8.2) so the selection may run."""
+    f = tmp_path / f"prereg-{b.brief_id}-v{b.version}.md"
+    f.write_text("# Pre-registration (synthetic test)\nHypotheses: MC-01. No brief content.\n")
+    preregister(w.conn, b, f, commit="0123abc")
+
+
 def finalize(w: World) -> Shortlist:
     sl = Shortlist(w.conn, example())
     sl.decide_where("accept", "fits the core field", verdict="relevant", reviewer="owner")
@@ -56,7 +64,7 @@ def finalize(w: World) -> Shortlist:
 
 
 # --- the stage in `pigtail run` ----------------------------------------------------------------
-def test_selection_runs_after_finalize_on_the_same_run_and_stores_provenance(w):
+def test_selection_runs_after_finalize_on_the_same_run_and_stores_provenance(w, tmp_path):
     fb = RelevanceBatchBackend()
     first = run(w, fb)
     assert first.status == "awaiting_review" and "selection" not in runs(w)[0]["stages"]
@@ -70,6 +78,7 @@ def test_selection_runs_after_finalize_on_the_same_run_and_stores_provenance(w):
         r = w.gh.by_name(name.repo_full_name or "")
         if r is not None:
             w.gh.daily[r["id"]] = series("burst", days=700)
+    prereg(w, example(), tmp_path)
     out = run(w, fb)
     assert out.exit_code == 0 and out.status == "succeeded", out.message
     assert out.brief_run_id == first.brief_run_id and "selection sel_" in out.message
@@ -83,7 +92,8 @@ def test_selection_runs_after_finalize_on_the_same_run_and_stores_provenance(w):
     assert sel["id"] == st["result"]["selection_id"] and sel["brief_run_id"] == r["id"]
     assert sel["brief_hash"] == example().content_hash()
     assert sel["data_version"].startswith("dv1-") and sel["as_of"] == date(2026, 9, 25)
-    assert sel["selection_version"] == "selection-v1" and sel["outcome_model_version"] == "2.1"
+    assert sel["data_version"].endswith("@2026-09-25")  # as_of folded in (R4.8)
+    assert sel["selection_version"] == "selection-v2" and sel["outcome_model_version"] == "2.1"
     assert sel["params_version"] == "1.1.0"
     assert sel["code_commit"] is None or re.fullmatch(r"[0-9a-f]{7,40}", sel["code_commit"])
     assert re.fullmatch(r"[0-9a-f]{64}", sel["result_hash"])
@@ -121,6 +131,7 @@ def test_selection_fetch_pauses_on_the_github_budget_and_resumes(w, tmp_path):
     fb = RelevanceBatchBackend()
     assert run(w, fb).status == "awaiting_review"
     finalize(w)
+    prereg(w, example(), tmp_path)
     small = connector(w.db, w.gh, tmp_path, job=JobCaps({"core": 2, "graphql": 5}))
     out = run(w, fb, github=small, stages=("selection",))
     assert out.exit_code == 4 and out.status == "paused_budget", out.message
@@ -200,6 +211,7 @@ def stage(w: World, b: Any, cp: dict[str, Any] | None = None) -> Any:
 def test_outcome_sort_matching_balance_sensitivity_on_stored_star_history(w, tmp_path):
     b = synthetic_brief(minimums={}, primary_threshold="at_least_median")
     names = seed_population(w, b, as_of=NOW.date())
+    prereg(w, b, tmp_path)
     res = stage(w, b)
     assert res.fetch["failed"] == {"no_github_connector": N}  # no network: stored data only
     v = view(w.conn, b.brief_id, 1)

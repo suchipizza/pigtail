@@ -71,6 +71,8 @@ TABLE_LEVELS: dict[str, Level] = {
     # and statistics; repo names only in the case rows)
     "brief_selection": "project",
     "brief_selection_case": "project",
+    # pre-registration records (0023, R8.2): brief id, version, SHA-256 values, file path, commit
+    "brief_preregistration": "project",
     "brief_report_final": "project",  # R19.9 anchor (0018): ids, versions, timestamps
     "brief_evidence": "project",  # R19.9 anchor (0018): brief run -> evidence ids
     # LLM-derived stage results may quote evidence (as the LLM cache does, CB-05)

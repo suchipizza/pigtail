@@ -9,7 +9,10 @@ Two steps, both project-level (repo names and ids, daily star counts; no identit
    (`pigtail.capture.star_history`, ETag-conditional, 30 weeks per page, back to 60 days before
    the brief's window or the repo's creation week). Progress is checkpointed per repo; the GitHub
    request budget pauses the stage (resumable), and a repo the API can't serve (deleted,
-   renamed) is recorded and left `unknown`.
+   renamed) is recorded and left `unknown`. The refusal list (CB-13) is checked again before
+   any fetch, and once more with the GitHub id the metadata query returns: a repo refused by id
+   only that was added by URL is removed from the brief version (`Shortlist.forget`), its
+   metadata is not stored and its star history is never fetched (M22 verifier round 2).
 
 2. **`load_inputs`** (database only): one `selection.CaseInput` per shortlisted repo.
    - **Anchor T** (§2.2): the first Show HN launch post the discovery stage recorded (hour
@@ -137,7 +140,20 @@ def fetch_outcome_data(
     from pigtail.connectors.base import FetchError
 
     assert brief.version is not None
+    sl = Shortlist(conn, brief)
+    refused: set[str] = set()
+
+    def refuse(ref: str) -> None:  # CB-13: out of the brief version, nothing fetched
+        refused.add(ref)
+        sl.forget(ref)
+
+    for cand in cands:  # the refusal list may have grown since finalize
+        if cand.repo_full_name is not None and sl.refused(cand.repo_full_name, cand.repo_host_id):
+            refuse(cand.ref)
+    cands = [c for c in cands if c.ref not in refused]
     res = FetchResult(repos=len(cands))
+    if refused:
+        res.failed["refused"] = len(refused)
     if github is None or not getattr(github, "enabled", True):
         res.failed["no_github_connector"] = len(cands)
         return res
@@ -158,6 +174,10 @@ def fetch_outcome_data(
             m = meta.get(name)
             if m is None:
                 continue
+            if sl.refused(name, m.host_id):  # refused by id: learnt only now
+                refuse(f"gh:{name}")
+                res.failed["refused"] = res.failed.get("refused", 0) + 1
+                continue
             store.upsert(
                 Candidate(
                     ref=f"gh:{name}",
@@ -174,10 +194,16 @@ def fetch_outcome_data(
     fresh = {c.ref: c for c in store.all()}
     pages = star_pages(window_start, as_of)
     for ref in sorted(c.ref for c in cands):
+        if ref in refused:
+            continue
         if ref in done:
             res.already_done += 1
             continue
         c = fresh.get(ref)
+        if c is not None and c.repo_full_name and sl.refused(c.repo_full_name, c.repo_host_id):
+            refuse(ref)
+            res.failed["refused"] = res.failed.get("refused", 0) + 1
+            continue
         if c is None or c.repo_host_id is None or c.repo_full_name is None:
             failed[ref] = "no_repo_id"
         else:

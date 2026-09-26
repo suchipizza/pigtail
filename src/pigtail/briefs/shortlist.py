@@ -19,8 +19,16 @@ What is on the shortlist:
 **Precision** (R4.7): among field-panel candidates the filter judged `relevant` and the reviewer
 decided on, the share accepted; target ≥ 80 %. Named projects are left out (they are on the
 shortlist by rule, not by the filter). The label says who checked: `owner-checked`,
-`verifier-checked, not owner-checked` (ADR-072.8) or `user-checked`. A precision below target is
-shown, never hidden.
+`verifier-checked, not owner-checked` (ADR-072.8) or `user-checked`; when every such decision
+came from bulk actions on the filter's own `relevant` verdict (`accept --verdict relevant`,
+logged with a `bulk_id`, migration 0023), nobody looked at the items and the label is
+`not item-reviewed` (BACKLOG M22-P). A precision below target is shown, never hidden.
+
+**Refusal list** (CB-13): a refused repo is never a candidate, on the shortlist or in the mention
+scope. A repo refused by GitHub id only is recognised by name through any id pigtail already
+holds for it (`repos`, other candidate rows); one added by URL whose id is still unknown is
+checked again when its metadata arrives (`outcomes.fetch_outcome_data`), before any fetch, and
+`forget` removes it from the brief version.
 
 **Mention scope** (Directive §8.3): while in review, the proposed and accepted repos are
 `in_review` entries of `brief_shortlist_entry`; finalizing writes the final set as `final` and
@@ -31,6 +39,7 @@ used by the brief's runs is linked for snapshot retention by the stages
 
 from __future__ import annotations
 
+import secrets
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -80,6 +89,8 @@ class LatestDecision:
     reviewer_role: Reviewer
     via: str | None
     decided_at: datetime
+    bulk_id: str | None = None
+    bulk_verdict: str | None = None
 
 
 class Shortlist:
@@ -112,13 +123,45 @@ class Shortlist:
         return self._sup
 
     def refused(self, full_name: str | None, host_id: int | None = None) -> bool:
-        """CB-13: a repo on the refusal list (by id or by name) is never on a shortlist."""
+        """CB-13: a repo on the refusal list (by id or by name) is never on a shortlist. Without
+        a GitHub id, any id pigtail already holds for the name is checked (M22 verifier round
+        2: a repo refused by id only, added by URL before its metadata is known)."""
         sup = self.suppressions
         if not sup:
             return False
-        if host_id is not None and f"github:{host_id}" in sup.repos:
+        ids = {host_id} if host_id is not None else self.known_host_ids(full_name)
+        if any(f"github:{i}" in sup.repos for i in ids):
             return True
         return bool(sup.name_suppressed(full_name))
+
+    def known_host_ids(self, full_name: str | None) -> set[int]:
+        """GitHub ids stored for `owner/name` (the `repos` table, any brief's candidates)."""
+        if not full_name or not self.suppressions.repos:
+            return set()
+        rows = self.conn.execute(
+            "SELECT host_id FROM repos WHERE host = 'github' AND lower(full_name) = %s"
+            " UNION SELECT repo_host_id FROM brief_candidate WHERE repo_full_name = %s"
+            " AND repo_host_id IS NOT NULL",
+            (full_name.lower(), full_name.lower()),
+        ).fetchall()
+        return {int(r[0]) for r in rows}
+
+    def forget(self, ref: str) -> None:
+        """Remove a refused repo from this brief version (CB-13): its candidate row and its
+        mention-scope entries. Its logged decisions stay (they carry no metadata)."""
+        name = ref[3:] if ref.startswith("gh:") else None
+        with self.conn.transaction():
+            self.conn.execute(
+                "DELETE FROM brief_candidate WHERE brief_id = %s AND brief_version = %s"
+                " AND candidate_ref = %s",
+                (self.brief_id, self.version, ref),
+            )
+            if name is not None:
+                self.conn.execute(
+                    "DELETE FROM brief_shortlist_entry WHERE brief_id = %s AND brief_version = %s"
+                    " AND repo_full_name = %s",
+                    (self.brief_id, self.version, name),
+                )
 
     # --- state ---------------------------------------------------------------------------------
     def status(self) -> dict[str, Any] | None:
@@ -157,11 +200,12 @@ class Shortlist:
     def latest(self) -> dict[str, LatestDecision]:
         rows = self.conn.execute(
             "SELECT DISTINCT ON (candidate_ref) candidate_ref, decision, reason, reviewer_role,"
-            " via, decided_at FROM shortlist_decision WHERE brief_id = %s AND brief_version = %s"
+            " via, decided_at, bulk_id, bulk_verdict FROM shortlist_decision"
+            " WHERE brief_id = %s AND brief_version = %s"
             " ORDER BY candidate_ref, decided_at DESC, id DESC",
             (self.brief_id, self.version),
         ).fetchall()
-        return {r[0]: LatestDecision(r[1], r[2], r[3], r[4], r[5]) for r in rows}
+        return {r[0]: LatestDecision(r[1], r[2], r[3], r[4], r[5], r[6], r[7]) for r in rows}
 
     @staticmethod
     def included(c: Candidate, d: LatestDecision | None) -> bool | None:
@@ -190,8 +234,12 @@ class Shortlist:
         decided = [c for c in relevant if c.ref in dec]
         kept = [c for c in decided if dec[c.ref].decision in ("accept", "add")]
         roles = {dec[c.ref].reviewer_role for c in decided}
+        # decisions made by a bulk action on the filter's own verdict: nobody looked at the item
+        on_verdict = [c for c in decided if dec[c.ref].bulk_verdict == "relevant"]
         if not roles:
             label = "not reviewed"
+        elif len(on_verdict) == len(decided):
+            label = "not item-reviewed (bulk action on the filter's verdict)"
         elif roles == {"owner"}:
             label = "owner-checked"
         elif "verifier" in roles and "owner" not in roles:
@@ -200,6 +248,8 @@ class Shortlist:
             label = "user-checked"
         else:
             label = "mixed reviewers: " + ", ".join(sorted(roles))
+        if on_verdict and len(on_verdict) < len(decided):
+            label += f"; {len(on_verdict)} of {len(decided)} by bulk action, not item-reviewed"
         value = len(kept) / len(decided) if decided else None
         return {
             "value": None if value is None else round(value, 4),
@@ -210,10 +260,13 @@ class Shortlist:
             "target": PRECISION_TARGET,
             "meets_target": None if value is None else value >= PRECISION_TARGET,
             "label": label,
+            "bulk_on_filter_verdict": len(on_verdict),
+            "item_reviewed": len(decided) - len(on_verdict),
             "rubric_versions": sorted({c.rubric_version for c in relevant if c.rubric_version}),
             "definition": (
                 "accepted among field-panel candidates the filter judged relevant and the "
-                "reviewer decided on (R4.7); named projects excluded"
+                "reviewer decided on (R4.7); named projects excluded; decisions from a bulk "
+                "action on the filter's relevant verdict are not item reviews"
             ),
         }
 
@@ -248,11 +301,12 @@ class Shortlist:
         via: Via,
         brief_run_id: str | None,
         at: datetime,
+        bulk: tuple[str, str | None] | None = None,
     ) -> None:
         self.conn.execute(
             "INSERT INTO shortlist_decision (brief_id, brief_version, brief_run_id, candidate_ref,"
-            " candidate_repo_id, decision, reason, reviewer_role, via, decided_at)"
-            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            " candidate_repo_id, decision, reason, reviewer_role, via, decided_at, bulk_id,"
+            " bulk_verdict) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 self.brief_id,
                 self.version,
@@ -264,6 +318,8 @@ class Shortlist:
                 reviewer,
                 via,
                 at,
+                bulk[0] if bulk else None,
+                bulk[1] if bulk else None,
             ),
         )
 
@@ -280,8 +336,10 @@ class Shortlist:
         reviewer: Reviewer = "user",
         via: Via = "cli",
         now: datetime | None = None,
+        bulk: tuple[str, str | None] | None = None,
     ) -> int:
-        """Accept or reject candidates (bulk allowed); one logged row per candidate."""
+        """Accept or reject candidates (bulk allowed); one logged row per candidate. `bulk` is
+        (bulk id, verdict filter) when `decide_where` settles candidates by filter."""
         self._require_open()
         why = self._reason(reason)
         at = now or utcnow()
@@ -304,7 +362,7 @@ class Shortlist:
             )
         run_id = self._run_id()
         for r in norm:
-            self._insert(r, cands[r].repo_id, decision, why, reviewer, via, run_id, at)
+            self._insert(r, cands[r].repo_id, decision, why, reviewer, via, run_id, at, bulk)
         self.sync_scope()
         return len(norm)
 
@@ -335,7 +393,8 @@ class Shortlist:
         ]
         if not refs:
             return 0
-        return self.decide(refs, decision, reason, reviewer=reviewer, via=via)
+        bulk = ("bulk_" + secrets.token_hex(8), verdict)  # one id per bulk action (M22-P)
+        return self.decide(refs, decision, reason, reviewer=reviewer, via=via, bulk=bulk)
 
     def add(
         self,
@@ -450,6 +509,9 @@ class Shortlist:
                 "reject them first (bulk: accept --verdict relevant / reject --verdict uncertain)"
             )
         at = now or utcnow()
+        for c in self.candidates.all():  # CB-13 again: the refusal list may have grown
+            if c.repo_full_name is not None and self.refused(c.repo_full_name, c.repo_host_id):
+                self.forget(c.ref)
         on, _ = self.members()
         prec = self.precision()
         unresolved = [

@@ -5,8 +5,10 @@ R18.6, R19.1; outcome-model v2.1 §5.7; migration 0022; ADR-077).
 (`outcomes.fetch_outcome_data`, checkpointed), builds the inputs from stored data
 (`outcomes.load_inputs`), runs the pure selection (`selection.select`) and stores one
 `brief_selection` row with its provenance (brief id, version and content hash, brief run, data
-version after the fetch, `as_of`, selection, outcome-model and analysis-params versions, code
-commit, inputs and result hashes) plus one `brief_selection_case` row per shortlisted repo.
+version after the fetch with `as_of` folded in as `dv1-…@YYYY-MM-DD`, `as_of`, selection,
+outcome-model and analysis-params versions, code commit, inputs and result hashes) plus one
+`brief_selection_case` row per shortlisted repo. It first requires the brief version's
+pre-registration (R8.2, `preregistration.require`).
 
 `view` / `latest` read the stored result back for the CLI (`pigtail brief selection show`).
 Selections are append-only history: a new run (for example `--incremental`) adds a row, and the
@@ -150,20 +152,23 @@ def run_stage(
     clock: Callable[[], datetime],
     recorder: Any = None,
 ) -> StageResult:
-    """The selection stage (module docstring). Raises `SelectionError` when the shortlist isn't
-    final; `BudgetExhausted` from the GitHub budget pauses it (the checkpoint keeps the repos
-    done)."""
+    """The selection stage (module docstring). Raises `PreregistrationMissing` before anything
+    is fetched or computed when the brief version has no recorded pre-registration (R8.2,
+    ADR-065), `SelectionError` when the shortlist isn't final; `BudgetExhausted` from the GitHub
+    budget pauses it (the checkpoint keeps the repos done)."""
     from pigtail.briefs.cache import data_version
     from pigtail.briefs.discovery import window_bounds
     from pigtail.briefs.outcomes import fetch_outcome_data, load_inputs, shortlisted
+    from pigtail.briefs.preregistration import require
     from pigtail.capture.runs import git_commit
 
+    cands = shortlisted(conn, brief)  # SelectionError unless the shortlist is final
+    require(conn, brief)  # outcome-model §5.8: the point of no return needs a pre-registration
     if "as_of" not in checkpoint:  # fixed for the whole run, so a resume judges `pending` alike
         checkpoint["as_of"] = clock().date().isoformat()
         save_checkpoint(checkpoint)
     as_of = date.fromisoformat(checkpoint["as_of"])
     window = window_bounds(brief, run_date)
-    cands = shortlisted(conn, brief)
     fetch_cp = checkpoint.setdefault("fetch", {})
     fetch = fetch_outcome_data(
         conn,
@@ -181,7 +186,10 @@ def run_stage(
     cands = shortlisted(conn, brief)  # metadata may have been filled in
     inputs = load_inputs(conn, brief, cands, window=window, as_of=as_of)
     sel = select(inputs, Context.from_brief(brief), Definition.from_brief(brief))
-    dv = data_version(conn)
+    # R4.8 determinism is keyed on (brief version, data version); `as_of` decides `pending`, so
+    # it is folded into the selection's data version (M22 verifier round 2): same data, another
+    # day -> another data version.
+    dv = f"{data_version(conn)}@{as_of.isoformat()}"
     sid = save(
         conn,
         sel,

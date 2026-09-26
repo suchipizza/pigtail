@@ -153,10 +153,13 @@ describe("D7 shortlist review (M22)", () => {
   it("R4.7: finalize is blocked while candidates are undecided and after finalizing", () => {
     const { onFinalize } = setup();
     expect((screen.getByRole("button", { name: "Finalize the shortlist" }) as HTMLButtonElement).disabled).toBe(true);
+    // the page says why (M22 verifier round 2)
+    expect(screen.getByText("Finalize is disabled: 2 candidates undecided.")).toBeTruthy();
     cleanup();
     const ready = setup({ ...view, counts: { ...view.counts, undecided: 0 } });
     fireEvent.click(screen.getByRole("button", { name: "Finalize the shortlist" }));
     expect(ready.onFinalize).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/Finalize is disabled/)).toBeNull();
     expect(onFinalize).not.toHaveBeenCalled();
     cleanup();
     setup({ ...view, status: "final", counts: { ...view.counts, undecided: 0 } });

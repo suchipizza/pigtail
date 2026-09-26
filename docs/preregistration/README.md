@@ -21,6 +21,8 @@ This folder holds pigtail's pre-registered analyses (WORK_ORDER §6: "Pre-regist
 
 Add a row for every new file, including amendments and addenda.
 
+[TEMPLATE-brief.md](TEMPLATE-brief.md) is the template for a brief version's pre-registration (PRD R8.2, ADR-078): copy it, fill it in without brief content, push it, then record it with `pigtail brief preregister <id> --file <path> --commit <sha>`. The selection stage (the outcome sort) refuses to run until that record exists. The template itself is not a pre-registration and gets no index row.
+
 **Status since 2026-09-26 (ADR-047, ADR-049.5).** Every 2026-09-25 file above is **withdrawn**, before any outcome data existed: the 3 + 3 pilot and its amendments 1–2 by `2026-09-26-pilot-amendment-3.md`, the forecasting test and its amendments 1–4 by `2026-09-26-forecasting-test-amendment-5.md`, and the threshold calibration by `2026-09-26-threshold-calibration-amendment-1.md`. Their text stays here, unedited, as the public record. The next pre-registration is the M15 pilot's (the first neighbourhood report on the owner's brief), pushed before its outcome sort (WORK_ORDER §6).
 
 **Held-out pools (historical pointer; changes no frozen file).** Under `2026-09-25-threshold-calibration.md` §1.1, the ADR-019 held-out set (`m < 30`) was divided into **H-eval** (`m < 20`) and **H-sealed** (`20 ≤ m < 30`), and forecasting-test amendments 2–4 excluded H-sealed from the forecasting evaluation set and target cells. All of this is withdrawn with those files; ADR-019 and ADR-039.5 are superseded (ADR-049.5), and per-brief analyses use no held-out split.

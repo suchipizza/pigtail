@@ -22,10 +22,11 @@ value is *unrankable*.
 
 **Selection** (§5.5–5.6, R4.3, R4.10, ADR-053.2, ADR-054, ADR-077). The top `panel.winners`
 ranked qualifiers of the eligible panel are the winners. The loser pool is the eligible
-candidates that fail a threshold on an observed value. Winners in rank order take the nearest
-unused loser (without replacement; more rounds while fewer than `panel.losers` are matched)
-among those with the same `panel.exact_match` keys (founder audience bucket, launch half-year;
-`unknown` is its own level) inside the calipers (`|ΔLSM| <= 0.5 SD`, `|Δquarter| <= 1`). The
+candidates that fail a threshold on an observed value. Winners in rank order take an unused
+loser (without replacement; more rounds while fewer than `panel.losers` are matched) among those
+with the same `panel.exact_match` keys (founder audience bucket, launch half-year; `unknown` is
+its own level) inside the calipers (`|ΔLSM| <= 0.5 SD`, `|Δquarter| <= 1`): one whose pair
+passes the headline rule first, then the nearest (ADR-078; `match_losers`). The
 panel starts at the core field (distance 0). If it has fewer than 15 winners or matched losers,
 it widens one declared widening step at a time (R4.10); then, if fewer than
 `fallbacks.too_few_winners.min_winners` rankable qualifiers remain, the brief's fallback steps
@@ -37,7 +38,8 @@ field (ADR-057.1).
 **Balance** (§5.6, §9.2, ADR-054.1): SMD per covariate (pooled-SD form; per level for language)
 and the variance ratio, before and after matching, the exact-match check, and the pairs whose
 standardized difference on any covariate exceeds `headline_exclusion_smd` (excluded from
-headline patterns). No p-values; no re-matching.
+headline patterns). After matching, each matched winner is counted once, even when it has two
+losers (unweighted; ADR-078). No p-values; no re-matching.
 
 **Sensitivity** (§8, R4.9): the winner set is recomputed under each listed alternative (primary
 swap, band shift, weights, and D, exclude anomaly-flagged candidates, which the brief schema
@@ -60,7 +62,7 @@ from typing import Any, Literal
 from pigtail.analysis.params import PARAMS_VERSION
 from pigtail.briefs.model import DIMENSIONS, RANKABLE, THRESHOLD_PERCENTILE, Brief, sha256_json
 
-SELECTION_VERSION = "selection-v1"
+SELECTION_VERSION = "selection-v2"  # v2: headline-first matching, missing language (ADR-078)
 OUTCOME_MODEL_VERSION = "2.1"
 MIN_POPULATION = 20  # outcome-model §3 (v0 design choice; the brief schema has no field yet, O17)
 WINNERS_MIN = 15  # R4.8 range floor: below it the report says "fewer winners than the minimum"
@@ -73,6 +75,11 @@ BUSINESS_SIGNALS = ("pricing_page", "hiring_hn_posts", "careers_roles")
 BUSINESS_COUNT = "biz.verified_signal_count@365"
 BAND_ORDINAL: dict[str, int] = {"none": 0, "r1": 1, "r2": 2, "r3": 3, "r4": 4}
 TIE_BREAK = "sha256(brief_id:brief_version:candidate_ref) ascending"
+MATCHING_RULE = (
+    "round 1: each winner in rank order takes an eligible loser (exact match, calipers), "
+    "headline-passing first, then nearest; later rounds: headline-passing losers first, then any "
+    "eligible loser (ADR-078)"
+)
 ROUND = 6
 
 Status = Literal["observed", "pending", "unknown", "not_applicable"]
@@ -294,6 +301,7 @@ class Context:
             "smd_target": self.smd_target,
             "headline_exclusion_smd": self.headline_exclusion_smd,
             "calipers": {"lsm_sd": LSM_CALIPER_SD, "quarter": QUARTER_CALIPER},
+            "matching": MATCHING_RULE,
             "max_distance": self.max_distance,
             "too_few_winners": {
                 "min_winners": self.min_winners,
@@ -577,13 +585,14 @@ def _pair_diffs(
     w: CaseInput, lo: CaseInput, ctx: Context, sds: Mapping[str, float | None]
 ) -> tuple[dict[str, float | None], tuple[str, ...]]:
     """Standardized difference of one pair per balance covariate, and the covariates on which it
-    exceeds `headline_exclusion_smd` (ADR-054.1; a language mismatch counts as 1)."""
+    exceeds `headline_exclusion_smd` (ADR-054.1; a language mismatch, or a language missing on
+    either side, counts as 1, ADR-078)."""
     diffs: dict[str, float | None] = {}
     for cov in _numeric_covariates(ctx):
         diffs[cov] = _std_diff(_num(w, cov), _num(lo, cov), sds.get(cov))
-    for cov in CATEGORICAL:
+    for cov in CATEGORICAL:  # a missing value on either side is a mismatch (ADR-078)
         a, b = getattr(w.covariates, cov), getattr(lo.covariates, cov)
-        diffs[cov] = None if a is None or b is None else (0.0 if a == b else 1.0)
+        diffs[cov] = 0.0 if a is not None and a == b else 1.0
     excluded = tuple(
         k for k, v in sorted(diffs.items()) if v is not None and v > ctx.headline_exclusion_smd
     )
@@ -603,7 +612,8 @@ def _caliper_ok(w: CaseInput, lo: CaseInput, sds: Mapping[str, float | None]) ->
 
 def _distance(w: CaseInput, lo: CaseInput, ctx: Context, sds: Mapping[str, float | None]) -> float:
     """outcome-model §5.6: standardized |Δ| per numeric covariate (a missing value costs one
-    SD), + |Δquarter| + 1 if the languages differ."""
+    SD), + |Δquarter| + 1 if the languages differ or one is missing. Repo age at T
+    (`age_log10`) is one of the numeric terms."""
     d = 0.0
     covs = ["lsm", "age_log10"]
     if "founder_audience_bucket" not in ctx.exact_match:
@@ -613,28 +623,42 @@ def _distance(w: CaseInput, lo: CaseInput, ctx: Context, sds: Mapping[str, float
         d += 1.0 if s is None or math.isinf(s) else s
     qa, qb = w.covariates.launch_quarter, lo.covariates.launch_quarter
     d += abs(qa - qb) if qa is not None and qb is not None else 1.0
-    d += 0.0 if w.covariates.language == lo.covariates.language else 1.0
+    la, lb = w.covariates.language, lo.covariates.language
+    d += 0.0 if la is not None and la == lb else 1.0  # missing counts as different (ADR-078)
     return d
 
 
 def match_losers(
-    winners: Sequence[CaseInput], pool: Sequence[CaseInput], ctx: Context
+    winners: Sequence[CaseInput],
+    pool: Sequence[CaseInput],
+    ctx: Context,
+    *,
+    prefer_headline: bool = True,
 ) -> tuple[list[Pair], dict[str, float | None]]:
-    """R4.3 / ADR-054.1 nearest-neighbour matching without replacement (module docstring)."""
+    """R4.3 / ADR-054.1 nearest-neighbour matching without replacement, refined by ADR-078
+    (before any outcome sort; outcome-model §5.6 allows it).
+
+    Eligible losers are those with the same `exact_match` keys inside the calipers. Round 1:
+    each winner in rank order takes one eligible loser, preferring one whose pair passes the
+    headline rule (ADR-054.1), then the nearest by distance, then the hash. Further rounds (while
+    fewer than `panel.losers` are matched) first hand out only headline-passing losers, then any
+    eligible loser, so extra losers don't crowd out pairs that can be reported in the headline
+    and every matchable winner still gets one loser first. `prefer_headline=False` is the
+    selection-v1 rule (nearest only, every round), kept for the ADR-078 comparison."""
     everyone = [*winners, *pool]
     sds = {cov: _sd(_num(c, cov) for c in everyone) for cov in NUMERIC_ALL}
     available = sorted(pool, key=lambda c: c.ref)
     used: set[str] = set()
     pairs: list[Pair] = []
     groups: dict[str, int] = {}
-    rnd = 0
-    while len(pairs) < ctx.losers:
-        rnd += 1
+    rnd = 1
+
+    def one_round(headline_only: bool) -> bool:
         progress = False
         for w in winners:
             if len(pairs) >= ctx.losers:
                 break
-            best: tuple[tuple[float, str], CaseInput] | None = None
+            best: tuple[tuple[int, float, str], CaseInput] | None = None
             for cand in available:
                 if cand.ref in used:
                     continue
@@ -642,19 +666,30 @@ def match_losers(
                     continue
                 if not _caliper_ok(w, cand, sds):
                     continue
-                key = (round(_distance(w, cand, ctx, sds), 12), ctx.tie(cand.ref))
+                _, excl = _pair_diffs(w, cand, ctx, sds)
+                if headline_only and excl:
+                    continue
+                miss = 1 if prefer_headline and excl else 0
+                key = (miss, round(_distance(w, cand, ctx, sds), 12), ctx.tie(cand.ref))
                 if best is None or key < best[0]:
                     best = (key, cand)
             if best is None:
                 continue
-            (dist, _), loser = best
+            (_, dist, _), loser = best
             used.add(loser.ref)
             diffs, excluded = _pair_diffs(w, loser, ctx, sds)
             gid = groups.setdefault(w.ref, len(groups) + 1)  # a winner and its losers
             pairs.append(Pair(gid, "field", w.ref, loser.ref, rnd, dist, diffs, excluded))
             progress = True
-        if not progress:
-            break
+        return progress
+
+    one_round(headline_only=False)  # round 1: every matchable winner gets a loser first
+    for headline_only in (True, False) if prefer_headline else (False,):
+        while len(pairs) < ctx.losers:
+            rnd += 1
+            if not one_round(headline_only):
+                rnd -= 1  # nothing matched in this round: its number is reused
+                break
     return pairs, sds
 
 
@@ -819,6 +854,8 @@ def balance(lvl: Level, by_ref: Mapping[str, CaseInput], ctx: Context) -> dict[s
     after = _cov_balance(matched_w, matched_l, ctx)
     return {
         "form": "standardized mean difference, pooled SD; variance ratio; no p-values",
+        "winner_counting": "after matching, each matched winner counts once, even when it has "
+        "two losers (unweighted, ADR-078)",
         "target": ctx.smd_target,
         "after_matching": after,
         "before_matching": _cov_balance(lvl.winners, lvl.loser_pool, ctx),
@@ -834,7 +871,8 @@ def balance(lvl: Level, by_ref: Mapping[str, CaseInput], ctx: Context) -> dict[s
         "headline_pairs": sum(1 for p in pairs if p.headline),
         "headline_excluded": {
             "rule": f"a pair differing by > {ctx.headline_exclusion_smd:g} SD on any covariate "
-            "(a language mismatch counts as 1) is shown only in the case-level view (ADR-054.1)",
+            "(a language mismatch or a missing language counts as 1) is shown only in the "
+            "case-level view (ADR-054.1, ADR-078)",
             "pairs": sum(1 for p in pairs if not p.headline),
             "by_covariate": dict(sorted(excluded_by.items())),
         },
@@ -856,16 +894,29 @@ def _ladder_step(floor: float, direction: int) -> tuple[bool, float | None]:
 
 
 def alternatives(
-    d: Definition, ctx: Context
+    d: Definition, ctx: Context, base: Definition | None = None
 ) -> tuple[list[tuple[str, Definition, bool]], list[dict[str, Any]]]:
     """(key, definition, exclude_flagged) per alternative that runs, plus notes for the ones that
-    don't apply (§8.1)."""
+    don't apply (§8.1), each with its reason. `base` is the brief's own definition: a minimum a
+    fallback step dropped (ADR-053.2) gets a note saying so instead of silently disappearing
+    (M22 verifier round 2)."""
     runs: list[tuple[str, Definition, bool]] = []
     notes: list[dict[str, Any]] = []
+    if "band_shift" in ctx.sensitivity and base is not None:
+        for dim, fl in sorted(base.floors.items()):
+            if fl is not None and d.floors.get(dim) is None:
+                notes.append(
+                    {
+                        "key": f"band_shift:{dim}",
+                        "ran": False,
+                        "reason": f"not applicable: the {dim} minimum was dropped by the fallback "
+                        f"step drop_{dim}_minimum (ADR-053.2)",
+                    }
+                )
     if "primary_swap" in ctx.sensitivity:
-        base = d.rank_by or d.primary
+        ranked_on = d.rank_by or d.primary
         for other in RANKABLE:
-            if other != base:
+            if other != ranked_on:
                 runs.append((f"primary_swap:{other}", replace(d, rank_by=other), False))
     if "band_shift" in ctx.sensitivity:
         numeric = {k: v for k, v in sorted(d.floors.items()) if v is not None}
@@ -879,7 +930,7 @@ def alternatives(
                         {
                             "key": f"band_shift:{dim}:{name}",
                             "ran": False,
-                            "reason": "already at the top of the ladder",
+                            "reason": "not applicable: already at the top of the ladder",
                         }
                     )
                     continue
@@ -892,14 +943,26 @@ def alternatives(
             if tight_all != dict(d.floors):
                 runs.append(("band_shift:all:tighter", replace(d, floors=tight_all), False))
         else:
-            notes.append({"key": "band_shift", "ran": False, "reason": "no percentile threshold"})
+            notes.append(
+                {
+                    "key": "band_shift",
+                    "ran": False,
+                    "reason": "not applicable: no percentile threshold in the final definition",
+                }
+            )
     if "weights" in ctx.sensitivity:
         if d.weights:
             runs.append(("weights:primary_only", replace(d, weights=None), False))
             eq = {k: 1.0 / len(d.weights) for k in sorted(d.weights)}
             runs.append(("weights:equal", replace(d, weights=eq), False))
         else:
-            notes.append({"key": "weights", "ran": False, "reason": "the brief uses no weights"})
+            notes.append(
+                {
+                    "key": "weights",
+                    "ran": False,
+                    "reason": "not applicable: the brief uses no weights",
+                }
+            )
     if "fake_star_filter" in ctx.sensitivity:
         if d.star_metric_used():
             runs.append(("exclude_anomaly_flagged", d, True))
@@ -933,7 +996,11 @@ def jaccard(a: set[str], b: set[str]) -> float | None:
 
 
 def sensitivity(
-    cases: Sequence[CaseInput], population: Sequence[CaseInput], lvl: Level, ctx: Context
+    cases: Sequence[CaseInput],
+    population: Sequence[CaseInput],
+    lvl: Level,
+    ctx: Context,
+    base: Definition | None = None,
 ) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     """Summary (counts only) and per-case statuses and flags (§8.2, §8.3)."""
     base_w = {c.ref for c in lvl.winners}
@@ -942,7 +1009,7 @@ def sensitivity(
         r: {"status": {}, "flags": [], "changed_by": []} for r in sorted(base_w | base_l)
     }
     by_ref = {c.ref: c for c in cases}
-    runs, notes = alternatives(lvl.definition, ctx)
+    runs, notes = alternatives(lvl.definition, ctx, base)
     results: list[dict[str, Any]] = list(notes)
     overlaps: list[float] = []
     stable = set(base_w)
@@ -954,13 +1021,16 @@ def sensitivity(
                     {
                         "key": key,
                         "ran": False,
-                        "reason": f"no observed {metric} value in the population",
+                        "reason": f"not applicable: no observed {metric} value in the "
+                        "population (no connector or no data)",
                     }
                 )
                 continue
         excluded = {c.ref for c in population if exclude and c.star_anomaly_flag == "true"}
         if exclude and not excluded:
-            results.append({"key": key, "ran": False, "reason": "no flagged candidates"})
+            results.append(
+                {"key": key, "ran": False, "reason": "not applicable: no flagged candidates"}
+            )
             continue
         pop = [c for c in population if c.ref not in excluded]
         ev = evaluate(d, pop)
@@ -1153,7 +1223,7 @@ def select(cases_in: Iterable[CaseInput], ctx: Context, base: Definition) -> Sel
     ]
     first_ex = max((p.pair_id for p in lvl.pairs), default=0) + 1
     ex_pairs, ex_log = match_exemplars(exemplars, ex_pool, ctx, first_ex)
-    sens_summary, sens_cases = sensitivity(cases, population, lvl, ctx)
+    sens_summary, sens_cases = sensitivity(cases, population, lvl, ctx, base)
 
     rank = {c.ref: i + 1 for i, c in enumerate(lvl.ranked)}
     eligible = {c.ref for c in lvl.eligible}

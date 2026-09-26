@@ -247,7 +247,9 @@ def test_m22_e2e_discovery_relevance_shortlist_decisions_finalize(w):
     # named projects are left out: 4 accepted of 5 decided model-relevant field candidates
     assert (p["kept"], p["decided"], p["model_relevant"]) == (4, 5, 5)
     assert p["value"] == pytest.approx(0.8) and p["meets_target"] is True
-    assert p["label"] == "owner-checked"
+    # 2 of the 5 came from the bulk action on the filter's own verdict (BACKLOG M22-P)
+    assert p["label"] == "owner-checked; 2 of 5 by bulk action, not item-reviewed"
+    assert (p["bulk_on_filter_verdict"], p["item_reviewed"]) == (2, 3)
     res = sl.finalize(reviewer="owner")
     assert res["status"] == "final" and res["unresolved_named"] == []
     final = {

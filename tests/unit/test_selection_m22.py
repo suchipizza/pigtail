@@ -347,8 +347,11 @@ def test_sensitivity_weights_and_d_applicability():
               fallbacks={"too_few_winners": {"min_winners": 1, "steps": []}})  # fmt: skip
     alts = {a["key"]: a for a in run(population(), b).sensitivity["alternatives"]}
     assert alts["weights:primary_only"]["ran"] and alts["weights:equal"]["ran"]
-    assert alts["band_shift"] == {"key": "band_shift", "ran": False,
-                                  "reason": "no percentile threshold"}  # fmt: skip
+    assert alts["band_shift"] == {
+        "key": "band_shift",
+        "ran": False,
+        "reason": "not applicable: no percentile threshold in the final definition",
+    }
     # no star metric in the definition: D is not applicable
     cases = [case(i, stars=10 + i, community=i, downloads=100 + i) for i in range(40)]
     nb = brief(primary="adoption", minimums={"community": "at_least_p25"},
@@ -362,7 +365,7 @@ def test_sensitivity_weights_and_d_applicability():
     assert d2["exclude_anomaly_flagged"] == {
         "key": "exclude_anomaly_flagged",
         "ran": False,
-        "reason": "no flagged candidates",
+        "reason": "not applicable: no flagged candidates",
     }
 
 

@@ -58,7 +58,9 @@ def test_r19_1_r18_5_run_shows_estimate_first_dry_run_and_approval(cli_env, caps
     assert d["run_scope"]["llm"]["mode"] == "batch"
     # the selection stage (ADR-077) makes no model call and runs only on a final shortlist
     assert d["run_scope"]["selection"]["llm_calls"] == 0
-    assert d["run_scope"]["selection"]["runs_only_when"] == "the shortlist is final"
+    assert d["run_scope"]["selection"]["runs_only_when"] == (
+        "the shortlist is final and the brief version is pre-registered"
+    )
     assert n_runs(db) == 0
     # paid steps (api backend) without approval: nothing starts
     assert main(["run", "--brief", BID]) == 3
@@ -182,7 +184,7 @@ def test_r4_7_shortlist_cli(cli_env, capsys):
     assert roles == {"owner"}
 
 
-def test_r4_8_selection_show_cli(cli_env, capsys):
+def test_r4_8_selection_show_cli(cli_env, capsys, tmp_path):
     """`pigtail brief selection show` (ADR-077): nothing before the selection stage ran; then the
     stored summary, steps, balance and sensitivity. Two synthetic repos without star history:
     every case is `no_anchor` and the report says there are fewer winners than the minimum."""
@@ -201,6 +203,9 @@ def test_r4_8_selection_show_cli(cli_env, capsys):
     sl.ensure(None)
     sl.decide(["org-s/lint-a", "org-s/lint-b"], "accept", "synthetic", reviewer="owner")
     sl.finalize(reviewer="owner")
+    f = tmp_path / "prereg.md"
+    f.write_text("# Pre-registration (synthetic test)\nNo brief content.\n")
+    assert main(["brief", "preregister", BID, "--file", str(f)]) == 0
     run_stage(
         db.conn,
         brief,

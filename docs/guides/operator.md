@@ -194,7 +194,9 @@ milestones add deep forensics.
 ```bash
 uv run pigtail run --brief my-project --dry-run         # estimate and plan; no call, no write
 uv run pigtail run --brief my-project --approve-paid    # run (or resume) discovery → relevance → shortlist
-uv run pigtail run --brief my-project                   # after `shortlist finalize`: the selection
+uv run pigtail brief preregister my-project --print-hashes   # after finalize: hashes to pre-register
+uv run pigtail brief preregister my-project --file docs/preregistration/<file> --commit <sha>
+uv run pigtail run --brief my-project                   # after finalize + pre-registration: the selection
 uv run pigtail brief selection show my-project [--json] # winners, losers, balance, sensitivity
 uv run pigtail run --brief my-project --stage discovery # only some stages (repeatable)
 uv run pigtail run --brief my-project --incremental     # refresh a completed run
@@ -258,14 +260,32 @@ reference cases and exemplars that resolved to a repo stay on the shortlist unle
 them; for an unresolved one, pick one of its candidate repos (`add … --resolves`, or *Use this
 repo* in the web app). **Precision** is the share of model-`relevant` field candidates you kept
 among those you decided on; the target is 80 %, a lower value is shown, not hidden, and the label
-says who checked (`owner-checked`, `verifier-checked, not owner-checked`, `user-checked`). While
-in review, proposed and accepted repos are in the mention scope as `in_review`; finalizing writes
+says who checked (`owner-checked`, `verifier-checked, not owner-checked`, `user-checked`). When
+every decided candidate was settled by a bulk action on the filter's own verdict (`accept
+--verdict relevant`), nobody looked at the items and the label is `not item-reviewed`; a mix
+says how many were bulk decisions. `shortlist show` also lists the **brief fields still at their
+default** (confirm them here, R4.7) and the brief's warnings. While in review, proposed and accepted repos are in the mention scope as `in_review`; finalizing writes
 the final set as `final` and the rest `removed`. An added repo's metadata is filled by the next
-`pigtail run --incremental`.
+`pigtail run --incremental`. The refusal list is checked again when you finalize and before any
+selection fetch: a repo refused only by its GitHub id that you added by URL is dropped from the
+brief version as soon as its id is known, and its star history is never fetched.
 
-**4. Selection (R4.8, R4.3, R4.9, R4.10, R4.11; ADR-077).** It runs only on a **final**
-shortlist: after `shortlist finalize`, run `pigtail run --brief my-project` again (or with
-`--stage selection`) and it continues the same run with this stage alone. It makes no model call.
+**4. Pre-registration (R8.2, ADR-065; outcome-model §5.8).** The outcome sort is the point of no
+return, so the brief version's hypotheses and tests are pre-registered **before** it. Copy
+`docs/preregistration/TEMPLATE-brief.md`, fill it in **without brief content** (it is public:
+paste the SHA-256 values from `pigtail brief preregister my-project --print-hashes` instead of
+the success definition and selection settings), commit and push it, then record it:
+`pigtail brief preregister my-project --file docs/preregistration/<file> --commit <sha>`. That
+stores the brief version and content hash, the two partial hashes, the file's path and SHA-256
+and the commit (table `brief_preregistration`). Until then the selection is refused with exit
+code 7, before anything is fetched, computed or stored. A file that quotes brief text is
+refused; so is a pre-registration once the version already has a selection. Editing the brief
+(a new version) or a new selection rule needs a new pre-registration.
+
+**5. Selection (R4.8, R4.3, R4.9, R4.10, R4.11; ADR-077, ADR-078).** It runs only on a
+**final**, **pre-registered** shortlist: after `shortlist finalize` and `brief preregister`, run
+`pigtail run --brief my-project` again (or with `--stage selection`) and it continues the same
+run with this stage alone. It makes no model call.
 - **Outcome data.** With `GITHUB_TOKEN` set, it first fetches each shortlisted repo's **star
   history** (daily net stars, back to 60 days before the brief's window; 1–3 core requests per
   repo, conditional) and fills missing metadata (creation date, language) for repos you added by
@@ -286,10 +306,13 @@ shortlist: after `shortlist finalize`, run `pigtail run --brief my-project` agai
   *undetermined*, not a loser. Qualifiers are ranked on the primary dimension (or the weights),
   ties by a hash of the brief id, version and repo. The top `panel.winners` are the **winners**;
   candidates that fail a threshold on an observed value form the **loser pool**.
-- **Matched losers** (ADR-054.1): winners in rank order take the nearest unused loser with the
-  same `panel.exact_match` values (founder audience bucket, launch half-year; the audience bucket
-  is `unknown` for every repo until its source is cleared, and `unknown` is matched as its own
-  level), within 0.5 SD of launch-signal magnitude; more rounds until `panel.losers` are matched.
+- **Matched losers** (ADR-054.1, ADR-078): eligible losers have the same `panel.exact_match`
+  values (founder audience bucket, launch half-year; the audience bucket is `unknown` for every
+  repo until its source is cleared, and `unknown` is matched as its own level) and lie within
+  0.5 SD of launch-signal magnitude and one quarter. Winners in rank order each take one: a loser
+  whose pair passes the headline rule first, then the nearest (distance over launch signal, repo
+  age at T, quarter and language). More rounds until `panel.losers` are matched hand out
+  headline-passing losers first.
 - **Too few winners** (R4.10, ADR-053.2): below 15 winners or matched losers the panel widens
   one declared widening step at a time; then, below `fallbacks.too_few_winners.min_winners`
   qualifiers, the brief's fallback steps apply in order. Every step is listed with its counts.
@@ -298,20 +321,26 @@ shortlist: after `shortlist finalize`, run `pigtail run --brief my-project` agai
   `distribution_exemplars.match_on` and never on field.
 - **Balance**: SMD per covariate before and after matching (target |SMD| < `smd_target`; a miss
   is labelled `balance_limited`), the exact-match check, and the pairs that differ by more than
-  `headline_exclusion_smd` SD on any covariate (a language mismatch counts as 1), which are
-  excluded from headline patterns (marked `*` in `selection show`).
+  `headline_exclusion_smd` SD on any covariate (a language mismatch, or a language missing on
+  either side, counts as 1), which are excluded from headline patterns (marked `*` in
+  `selection show`). After matching, each matched winner counts once in the SMD even when it
+  has two losers (unweighted).
 - **Sensitivity** (R4.9): the winner set recomputed under each alternative in
   `success.sensitivity` (primary swap, band shift, weights, and `fake_star_filter`, which now
   means *exclude anomaly-flagged candidates*), with the Jaccard overlap and the cases flagged
-  `definition_sensitive` or `sensitive_to_star_anomaly`. It never changes the baseline.
+  `definition_sensitive` or `sensitive_to_star_anomaly`. An alternative that doesn't apply is
+  listed with the reason (for example a minimum a fallback step dropped). It never changes the
+  baseline.
 - **Stored** in `brief_selection` (one row per selection: brief version and content hash, run,
-  data version after the fetch, as-of date, selection, outcome-model and analysis-params
-  versions, code commit, inputs and result hashes) and `brief_selection_case` (one row per repo).
-  The same brief version and data give the same result hash. A repo opt-out removes its rows.
+  data version after the fetch with the as-of date folded in (`dv1-…@YYYY-MM-DD`), as-of date,
+  selection, outcome-model and analysis-params versions, code commit, inputs and result hashes)
+  and `brief_selection_case` (one row per repo). The same brief version and data version give
+  the same result hash. A repo opt-out removes its rows.
 
 **Resuming and exit codes.** A run is resumable after anything: a crash, a budget stop
 (`paused_budget`, exit 4; exit 3 when approval is missing), the GitHub request budget (exit 4), a
-failure (exit 1) or a batch still running (exit 5). Running the same command again resumes the
+failure (exit 1) or a batch still running (exit 5); a selection without its pre-registration
+stops with exit 7 and changes nothing. Running the same command again resumes the
 same run: completed stages are skipped, discovery skips the queries it did, and the relevance
 filter rebuilds the same requests, so answered ones come from the LLM cache and in-flight batches
 are collected by their stored ids. Only one run per brief at a time (exit 6 otherwise). A version

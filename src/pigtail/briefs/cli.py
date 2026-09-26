@@ -20,6 +20,10 @@
                                                              review decisions (R4.7), bulk by filter
     pigtail brief shortlist add ID URL --reason R [--panel P] [--resolves named:reference:0]
     pigtail brief shortlist finalize ID [--as ROLE]         mark the shortlist final
+    pigtail brief preregister ID --print-hashes [--json]     SHA-256 values to paste into the
+                                                             pre-registration (no brief content)
+    pigtail brief preregister ID --file PATH [--commit SHA]  record the pre-registration (R8.2)
+    pigtail brief selection show ID [--version N] [--json]   winners, losers, balance, sensitivity
     pigtail brief schema                                     print schemas/brief/v1.2.json
     pigtail brief migrate-store --from DIR [--dry-run]       move briefs to PIGTAIL_BRIEFS_DIR
 
@@ -35,7 +39,9 @@ Exit codes: 0 ok; 1 invalid brief, not found or stale edit (run: a stage failed;
 2 usage/config error; 3 paid steps not approved (`--approve-paid`); 4 a budget cap (H6), the
 GitHub request budget or an LLM limit stopped the work (run: resumable checkpoint), or the
 estimate exceeds a cap; 5 (run) a Message Batch is still running: run the same command again to
-collect it; 6 (run) another run of the brief is in progress.
+collect it; 6 (run) another run of the brief is in progress; 7 (run) the selection needs the brief
+version's pre-registration first (`pigtail brief preregister`, R8.2): nothing was fetched or
+computed.
 Briefs are private: they live in PIGTAIL_BRIEFS_DIR (default ~/.pigtail/briefs), outside git,
 and are included in the encrypted backup (R18.9, ADR-071.3).
 """
@@ -888,6 +894,15 @@ def _print_view(v: dict[str, Any]) -> None:
         f"Precision {val} ({p['kept']}/{p['decided']} of {p['model_relevant']} model-relevant; "
         f"target {p['target'] * 100:.0f} %; {p['label']})"
     )
+    # R4.7 / D7: the review is where defaulted brief fields are confirmed (ADR-062)
+    if v.get("defaulted_fields"):
+        print(f"\nBrief fields to confirm ({len(v['defaulted_fields'])} still at their default):")
+        for f in v["defaulted_fields"]:
+            print(f"  {f['field']}: {json.dumps(f['value'], default=str)}")
+    for w in v.get("brief_warnings") or []:
+        print(f"brief warning: {w}")
+    if v.get("defaulted_fields") or v.get("brief_warnings"):
+        print()
     for r in v["candidates"]:
         d = r["decision"]
         mark = "+" if r["on_shortlist"] else ("?" if r["on_shortlist"] is None else "-")
@@ -1135,11 +1150,76 @@ def cmd_selection(args: argparse.Namespace) -> int:
     if v["selection"] is None:
         print(
             f"no selection for {brief.brief_id} v{brief.version} yet: finalize the shortlist, "
-            f"then pigtail run --brief {brief.brief_id} --stage selection"
+            f"pre-register (pigtail brief preregister {brief.brief_id}), then pigtail run "
+            f"--brief {brief.brief_id} --stage selection"
         )
         return EXIT_INVALID
     _print_selection(v)
     return 0
+
+
+# --- pigtail brief preregister (R8.2; ADR-065, ADR-078) ----------------------------------------
+
+
+def cmd_preregister(args: argparse.Namespace) -> int:
+    from pigtail.briefs.preregistration import TEMPLATE, PreregistrationError, hashes, record
+
+    try:
+        brief = _store().get(args.brief_id, args.version).brief
+    except (BriefNotFound, BriefInvalid) as e:
+        print(str(e), file=sys.stderr)
+        return EXIT_INVALID
+    if args.print_hashes:
+        h = hashes(brief)
+        if args.json:
+            _json(h)
+            return 0
+        print(f"Paste these into your pre-registration ({TEMPLATE}); they reveal no brief text:")
+        for k, v in h.items():
+            print(f"  {k}: {v}")
+        return 0
+    if not args.file:
+        print("give --file PATH (or --print-hashes)", file=sys.stderr)
+        return EXIT_USAGE
+    import psycopg
+
+    s = _settings()
+    if not s.database_url:
+        print("DATABASE_URL is not set", file=sys.stderr)
+        return EXIT_USAGE
+    try:
+        with psycopg.connect(s.database_url, autocommit=True) as conn:
+            rec = record(conn, brief, Path(args.file), commit=args.commit)
+    except PreregistrationError as e:
+        print(str(e), file=sys.stderr)
+        return EXIT_INVALID
+    if args.json:
+        _json(rec.to_dict())
+        return 0
+    print(
+        f"pre-registration recorded for {brief.brief_id} v{brief.version}: {rec.file_path} "
+        f"(sha256 {rec.file_sha256[:16]}…, commit {rec.git_commit or 'not given'}); the "
+        f"selection may run now (pigtail run --brief {brief.brief_id})"
+    )
+    return 0
+
+
+def _add_preregister_command(bs: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    p = bs.add_parser(
+        "preregister",
+        help="record the brief version's pre-registration before its outcome sort (R8.2)",
+    )
+    p.add_argument("brief_id")
+    p.add_argument("--version", type=int, help="brief version (default: latest)")
+    p.add_argument("--file", help="the pre-registration file (docs/preregistration/...)")
+    p.add_argument("--commit", help="the git commit that holds the file (pushed)")
+    p.add_argument(
+        "--print-hashes",
+        action="store_true",
+        help="print the SHA-256 values to paste into the file; record nothing",
+    )
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_preregister)
 
 
 def _add_selection_commands(bs: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -1229,6 +1309,7 @@ def add_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> No
     p.set_defaults(func=cmd_expand)
 
     _add_shortlist_commands(bs)
+    _add_preregister_command(bs)
     _add_selection_commands(bs)
 
     bs.add_parser("schema", help="print the brief JSON Schema (v1.2)").set_defaults(func=cmd_schema)

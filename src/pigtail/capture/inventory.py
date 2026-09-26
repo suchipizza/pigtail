@@ -61,6 +61,8 @@ TABLES: tuple[TableSpec, ...] = (
     # M22 selection (0022): outcome sort, winners, matched losers, balance, sensitivity
     TableSpec("brief_selection", "operational", None, "created_at"),
     TableSpec("brief_selection_case", "operational", "repo_full_name", None),
+    # pre-registration records (0023, R8.2): ids, versions and SHA-256 values only
+    TableSpec("brief_preregistration", "operational", None, "recorded_at"),
     TableSpec("brief_report_final", "operational", None, "report_final_at"),
     TableSpec("brief_evidence", "operational", None, "linked_at"),
     # M21b (0020): Message Batches state and the actual-cost ledger (counts only)

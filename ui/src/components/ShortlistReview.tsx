@@ -299,9 +299,19 @@ export function ShortlistReview({ view, busy = false, onDecide, onAdd, onFinaliz
       <p className="muted small">
         Finalizing needs a decision on every relevant or uncertain candidate. Unresolved reference cases don't block it.
       </p>
-      <button type="button" disabled={busy || final || view.counts.undecided > 0} onClick={onFinalize}>
+      <button
+        type="button"
+        disabled={busy || final || view.counts.undecided > 0}
+        aria-describedby="finalize-why"
+        onClick={onFinalize}
+      >
         {final ? "Shortlist is final" : "Finalize the shortlist"}
       </button>
+      {!final && view.counts.undecided > 0 && (
+        <p id="finalize-why" className="muted small" role="status">
+          Finalize is disabled: {fmtNum(view.counts.undecided)} candidate{view.counts.undecided === 1 ? "" : "s"} undecided.
+        </p>
+      )}
     </div>
   );
 }

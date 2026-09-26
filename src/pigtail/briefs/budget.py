@@ -24,6 +24,13 @@ than the brief's `llm_backend` is refused unless the user set an explicit per-jo
 (R15.5).
 
 Stages call `check_*` before a unit of work and `charge_*` after it.
+
+**Fresh spend at every check** (M22 verifier round 2): with `brief_ledger` set (the brief's API
+total from the cost ledger, `PgCostLedger.brief_total`), every money check re-reads it first, so
+spend recorded since the guard was built counts, for example the batch items charged for
+invalid output before their standard-call fallback is checked (`LLMClient.run_batch` calls
+`before_submit` again for the fallback). The monthly total is read from the usage ledger at
+every check already (`month_spent`).
 """
 
 from __future__ import annotations
@@ -132,6 +139,8 @@ class BudgetGuard:
     log: list[dict[str, Any]] = field(default_factory=list)
     # Non-API money charged by this guard this month (not in the LLM usage ledger).
     paid_this_month_usd: float = 0.0
+    # The brief's recorded API spend (cost ledger), re-read before every money check.
+    brief_ledger: Callable[[], float] | None = None
 
     # --- backend -------------------------------------------------------------------------------
     def check_backend(self, backend: str, *, job: str) -> None:
@@ -146,6 +155,13 @@ class BudgetGuard:
             )
 
     # --- the two caps --------------------------------------------------------------------------
+    def refresh(self) -> float:
+        """Bring `spent_usd` up to the ledger: the brief's recorded API spend plus the non-API
+        money this guard charged. Never lowers it (a charge may precede its ledger row)."""
+        if self.brief_ledger is not None:
+            self.spent_usd = max(self.spent_usd, self.brief_ledger() + self.paid_this_month_usd)
+        return self.spent_usd
+
     def month_spent(self) -> float:
         """API spend this calendar month (usage ledger) plus other paid steps charged here."""
         api = self.usage.usage_since("api", month_start(self.clock()))["cost_usd"]
@@ -166,6 +182,7 @@ class BudgetGuard:
             )
         if usd is None:
             return  # approved although the amount is unknown (caps are re-checked on charge)
+        self.refresh()
         cap = self.budget.money_usd
         if self.spent_usd + usd > cap + 1e-9:
             raise BudgetStop(
@@ -214,6 +231,7 @@ class BudgetGuard:
         self.check_llm(f"{job} batch of {requests}", est_usd=est_usd, backend="api")
 
     def status(self) -> dict[str, Any]:
+        self.refresh()
         return {
             "brief_usd": {"spent": round(self.spent_usd, 6), "cap": self.budget.money_usd},
             "month_usd": {"spent": round(self.month_spent(), 6), "cap": self.month_cap_usd},

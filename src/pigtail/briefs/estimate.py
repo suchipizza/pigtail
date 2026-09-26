@@ -625,7 +625,7 @@ def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any
                 "per page), plus 1 GraphQL query per 50 repos without metadata",
                 "llm_calls": 0,
                 "api_usd": 0.0,
-                "runs_only_when": "the shortlist is final",
+                "runs_only_when": "the shortlist is final and the brief version is pre-registered",
             }
             if "selection" in st
             else None
