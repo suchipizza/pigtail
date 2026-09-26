@@ -12,15 +12,15 @@ from pydantic import BaseModel
 
 from pigtail import __version__
 
-PENDING_STAGES = {
-    "score": "M5",
-    "panel": "M5",
-    "extract": "M5",
-    "analyze": "M5",
-    "plan": "M8",
+PENDING_STAGES = {  # v2 milestones (WORK_ORDER v2.0)
+    "score": "M13",
+    "panel": "M13",
+    "extract": "M15",
+    "analyze": "M15",
+    "plan": "M16",
 }
-# `pigtail report` subcommands: hn-frontpage (M1-T22), inventory (M11); the rest is still M5.
-REPORT_MILESTONE = "M5"
+# `pigtail report` subcommands: hn-frontpage (M1-T22), inventory (M11); neighbourhood report: M15.
+REPORT_MILESTONE = "M15"
 
 
 class SmokeOutput(BaseModel):

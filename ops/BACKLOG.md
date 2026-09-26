@@ -2,9 +2,9 @@
 v2 plan (ADR-047/048/049). Format: `- [ ] [ID] title — depends on — acceptance`. The v1 backlog below is kept as history; its open items are superseded unless listed here.
 
 ## Now
-- [ ] [M11] Re-scope cleanup — none — tag on origin ✓ (archive/global-collection); remove the watch list, all-GitHub search sweeps, global breakout detection, holdout split/guard and settle-lag code + their scheduler jobs and CLI; forward-only migration dropping their tables; HN poller repurposed (ADR-049.1); withdrawal amendments pushed (ADR-049.5); operator/developer guides, codebook, .claude/agents updated to v2 scope; CI green; verifier sign-off
+- [x] [M11] Re-scope cleanup (verifier PASS round 2, 2026-09-26) — — none — tag on origin ✓ (archive/global-collection); remove the watch list, all-GitHub search sweeps, global breakout detection, holdout split/guard and settle-lag code + their scheduler jobs and CLI; forward-only migration dropping their tables; HN poller repurposed (ADR-049.1); withdrawal amendments pushed (ADR-049.5); operator/developer guides, codebook, .claude/agents updated to v2 scope; CI green; verifier sign-off
 - [ ] [M12] Research brief v1 (D7) — M11 — create/edit briefs (form + YAML), validation, versions + diff, multiple briefs, cost estimate, hard stop at budget (tested), cache reuse, brief files private (scan blocks them); example brief in docs
-- [ ] [OWNER] Owner's brief `data/briefs/owner-brief.v1.yaml` (private): open questions — GitHub links for the seed projects, minimums default, budget
+- [ ] [OWNER] Owner's first brief (private, data/briefs/): seed matches to confirm in shortlist review; matching-balance decision (DEC-10)
 
 ## Next
 - [ ] [M13] Discovery, relevance filter, shortlist — M12, GITHUB_TOKEN — Trendshift terms audit; logged candidates, verdicts, reasons; precision; deterministic selection; balance diagnostics; sensitivity check

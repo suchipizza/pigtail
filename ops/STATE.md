@@ -8,8 +8,8 @@ resumed: 2026-09-26 after CR-001/CR-002 (ADR-047/048); work locally, no server
 | Milestone | Status | Blocker |
 |---|---|---|
 | M0, M2, M3 | accepted (v1) | — |
-| M11 Re-scope cleanup | next | — |
-| M12 Research brief v1 | next | M11 |
+| M11 Re-scope cleanup | **accepted** (2026-09-26) | — |
+| M12 Research brief v1 | in progress | — |
 | M13 Discovery + shortlist | not started | M12, GITHUB_TOKEN |
 | M14 Batch runs + launch mode | not started | M12, M13, H1 (FileVault) |
 | M15 Pilot = owner's neighbourhood report | not started | M13, M14, CB-12, H3, H5 |

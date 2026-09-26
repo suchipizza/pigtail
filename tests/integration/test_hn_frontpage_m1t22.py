@@ -130,11 +130,11 @@ def test_m1_t22_cli_report_is_read_only(capture_db, pg_url, monkeypatch, capsys,
     assert out["minutes"] == 60 and out["uncovered_minutes"] == 30 and out["quality"] == "estimated"
     assert out["config"]["max_rank"] == 30 and out["window_start"].startswith("2026-09-25T10:00")
     assert db.conn.execute("SELECT count(*) FROM runs").fetchone() == runs_before  # no writes
-    # opted-out repos are refused; `report` alone is still pending (M5)
+    # opted-out repos are refused; `report` alone is still pending (M15)
     suppression.add(
         db, "repo_name", suppression.repo_name_key("org-a/repo-1", pz), platform="github",
         reason="objection",
     )  # fmt: skip
     assert main(argv) == 2 and "refusal list" in capsys.readouterr().err
     assert main(["report", "hn-frontpage", "--repo", "not a repo"]) == 2
-    assert main(["report"]) == 2 and "M5" in capsys.readouterr().err
+    assert main(["report"]) == 2 and "M15" in capsys.readouterr().err

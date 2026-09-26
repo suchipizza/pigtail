@@ -32,7 +32,7 @@ def test_parse_hour_formats():
 
 def test_other_stages_still_pending(capsys):
     assert main(["score"]) == 2
-    assert "M5" in capsys.readouterr().err
+    assert "M13" in capsys.readouterr().err
 
 
 def test_cb02_deletion_sync_requires_pseudonym_key(monkeypatch, capsys):

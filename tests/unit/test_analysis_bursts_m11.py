@@ -1,4 +1,4 @@
-"""M11: per-repo burst/quiet segmentation on star-history days (codebook v0.3.0 §3.2-3.3, outcome
+"""M11: per-repo burst/quiet segmentation on star-history days (codebook v0.3.1 §3.2-3.3, outcome
 model v2 §2.1) and the versioned analysis parameters (schemas/analysis-params/v1.0.0.json).
 Synthetic series only."""
 

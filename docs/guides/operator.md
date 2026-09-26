@@ -259,7 +259,7 @@ text. Review the diff before committing.
 ## Web app (D1 preview)
 The Forensics Explorer preview (M1-T12): `/cases` and `/cases/:id` with the **Timeline** and
 **Evidence** tabs on captured data. Everything is labelled **uncoded preview**: events are raw
-captures; burst/launch labels, triggers and mechanisms arrive with coding (M5). One process serves
+captures; burst/launch labels, triggers and patterns arrive with a brief's deep forensics (M15). One process serves
 the read-only API (R14.2) and the built UI.
 
 **Private by default (R13.3, DPIA CB-19).** The app refuses to start without an operator password
