@@ -433,3 +433,12 @@ Decision: A brief may name **distribution examples**: projects outside the core 
 
 For now they sit in `field.reference_cases` with a `distribution_exemplar` label. A dedicated schema field comes in M13 (brief schema v1.1). Brief content, including the named projects, stays in the private brief store (ADR-055.1).
 How to reverse: Remove the examples from the brief; drop the report section through an ADR.
+
+## ADR-057 — Two panels per brief, transferability labels, absolute numbers, reference cases in the schema (owner decisions) (2026-09-26)
+1. **Two panels per brief:**
+   - **Field panel:** the brief's core field (widened per R4.10). Winners and losers are matched per ADR-054 (exact on audience bucket and launch half-year). It shows what works in the user's own market, at a realistic scale.
+   - **Distribution examples panel** (refines ADR-056): projects chosen for exceptional distribution, whatever their field or audience. Each gets **1–2 losers matched on launch type, launch period and audience bucket (not field)**.
+2. **Transferability:** every pattern from the examples panel states its conditions (audience, timing, category hype, assets) and whether they apply to the user's project. Each is labelled **transferable**, **conditional** or **not transferable**.
+3. **Absolute numbers:** reports show absolute stars, downloads and contributors next to each winner and loser class, per panel, so the scale of "winning" is visible.
+4. **Reference cases** become a brief-schema field (`field.reference_cases`, structured): named projects always studied whatever their outcome class. The repo follows the launch-link rule (ADR-054.3) and is confirmed by the user in the shortlist review. Unresolved ones don't block the run. Brief schema v1.1 also adds `distribution_exemplars` and the report options.
+How to reverse: Per item, through an ADR.
