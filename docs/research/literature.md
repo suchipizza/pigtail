@@ -1,6 +1,6 @@
 # Literature review: prior art for pigtail (M2-T1)
 
-Status: draft for verifier spot-check · Author role: `researcher` · Access date of every source: **2026-09-25**
+Status: draft for verifier spot-check · Author role: `researcher` · Access date of every source: **2026-09-25**, except [84] (2026-09-26) · Dated note of 2026-09-26 (M21, `analyst` with researcher discipline): §2.4
 Work order: `docs/WORK_ORDER.md` §4 M2 · Requirements referenced: R1.1, R3.3, R4.3, R5.3, R5.5, R7.2, R7.3, R8.1–R8.4, R9.x, R11.x, R15.7, R16.2, §9.2, §9.3
 
 How citations work here: `[n]` points to the numbered entry in §8 ("Citation list"). Every entry there gives a URL and the access date. I checked each one with a web search or fetch on 2026-09-25. Where I couldn't confirm a claim from the source, the text says **unverified**. Practitioner and anecdotal sources are tagged **[practitioner]**. They are not peer reviewed and should not be used as effect estimates.
@@ -140,7 +140,9 @@ How citations work here: `[n]` points to the numbered entry in §8 ("Citation li
   - `GitHub star inflation lockstep detection peer-reviewed "six million" fake stars cited by`
   - They returned the StarScout paper itself (arXiv, ACM, CMU copies), its code and forks, a CMU news item, gists, blog posts and press, and [28]. There was no new peer-reviewed detection method. A general web search is not a citation index, so this negative finding is limited. A Google Scholar "cited by" check was not done. A 2026 arXiv study of multi-agent frameworks avoids stars rather than filtering them, calling star counts a reflection of "hype cycles and inorganic activity" [28]. **StarScout is the current reference method.**
 
-### 2.3 Recommendation for PRD R3.3: reproduce StarScout
+### 2.3 Recommendation for PRD R3.3: reproduce StarScout (superseded 2026-09-26, see §2.4)
+> **Superseded.** This recommendation and its validation plan can't be carried out for repos the operator doesn't own, and task M2-T3 is obsolete (ADR-070.4). They are kept as the record of what was recommended on 2026-09-25. §2.4 says what pigtail does instead.
+
 Adopt **StarScout's two signatures plus its campaign post-processing, using the authors' public local DuckDB pipeline on GH Archive** [23][24]. Pin the commit and all parameters (n=50, m=10, Δt=30 d, ρ=0.5, and the 50 / 50% / 10% campaign thresholds) in a versioned config, and store both the raw and the filtered star series (R3.3).
 
 Why this method and not Dagster's:
@@ -175,6 +177,28 @@ Known limits to document:
 - Stars bought from "aged" accounts that don't show either signature will be missed. The authors say evasion is possible (see the paper's threats section [20]).
 - Short windows reduce lockstep recall, because Δt = 30 d and chunks are 6 months.
 - A flag is **suspected**, never proof. Per the authors' caution [20], pigtail must not name individual repos as fake in any public output.
+
+### 2.4 Note, 2026-09-26: account-level fake-star detection no longer usable; aggregate anomaly checks instead (ADR-070.4, PRD R3.3)
+**What changed.**
+- GitHub's changelog of 2026-06-30 says that "Access to the following public API endpoints will be limited to admins and collaborators", including the "List stargazers endpoint: `/repos/{owner}/{repo}/stargazers`", because these lists had "increasingly been misused to collect user data for spam activities" [84]. Pigtail measured the effect for repos it doesn't administer (a `404` on REST and an empty GraphQL `stargazers` connection; source matrix §2.2, `docs/research/detection-replan.md` §0).
+- The replacement star-history endpoint gives daily net counts without identities (source matrix §2.33; ADR-032).
+
+**Why StarScout (and every §2.2 method) no longer fits pigtail.**
+- Both StarScout signatures are properties of **individual accounts**: the low-activity signature needs each stargazer's own event history, and the lockstep signature needs to know which accounts starred which repos, and when [20]. Dagster's heuristic needs each stargazer's profile [26]. Without stargazer identities none of them can run.
+- StarScout's own pipeline reads GH Archive, not the stargazers API [20][23]. Pigtail can't take that route either, for project reasons rather than technical ones: GH Archive is a discovery signal only and never a star source (ADR-047.8; it held about 2 % of stars in 2026, `docs/research/detection-replan.md` §7.2); coded and stored data hold no handles or pseudonyms, and migration 0017 dropped the per-repo identity-level star events (ADR-066.1, ADR-074.3); and the compliance assessment reads compiling who starred a repo as against users' reasonable expectations after the restriction (`docs/compliance/lia.md`).
+- So PRD R3.3 was amended (ADR-070.4): no per-account filter, and star metrics are labelled **"unfiltered, anomaly-checked"**.
+
+**What pigtail does instead** (outcome model v2.1 §4; code `pigtail.analysis.anomaly`, rule `anomaly-v0`, parameters in `schemas/analysis-params/v1.1.0.json` block `anomaly_check`):
+- *Spike without matching activity:* a day with ≥ 50 net stars and ≥ 3σ above its 30-day baseline (σ floored at √mean), where no activity channel (new forks, issues opened, registry downloads, external mentions) rose to at least 2× its expected count, plus a minimum excess, from 1 day before to 3 days after the spike. Spikes that no channel could be checked against are `unchecked`, never flagged.
+- *Odd stars-to-activity ratio:* `stars / (forks + issues + 1)`, flagged when its log is a robust-z outlier (≥ 3.5) among the brief's candidates (at least 8 judged), else above 50; candidates under 200 stars aren't judged.
+- Nothing is removed. Flags are reported per case next to the star numbers, feed one sensitivity alternative (excluding flagged candidates, outcome model §8.1 D), set the codebook's `star_anomaly_flagged` manipulation flag and the presence of seed MC-12. The StarScout parameters stay in the params file, marked retired.
+
+**Validity limits (label every flag with these).**
+- **Unvalidated heuristics.** `anomaly-v0`'s signals and thresholds are pigtail's v0 design choices. There is no ground truth, and **no precision or recall has been measured**. StarScout at least had external recall (81.23 % of repos, [20]) and no direct precision; `anomaly-v0` has neither. I did not search for published work that evaluates aggregate, count-only star-anomaly checks for this note; whether any exists is **unverified**.
+- **Not a measure of the same thing.** An aggregate anomaly is a proxy for the campaigns in §2.1, not a detection of them. Every number quoted from [17][20] describes StarScout-flagged campaigns and must not be read as describing pigtail's flags.
+- **Expected errors (reasoning from the design, not measured):** organic spikes from channels pigtail can't observe (Reddit, X, YouTube and other GAPs; chats) look like spikes without matching mentions (false positives); slow or small campaigns below the thresholds, campaigns that also fake forks or issues, and old campaigns whose accounts GitHub deleted (they vanish from star-history, which counts current stargazers) are missed (false negatives). Flag rates depend on how many activity channels cover each case, so a low rate isn't evidence of a clean neighbourhood.
+- **Labelling.** Star metrics: "unfiltered, anomaly-checked". A flag: "anomaly-flagged (unvalidated heuristic)", a suspicion, never proof; no repo is called fake in any output, following the StarScout authors' caution [20] (§2.3 "Known limits").
+- **Hypotheses affected.** H-L1 and H-L8 (§7.2) were written for StarScout flags. With `anomaly-v0` they can only be examined on the proxy, within one brief, and any result carries these limits.
 
 ---
 
@@ -345,7 +369,7 @@ None of these sources has a control group. pigtail should treat them only as **c
 ### 7.1 Methods to borrow
 | Method | Source | pigtail requirement | Decision |
 |---|---|---|---|
-| StarScout low-activity + lockstep (CopyCatch) + campaign thresholds, local DuckDB mode | [20][23][24] | R3.3, R1.1 | **Adopt** as the fake-star filter; validate per §2.3 |
+| StarScout low-activity + lockstep (CopyCatch) + campaign thresholds, local DuckDB mode | [20][23][24] | R3.3, R1.1 | ~~**Adopt** as the fake-star filter; validate per §2.3~~ **Superseded 2026-09-26** (§2.4, ADR-070.4): can't run without stargazer identities; replaced by aggregate anomaly checks, unvalidated |
 | Four star-growth patterns | [3] | R3.5 | Use as a descriptive baseline for outcome classes |
 | Matched control + pre/post difference for promotion effects | [11] | R8.2, R8.3 | Template for loser contrasts |
 | Nearest-neighbour matching, SMD < 0.25 hard gate, SMD < 0.1 target, variance ratio 0.5–2, no p-value balance tests | [45][47] | R4.3, §9.2 | Adopt |
@@ -359,21 +383,21 @@ None of these sources has a control group. pigtail should treat them only as **c
 ### 7.2 Hypotheses
 Each hypothesis is pre-registrable (R11.1) and states what would falsify it.
 
-- **H-L1 (R3.3, R1.1, R3.5):** After StarScout filtering, a measurable share of R1.1 velocity detections in AI/LLM categories in 2024–2026 carry a fake-star campaign flag, and the share is higher than in non-AI categories. Motivated by [17][20]: AI/LLM is among the promoted categories. *Falsified if* flag rates show no category difference at the 95% level.
+- **H-L1 (R3.3, R1.1, R3.5):** *(2026-09-26: StarScout flags are no longer available; only the `anomaly-v0` proxy can be examined, with the limits in §2.4.)* After StarScout filtering, a measurable share of R1.1 velocity detections in AI/LLM categories in 2024–2026 carry a fake-star campaign flag, and the share is higher than in non-AI categories. Motivated by [17][20]: AI/LLM is among the promoted categories. *Falsified if* flag rates show no category difference at the 95% level.
 - **H-L2 (R8.1, R5.5, §9.3):** Reaching the HN front page causes a positive short-run star effect (48 h) against matched HN posts that stayed off the front page with similar early votes. The effect is smaller than naive pre/post estimates (e.g. the 74 → 138 median in [8]; the +189 mean in [40]). *Falsified if* the robust event-study effect's 90% CI includes zero, or is not smaller than the naive estimate.
 - **H-L3 (R8.4, R16.2, R5.2):** Exogenous triggers (HN or influencer posts) produce faster post-burst decay than endogenous word-of-mouth growth, following the Crane–Sornette classes [35]. Operationalized as a higher hazard of falling below 10% of peak velocity. *Falsified if* hazard ratios between trigger types have CIs that include 1.
 - **H-L4 (§9.1 test 1, R5.3):** Early breadth, meaning the number of distinct communities or sources linking the repo in the first 72 h, predicts the T+30 outcome class better than raw early star count. This comes from the breadth finding in [31]. *Falsified if* adding breadth does not improve the Brier score over the velocity + category baseline.
 - **H-L5 (R8.2, R3.2):** Promotion events move attention (stars) much more than community (returning external contributors), following Fang et al. 2022 (+7% stars vs +2% contributors) [11]. *Falsified if* the effect ratio in pigtail's matched design is not > 2.
 - **H-L6 (R3.2, R3.5, §5.3):** Among winners by attention, novelty or hype-category repos show lower T+90 community retention than matched non-novel winners, following Fang et al. 2024 [13]. *Falsified if* the community difference is null.
 - **H-L7 (R9.1, R4.3, §9.3):** For frequently recommended practitioner mechanisms (launch weeks [63], Show HN [65], paid amplification [64]), prevalence among winners exceeds prevalence among matched losers by less than a naive winners-only frequency suggests. This is the survivorship bias argument, with [37] on unpredictability. *Falsified if* winner-vs-loser prevalence ratios match winner-only frequencies. This directly tests §9.1 test 2.
-- **H-L8 (R3.3, R8.1):** Repos with fake-star campaigns show a short-lived real-star uplift (< 2 months) and lower T+365 adoption than matched unflagged repos, consistent with [20]. *Falsified if* the adoption difference is null or positive.
+- **H-L8 (R3.3, R8.1):** *(2026-09-26: examined on anomaly-flagged repos, a proxy for campaigns, §2.4; seed MC-12.)* Repos with fake-star campaigns show a short-lived real-star uplift (< 2 months) and lower T+365 adoption than matched unflagged repos, consistent with [20]. *Falsified if* the adoption difference is null or positive.
 - **H-L9 (R7.2, R15.7, §9.2):** LLM double-coding reaches α ≥ 0.70 on low-inference fields (dates, channel, asset type) but not on high-inference fields (e.g. "why people shared"). This follows the task-dependence findings in [74][75][79].
   - *Decision rule:* report α per field. Fields with α < 0.667 cannot feed mechanism promotion. Consider α ≥ 0.80 for fields that drive promotion, since 0.70 is only the "tentative" band [71]. Raise this with the owner as a possible ADR.
 - **H-L10 (R4.3, §9.2):** Matching on the PRD covariates alone leaves SMD ≥ 0.25 on founder audience size for a non-trivial share of pairs. Adding Stoddard-style post-quality estimates [42] and pre-launch velocity improves balance. *Falsified if* the balance gate passes with the base covariates at the target yield.
 
 ### 7.3 Open issues
 1. No peer-reviewed causal estimate of HN front-page position on GitHub stars was found. pigtail's R8.1 design would be new. It needs HN rank polling (PRD §8.1 "own rank polling"), which must be in place early. Rank history probably cannot be backfilled: the Algolia API's search hits carry `points`, `num_comments`, `created_at` and a `front_page` tag, but no rank or position field (observed on 2026-09-25; see source matrix §2.3), and the official Firebase API serves only the current `topstories` list [83]. This is our inference from those fields, not a documented statement.
-2. StarScout has no direct precision estimate [20]. pigtail's audit (§2.3 step 4) is the only precision evidence, and it needs private storage of account-level samples. This depends on the compliance pack (M3).
+2. StarScout has no direct precision estimate [20]. pigtail's audit (§2.3 step 4) is the only precision evidence, and it needs private storage of account-level samples. This depends on the compliance pack (M3). *Superseded 2026-09-26 (§2.4):* the audit can't run without stargazer identities. The open issue is now that pigtail's aggregate anomaly checks have no measured precision or recall at all, and no labelled set usable with star-history counts is known (**unverified**; outcome model O19).
 3. Resolved: GH Archive does not record un-star events, because a `WatchEvent` action "Can only be `started`" [15]. "Net stars" in R1.1 ("≥ 100 net stars") cannot be computed from GH Archive. Net counts come from the star-history endpoint, which gives daily net counts (ADR-032; source matrix §2.33); the stargazers API is no longer usable, since stargazer lists are restricted to admins and collaborators since 2026-06-30.
 4. The PRD α ≥ 0.70 threshold is below Krippendorff's conventional 0.80 [71] (secondary-source verification). Recommend an ADR.
 5. The Fang et al. 2022 exact identification details are summarized from the authors' slides and CMU news [11][12]. The ACM full text returned HTTP 403, so a verifier with access should confirm them.
@@ -466,6 +490,7 @@ Each hypothesis is pre-registrable (R11.1) and states what would falsify it.
 81. Fang et al. 2022 replication artifact, `CMUSTRUDEL/oss-twitter-promotion-icse2022` (MIT) — https://github.com/CMUSTRUDEL/oss-twitter-promotion-icse2022
 82. Gilardi, Alizadeh & Kubli 2023, PubMed record PMID 37463210 (abstract read through the Europe PMC API, because PubMed served a CAPTCHA) — https://pubmed.ncbi.nlm.nih.gov/37463210/
 83. Hacker News official API (Firebase) README — https://github.com/HackerNews/API
+84. GitHub Changelog, entry of 2026-06-30 on access restrictions to public API endpoints and UI views (title paraphrased from the URL) — https://github.blog/changelog/2026-06-30-upcoming-access-restrictions-to-public-api-endpoints-and-ui-views/ (accessed 2026-09-26; the quotes in §2.4 were checked against the page that day; also cited in source matrix §2.2)
 
 ## 9. Citation list for verifier spot-check
 Suggested 10 for the M2 acceptance spot-check. They cover the load-bearing claims; the full list is in §8.
@@ -489,3 +514,4 @@ Suggested 10 for the M2 acceptance spot-check. They cover the load-bearing claim
 
 - 2026-09-25 — corrections after verifier spot-check M2-T4. §1.3: Mann-Whitney and Cliff's d added from [8]. §1.4: Fang et al. replication package confirmed ([11] slide 20, [81]). §1.6 and §7.3 item 3: the un-star question is resolved from [15]. §2.1: "~20 TB" now cited to [20]. §2.2: the StarScout successor search queries are recorded. §6.2: Gilardi figures attributed to [72], with PubMed [82] and the 2,382-tweet note for [73]. §7.3 item 1: the rank-backfill claim is labelled as inference and sourced. Citations [81]–[83] added.
 - 2026-09-25 — fixes after verifier (ADR-036 alignment): §1.6 and §7.3 item 3 now point net star counts to the star-history endpoint (ADR-032) instead of the stargazers API (restricted since 2026-06-30).
+- 2026-09-26 — dated note (M21 verifier fix; ADR-070.4, PRD R3.3 as amended). New §2.4: why account-level fake-star methods (StarScout, Dagster) no longer fit pigtail (stargazer lists restricted on 2026-06-30 [84]; no identity-level star data after migration 0017; GH Archive not a star source), what pigtail does instead (aggregate anomaly checks `anomaly-v0`, star metrics labelled "unfiltered, anomaly-checked"), and the checks' validity limits (unvalidated, no precision or recall measured, expected false positives and negatives stated as reasoning, not measurement). §2.3 and the §7.1 StarScout row marked superseded; H-L1 and H-L8 annotated; §7.3 item 2 updated. Citation [84] added (checked 2026-09-26). No existing citation, figure or quote changed.

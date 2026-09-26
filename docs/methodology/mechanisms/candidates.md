@@ -1,9 +1,9 @@
-# Seed pattern hypotheses (starter list, v0.3.0)
+# Seed pattern hypotheses (starter list, v0.4.0)
 
-**Task:** M4-T1b (v0.1.0, as "candidate mechanism cards"); M11 (v0.3.0, reframed) · **Written:** 2026-09-25; reframed 2026-09-26 · **Author role:** `analyst`, working with researcher discipline
-**Version:** 0.3.0 (see the changelog at the end) · **Requirements:** PRD F20 (R20.1–R20.3), §5.2; PRD F9 retired ("the seed candidate cards … remain useful as seed codes for patterns"); WORK_ORDER v2.0 §4.2 (M4 carried: "the seed candidate cards (as seed pattern codes)"); codebook `0.3.0` §7 (patterns) and §10 (C11a).
-**Machine-readable copy:** `schemas/mechanisms/candidates-v0.json` (file version 0.3.0; the file name is kept because frozen pre-registrations cite it). If this file and the JSON disagree, that is a bug. Until it is fixed, the JSON wins for coding tools and this file wins for meaning (the same rule as the codebook). The v0.2.0 text ("candidate mechanism cards") is in git history: `git show archive/global-collection:docs/methodology/mechanisms/candidates.md`.
-**Data version:** none. No case has been coded against any of these hypotheses. **Code commit:** `4f55e73` (v0.1.0); `0330bd4` (v0.3.0).
+**Task:** M4-T1b (v0.1.0, as "candidate mechanism cards"); M11 (v0.3.0, reframed); M21 verifier fix (v0.4.0, MC-12) · **Written:** 2026-09-25; reframed 2026-09-26 · **Author role:** `analyst`, working with researcher discipline
+**Version:** 0.4.0 (see the changelog at the end) · **Requirements:** PRD F20 (R20.1–R20.3), §5.2; PRD F9 retired ("the seed candidate cards … remain useful as seed codes for patterns"); WORK_ORDER v2.0 §4.2 (M4 carried: "the seed candidate cards (as seed pattern codes)"); codebook `0.4.0` §7 (patterns) and §10 (C11a); outcome model v2.1 §4 (star anomaly checks, MC-12).
+**Machine-readable copy:** `schemas/mechanisms/candidates-v0.json` (file version 0.4.0; the file name is kept because frozen pre-registrations cite it). If this file and the JSON disagree, that is a bug. Until it is fixed, the JSON wins for coding tools and this file wins for meaning (the same rule as the codebook). The v0.2.0 text ("candidate mechanism cards") is in git history: `git show archive/global-collection:docs/methodology/mechanisms/candidates.md`.
+**Data version:** none. No case has been coded against any of these hypotheses. **Code commit:** `4f55e73` (v0.1.0); `0330bd4` (v0.3.0); `731cfe3` (v0.4.0).
 **Citations:** `[n]` means reference n in `docs/research/literature.md` §8. Every number quoted here is copied from that review, and the review is the source. Nothing here adds a number the review doesn't state.
 
 ---
@@ -254,25 +254,30 @@
   - *Against:* no prevalence difference.
 - **Overlap:** MC-01's precondition 1 is this hypothesis's asset condition. They are coded separately, so MC-11 can be tested across all launch venues.
 
-### MC-12 — Fake-star campaign (anti-pattern: detection and contrast only)
+### MC-12 — Star inflation suspected from aggregate anomalies (fake-star proxy; anti-pattern: detection and contrast only)
 - **Description:** purchased or coordinated fake stars inflate star counts. PRD §4 rules this out. This entry exists so that the effect can be measured and cases flagged. **It is never recommended** (F10, R12.4).
-- **What the literature says:**
+- **Changed in 0.4.0.** The literature's detector (StarScout) classifies individual stargazer accounts, which pigtail can no longer see for repos the operator doesn't own (outcome model (OM) v2.1 §4.1; LR §2.4). Presence now comes from pigtail's **aggregate anomaly checks** (`anomaly-v0`: a star spike with no matching forks, issues, downloads or external mentions, or an outlying stars-to-activity ratio; OM §4.2). These are a **proxy** for the campaigns the sources below describe, not the same measurement, and they are unvalidated: no precision or recall has been measured (OM §4.5). Star metrics stay "unfiltered, anomaly-checked".
+- **What the literature says** (about account-level StarScout detection, not about pigtail's proxy):
   - StarScout found 18,617 repos with fake-star campaigns (3.81 M fake stars after post-processing). Activity surged in 2024.
   - Most fake stars promote short-lived phishing or malware repos. The rest go mostly to AI/LLM, blockchain, tool and tutorial repos [17][20].
   - Promotion effect: a 1% rise in fake stars in month t goes with +0.07% real stars in t+1 and +0.03% in t+2. Cumulative fake stars have a negative coefficient from about t+2 onward, which the authors read as "a liability in the long term" [20].
   - Ground truth for the Stargazers Ghost Network: [22]. An industry experiment in which the authors bought stars themselves: [26].
 - **Preconditions:** none. It is detected, not chosen.
 - **Required assets:** none.
-- **Sequence:** a StarScout campaign month → `burst` (codebook §3.2: still a burst) → decay.
-- **Presence test:** **derived, not coded.** `present` if `manipulation_flag = fake_star_campaign_suspected` (the StarScout campaign flag, OM §4). `absent` if StarScout ran for the window without a flag. `unknown` if it didn't run.
+- **Sequence:** an anomaly-flagged star spike (`spike_no_activity`) → `burst` (codebook §3.2: still a burst) → decay. A case flagged only by `ratio_outlier` has no dated element; it counts as `present` but contributes no sequence offset.
+- **Presence test:** **derived, not coded**, from the case's `star_anomaly_flag` (OM §4.3):
+  - `present` if `manipulation_flag = star_anomaly_flagged`, i.e. `star_anomaly_flag = true`: a `spike_no_activity` flag whose spike overlaps `[T − 30 d, T + k_max)`, or a `ratio_outlier` flag within the brief.
+  - `absent` if `star_anomaly_flag = false`: no such flag, every spike in the window was checked against at least one activity channel (status `checked` or `no_spikes`), and the ratio check judged the case or couldn't only because it had fewer than 200 stars [design].
+  - `unknown` otherwise (a spike no channel could be checked against, a missing ratio channel, or no star-history for the window).
   - Because the value comes from the pipeline, its C11a units are marked `derived` and excluded from α (codebook §10.2).
-  - The flag is a suspicion, never proof, and no repo is named publicly (LR §2.3).
+  - The flag is a suspicion, never proof, and no repo is called fake in any output (LR §2.3).
 - **Outcome dimensions:** attention (short-lived +), adoption (expected −, H-L8).
 - **Modules:** none. Category concentration (H-L1) shows only across briefs; within one brief the pattern is reported with its counts.
 - **Contrast reading:**
   - *Consistent (H-L8):* flagged repos show a real-star uplift lasting < 2 months and lower T+365 adoption than matched unflagged repos.
   - *Against:* the adoption difference is null or positive.
-- **Sensitivity flag to set when tested:** `sensitive_to_fake_star_filter` (ADR-020).
+  - *Proxy caveat (0.4.0):* a contrast here is about anomaly-flagged cases, not confirmed campaigns. A null contrast can't tell "no effect" from "the proxy misses campaigns or flags organic spikes" (OM §4.5), and the report says so next to the counts, with the `unknown` share on each side.
+- **Sensitivity flag to set when tested:** `sensitive_to_star_anomaly` (OM §8.1 alternative D; replaces `sensitive_to_fake_star_filter`, ADR-070.4).
 
 ### MC-13 — Vote solicitation on HN (anti-pattern: detection and contrast only)
 - **Description:** the maker asks people to upvote or comment on an HN launch. HN's guidelines forbid this. **It is never recommended.**
@@ -300,3 +305,4 @@
 - 2026-09-25 — 0.1.0: seed set of 13 candidate cards (M4-T1b).
 - 2026-09-25 — 0.2.0: MC-09's precondition test, presence test and modules now use the case-level `novelty_claim` of codebook 0.2.0 (§5.1) instead of the `ai_hype` extra field, and the card is no longer limited to `ai_hype`. The same text is in `schemas/mechanisms/candidates-v0.json` (MC-09 version 0.2.0, file version 0.2.0). Pilot amendment 2, B4. Made before any C11a unit was cut or any case coded. No other card changed.
 - 2026-09-26 — 0.3.0 (M11; ADR-047.3, ADR-049.7; PRD F20): reframed from global candidate mechanism cards to a starter list of pattern hypotheses a brief can check. Removed from every entry: `status`, `confidence`, `supporting_cases`, `contradicting_cases`, `effect_estimate`, `applicable_strata`, `saturation_trend`, `deciding_field_alpha`, `sensitivity_flags`, `history` (results live only in each brief's report). "Loser contrast" (supports/contradicts) became "contrast reading" (consistent/against), with strata replaced by the brief's own cases and §9.3 references removed. MC-02's rank-polling note follows ADR-049.1. MC-08 loses the forecasting-feature reference (forecasting test withdrawn); MC-09's contrast no longer uses `CM90` or the coded `direction`; MC-11's no longer uses `AD90` or the `attention_only` class; MC-12 cites codebook §10.2 for derived units; MC-13 no longer says "stays candidate". Presence tests, preconditions, required assets, sequences and all literature statements are unchanged; ids MC-01 to MC-13 are kept. Written before any coding or outcome data.
+- 2026-09-26 — 0.4.0 (M21 verifier fix; ADR-070.4, PRD R3.3 as amended; codebook 0.4.0, outcome model v2.1): MC-12 renamed "Star inflation suspected from aggregate anomalies (fake-star proxy)". Its presence test now reads the star anomaly flag (`manipulation_flag = star_anomaly_flagged`, from `anomaly-v0`, OM §4.3) instead of the StarScout campaign flag, which can't be computed without stargazer identities; `absent` needs every spike in the window checked and the ratio judged (or the case below 200 stars) [design]. The sequence starts at an anomaly-flagged spike; the contrast reading gains a proxy caveat; the sensitivity flag is `sensitive_to_star_anomaly`. Literature statements and citations [17][20][22][26] are unchanged and now say they describe account-level detection. No other entry changed. Written before any coding or outcome data.

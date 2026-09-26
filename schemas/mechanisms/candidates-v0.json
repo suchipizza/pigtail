@@ -3,11 +3,11 @@
   "id": "seed-pattern-hypotheses",
   "id_before_0_3_0": "mechanism-candidates",
   "kind": "seed_pattern_hypotheses",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "created": "2026-09-25",
   "updated": "2026-09-26",
   "spec": "docs/methodology/mechanisms/candidates.md",
-  "codebook_version": "0.3.0",
+  "codebook_version": "0.4.0",
   "requirements": [
     "R20.1",
     "R20.2",
@@ -34,7 +34,8 @@
   "changelog": [
     "2026-09-25 — 0.1.0: seed set of 13 candidate cards (M4-T1b).",
     "2026-09-25 — 0.2.0: MC-09 presence test moved to the case-level novelty_claim field of codebook 0.2.0 (§5.1); MC-09 modules [ai_hype] -> []; file codebook_version 0.1.0 -> 0.2.0 (no other card's fields changed; codebook 0.2.0 keeps every field they use). Pilot amendment 2, B4. No card has been coded against.",
-    "2026-09-26 — 0.3.0 (M11; ADR-047.3, ADR-049.7; PRD F20): reframed as seed pattern hypotheses. Removed per entry: status, confidence, supporting_cases, contradicting_cases, effect_estimate, applicable_strata, saturation_trend, deciding_field_alpha, sensitivity_flags, history. loser_contrast {result, would_support, would_contradict} -> contrast_reading {consistent, against}; strata and §9.3 wording removed; MC-08 forecasting reference removed; MC-09 and MC-11 readings no longer use CM90, AD90, attention_only or coded direction; MC-12 alpha note cites codebook §10.2; unobservable_channels -> unobservable_channels_default. Presence tests, preconditions, assets, sequences and literature bases unchanged. Entry versions -> 0.3.0. No coding or outcome data."
+    "2026-09-26 — 0.3.0 (M11; ADR-047.3, ADR-049.7; PRD F20): reframed as seed pattern hypotheses. Removed per entry: status, confidence, supporting_cases, contradicting_cases, effect_estimate, applicable_strata, saturation_trend, deciding_field_alpha, sensitivity_flags, history. loser_contrast {result, would_support, would_contradict} -> contrast_reading {consistent, against}; strata and §9.3 wording removed; MC-08 forecasting reference removed; MC-09 and MC-11 readings no longer use CM90, AD90, attention_only or coded direction; MC-12 alpha note cites codebook §10.2; unobservable_channels -> unobservable_channels_default. Presence tests, preconditions, assets, sequences and literature bases unchanged. Entry versions -> 0.3.0. No coding or outcome data.",
+    "2026-09-26 — 0.4.0 (M21 verifier fix; ADR-070.4, PRD R3.3; codebook 0.4.0, OM v2.1): MC-12 renamed and its presence test moved from the StarScout campaign flag (manipulation_flag=fake_star_campaign_suspected) to the aggregate star anomaly flag (star_anomaly_flagged, anomaly-v0); absent needs every spike checked and the ratio judged (or < 200 stars) [design]; sequence starts at an anomaly-flagged spike; contrast_reading gains proxy_caveat; the md's sensitivity-flag note now names sensitive_to_star_anomaly; literature_basis unchanged, with literature_basis_note. File codebook_version 0.3.0 -> 0.4.0 (no other card uses a field that 0.4.0 renamed). No coding or outcome data."
   ],
   "cards": [
     {
@@ -776,10 +777,10 @@
     },
     {
       "id": "MC-12",
-      "name": "Fake-star campaign (anti-pattern; detection and contrast only)",
-      "version": "0.3.0",
+      "name": "Star inflation suspected from aggregate anomalies (fake-star proxy; anti-pattern; detection and contrast only)",
+      "version": "0.4.0",
       "recommendable": false,
-      "description": "Purchased or coordinated fake stars inflate star counts. Ruled out by PRD §4; never recommended (F10, R12.4).",
+      "description": "Purchased or coordinated fake stars inflate star counts. Ruled out by PRD §4; never recommended (F10, R12.4). Since 0.4.0 detected by pigtail's aggregate anomaly checks (anomaly-v0, OM v2.1 §4), a proxy for the account-level campaigns the literature describes; unvalidated, no precision or recall measured (OM §4.5).",
       "literature_basis": [
         "[17]",
         "[20]",
@@ -790,18 +791,21 @@
       "required_assets": [],
       "sequence_timing": {
         "order": [
-          "StarScout campaign month",
+          "anomaly-flagged star spike (spike_no_activity)",
           "burst",
           "decay"
         ],
-        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)"
+        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)",
+        "note": "a case flagged only by ratio_outlier has no dated element: present, but contributes no offset"
       },
       "presence_test": {
         "derived": true,
-        "present": "manipulation_flag=fake_star_campaign_suspected (StarScout campaign flag)",
-        "absent": "StarScout ran for the window with no flag",
-        "else": "unknown (StarScout not run)",
-        "alpha": "C11a units marked derived and excluded from alpha (pipeline-set; codebook §10.2)"
+        "source": "star_anomaly_flag (OM v2.1 §4.3; anomaly-v0, schemas/analysis-params/v1.1.0.json block anomaly_check)",
+        "present": "manipulation_flag=star_anomaly_flagged (star_anomaly_flag=true: a spike_no_activity flag whose spike overlaps [T - 30 d, T + k_max), or a ratio_outlier flag within the brief)",
+        "absent": "star_anomaly_flag=false: no such flag, every spike in the window checked against at least one channel (status checked or no_spikes), and the ratio check judged the case or could not only because it had fewer than ratio_min_stars (200) stars [design]",
+        "else": "unknown (unchecked or partly checked spike, missing ratio channel, or no star-history for the window)",
+        "alpha": "C11a units marked derived and excluded from alpha (pipeline-set; codebook §10.2)",
+        "wording": "a suspicion, never proof; no repo called fake in any output"
       },
       "outcome_dimensions": [
         "attention",
@@ -809,7 +813,8 @@
       ],
       "contrast_reading": {
         "consistent": "H-L8: flagged repos show < 2 months real-star uplift and lower T+365 adoption than matched unflagged repos",
-        "against": "adoption difference null or positive"
+        "against": "adoption difference null or positive",
+        "proxy_caveat": "contrast is about anomaly-flagged cases, not confirmed campaigns; a null contrast cannot separate no effect from proxy misses or false flags (OM §4.5); report the unknown share per side"
       },
       "unobservable_channels_default": {
         "gap_adr_010": [
@@ -836,7 +841,8 @@
       "related_hypotheses": [
         "H-L1",
         "H-L8"
-      ]
+      ],
+      "literature_basis_note": "[17][20][22][26] describe account-level StarScout detection and ground truth, not pigtail's aggregate proxy"
     },
     {
       "id": "MC-13",

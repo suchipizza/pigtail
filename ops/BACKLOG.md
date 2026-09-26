@@ -12,6 +12,7 @@ v2 plan (ADR-047/048/049). Format: `- [ ] [ID] title — depends on — acceptan
 - [ ] [CB-06b] Finish LLM-path redaction (gists, avatar URLs, bare handles in author fields): with CB-12, the remaining precondition for person-level sources (ADR-022 as amended by ADR-073.2)
 
 ## Next
+- [ ] [M21-G] roles-v2 (no cross-platform name matching, ADR-075.3); brief schema v1.3 renames `fake_star_filter` → `exclude_anomaly_flagged` (ADR-075.2)
 - [ ] [M21-F] M21 follow-ups: fold the briefs archive into the single backup stream; rename `person_level_24m` and the pseudonym-key tables; remove the keyed-cache search in privacy requests after old caches expire; Bluesky deletion sync without stored authors; R19.10 cache purge; compliance-template rewrite (§9); codebook §4.2 account definition; README 'Responsible use' (§8.8)
 - [ ] [M12-F] M12 follow-ups: scan blocks expansion proposal files (top-level brief_id + expansion); CLI edit refuses files without `version:` unless forced; stale estimate-v0 / brief-v1 labels
 - [-] [M13] [retired → see M20–M28, ADR-069/072] ~~Two panels per brief (field + distribution examples, ADR-057), absolute numbers, transferability labels; discovery, relevance filter (batched ~20 candidates per call), shortlist (deep coding only after the owner's review); brief schema v1.1 with a `distribution_exemplars` field (ADR-056) — M12, GITHUB_TOKEN ✓ — Trendshift terms audit; logged candidates, verdicts, reasons; precision; deterministic selection; balance diagnostics; sensitivity check~~
