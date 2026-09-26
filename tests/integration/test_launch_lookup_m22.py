@@ -59,11 +59,11 @@ HITS = [
     hit(8102, "Show HN: Kubeforger, another tool", "https://example.org/kf",
         datetime(2025, 10, 2, tzinfo=UTC), 90, "show_hn"),  # substring: no match
     hit(8103, "Launch HN: KubeForge (YC S25) - managed clusters", "https://kubeforge.example",
-        datetime(2025, 10, 20, 17, tzinfo=UTC), 25),  # a story, not show_hn: title match
+        datetime(2025, 10, 20, 17, tzinfo=UTC), 25, "launch_hn"),  # title match (ADR-082)
     hit(8104, "Show HN: kubeforge-ui, a dashboard", None,
         datetime(2025, 10, 3, tzinfo=UTC), 70, "show_hn"),  # another project's name
     hit(8105, "Show HN: KubeForge plugin", "https://github.com/org-other/kf-plugin",
-        datetime(2025, 10, 4, tzinfo=UTC), 60, "show_hn"),  # links another repo
+        datetime(2025, 10, 4, tzinfo=UTC), 60, "show_hn"),  # not the product slot: rejected
     hit(8106, "Show HN: KubeForge, the first try", "https://github.com/org-k/kubeforge",
         datetime(2024, 1, 5, tzinfo=UTC), 99, "show_hn"),  # before the brief's window
     hit(8201, "Show HN: Meshkit", "https://github.com/org-m/meshkit",
@@ -161,7 +161,8 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
     assert lk["posts"] == 3 and lk["by_match"] == {"url": 2, "title": 1}
     assert len(fake.requests) == 9
     tags = sorted(r.url.params["tags"] for r in fake.requests)
-    assert tags == ["show_hn"] * 6 + ["story"] * 3
+    assert tags == ["launch_hn"] * 3 + ["show_hn"] * 6  # ADR-082: the launch_hn tag
+    assert lk["title_rejected"] == {"not_product_slot": 1} and lk["rule"] == "anchor-v3"
 
     store = CandidateStore(capture_db.conn, b.brief_id, b.version)
     kf = store.get(f"gh:{KF}")
@@ -169,7 +170,7 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
     got = sorted((s["hn_item_id"], s["kind"], s["match"], s["points"]) for s in kf.sources)
     assert got == [(8101, "show_hn", "url", 40), (8103, "launch_hn", "title", 25)]
     for s in kf.sources:  # project-level fields only: no author, no title, no text
-        assert set(s) == {"source", "hn_item_id", "time", "points", "kind", "match"}
+        assert set(s) == {"source", "hn_item_id", "time", "points", "kind", "match", "rule"}
     nl = store.get(f"gh:{NL}")
     assert nl is not None and nl.sources == []
     dump = " ".join(
@@ -211,6 +212,10 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
     assert "no anchor: 1 of 3 shortlisted" in w
     assert "attention population 2 < 20 (minimum): no percentiles" in w
     assert v["selection"]["summary"]["anchors"] == {"launch:lookup:url": 2, "none": 1}
+    assert (
+        "launch lookup: 1 title-only candidates rejected by the title rule "
+        "(not_product_slot 1; ADR-082)"
+    ) in w
 
     # a second stage run reuses the checkpoint: no new HN request
     fake.requests.clear()
@@ -277,7 +282,7 @@ def test_a_pre_registration_under_the_old_selection_params_is_refused(
     monkeypatch.setattr(selmod.Context, "params", old_params)
     prereg(capture_db.conn, b, tmp_path)
     monkeypatch.setattr(selmod.Context, "params", new_params)
-    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v3"):
+    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v4"):
         require(capture_db.conn, b)
     fake = FakeShowHN(HITS)
     with pytest.raises(PreregistrationMissing):
@@ -285,10 +290,10 @@ def test_a_pre_registration_under_the_old_selection_params_is_refused(
     assert fake.requests == []  # nothing fetched
     assert capture_db.conn.execute("SELECT count(*) FROM brief_selection").fetchone()[0] == 0
     # a changed anchor rule version alone also changes the hash
-    monkeypatch.setattr(selmod, "ANCHOR_RULE_VERSION", "anchor-v1")
-    prereg(capture_db.conn, b, tmp_path)
     monkeypatch.setattr(selmod, "ANCHOR_RULE_VERSION", "anchor-v2")
+    prereg(capture_db.conn, b, tmp_path)
+    monkeypatch.setattr(selmod, "ANCHOR_RULE_VERSION", "anchor-v3")
     with pytest.raises(PreregistrationMissing):
         require(capture_db.conn, b)
-    prereg(capture_db.conn, b, tmp_path)  # pre-registered again under selection-v3
+    prereg(capture_db.conn, b, tmp_path)  # pre-registered again under selection-v4
     assert require(capture_db.conn, b).selection_params_sha256

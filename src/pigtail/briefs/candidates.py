@@ -310,6 +310,20 @@ class CandidateStore:
             (Jsonb(merge_signals(old.sources, sources)), self.brief_id, self.version, ref),
         )
 
+    def replace_signals(self, ref: str, source: str, sources: Iterable[Mapping[str, Any]]) -> None:
+        """Replace every signal of one `source` on a candidate with `sources` (the selection's
+        launch lookup, ADR-082: a repo's lookup records are those of the current rule only);
+        the other signals and the rest of the row are unchanged."""
+        old = self.get(ref)
+        if old is None:
+            return
+        kept = [s for s in old.sources if s.get("source") != source]
+        self.conn.execute(
+            "UPDATE brief_candidate SET sources = %s"
+            " WHERE brief_id = %s AND brief_version = %s AND candidate_ref = %s",
+            (Jsonb(merge_signals(kept, sources)), self.brief_id, self.version, ref),
+        )
+
     def set_metadata(self, ref: str, updates: Mapping[str, Any]) -> None:
         self.conn.execute(
             "UPDATE brief_candidate SET metadata = metadata || %s"

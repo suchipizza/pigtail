@@ -458,9 +458,9 @@ def parse_algolia_hit(hit: dict[str, Any]) -> Record | None:
 
 # --- Show HN discovery (M22, PRD R4.5): project-level story metadata only --------------------
 SHOW_HN_FIELDS = ("title", "url", "points", "created_at_i")
-# Evidence URL of the selection's launch lookup (ADR-081): it names the repo (project-level,
-# already stored) and the search, never the time window or anything else; an opt-out finds it
-# by this prefix (`pigtail.privacy.requests`, CB-13c).
+# Evidence URL of the selection's launch lookup (ADR-081, ADR-082): it names the repo
+# (project-level, already stored) and the search, never the time window or anything else; an
+# opt-out finds it by this prefix (`pigtail.privacy.requests`, CB-13c).
 LAUNCH_LOOKUP_EVIDENCE = f"{ALGOLIA_BASE}/search?launch_lookup_repo="
 
 
@@ -514,10 +514,11 @@ class HNShowDiscoveryConnector(Connector):
     **Why this runs before CB-12 (ADR-022 as amended by ADR-073.2).** The hold covers
     *person-level* sources (HN mentions and comments, Bluesky, per-repo events). This connector
     collects **project-level story metadata only** (title, url, points, time) of `show_hn`
-    stories: it asks Algolia for those attributes only (`attributesToRetrieve`, no highlight),
-    never reads `author`, `_tags`, story text or comments, never searches for a person, and the
-    raw page is dropped right after parsing (`pigtail.privacy.deletion.drop_after_parse`, the
-    CB-24 pattern) in case the API returned more than was asked. Nothing person-level is stored,
+    stories (and, for the selection's launch lookup, `launch_hn` stories; ADR-082): it asks
+    Algolia for those attributes only (`attributesToRetrieve`, no highlight), never reads
+    `author`, `_tags`, story text or comments, never searches for a person, and the raw page
+    is dropped right after parsing (`pigtail.privacy.deletion.drop_after_parse`, the CB-24
+    pattern) in case the API returned more than was asked. Nothing person-level is stored,
     so `person_level_hold` is off. The page is still classed `person_level_24m` until dropped,
     because the response could carry a poster name. Terms: TM-03 (Algolia), same limiter.
     Enabled by default; `PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false` turns it off.
@@ -546,10 +547,10 @@ class HNShowDiscoveryConnector(Connector):
         tags: str = "show_hn",
     ) -> Fetched:
         """One relevance-ranked page of Show HN stories for `query` (not parsed here).
-        `evidence_url` keeps the query out of the evidence record (ADR-076.6). `tags="story"`
-        searches every story: Algolia has no Launch HN tag, so the selection's launch lookup
-        (ADR-081) finds Launch HN posts that way and keeps only titles starting "Launch HN"."""
-        if tags not in ("show_hn", "story"):
+        `evidence_url` keeps the query out of the evidence record (ADR-076.6). `tags="launch_hn"`
+        searches Launch HN stories: Algolia tags every Launch HN post `launch_hn` (ADR-082,
+        correcting ADR-081, which assumed there was no such tag and searched all stories)."""
+        if tags not in ("show_hn", "launch_hn"):
             raise ValueError(f"unsupported tags {tags!r}: project-level story searches only")
         lo = int(since.timestamp()) if since else HN_EPOCH
         hi = int((until or self.clock()).timestamp()) + 1

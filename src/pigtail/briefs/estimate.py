@@ -27,11 +27,18 @@ What it reports:
   cost nothing (R18.4).
 - Expansion (R18.7): proposed on demand, before a run (`pigtail brief expand`); a run makes no
   expansion call. The `expansion` block reports its status and what one proposal costs.
+- Selection (ADR-082): while the brief version's selection stage is pending, its launch lookup
+  costs up to 3 HN Algolia requests per shortlisted repo not yet checkpointed, whatever the
+  reuse plan says (the lookup belongs to the selection of this version, not to a reusable
+  stage). `SelectionState` carries the final shortlist's size and the run's checkpoint when a
+  database is at hand. With the Show HN connector off the estimate warns that the selection
+  will be refused.
 """
 
 from __future__ import annotations
 
 import math
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -65,8 +72,54 @@ CORE_PER_CASE = 40  # deep forensics per winner, loser and reference case (event
 GRAPHQL_BATCH = 50  # candidates per GraphQL metadata query
 GRAPHQL_POINTS_PER_BATCH = 2
 HN_QUERIES_PER_TERM_SLICE = 1
-# selection-stage launch lookup (ADR-081): Show HN by repo URL, Show HN by name, Launch HN by name
+# selection-stage launch lookup (ADR-081, ADR-082): Show HN by repo URL, Show HN by name,
+# Launch HN (`tags=launch_hn`) by name; an upper bound per repo not yet looked up
 HN_LAUNCH_LOOKUP_PER_SHORTLISTED = 3
+LAUNCH_LOOKUP_OFF_WARNING = (
+    "the Show HN connector is off (PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false): the selection's "
+    "launch lookup can't run, so `pigtail run` will refuse the selection (exit 8) until it is "
+    "on; the pre-registered selection rule includes the lookup (ADR-082)"
+)
+
+
+def launch_lookup_enabled(env: Mapping[str, str] | None = None) -> bool:
+    """Whether this instance's Show HN connector (the launch lookup's source) is on."""
+    from pigtail.connectors.hn import HNShowDiscoveryConnector
+
+    return HNShowDiscoveryConnector.enabled_from_env(os.environ if env is None else env)
+
+
+@dataclass(frozen=True)
+class SelectionState:
+    """What the estimate knows about the brief version's selection stage (ADR-082): whether it
+    is still pending, the final shortlist's size (None: not final yet, the planning estimate is
+    used) and how many repos the run's checkpoint already looked up."""
+
+    pending: bool = True
+    shortlisted: int | None = None
+    lookup_done: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return dict(self.__dict__)
+
+
+def selection_state(conn: Any, brief: Brief) -> SelectionState:
+    """The selection stage's state for this brief version, from the run rows and the shortlist
+    (database reads only)."""
+    from pigtail.briefs.outcomes import shortlisted
+    from pigtail.briefs.runner import find_run
+    from pigtail.briefs.shortlist import Shortlist
+
+    _kind, row = find_run(conn, brief)
+    stages = (row or {}).get("stages") or {}
+    if (stages.get("selection") or {}).get("status") == "done":
+        return SelectionState(pending=False)
+    cp = ((row or {}).get("checkpoint") or {}).get("selection") or {}
+    done = len((cp.get("fetch") or {}).get("launch_lookup_done") or [])
+    st = Shortlist(conn, brief).status()
+    n = len(shortlisted(conn, brief)) if st is not None and st["status"] == "final" else None
+    return SelectionState(pending=True, shortlisted=n, lookup_done=done)
+
 
 # Relevance filter (M22, R4.6): about 20 candidates per request, each ~350 input tokens
 # (name, description, topics, README excerpt of <= 1,200 chars) and ~70 output tokens.
@@ -178,6 +231,8 @@ class Estimate:
     reuse: dict[str, Any] | None = None
     expansion: dict[str, Any] = field(default_factory=dict)
     exemplar_cases: int = 0  # distribution exemplars + their matched losers (in `cases`)
+    selection: dict[str, Any] = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def llm_calls(self) -> int:
@@ -267,6 +322,8 @@ class Estimate:
             },
             "reuse": self.reuse,
             "expansion": self.expansion,
+            "selection": self.selection,
+            "warnings": self.warnings,
         }
 
 
@@ -349,11 +406,15 @@ def estimate(
     month_cap_usd: float = DEFAULT_BUDGET_USD_MONTH,
     month_spent_usd: float = 0.0,
     brief_spent_usd: float = 0.0,
+    selection: SelectionState | None = None,
+    hn_enabled: bool = True,
 ) -> Estimate:
     """Estimate one run of `brief` (widening included as an upper bound).
 
     `models` maps LLM stages to models (R15.8; default: the code defaults); `batch` is whether
-    non-time-sensitive stages use the Message Batches API (`LLM_BATCH`)."""
+    non-time-sensitive stages use the Message Batches API (`LLM_BATCH`). `selection` is the
+    selection stage's state (default: pending, nothing looked up); `hn_enabled` whether the
+    Show HN connector is on (ADR-082)."""
     stage_models: dict[str, str] = {str(k): v for k, v in DEFAULT_STAGE_MODELS.items()}
     stage_models.update(models or {})
     slices = math.ceil(brief.window.months / 3)
@@ -387,9 +448,16 @@ def estimate(
         requests[r] / (GITHUB_LIMITS_PER_HOUR[r] * DEFAULT_CAP_FRACTION)  # type: ignore[index]
         for r in requests
     )
+    # ADR-082: the launch lookup runs with this version's selection, so the reuse plan doesn't
+    # waive it; it covers the repos the run's checkpoint hasn't looked up yet
+    sel = selection or SelectionState()
+    sel_n = sel.shortlisted if sel.shortlisted is not None else shortlisted
+    lookups = (
+        HN_LAUNCH_LOOKUP_PER_SHORTLISTED * max(0, sel_n - sel.lookup_done) if sel.pending else 0
+    )
     other = {
         "hn_algolia": gh("discovery", terms * slices * HN_QUERIES_PER_TERM_SLICE),
-        "hn_launch_lookup": gh("evidence", shortlisted * HN_LAUNCH_LOOKUP_PER_SHORTLISTED),
+        "hn_launch_lookup": lookups,
     }
     api = brief.budget.llm_backend == "api"
 
@@ -454,6 +522,15 @@ def estimate(
                 )
             )
 
+    reuse = plan.to_dict() if plan is not None else None
+    if reuse is not None and sel.pending:  # the outcome sort of this version hasn't run yet
+        for d in reuse["stages"]:
+            if d["stage"] in ("outcome_sort", "matching") and d["action"] == "reuse":
+                d["action"] = "recompute"
+                d["because"] = ["selection not yet run on this brief version (ADR-082)"]
+    warnings = []
+    if sel.pending and not hn_enabled:
+        warnings.append(LAUNCH_LOOKUP_OFF_WARNING)
     return Estimate(
         brief_id=brief.brief_id,
         brief_version=brief.version,
@@ -473,9 +550,16 @@ def estimate(
         month_spent_usd=month_spent_usd,
         batch=batch,
         paid_steps=paid,
-        reuse=plan.to_dict() if plan is not None else None,
+        reuse=reuse,
         expansion=expansion_status(brief),
         exemplar_cases=exemplar_cases,
+        selection={
+            **sel.to_dict(),
+            "shortlisted_used": sel_n,
+            "hn_launch_lookup_requests": lookups,
+            "hn_connector_enabled": hn_enabled,
+        },
+        warnings=warnings,
     )
 
 
@@ -489,10 +573,14 @@ def estimate_for(
     month_cap_usd: float = DEFAULT_BUDGET_USD_MONTH,
     last_run_version: int | None = None,
     brief_spent_usd: float = 0.0,
+    selection: SelectionState | None = None,
+    hn_enabled: bool | None = None,
 ) -> tuple[Estimate, RerunPlan | None]:
     """Estimate against this install's usage ledger (this month's API spend), with a reuse
     plan when an earlier version of the brief was run (used by the CLI and the D7 API).
-    `brief_spent_usd` is what the brief has already spent (`PgCostLedger.brief_total`)."""
+    `brief_spent_usd` is what the brief has already spent (`PgCostLedger.brief_total`);
+    `selection` the selection stage's state (`selection_state`); `hn_enabled` defaults to this
+    process's environment (`launch_lookup_enabled`)."""
     from pigtail.llm.store import LLMStore
 
     ledger = LLMStore(Path(data_dir) / "llm.sqlite3")
@@ -514,6 +602,8 @@ def estimate_for(
         month_cap_usd=month_cap_usd,
         month_spent_usd=month,
         brief_spent_usd=brief_spent_usd,
+        selection=selection,
+        hn_enabled=launch_lookup_enabled() if hn_enabled is None else hn_enabled,
     )
     return est, plan
 
@@ -587,6 +677,7 @@ def render_text(e: Estimate, brief: Brief) -> str:
     if e.reuse is not None:
         lines += ["", f"Re-run from v{e.reuse['from_version']}:"]
         lines += [f"  {s['stage']:<13} {s['action']}" for s in e.reuse["stages"]]
+    lines += [f"warning: {w}" for w in e.warnings]
     return "\n".join(lines)
 
 
@@ -629,8 +720,10 @@ def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any
                 "github": "star history: 1-3 core requests per shortlisted repo (ETag, 30 weeks "
                 "per page), plus 1 GraphQL query per 50 repos without metadata",
                 "hn_algolia_requests": e.other_requests.get("hn_launch_lookup", 0),
-                "hn": f"launch lookup: {HN_LAUNCH_LOOKUP_PER_SHORTLISTED} HN Algolia requests "
-                "per shortlisted repo (Show HN by URL and by name, Launch HN by name; ADR-081)",
+                "hn": f"launch lookup: up to {HN_LAUNCH_LOOKUP_PER_SHORTLISTED} HN Algolia "
+                "requests per shortlisted repo not yet looked up (Show HN by URL and by name, "
+                "Launch HN by name; ADR-082)",
+                "warnings": list(e.warnings),
                 "llm_calls": 0,
                 "api_usd": 0.0,
                 "runs_only_when": "the shortlist is final and the brief version is pre-registered",
@@ -668,6 +761,7 @@ def render_scope_text(scope: dict[str, Any]) -> str:
             + scope["selection"]["github"]
             + f"; {scope['selection']['hn']} (~{scope['selection']['hn_algolia_requests']:,})"
         )
+        lines += [f"  warning: {w}" for w in scope["selection"].get("warnings") or []]
     fits = {True: "fits", False: "EXCEEDS a cap: the run will stop there", None: "unknown"}
     lines.append(
         f"  remaining: brief ${scope['brief_remaining_usd']:,.2f}, month "

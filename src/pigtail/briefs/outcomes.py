@@ -1,19 +1,25 @@
 """Outcome inputs of a final shortlist for the selection stage (PRD R3.1–R3.4, R4.3, R4.8,
-R18.8; outcome-model v2.1 §1–§4, §5.6, §7; ADR-032.3, ADR-070, ADR-077, ADR-081).
+R18.8; outcome-model v2.1 §1–§4, §5.6, §7; ADR-032.3, ADR-070, ADR-077, ADR-081, ADR-082).
 
 Two steps, both project-level (repo names and ids, daily star counts, HN item ids, times and
 points; no identities):
 
-1. **`fetch_outcome_data`** (network: HN Algolia, then GitHub). First the **launch lookup**
-   (`lookup_launches`, ADR-081): for every shortlisted repo, three HN Algolia searches inside the
-   brief's window (Show HN by the repo URL and by the repo name, Launch HN by name) find its
-   declared launches whether discovery found them or not; a hit is kept when its URL is the
-   repo's `github.com/owner/name` (case-insensitive) or, linking no other GitHub repo, its title
-   names the repo as a whole word (`match_launch_post`); only item id, time, points, kind and
-   match are stored (as candidate signals), the raw page is dropped at parse (CB-24), and the
-   step is checkpointed per repo. Then, for every repo on the final shortlist, fill
-   missing project metadata (GitHub id, creation date, language; one GraphQL query per 50 repos,
-   for repos added by URL in the review) and fetch its **star history**
+1. **`fetch_outcome_data`** (network: GitHub, then HN Algolia, then GitHub). It refuses to
+   start without the Show HN connector (`LaunchLookupUnavailable`, ADR-082): the pre-registered
+   selection rule includes the launch lookup. First, for repos added by URL in the review, fill
+   missing project metadata (GitHub id, creation date, language; one GraphQL query per 50
+   repos). Then the **launch lookup** (`lookup_launches`, ADR-081 as amended by ADR-082): for
+   every shortlisted repo, three HN Algolia searches inside the brief's window (Show HN by the
+   repo URL and by the repo name, `tags=show_hn`; Launch HN by the name, `tags=launch_hn`) find
+   its declared launches whether discovery found them or not. A hit is kept when its URL is the
+   repo's `github.com/owner/name` (case-insensitive), or by title only when the title is
+   `Show HN: <name>` / `Launch HN: <name>` followed by its end or a separator, the post links
+   no GitHub repo, was posted no earlier than a day before the repo's creation, and the name
+   has 5+ characters and is not a common or generic word (`classify_launch_post`). Only item
+   id, time, points, kind, match and rule are stored (as candidate signals, replacing a repo's
+   earlier lookup records); rejected title-only candidates are counted by reason, never
+   stored; the raw page is dropped at parse (CB-24); the step is checkpointed per repo. Then,
+   for every repo on the final shortlist, fetch its **star history**
    (`pigtail.capture.star_history`, ETag-conditional, 30 weeks per page, back to 60 days before
    the brief's window or the repo's creation week). Progress is checkpointed per repo; the GitHub
    request budget pauses the stage (resumable), and a repo the API can't serve (deleted,
@@ -23,9 +29,10 @@ points; no identities):
    metadata is not stored and its star history is never fetched (M22 verifier round 2).
 
 2. **`load_inputs`** (database only): one `selection.CaseInput` per shortlisted repo.
-   - **Anchor T** (§2.2, `choose_anchor`, rule `anchor-v2`): the declared launches (Show HN and
-     Launch HN posts from discovery and the lookup, one per item id; hour precision) and the
-     first `velocity-v0` burst on the star-history days inside the brief's window: a launch in
+   - **Anchor T** (§2.2, `choose_anchor`, rule `anchor-v3`): the declared launches (Show HN and
+     Launch HN posts from discovery and the lookup under the current rule, one per item id;
+     hour precision) and the first `velocity-v0` burst on the star-history days inside the
+     brief's window: a launch in
      `[T_burst − 30 d, T_burst]` wins; a launch with no burst in the 90 days after it (and before
      the first burst) wins; else the burst; else the launch; else no anchor. Against a
      day-precision onset the comparison is on endpoint days, so a launch on the onset day
@@ -40,10 +47,10 @@ points; no identities):
      dependents, PR-based community metrics and the business signals have no connector yet
      (outcome-model §7), and nothing is imputed (R18.8).
    - **Covariates** (§5.6): LSM from the first 2 endpoint days, launch quarter and half-year of
-     T (UTC), repo age at T from the creation date, primary language (current, not at T), launch
-     type (`show_hn` or `burst`), and the founder audience band, which is `unknown` for every
-     candidate until the audience proxy is built and cleared (O14; `unknown` is matched as its
-     own level).
+     T (UTC), repo age at T from the creation date, primary language (current, not at T),
+     launch type (`show_hn`, `launch_hn` or `burst`), and the founder audience band, which is
+     `unknown` for every candidate until the audience proxy is built and cleared (O14;
+     `unknown` is matched as its own level).
    - **Star anomaly flag** (§4.3): `pigtail.analysis.anomaly.check_population` over the
      anchored field and reference candidates, on the endpoint days `[T − 60 d, T + k_max)` with
      the `forks` channel where per-repo event counts exist (tracked projects); issues, downloads
@@ -69,6 +76,7 @@ from pigtail.analysis.params import ANOMALY, STAR_HISTORY_DAY_TZ
 from pigtail.briefs.candidates import Candidate, CandidateStore
 from pigtail.briefs.model import METRICS, Brief
 from pigtail.briefs.selection import (
+    ANCHOR_RULE_VERSION,
     BUSINESS_COUNT,
     BUSINESS_SIGNALS,
     Anchor,
@@ -149,13 +157,17 @@ def fetch_outcome_data(
     window: tuple[datetime, datetime] | None = None,
 ) -> FetchResult:
     """Step 1 (module docstring). `BudgetExhausted` propagates: the stage pauses, resumable.
-    With `hn` and `window`, the launch lookup (step 1b) runs first, checkpointed per repo."""
+    With `window`, the launch lookup (step 1b) runs after the metadata fill and before the star
+    history, checkpointed per repo; it needs `hn` (`LaunchLookupUnavailable` otherwise, raised
+    before anything is written; ADR-082)."""
     from pigtail.briefs.discovery import _meta_from_graphql
     from pigtail.capture.db import CaptureDB
     from pigtail.capture.star_history import fetch_star_history
     from pigtail.connectors.base import FetchError
 
     assert brief.version is not None
+    if window is not None and (why := launch_lookup_blocked(hn)) is not None:
+        raise LaunchLookupUnavailable(why)  # ADR-082: never a selection without the lookup
     sl = Shortlist(conn, brief)
     refused: set[str] = set()
 
@@ -170,26 +182,11 @@ def fetch_outcome_data(
     res = FetchResult(repos=len(cands))
     if refused:
         res.failed["refused"] = len(refused)
-    if window is not None:
-        lk = lookup_launches(
-            conn,
-            brief,
-            hn,
-            cands,
-            window=window,
-            checkpoint=checkpoint,
-            save=save,
-            recorder=recorder,
-        )
-        res.launch_lookup = lk.to_dict()
-        res.evidence_ids.extend(lk.evidence_ids)
-    if github is None or not getattr(github, "enabled", True):
-        res.failed["no_github_connector"] = len(cands)
-        return res
-    db = CaptureDB(conn)
+    gh_on = github is not None and getattr(github, "enabled", True)
     store = CandidateStore(conn, brief.brief_id, brief.version)
     done: set[str] = set(checkpoint.get("star_history_done") or [])
     failed: dict[str, str] = dict(checkpoint.get("star_history_failed") or {})
+    # metadata first: the launch lookup's title rule needs each repo's creation date (ADR-082)
     need = sorted(
         c.repo_full_name
         for c in cands
@@ -197,7 +194,7 @@ def fetch_outcome_data(
         and c.ref not in done
         and (c.repo_host_id is None or not c.metadata.get("created_at"))
     )
-    if need and not checkpoint.get("metadata_done"):
+    if gh_on and need and not checkpoint.get("metadata_done"):
         meta = github.repos_metadata(need)
         for name in need:
             m = meta.get(name)
@@ -220,6 +217,24 @@ def fetch_outcome_data(
             res.metadata_filled += 1
         checkpoint["metadata_done"] = True
         save(checkpoint)
+    if window is not None:
+        latest = {c.ref: c for c in store.all()}
+        lk = lookup_launches(
+            conn,
+            brief,
+            hn,
+            [latest.get(c.ref, c) for c in cands if c.ref not in refused],
+            window=window,
+            checkpoint=checkpoint,
+            save=save,
+            recorder=recorder,
+        )
+        res.launch_lookup = lk.to_dict()
+        res.evidence_ids.extend(lk.evidence_ids)
+    if not gh_on:
+        res.failed["no_github_connector"] = len(cands)
+        return res
+    db = CaptureDB(conn)
     fresh = {c.ref: c for c in store.all()}
     pages = star_pages(window_start, as_of)
     for ref in sorted(c.ref for c in cands):
@@ -262,51 +277,155 @@ def fetch_outcome_data(
     return res
 
 
-# --- 1b. launch lookup (outcome-model §2.1, ADR-081) ------------------------------------------
+# --- 1b. launch lookup (outcome-model §2.1, ADR-081, ADR-082) --------------------------------
 LAUNCH_LOOKUP_SOURCE = "hn_launch_lookup"
-LAUNCH_LOOKUP_REQUESTS = 3  # HN Algolia requests per shortlisted repo (estimate, ADR-081)
+LAUNCH_LOOKUP_REQUESTS = 3  # HN Algolia requests per shortlisted repo (estimate, ADR-082)
 LAUNCH_LOOKUP_HITS = 50
-TITLE_MIN_CHARS = 4  # shorter repo names are matched by URL only
-_LAUNCH_HN_TITLE = re.compile(r"^\s*launch hn\b", re.IGNORECASE)
+TITLE_MIN_CHARS = 5  # shorter repo names are matched by URL only (ADR-082 rule d)
+CREATION_TOLERANCE = timedelta(days=1)  # a post may precede the repo's creation by <= 1 day
+# ADR-082 rule (d): repo names that are common English words or generic tech words never match
+# by title, whatever the title says ("Show HN: Studio – …" is rarely `someone/studio`). A name
+# is refused when every part of it (split on `-`, `_`, spaces) is on this list. The list is
+# small on purpose and necessarily incomplete: a dictionary word not on it can still match by
+# title when rules (a)-(c) hold, which is why title-matched anchors are labelled
+# `lookup:title` for review. The verifier's round-4 false matches are on it (studio, poly, toml,
+# pick, microwave, augur, confetti, json). Changing the list changes the anchor rule: bump
+# `ANCHOR_RULE_VERSION` (the guard test `test_anchor_rule_source_is_pinned` fails until then).
+_STOPLIST_WORDS = """
+    about access action active agent alpha amber anchor apex api app apps arena argus arrow
+    atlas atom augur aura auth autumn awesome babel badge base basic batch beacon beam bench
+    beta binary bits blank blaze block blocks blog bloom blue board boost bot bots box bridge
+    bright buffer build builder bundle button cache calendar canvas capsule cargo carbon cards
+    cast castle catalog chain chart charts chat check circle city clean cli client clip clock
+    cloud cluster code coder codex comet common compass compose config confetti connect console
+    copy core craft cron crystal cube cursor dash dashboard data delta demo deploy desk devtools
+    diff digest docs domain dot draft drift drop dune dust echo edge editor ember engine entry
+    event events explorer express fabric falcon feed fetch fiber field file files filter flag
+    flash fleet flow flux focus forge form forms frame fresh fuse gamma gate gateway gem ghost
+    glass globe graph grid guard guide harbor hash haven helix helm hive hook hooks horizon host
+    hub icon index ink insight iris island jet json kernel keys kit lab lambda lane launch layer
+    leaf ledger lens level library light lime line link lint list lite live loader local lock
+    log logs loop lumen lunar magic mail map maps markdown matrix meta metric metrics micro
+    microwave mind mint mirror mobile mode model monitor moon motion nano native nebula nest net
+    network nexus node notes nova oasis ocean omega open orbit panel parser path pay peak pick
+    pilot pipe pixel plan planet platform play plugin pod point poly portal post prism probe
+    project proto proxy pulse query queue quick radar rail rapid raven react ready relay remote
+    render repo rest ring rocket root route router rover rust sage scale scout screen script
+    search sense server shadow shell shield shift signal simple sketch sky slate smart snap solar
+    source space spark sphere spot stack stage star static station storm stream studio summit
+    sync system table tail task tasks term terminal test text theme tide tile timer token tool
+    toolkit tools toml track trace tree trend tune type ui unit uno vault vector verse view
+    vision vista void volt wave web wiki wind wing wire works world yaml zen zero zone
+"""
+TITLE_STOPLIST: frozenset[str] = frozenset(_STOPLIST_WORDS.split())
+# rule (a): the name fills the title's product slot, then the title ends or a separator follows
+_SLOT_PREFIX = r"^\s*(?:show|launch)\s+hn\s*:\s*"
+_SLOT_END = r"(?=\s*$|\s*[–—:,(|]|\s+-)"
+_NAME_SEP = r"[-_ ]+"  # hyphens, underscores and spaces are equivalent inside the name
+
+
+class LaunchLookupUnavailable(SelectionError):
+    """ADR-082: the selection's launch lookup can't run (Show HN connector off or missing), so
+    the selection is refused before anything is fetched, computed or stored."""
+
+
+LAUNCH_LOOKUP_NEEDS_HN = (
+    "the selection's launch lookup needs the Show HN connector (hn_showhn), which is off or not "
+    "configured: set PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=true (it is on by default when unset) "
+    "and run again. The pre-registered selection rule includes the lookup, so the selection is "
+    "refused; nothing was fetched, computed or stored and the run can be resumed (ADR-082)"
+)
+
+
+def launch_lookup_blocked(hn: Any) -> str | None:
+    """Why the launch lookup can't run (ADR-082), or None when the connector is there."""
+    if hn is None or not getattr(hn, "enabled", True):
+        return LAUNCH_LOOKUP_NEEDS_HN
+    return None
 
 
 def lookup_queries(full_name: str) -> list[tuple[str, str, str]]:
     """(label, query, tags) of the launch lookup for one repo: the repo URL and the repo name
-    among Show HN stories, and the name among all stories for Launch HN (Algolia has no
-    Launch HN tag). The queries hold nothing but the repo's own name."""
+    among Show HN stories (`tags=show_hn`), and the name among Launch HN stories
+    (`tags=launch_hn`, ADR-082). The queries hold nothing but the repo's own name."""
     owner, name = full_name.split("/", 1)
     return [
         ("url", f"github.com/{owner}/{name}", "show_hn"),
         ("name", name, "show_hn"),
-        ("launch_hn", f"Launch HN {name}", "story"),
+        ("launch_hn", name, "launch_hn"),
     ]
 
 
-def title_names_repo(title: str | None, full_name: str) -> bool:
-    """The title names the repo's name as a whole word, case-insensitively (ADR-081): the name
-    is neither preceded nor followed by a letter, digit, `_` or `-`, nor followed by `.` and a
-    letter or digit (so `KubeForge.` at a sentence end matches, `kubeforge.io` and
-    `kubeforge-ui` don't). Names shorter than `TITLE_MIN_CHARS` never match by title."""
-    name = full_name.split("/", 1)[-1]
-    if not title or len(name) < TITLE_MIN_CHARS:
-        return False
-    pat = r"(?<![A-Za-z0-9_.-])" + re.escape(name) + r"(?![A-Za-z0-9_-]|\.[A-Za-z0-9])"
+def _name_parts(full_name: str) -> list[str]:
+    return [p for p in re.split(r"[-_\s]+", full_name.split("/", 1)[-1]) if p]
+
+
+def _mentions_name(title: str, parts: Sequence[str]) -> bool:
+    """The title names the repo anywhere as a whole word (the anchor-v2 test; ADR-082 uses it
+    only to count rejected title-only candidates)."""
+    pat = (
+        r"(?<![A-Za-z0-9_.-])"
+        + _NAME_SEP.join(re.escape(p) for p in parts)
+        + r"(?![A-Za-z0-9_-]|\.[A-Za-z0-9])"
+    )
     return re.search(pat, title, re.IGNORECASE) is not None
 
 
-def match_launch_post(story: Any, full_name: str, kind: str) -> str | None:
-    """`url`, `title` or None for one lookup hit (ADR-081). URL: the story links the repo's
-    `github.com/owner/name` (normalised, so case, `www.`, `.git` and deeper paths don't matter;
-    the A2 rule). Title: the story links no other GitHub repo and `title_names_repo`. A Launch HN
-    hit must have a title starting "Launch HN"."""
-    if kind == "launch_hn" and not _LAUNCH_HN_TITLE.match(story.title or ""):
-        return None
+def title_names_repo(title: str | None, full_name: str) -> bool:
+    """ADR-082 rules (a) and (d): the title is `Show HN: <name>` or `Launch HN: <name>` followed
+    by the end of the title or a separator (`–`, `—`, ` -`, `:`, `,`, `(`, `|`), case-insensitive,
+    with hyphens, underscores and spaces in the name equivalent; the GitHub name has at least
+    `TITLE_MIN_CHARS` characters and is not made only of `TITLE_STOPLIST` words."""
+    return title_rejection(title, full_name) is None
+
+
+def title_rejection(title: str | None, full_name: str) -> str | None:
+    """Why the title does not name the repo in its product slot (ADR-082 rules a, d), or None."""
+    parts = _name_parts(full_name)
+    if not title or not parts:
+        return "not_product_slot"
+    slot = _SLOT_PREFIX + _NAME_SEP.join(re.escape(p) for p in parts) + _SLOT_END
+    if re.match(slot, title, re.IGNORECASE) is None:
+        return "not_product_slot"
+    if len(full_name.split("/", 1)[-1]) < TITLE_MIN_CHARS:
+        return "short_name"
+    if all(p.lower() in TITLE_STOPLIST for p in parts):
+        return "common_word"
+    return None
+
+
+def classify_launch_post(
+    story: Any, full_name: str, *, created: datetime | None
+) -> tuple[str | None, str | None]:
+    """(match, rejection) for one lookup hit (ADR-082). `match` is `url` when the story links
+    the repo's `github.com/owner/name` (normalised: case, `www.`, `.git` and deeper paths don't
+    matter; the A2 rule), `title` when all of these hold: (a)+(d) `title_names_repo`; (b) the
+    story links no GitHub repo; (c) it was posted no earlier than the repo's creation minus
+    `CREATION_TOLERANCE` (an unknown creation date fails). Otherwise `match` is None, and
+    `rejection` names the first rule a **title-only candidate** failed (a hit whose title names
+    the repo as a whole word anywhere); hits that don't name it at all are not counted."""
     linked = story.repo_full_name
     if linked is not None and linked == full_name.lower():
-        return "url"
+        return "url", None
+    title = story.title or ""
+    parts = _name_parts(full_name)
+    if not parts or not _mentions_name(title, parts):
+        return None, None
+    why = title_rejection(title, full_name)
+    if why is not None:
+        return None, why
     if linked is not None:
-        return None
-    return "title" if title_names_repo(story.title, full_name) else None
+        return None, "links_other_repo"
+    if created is None:
+        return None, "no_creation_date"
+    if story.created_at is None or story.created_at < created - CREATION_TOLERANCE:
+        return None, "before_creation"
+    return "title", None
+
+
+def match_launch_post(story: Any, full_name: str, *, created: datetime | None) -> str | None:
+    """`url`, `title` or None for one lookup hit (`classify_launch_post`, ADR-082)."""
+    return classify_launch_post(story, full_name, created=created)[0]
 
 
 @dataclass
@@ -317,14 +436,32 @@ class LookupResult:
     requests: int = 0
     posts: int = 0
     by_match: dict[str, int] = field(default_factory=dict)
+    # title-only candidates rejected by the ADR-082 rule, by first failed rule; counts only
+    # (no titles), cumulative over the run (kept in the checkpoint across resumes)
+    title_rejected: dict[str, int] = field(default_factory=dict)
     failed: dict[str, int] = field(default_factory=dict)
-    skipped: str | None = None
+    rule: str = ANCHOR_RULE_VERSION
     evidence_ids: list[str] = field(default_factory=list)
+
+    @property
+    def title_rejected_total(self) -> int:
+        return sum(self.title_rejected.values())
 
     def to_dict(self) -> dict[str, Any]:
         d = dict(self.__dict__)
         d.pop("evidence_ids")
+        d["title_rejected_total"] = self.title_rejected_total
         return d
+
+
+def _created_at(c: Candidate) -> datetime | None:
+    raw = c.metadata.get("created_at")
+    if not raw:
+        return None
+    try:
+        return _t(raw)
+    except ValueError:
+        return None
 
 
 def lookup_launches(
@@ -338,33 +475,38 @@ def lookup_launches(
     save: Callable[[dict[str, Any]], None],
     recorder: Any = None,
 ) -> LookupResult:
-    """Step 1b (ADR-081): find each shortlisted repo's Show HN / Launch HN posts in the window,
-    whether discovery found them or not. Project-level fields only (item id, time, points, kind,
-    match): `parse_show_hn_page` never reads the author, and the raw page is dropped right after
-    parsing (CB-24). The evidence record names the repo, not the query. The connector's rate
-    limiter paces the requests. Checkpointed per repo (`launch_lookup_done`); a failed request
-    propagates and the stage resumes from the next repo not done."""
+    """Step 1b (ADR-081, ADR-082): find each shortlisted repo's Show HN / Launch HN posts in the
+    window, whether discovery found them or not. Project-level fields only (item id, time,
+    points, kind, match, rule): `parse_show_hn_page` never reads the author, and the raw page is
+    dropped right after parsing (CB-24). The evidence record names the repo, not the query. The
+    connector's rate limiter paces the requests. A repo's lookup records replace the ones an
+    earlier rule stored (for example rows carried forward from another brief version). Title-only
+    candidates the rule rejects are counted by reason, never stored. Checkpointed per repo
+    (`launch_lookup_done`); a failed request propagates and the stage resumes from the next repo
+    not done. Raises `LaunchLookupUnavailable` when the connector is off (ADR-082)."""
     from pigtail.capture.db import CaptureDB
     from pigtail.connectors.hn import launch_lookup_evidence_url, parse_show_hn_page
     from pigtail.privacy.deletion import PARSE_ERRORS, DeletionLog, drop_after_parse
 
     assert brief.version is not None
+    if (why := launch_lookup_blocked(hn)) is not None:
+        raise LaunchLookupUnavailable(why)
     todo = sorted((c for c in cands if c.repo_full_name), key=lambda c: c.ref)
     res = LookupResult(repos=len(todo))
-    if hn is None or not getattr(hn, "enabled", True):
-        res.skipped = "hn connector disabled or not configured"
-        return res
     db = CaptureDB(conn)
     store = CandidateStore(conn, brief.brief_id, brief.version)
     dlog = DeletionLog(db, "retention", run_id=getattr(recorder, "id", None))
     done: set[str] = set(checkpoint.get("launch_lookup_done") or [])
+    rejected_all: dict[str, int] = dict(checkpoint.get("launch_lookup_title_rejected") or {})
     start, end = window
     for c in todo:
         if c.ref in done:
             res.already_done += 1
             continue
         full = str(c.repo_full_name)
+        created = _created_at(c)
         found: dict[int, dict[str, Any]] = {}
+        rejected: dict[int, str] = {}
         for label, query, tags in lookup_queries(full):
             f = hn.search_show_hn(
                 query,
@@ -382,12 +524,14 @@ def lookup_launches(
                 stories = []
                 res.failed["parse_failed"] = res.failed.get("parse_failed", 0) + 1
             drop_after_parse(db, hn.store, f.evidence.id, f.content_hash, dlog)
-            kind = "launch_hn" if label == "launch_hn" else "show_hn"
+            kind = "launch_hn" if tags == "launch_hn" else "show_hn"
             for st in stories:
                 if st.created_at is None or not start <= st.created_at <= end:
                     continue
-                how = match_launch_post(st, full, kind)
+                how, why = classify_launch_post(st, full, created=created)
                 if how is None:
+                    if why is not None:
+                        rejected.setdefault(st.item_id, why)
                     continue
                 prev = found.get(st.item_id)
                 if prev is not None and (prev["match"] == "url" or how == "title"):
@@ -399,16 +543,21 @@ def lookup_launches(
                     "points": st.points,
                     "kind": kind,
                     "match": how,
+                    "rule": ANCHOR_RULE_VERSION,
                 }
-        if found:
-            store.add_sources(c.ref, [found[k] for k in sorted(found)])
-            for rec in found.values():
-                res.by_match[rec["match"]] = res.by_match.get(rec["match"], 0) + 1
-            res.posts += len(found)
+        store.replace_signals(c.ref, LAUNCH_LOOKUP_SOURCE, [found[k] for k in sorted(found)])
+        for rec in found.values():
+            res.by_match[rec["match"]] = res.by_match.get(rec["match"], 0) + 1
+        res.posts += len(found)
+        for item, why in rejected.items():
+            if item not in found:
+                rejected_all[why] = rejected_all.get(why, 0) + 1
         res.looked_up += 1
         done.add(c.ref)
         checkpoint["launch_lookup_done"] = sorted(done)
+        checkpoint["launch_lookup_title_rejected"] = dict(sorted(rejected_all.items()))
         save(checkpoint)
+    res.title_rejected = dict(sorted(rejected_all.items()))
     return res
 
 
@@ -460,6 +609,13 @@ def _t(raw: Any) -> datetime:
     return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
 
 
+def _current_lookup(s: Mapping[str, Any]) -> bool:
+    """A launch-lookup record stored under the current anchor rule (ADR-082): records of an
+    earlier rule (no `rule` field: anchor-v2) are ignored, since their title matches were made
+    under the old, looser rule."""
+    return s.get("source") == LAUNCH_LOOKUP_SOURCE and s.get("rule") == ANCHOR_RULE_VERSION
+
+
 def ambiguous_title_matches(cands: Sequence[Candidate]) -> set[tuple[str, int]]:
     """(candidate ref, item id) of lookup title matches to drop (ADR-081): an item matched by
     title to more than one shortlisted repo, or linked by URL to another one."""
@@ -469,7 +625,7 @@ def ambiguous_title_matches(cands: Sequence[Candidate]) -> set[tuple[str, int]]:
         for s in c.sources:
             if s.get("source") == "show_hn" and s.get("hn_item_id"):
                 url.setdefault(int(s["hn_item_id"]), set()).add(c.ref)
-            elif s.get("source") == LAUNCH_LOOKUP_SOURCE and s.get("hn_item_id"):
+            elif _current_lookup(s) and s.get("hn_item_id"):
                 d = title if s.get("match") == "title" else url
                 d.setdefault(int(s["hn_item_id"]), set()).add(c.ref)
     out: set[tuple[str, int]] = set()
@@ -495,8 +651,8 @@ def _launches(
         if src not in ("show_hn", LAUNCH_LOOKUP_SOURCE) or not s.get("time"):
             continue
         item = int(s.get("hn_item_id") or 0)
-        if src == LAUNCH_LOOKUP_SOURCE and (c.ref, item) in drop:
-            continue
+        if src == LAUNCH_LOOKUP_SOURCE and (not _current_lookup(s) or (c.ref, item) in drop):
+            continue  # a record of an earlier anchor rule, or an ambiguous title match
         t = _t(s["time"])
         if not start <= t <= end:
             continue
@@ -562,6 +718,69 @@ def choose_anchor(
     if b0 is not None:
         return Anchor("burst", b0.at, b0.precision, "velocity-v0"), None
     return None, "no_anchor" if has_series else "no_anchor: no launch post and no star history"
+
+
+# The code whose behaviour is the anchor rule (ADR-082 guard): the matching of lookup hits, the
+# merge of launches, the ambiguity drop and `choose_anchor` with its comparisons, plus the
+# constants they read. Their hash is pinned next to `ANCHOR_RULE_VERSION`
+# (`selection.ANCHOR_RULE_SOURCE_SHA256`).
+ANCHOR_RULE_FUNCTIONS = (
+    "lookup_queries",
+    "_name_parts",
+    "_mentions_name",
+    "title_names_repo",
+    "title_rejection",
+    "classify_launch_post",
+    "match_launch_post",
+    "_current_lookup",
+    "ambiguous_title_matches",
+    "_launches",
+    "endpoint_day",
+    "_precedes",
+    "_within_30d_before",
+    "_burst_within_90d_after",
+    "choose_anchor",
+)
+ANCHOR_RULE_CONSTANTS = (
+    "TITLE_MIN_CHARS",
+    "CREATION_TOLERANCE",
+    "TITLE_STOPLIST",
+    "_SLOT_PREFIX",
+    "_SLOT_END",
+    "_NAME_SEP",
+    "LAUNCH_LOOKUP_SOURCE",
+)
+
+
+def anchor_rule_source_sha256() -> str:
+    """SHA-256 of the anchor rule's code (`ANCHOR_RULE_FUNCTIONS`, parsed, docstrings dropped,
+    so comments, docstrings and formatting don't count) and constants (`ANCHOR_RULE_CONSTANTS`,
+    sorted where they are sets). Pinned as `selection.ANCHOR_RULE_SOURCE_SHA256` (ADR-082)."""
+    import ast
+    import hashlib
+    import inspect
+    import textwrap
+
+    g = globals()
+    parts: list[str] = []
+    for name in ANCHOR_RULE_FUNCTIONS:
+        tree = ast.parse(textwrap.dedent(inspect.getsource(g[name])))
+        for node in ast.walk(tree):
+            body = getattr(node, "body", None)
+            if (
+                isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+                and isinstance(body, list)
+                and body
+                and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)
+            ):
+                node.body = body[1:] or [ast.Pass()]
+        parts.append(f"{name}={ast.dump(tree, annotate_fields=False)}")
+    for name in ANCHOR_RULE_CONSTANTS:
+        v = g[name]
+        parts.append(f"{name}={sorted(v) if isinstance(v, frozenset | set) else v!r}")
+    return hashlib.sha256("\n".join(parts).encode()).hexdigest()
 
 
 def star_value(series: Mapping[date, int], first: date, k: int, as_of: date) -> Value:

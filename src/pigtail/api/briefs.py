@@ -53,7 +53,7 @@ from pydantic import BaseModel, Field
 
 from pigtail.briefs.cli import example_path
 from pigtail.briefs.diff import diff_briefs
-from pigtail.briefs.estimate import estimate_for
+from pigtail.briefs.estimate import estimate_for, selection_state
 from pigtail.briefs.model import (
     Brief,
     BriefInvalid,
@@ -362,6 +362,7 @@ def make_router(
             month_cap_usd=month_cap_usd,
             last_run_version=runs(conn).last_run_version(brief_id),
             brief_spent_usd=PgCostLedger(conn).brief_total(brief_id),
+            selection=selection_state(conn, s.brief) if s.brief.version is not None else None,
         )
         return est.to_dict()
 

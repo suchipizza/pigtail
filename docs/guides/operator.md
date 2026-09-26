@@ -281,24 +281,40 @@ and the commit (table `brief_preregistration`). Until then the selection is refu
 code 7, before anything is fetched, computed or stored. A file that quotes brief text is
 refused; so is a pre-registration once the version already has a selection. Editing the brief
 (a new version) or a new selection rule needs a new pre-registration. The selection rule
-includes the anchor rule (`anchor_rule_version`) and the launch lookup (ADR-081): since
-`selection-v3` a pre-registration recorded under `selection-v2` is refused, so pre-register the
-version again (a new file; the old one stays as it is).
+includes the anchor rule (`anchor_rule_version`) and the launch lookup (ADR-081, ADR-082):
+since `selection-v4` (anchor rule `anchor-v3`) a pre-registration recorded under an earlier
+selection version is refused, so pre-register the version again (a new file or amendment; the
+old one stays as it is). `brief preregister` warns when the Show HN connector is off, because
+the selection will then be refused (exit 8, below).
 
-**5. Selection (R4.8, R4.3, R4.9, R4.10, R4.11; ADR-077, ADR-078, ADR-081).** It runs only on a
-**final**, **pre-registered** shortlist: after `shortlist finalize` and `brief preregister`, run
-`pigtail run --brief my-project` again (or with `--stage selection`) and it continues the same
-run with this stage alone. It makes no model call.
-- **Launch lookup** (ADR-081). It first looks up every shortlisted repo's own **Show HN and
-  Launch HN posts** in the brief's window, whether discovery found them or not: 3 HN Algolia
-  requests per repo (Show HN by the repo URL, Show HN by the repo name, Launch HN by the name),
-  paced by the connector's limiter (5,000 requests/hour), so about 25 minutes for 686 repos. A
-  post counts when it links the repo's `github.com/owner/name` (any capitalisation) or, linking
-  no other GitHub repo, names the repo as a whole word in its title (names of 4+ characters).
-  Only the item id, time, points and how it matched are kept; the raw page is dropped. It is
+**5. Selection (R4.8, R4.3, R4.9, R4.10, R4.11; ADR-077, ADR-078, ADR-081, ADR-082).** It runs
+only on a **final**, **pre-registered** shortlist, with the **Show HN connector on**: after
+`shortlist finalize` and `brief preregister`, run `pigtail run --brief my-project` again (or
+with `--stage selection`) and it continues the same run with this stage alone. It makes no
+model call.
+- **Launch lookup** (ADR-081, ADR-082). It first looks up every shortlisted repo's own **Show
+  HN and Launch HN posts** in the brief's window, whether discovery found them or not: 3 HN
+  Algolia requests per repo (Show HN by the repo URL and by the repo name, Launch HN by the
+  name with Algolia's `launch_hn` tag), paced by the connector's limiter (5,000
+  requests/hour), so about 25 minutes for 686 repos. A post counts when it links the repo's
+  `github.com/owner/name` (any capitalisation). By title only, it counts when **all** of these
+  hold: the title is `Show HN: <name>` or `Launch HN: <name>` followed by the end of the title
+  or a separator (`–`, `—`, ` -`, `:`, `,`, `(`, `|`), with hyphens, underscores and spaces in
+  the name treated alike; the post links no GitHub repo; it was posted no earlier than a day
+  before the repo was created; and the name has 5+ characters and is not a common or generic
+  word (a short stop-list in `pigtail.briefs.outcomes`). So "Show HN: Screen Studio" never
+  anchors a repo named `studio`, and "Show HN: I built KubeForge" doesn't anchor `kubeforge`
+  either: pigtail prefers missing a launch to taking someone else's. Title-only candidates the
+  rule rejects are counted in the selection's warnings ("N title-only candidates rejected");
+  title-matched anchors are labelled `lookup:title`, so check them. Only the item id, time,
+  points, how it matched and the rule version are kept; the raw page is dropped. It is
   checkpointed per repo: after a failed request (exit 1) run again and it continues with the
-  next repo. With the Show HN connector off (`PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false`) it is
-  skipped and the selection warns that launched repos with little traction may have no anchor.
+  next repo. **With the Show HN connector off** (`PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false`;
+  it is on by default, and `PIGTAIL_ENABLE_HN` doesn't affect it) the selection is **refused**
+  with exit code 8 before anything is fetched or stored, because the pre-registered rule
+  includes the lookup; turn it on and run the same command again. `brief estimate` and the
+  estimate `pigtail run` prints warn about it, and count the lookup (up to 3 requests per
+  shortlisted repo not yet looked up) while the selection is pending.
 - **Outcome data.** With `GITHUB_TOKEN` set, it then fetches each shortlisted repo's **star
   history** (daily net stars, back to 60 days before the brief's window; 1–3 core requests per
   repo, conditional) and fills missing metadata (creation date, language) for repos you added by
@@ -315,7 +331,7 @@ run with this stage alone. It makes no model call.
   (ADR-080); until then rank on attention, as the example brief does.
 - **Anchor T** per candidate: its first declared launch (Show HN or Launch HN post, from
   discovery or the lookup), or the first star burst (`velocity-v0`) in the window, by the
-  outcome model's rule (§2.2, rule `anchor-v2`). A launch on the burst's onset day (US Pacific
+  outcome model's rule (§2.2, rule `anchor-v3`). A launch on the burst's onset day (US Pacific
   endpoint day) counts as preceding the burst. A value whose horizon hasn't passed
   (`T + k + 3 days`) is `pending`. A candidate without an anchor can't be sorted. The result
   counts anchors by type and source (`anchors`) and pairs by the anchor type of each side
@@ -363,7 +379,7 @@ run with this stage alone. It makes no model call.
 **Resuming and exit codes.** A run is resumable after anything: a crash, a budget stop
 (`paused_budget`, exit 4; exit 3 when approval is missing), the GitHub request budget (exit 4), a
 failure (exit 1) or a batch still running (exit 5); a selection without its pre-registration
-stops with exit 7 and changes nothing. Running the same command again resumes the
+stops with exit 7, and one without the Show HN connector with exit 8; both change nothing. Running the same command again resumes the
 same run: completed stages are skipped, discovery skips the queries it did, and the relevance
 filter rebuilds the same requests, so answered ones come from the LLM cache and in-flight batches
 are collected by their stored ids. Only one run per brief at a time (exit 6 otherwise). A version

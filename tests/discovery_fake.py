@@ -318,7 +318,7 @@ class DiscoveryFakeGitHub(FakeGitHub):
 
 
 class FakeShowHN:
-    """HN Algolia `/search` with `tags=show_hn` or `tags=story` (the hit's `_tags` must hold the
+    """HN Algolia `/search` with `tags=show_hn` or `tags=launch_hn` (the hit's `_tags` must hold the
     tag): a hit matches when any query word (4+ letters) is in its title, or, for a query that
     names `github.com`, when the query's path is in its URL (case-insensitive), within the
     numeric time filter. It returns person-level fields on purpose."""
@@ -344,7 +344,7 @@ class FakeShowHN:
         self.requests.append(req)
         assert req.url.host == "hn.algolia.com" and req.url.path == "/api/v1/search", req.url
         p = {k: v[0] for k, v in parse_qs(req.url.query.decode()).items()}
-        assert p["tags"] in ("show_hn", "story")
+        assert p["tags"] in ("show_hn", "launch_hn")
         assert "author" not in p.get("attributesToRetrieve", "")
         lo, hi = (int(x) for x in re.findall(r"created_at_i[<>]=?(\d+)", p["numericFilters"]))
         hits = [

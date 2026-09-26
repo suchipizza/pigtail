@@ -8,7 +8,8 @@ R18.6, R19.1; outcome-model v2.1 §5.7; migration 0022; ADR-077).
 version after the fetch with `as_of` folded in as `dv1-…@YYYY-MM-DD`, `as_of`, selection,
 outcome-model and analysis-params versions, code commit, inputs and result hashes) plus one
 `brief_selection_case` row per shortlisted repo. It first requires the brief version's
-pre-registration (R8.2, `preregistration.require`).
+pre-registration (R8.2, `preregistration.require`) and the Show HN connector for the launch
+lookup (ADR-082: without it the selection is refused before anything is fetched or stored).
 
 `view` / `latest` read the stored result back for the CLI (`pigtail brief selection show`).
 Selections are append-only history: a new run (for example `--incremental`) adds a row, and the
@@ -155,16 +156,27 @@ def run_stage(
 ) -> StageResult:
     """The selection stage (module docstring). Raises `PreregistrationMissing` before anything
     is fetched or computed when the brief version has no recorded pre-registration (R8.2,
-    ADR-065), `SelectionError` when the shortlist isn't final; `BudgetExhausted` from the GitHub
+    ADR-065), `LaunchLookupUnavailable` likewise when the Show HN connector is off or missing
+    (the pre-registered rule includes the launch lookup, ADR-082), `SelectionError` when the
+    shortlist isn't final; `BudgetExhausted` from the GitHub
     budget pauses it (the checkpoint keeps the repos done)."""
     from pigtail.briefs.cache import data_version
     from pigtail.briefs.discovery import window_bounds
-    from pigtail.briefs.outcomes import fetch_outcome_data, load_inputs, shortlisted
+    from pigtail.briefs.outcomes import (
+        LaunchLookupUnavailable,
+        ambiguous_title_matches,
+        fetch_outcome_data,
+        launch_lookup_blocked,
+        load_inputs,
+        shortlisted,
+    )
     from pigtail.briefs.preregistration import require
     from pigtail.capture.runs import git_commit
 
     cands = shortlisted(conn, brief)  # SelectionError unless the shortlist is final
     require(conn, brief)  # outcome-model §5.8: the point of no return needs a pre-registration
+    if (why := launch_lookup_blocked(hn)) is not None:  # ADR-082: the lookup is pre-registered
+        raise LaunchLookupUnavailable(why)
     if "as_of" not in checkpoint:  # fixed for the whole run, so a resume judges `pending` alike
         checkpoint["as_of"] = clock().date().isoformat()
         save_checkpoint(checkpoint)
@@ -190,11 +202,16 @@ def run_stage(
     inputs = load_inputs(conn, brief, cands, window=window, as_of=as_of)
     notes = []
     lk = fetch.launch_lookup or {}
-    if lk.get("skipped"):
+    if lk.get("title_rejected_total"):
+        reasons = ", ".join(f"{k} {v}" for k, v in sorted(lk["title_rejected"].items()))
         notes.append(
-            f"launch lookup not run ({lk['skipped']}): declared launches come only from "
-            "discovery's Show HN posts, so launched repos with little traction may have no "
-            "anchor (ADR-081)"
+            f"launch lookup: {lk['title_rejected_total']} title-only candidates rejected by the "
+            f"title rule ({reasons}; ADR-082)"
+        )
+    if shared := ambiguous_title_matches(cands):
+        notes.append(
+            f"launch lookup: {len(shared)} title matches dropped as claimed by more than one "
+            "shortlisted repo or linked by URL to another (ADR-082 rule e)"
         )
     sel = select(inputs, Context.from_brief(brief), Definition.from_brief(brief), notes=notes)
     # R4.8 determinism is keyed on (brief version, data version); `as_of` decides `pending`, so

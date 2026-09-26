@@ -159,7 +159,7 @@ def test_adr_078_headline_first_matching_reduces_exclusions_deterministically(mo
         random.Random(s).shuffle(shuffled)
         again = select(shuffled, Context.from_brief(b), Definition.from_brief(b))
         assert again.result_hash == sel.result_hash
-    assert sel.params["selection_version"] == SELECTION_VERSION == "selection-v3"
+    assert sel.params["selection_version"] == SELECTION_VERSION == "selection-v4"
     assert "headline-passing first" in sel.params["matching"]
     # exact match and calipers are unchanged by the preference
     assert sel.balance["exact_match"]["ok"] is True

@@ -59,7 +59,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pigtail.briefs.model import (
     Brief,
@@ -70,6 +70,9 @@ from pigtail.briefs.model import (
     validate_brief,
 )
 from pigtail.briefs.store import BriefExists, BriefNotFound, BriefStore, VersionConflict
+
+if TYPE_CHECKING:
+    from pigtail.briefs.estimate import SelectionState
 
 EXIT_INVALID = 1
 EXIT_USAGE = 2
@@ -385,6 +388,30 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _selection_state(settings: Any, brief: Brief) -> SelectionState | None:
+    """The selection stage's state for the estimate (ADR-082), or None without a database."""
+    if not settings.database_url or brief.version is None:
+        return None
+    import psycopg
+
+    from pigtail.briefs.estimate import selection_state
+
+    try:
+        with psycopg.connect(settings.database_url, connect_timeout=3) as conn:
+            return selection_state(conn, brief)
+    except psycopg.Error:
+        return None  # `_last_run_version` already warned; estimate a pending selection
+
+
+def _warn_launch_lookup_off() -> None:
+    """ADR-082: the pre-registered selection rule includes the launch lookup; say so when the
+    Show HN connector it needs is off."""
+    from pigtail.briefs.estimate import LAUNCH_LOOKUP_OFF_WARNING, launch_lookup_enabled
+
+    if not launch_lookup_enabled():
+        print(f"warning: {LAUNCH_LOOKUP_OFF_WARNING}", file=sys.stderr)
+
+
 def _last_run_version(settings: Any, brief_id: str) -> int | None:
     """The brief version of the last run that got anywhere (for the reuse plan, R18.4)."""
     if not settings.database_url:
@@ -424,6 +451,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         month_cap_usd=s.budget_usd_month,
         last_run_version=_last_run_version(s, brief.brief_id),
         brief_spent_usd=_brief_spent(s, brief.brief_id),
+        selection=_selection_state(s, brief),
     )
     out = est.to_dict()
     recorded = None
@@ -732,6 +760,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         month_cap_usd=s.budget_usd_month,
         last_run_version=_last_run_version(s, brief.brief_id),
         brief_spent_usd=_brief_spent(s, brief.brief_id),
+        selection=_selection_state(s, brief),
     )
     scope = run_scope(est, stages)
     out: dict[str, Any] = {"estimate": est.to_dict(), "run_scope": scope}
@@ -837,10 +866,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     if args.json:
         _json(out)
     else:
-        from pigtail.briefs.preregistration import EXIT_NOT_PREREGISTERED
+        from pigtail.briefs.runner import REFUSED
 
         # a refused selection leaves the run as it was: say "refused", not the run's status
-        head = "refused" if outcome.exit_code == EXIT_NOT_PREREGISTERED else outcome.status
+        # (7: no pre-registration; 8: no Show HN connector for the launch lookup, ADR-082)
+        head = "refused" if outcome.exit_code in REFUSED else outcome.status
         print(f"\n{head}: {outcome.message}")
         if outcome.brief_run_id:
             print(f"brief run: {outcome.brief_run_id}")
@@ -1270,6 +1300,7 @@ def cmd_preregister(args: argparse.Namespace) -> int:
     except (BriefNotFound, BriefInvalid) as e:
         print(str(e), file=sys.stderr)
         return EXIT_INVALID
+    _warn_launch_lookup_off()
     if args.print_hashes:
         h = hashes(brief)
         if args.json:

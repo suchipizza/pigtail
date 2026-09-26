@@ -206,6 +206,9 @@ def test_r4_8_selection_show_cli(cli_env, capsys, tmp_path):
     f = tmp_path / "prereg.md"
     f.write_text("# Pre-registration (synthetic test)\nNo brief content.\n")
     assert main(["brief", "preregister", BID, "--file", str(f)]) == 0
+    from tests.discovery_fake import FakeShowHN
+    from tests.integration.test_launch_lookup_m22 import hn_connector
+
     run_stage(
         db.conn,
         brief,
@@ -215,6 +218,7 @@ def test_r4_8_selection_show_cli(cli_env, capsys, tmp_path):
         save_checkpoint=lambda _c: None,
         run_date=NOW.date(),
         clock=lambda: NOW,
+        hn=hn_connector(db, FakeShowHN([]), tmp_path),  # the launch lookup finds nothing
     )
     capsys.readouterr()
     assert main(["brief", "selection", "show", BID]) == 0
@@ -225,3 +229,21 @@ def test_r4_8_selection_show_cli(cli_env, capsys, tmp_path):
     assert main(["brief", "selection", "show", BID, "--json"]) == 0
     d = json.loads(capsys.readouterr().out)
     assert d["selection"]["summary"]["roles"] == {"no_anchor": 2} and len(d["cases"]) == 2
+
+
+def test_adr_082_cli_warns_when_the_show_hn_connector_is_off(cli_env, capsys, monkeypatch):
+    """`brief preregister --print-hashes`, `brief estimate` and `run --dry-run` warn that the
+    selection will be refused without the Show HN connector (its launch lookup)."""
+    capsys.readouterr()
+    monkeypatch.delenv("PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED", raising=False)
+    assert main(["brief", "preregister", BID, "--print-hashes"]) == 0
+    assert "PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED" not in capsys.readouterr().err
+    monkeypatch.setenv("PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED", "false")
+    assert main(["brief", "preregister", BID, "--print-hashes"]) == 0
+    assert "PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false" in capsys.readouterr().err
+    main(["brief", "estimate", BID])
+    assert "refuse the selection (exit 8)" in capsys.readouterr().out
+    assert main(["run", "--brief", BID, "--dry-run", "--json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["estimate"]["warnings"] and d["run_scope"]["selection"]["warnings"]
+    assert d["estimate"]["other_requests"]["hn_launch_lookup"] > 0  # the selection is pending

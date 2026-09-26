@@ -62,8 +62,9 @@ from typing import Any, Literal
 from pigtail.analysis.params import PARAMS_VERSION
 from pigtail.briefs.model import DIMENSIONS, RANKABLE, THRESHOLD_PERCENTILE, Brief, sha256_json
 
-# v2: headline-first matching, missing language (ADR-078); v3: anchor rule anchor-v2 (ADR-081)
-SELECTION_VERSION = "selection-v3"
+# v2: headline-first matching, missing language (ADR-078); v3: anchor rule anchor-v2 (ADR-081);
+# v4: anchor rule anchor-v3, the conservative title rule and the launch_hn tag (ADR-082)
+SELECTION_VERSION = "selection-v4"
 OUTCOME_MODEL_VERSION = "2.1"
 MIN_POPULATION = 20  # outcome-model §3 (v0 design choice; the brief schema has no field yet, O17)
 WINNERS_MIN = 15  # R4.8 range floor: below it the report says "fewer winners than the minimum"
@@ -83,22 +84,32 @@ MATCHING_RULE = (
 )
 # The anchor rule (outcome-model §2.2; `pigtail.briefs.outcomes.choose_anchor` and the launch
 # lookup) is part of the pre-registered selection parameters (ADR-081): bump the version whenever
-# either changes, so an existing pre-registration no longer passes the gate.
-ANCHOR_RULE_VERSION = "anchor-v2"
+# either changes, so an existing pre-registration no longer passes the gate. The guard test
+# (`tests/unit/test_m22_round4.py::test_anchor_rule_source_is_pinned`) hashes the code of the
+# anchor and matching functions (`outcomes.anchor_rule_source_sha256`) and fails until
+# `ANCHOR_RULE_SOURCE_SHA256` is updated together with a new `ANCHOR_RULE_VERSION` (ADR-082).
+ANCHOR_RULE_VERSION = "anchor-v3"
+ANCHOR_RULE_SOURCE_SHA256 = "076da278a53d7615998a8c447dd7139cb7e54d32a57c0da4fdb1e6a3b49b9451"
 ANCHOR_RULE = (
     "outcome-model §2.2 rules 1-6 as read by ADR-077.3; declared launches = Show HN or Launch HN "
-    "posts from discovery and the per-repo launch lookup, merged by item id; a launch is compared "
-    "with a day-precision burst onset on the onset's endpoint day (US Pacific, §1.2), so a launch "
-    "on the onset day precedes the burst (ADR-081)"
+    "posts from discovery and the per-repo launch lookup (current rule's records only), merged "
+    "by item id; a launch is compared with a day-precision burst onset on the onset's endpoint "
+    "day (US Pacific, §1.2), so a launch on the onset day precedes the burst (ADR-081, ADR-082)"
 )
 LAUNCH_LOOKUP = (
-    "HN Algolia per shortlisted repo, inside the brief's window: show_hn search for "
-    "'github.com/<owner>/<name>' and for '<name>', story search for 'Launch HN <name>' (titles "
-    "starting 'Launch HN' only); a hit is accepted when its URL is the repo's "
-    "github.com/owner/name (case-insensitive) or, when it links no other GitHub repo, its title "
-    "names the repo name (>= 4 characters) as a whole word; a title match claimed by two "
-    "shortlisted repos, or linked by URL to another, is dropped; stored: item id, time, points, "
-    "kind, match (ADR-081)"
+    "HN Algolia per shortlisted repo, inside the brief's window: tags=show_hn search for "
+    "'github.com/<owner>/<name>' and for '<name>', tags=launch_hn search for '<name>'; the "
+    "lookup must run (the selection is refused without the Show HN connector); a hit is "
+    "accepted by URL when it links the repo's github.com/owner/name (case-insensitive), or by "
+    "title only when all hold: (a) the title matches '^(Show|Launch) HN:\\s*<name>' followed by "
+    "the end of the title or a separator (en dash, em dash, ' -', ':', ',', '(', '|'), "
+    "case-insensitive, with '-', '_' and spaces in the GitHub name equivalent; (b) the post "
+    "links no GitHub repo; (c) it was posted no earlier than 1 day before the repo's creation "
+    "(unknown creation date: rejected); (d) the name has >= 5 characters and is not made only "
+    "of stop-list words (common English or generic tech words, outcomes.TITLE_STOPLIST); (e) "
+    "a title match claimed by two shortlisted repos, or linked by URL to another, is dropped; "
+    "rejected title-only candidates are counted, not stored; stored: item id, time, points, "
+    "kind, match, rule (ADR-082)"
 )
 ROUND = 6
 

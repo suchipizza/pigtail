@@ -8,8 +8,6 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 
-import pytest
-
 from pigtail.analysis.bursts import Onset, day_start
 from pigtail.briefs import selection as selmod
 from pigtail.briefs.candidates import Candidate
@@ -25,9 +23,8 @@ from pigtail.briefs.outcomes import (
     endpoint_day,
     lookup_queries,
     match_launch_post,
-    title_names_repo,
 )
-from pigtail.briefs.selection import Anchor, Context, Definition, select
+from pigtail.briefs.selection import ANCHOR_RULE_VERSION, Anchor, Context, Definition, select
 from pigtail.connectors.hn import ShowHNStory, normalize_github_repo
 from tests.selection_fake import brief, population
 
@@ -49,47 +46,14 @@ def story(title: str | None, url: str | None = None, item: int = 1) -> ShowHNSto
 def test_url_match_is_case_insensitive_and_ignores_deeper_paths():
     # the verifier's case: the post links the repo with another capitalisation
     s = story("Show HN: A cluster tool", "https://github.com/KubeForge/KubeForge")
-    assert match_launch_post(s, "kubeforge/kubeforge", "show_hn") == "url"
+    assert match_launch_post(s, "kubeforge/kubeforge", created=None) == "url"
     s2 = story("Show HN: x", "https://www.GitHub.com/ORG-K/KubeForge/tree/main/docs")
-    assert match_launch_post(s2, REPO, "show_hn") == "url"
-    assert match_launch_post(s2, "Org-K/KubeForge", "show_hn") == "url"
+    assert match_launch_post(s2, REPO, created=None) == "url"
+    assert match_launch_post(s2, "Org-K/KubeForge", created=None) == "url"
 
 
-@pytest.mark.parametrize(
-    ("title", "ok"),
-    [
-        ("Show HN: KubeForge - clusters in one command", True),
-        ("Show HN: I built kubeforge.", True),  # sentence end
-        ("Show HN: org-k/KubeForge, a cluster tool", True),
-        ("Show HN: (KubeForge) clusters", True),
-        ("Show HN: Kubeforger, a different tool", False),  # substring, not a word
-        ("Show HN: MyKubeforge", False),
-        ("Show HN: kubeforge-ui, a dashboard", False),  # another project's name
-        ("Show HN: kubeforge.io is live", False),  # a domain, not the name
-        ("Show HN: kube_forge", False),
-        (None, False),
-    ],
-)
-def test_title_match_is_whole_word_only(title, ok):
-    assert title_names_repo(title, REPO) is ok
-    assert (match_launch_post(story(title), REPO, "show_hn") == "title") is ok
-
-
-def test_title_match_is_conservative():
-    # a short name matches by URL only
-    assert not title_names_repo("Show HN: Zed, an editor", "org-z/zed")
-    assert match_launch_post(story("Show HN: x", "https://github.com/org-z/zed"), "org-z/zed",
-                             "show_hn") == "url"  # fmt: skip
-    # a post that links another GitHub repo is never a title match
-    other = story("Show HN: KubeForge plugin", "https://github.com/org-other/plugin")
-    assert match_launch_post(other, REPO, "show_hn") is None
-    # a non-GitHub URL does not block a title match
-    site = story("Show HN: KubeForge", "https://kubeforge.example")
-    assert match_launch_post(site, REPO, "show_hn") == "title"
-    # Launch HN hits come from a story search: the title must start with "Launch HN"
-    assert match_launch_post(story("Launch HN: KubeForge (YC S25)"), REPO, "launch_hn") == "title"
-    assert match_launch_post(story("Ask HN: is KubeForge good?"), REPO, "launch_hn") is None
-    assert match_launch_post(story("Why we launch HN posts: KubeForge"), REPO, "launch_hn") is None
+# the title rule of anchor-v2 (a whole word anywhere) was replaced by ADR-082's conservative
+# rule: see tests/unit/test_m22_round4.py
 
 
 def test_lookup_queries_hold_only_the_repo_name():
@@ -97,7 +61,7 @@ def test_lookup_queries_hold_only_the_repo_name():
     assert qs == [
         ("url", "github.com/org-k/kubeforge", "show_hn"),
         ("name", "kubeforge", "show_hn"),
-        ("launch_hn", "Launch HN kubeforge", "story"),
+        ("launch_hn", "kubeforge", "launch_hn"),
     ]
     assert len(qs) == LAUNCH_LOOKUP_REQUESTS == HN_LAUNCH_LOOKUP_PER_SHORTLISTED
 
@@ -112,9 +76,9 @@ def test_launches_merge_discovery_and_lookup_by_item_id():
             {"source": "show_hn", "term": "t", "hn_item_id": 11, "points": 5, "title": "x",
              "time": t1.isoformat()},
             {"source": LAUNCH_LOOKUP_SOURCE, "hn_item_id": 11, "points": 9, "kind": "show_hn",
-             "match": "url", "time": t1.isoformat()},
+             "match": "url", "time": t1.isoformat(), "rule": ANCHOR_RULE_VERSION},
             {"source": LAUNCH_LOOKUP_SOURCE, "hn_item_id": 12, "points": 3, "kind": "launch_hn",
-             "match": "title", "time": t2.isoformat()},
+             "match": "title", "time": t2.isoformat(), "rule": ANCHOR_RULE_VERSION},
             {"source": "github_keyword", "term": "t"},
         ],
     )  # fmt: skip
@@ -133,7 +97,8 @@ def test_ambiguous_title_matches_are_dropped():
         return Candidate(ref=f"gh:{name}", repo_full_name=name, sources=list(srcs))
 
     def lk(item: int, match: str) -> dict:
-        return {"source": LAUNCH_LOOKUP_SOURCE, "hn_item_id": item, "match": match}
+        return {"source": LAUNCH_LOOKUP_SOURCE, "hn_item_id": item, "match": match,
+                "rule": ANCHOR_RULE_VERSION}  # fmt: skip
 
     a = cand("org-a/kubeforge", lk(1, "title"), lk(2, "title"), lk(3, "title"))
     b = cand("org-b/kubeforge", lk(1, "title"))  # same item named by title for two repos
@@ -186,12 +151,12 @@ def test_hour_precision_onsets_still_compare_instants():
 def test_anchor_rule_is_part_of_the_selection_params_hash(monkeypatch):
     ctx = Context.from_brief(brief())
     p = ctx.params()
-    assert p["selection_version"] == "selection-v3"
-    assert p["anchor_rule_version"] == "anchor-v2"
+    assert p["selection_version"] == "selection-v4"
+    assert p["anchor_rule_version"] == "anchor-v3"
     assert "day precision" in p["anchor_rule"] or "endpoint day" in p["anchor_rule"]
-    assert "Launch HN" in p["launch_lookup"] and "whole word" in p["launch_lookup"]
+    assert "Launch" in p["launch_lookup"] and "tags=launch_hn" in p["launch_lookup"]
     h = sha256_json(p)
-    monkeypatch.setattr(selmod, "ANCHOR_RULE_VERSION", "anchor-v3")
+    monkeypatch.setattr(selmod, "ANCHOR_RULE_VERSION", "anchor-v4")
     assert sha256_json(ctx.params()) != h
 
 

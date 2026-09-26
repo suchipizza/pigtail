@@ -9,6 +9,9 @@ after `brief shortlist finalize`, on the same `brief_runs` row, which then runs 
 selection. The selection also needs the brief version's **pre-registration** (PRD R8.2,
 ADR-065, outcome-model §5.8; `pigtail brief preregister`): without it the run is refused with
 exit code 7 before anything is fetched, computed or stored, and the run row is left as it was.
+Likewise the selection's launch lookup (ADR-081) is part of its pre-registered rule, so without
+the Show HN connector (`PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false`, or not configured) the run
+is refused with exit code 8, nothing changed and resumable once the connector is on (ADR-082).
 Later milestones append deep forensics.
 
 **Checkpoints and resume.** A run is one `brief_runs` row (brief version and content hash,
@@ -77,6 +80,8 @@ EXIT_BUDGET = 4
 EXIT_WAITING = 5
 EXIT_BUSY = 6
 EXIT_PREREG = EXIT_NOT_PREREGISTERED  # 7: the selection needs a pre-registration (R8.2)
+EXIT_NO_LAUNCH_LOOKUP = 8  # the selection needs the Show HN connector for its lookup (ADR-082)
+REFUSED = (EXIT_PREREG, EXIT_NO_LAUNCH_LOOKUP)  # the run row is left as it was
 
 RESUMABLE = ("planned", "running", "waiting_batch", "paused_budget", "failed")
 COMPLETE = ("awaiting_review", "succeeded", "carried_forward")  # carried: ADR-079
@@ -266,13 +271,13 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
     if (
         (selection_due or (kind == "resume" and "selection" in opts.stages and not sel_done))
         and _shortlist_final(conn, brief)
-        and (why := _prereg_missing(conn, brief)) is not None
+        and (blocked_by := _selection_blocked(conn, brief, deps)) is not None
     ):
         return RunOutcome(
             row["id"] if row else None,
             row["status"] if row else "not_started",
-            EXIT_PREREG,
-            why,
+            blocked_by[0],
+            blocked_by[1],
             stages=(row or {}).get("stages") or {},
         )
     _prompt, rubric_v = prompt_for(brief)
@@ -361,7 +366,7 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
         return RunOutcome(run.id, status, code, msg, resumed, run.stages, stop_rec)
 
     current = ""
-    blocked: str | None = None
+    blocked: tuple[int, str] | None = None
     try:
         for name in RUN_STAGES:
             if name not in opts.stages:
@@ -370,8 +375,8 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
                 continue
             if name == "selection" and not _shortlist_final(conn, brief):
                 continue  # R4.8: the outcome sort starts only on a final shortlist
-            if name == "selection" and (blocked := _prereg_missing(conn, brief)) is not None:
-                continue  # R8.2: not before the pre-registration (nothing fetched or computed)
+            if name == "selection" and (blocked := _selection_blocked(conn, brief, deps)):
+                continue  # R8.2 / ADR-082: pre-registration and launch lookup (nothing fetched)
             current = name
             run.stage(name, "running", started_at=deps.clock().isoformat())
             if name == "discovery":
@@ -491,7 +496,8 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
             finished_at=deps.clock() if status != "running" else None,
         )
         if blocked is not None:
-            return RunOutcome(run.id, status, EXIT_PREREG, f"{msg}. {blocked}", resumed, run.stages)
+            code, why = blocked
+            return RunOutcome(run.id, status, code, f"{msg}. {why}", resumed, run.stages)
         return RunOutcome(run.id, status, EXIT_OK, msg, resumed, run.stages)
     except BudgetStop as e:
         run.stage(current, "paused_budget")
@@ -540,6 +546,20 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
             },
         )
         raise
+
+
+def _selection_blocked(
+    conn: psycopg.Connection[Any], brief: Brief, deps: RunDeps
+) -> tuple[int, str] | None:
+    """(exit code, why) when the selection may not run yet, else None: its pre-registration
+    (R8.2, exit 7), then the Show HN connector its launch lookup needs (ADR-082, exit 8)."""
+    from pigtail.briefs.outcomes import launch_lookup_blocked
+
+    if (why := _prereg_missing(conn, brief)) is not None:
+        return EXIT_PREREG, why
+    if (why := launch_lookup_blocked(deps.hn)) is not None:
+        return EXIT_NO_LAUNCH_LOOKUP, why
+    return None
 
 
 def _prereg_missing(conn: psycopg.Connection[Any], brief: Brief) -> str | None:
