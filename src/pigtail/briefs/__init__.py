@@ -2,7 +2,7 @@
 
 A brief describes the user's project, its neighbourhood (field boundaries), what success means
 and the budget. Briefs are private: they live only under `PIGTAIL_DATA_DIR/briefs`
-(R18.9), every edit creates a new immutable version (R18.4), and `schemas/brief/v1.json` is the
+(R18.9), every edit creates a new immutable version (R18.4), and `schemas/brief/v1.1.json` is the
 public, versioned schema (R18.1).
 
 Modules:

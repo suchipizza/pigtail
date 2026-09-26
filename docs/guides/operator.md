@@ -55,10 +55,13 @@ about 15 minutes for credentials, 30 for the brief, a few for the estimate.
 new, immutable version; old versions stay readable and diffable. An install can hold several
 briefs. The repo ships one synthetic example,
 [`docs/examples/brief-example.yaml`](../examples/brief-example.yaml); the schema is
-[`schemas/brief/v1.json`](../../schemas/brief/v1.json). The private-data scan (pre-commit and
-CI) refuses any other brief file in git, by path (`*/briefs/*.yaml`, `*brief*.yaml`) and by
-content (a top-level `brief_id:` plus `project:`), so don't paste a brief into an issue, doc or
-fixture either.
+[`schemas/brief/v1.1.json`](../../schemas/brief/v1.1.json). Briefs written with schema v1
+([`schemas/brief/v1.json`](../../schemas/brief/v1.json)) still load; the next version you save
+is written as v1.1 (one-line reference cases become objects, and entries labelled
+`distribution_exemplar | ...` move to `distribution_exemplars`). The private-data scan
+(pre-commit and CI) refuses any other brief file in git, by path (`*/briefs/*.yaml`,
+`*brief*.yaml`) and by content (`brief_id:` plus a `project:` mapping, in block, flow or
+indented style), so don't paste a brief into an issue, doc or fixture either.
 
 **3. Write the brief.** Either in the web app (`/briefs` → *New brief*: a guided form pre-filled
 with the example, plus a YAML tab for import and export; both are validated by the same model),
@@ -72,11 +75,44 @@ uv run pigtail brief show my-project [--version 1] [--json]
 uv run pigtail brief list
 uv run pigtail brief versions my-project
 uv run pigtail brief diff my-project 1 2               # field-level changes between versions
+uv run pigtail brief expand my-project --out p.yaml    # LLM expansion PROPOSAL (not saved)
+uv run pigtail brief expand my-project --accept p.yaml # save your edited proposal as a version
+uv run pigtail brief expand my-project --edit          # or: propose, edit in $EDITOR, save
 ```
+**Stale edits are refused.** `brief edit --from FILE` treats the file as an edit of the version
+named in its `version:` line (files from `pigtail brief show` have one) and refuses it if a newer
+version exists, so an old export can't silently revert later changes; export the latest, re-apply
+your edit and save again. Only a file without a `version:` line is taken as an edit of the latest
+version, with a warning. `--base-version N` overrides both. The web app and API refuse the same
+way (`409`); an API client that sends neither `base_version` nor a `version` field must set
+`force_latest: true` to save over the latest version.
+
+**LLM expansion (R18.7).** `pigtail brief expand` (or *Propose expansion* in the `/briefs`
+editor) asks the model to propose a problem statement, users, keywords, topics, competitors (names
+and optional URLs), GitHub topics and search queries. Only the project description, target users,
+business model and the field's include/exclude lists are sent (not the name, context, seed or
+reference projects, audience, budget or notes), through the same `LLMClient` as every other call
+(job `brief_expansion`; identifiers stripped; cached). It is one call of about 4,500 tokens, checked
+against the brief's budget first: on the `subscription` backend against `budget.subscription_share`;
+on the `api` backend it needs `--approve-paid` (or the approval box in the editor) and
+`budget.llm_api_usd`. The call uses the brief's `budget.llm_backend` and is refused, never
+rerouted, if `LLM_BACKEND` differs, unless you set a per-job override
+(`LLM_BACKEND_OVERRIDES=brief_expansion:api`). The result is a **proposal**: nothing is saved until
+you accept it, and model output is unverified, so check every competitor and URL. Accepting saves
+a new version whose `expansion` block records the prompt id, version and fingerprint, the model and
+backend, and whether you edited the proposal. Runs make no expansion call (the estimate shows it
+separately).
 What to fill in: the project and its target users; the **core field** with include/exclude
 boundaries, and the adjacent fields to widen to if the core field is too small (R4.10); seed
-projects (names only; discovery proposes matches you confirm) and reference cases that stay in
-the report whatever their outcome (R4.11); the window (12–18 months); the **success definition**:
+projects (names only; discovery proposes matches you confirm) and **reference cases**, named
+projects always studied whatever their outcome (R4.11, ADR-057.4): a name, URLs, an optional
+`owner/repo` (without one, pigtail picks the repo the project's launch posts linked to and shows
+the choice for your confirmation in the shortlist review; an unresolved one doesn't block the
+run) and a note; **distribution exemplars** (ADR-057.1), projects chosen for exceptional
+distribution whatever their field, each studied with 1–2 losers matched on launch type, launch
+period and audience bucket (never on field), which adds deep-forensics cases to the estimate;
+the report options (absolute numbers per class and panel, transferability labels on exemplar
+patterns; both on by default); the window (12–18 months); the **success definition**:
 one primary dimension (attention, adoption, community or business), its threshold, minimums on
 the others, and the fallbacks for projects without measurable adoption or too few winners
 (ADR-053.2); weights only under "advanced"; your own audience per channel as a reach band
@@ -104,7 +140,7 @@ uv run pigtail brief estimate my-project          # or the "Cost estimate" panel
 It shows GitHub requests per bucket (core, GraphQL, search) and the hours they take at the
 default 70 % caps, the number of LLM calls and tokens per stage, the share of your weekly
 allowance and how many weeks the run spreads over, and the money cost. **Every figure is an
-estimate** from the `estimate-v0` planning model; measured costs and run times for the example
+estimate** from the `estimate-v1` planning model; measured costs and run times for the example
 brief will replace these numbers after its first real run (D6). For the example brief with the
 default budget, expect $0 in money, roughly 6,000 GitHub requests (under 2 hours of API time)
 and an LLM volume of about 12–13M tokens, several times the assumed weekly allowance, so at the

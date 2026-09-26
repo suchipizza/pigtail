@@ -1,4 +1,4 @@
-// D7 guided form (R18.1, R18.2). Mirrors schemas/brief/v1.json section by section; weights and
+// D7 guided form (R18.1, R18.2). Mirrors schemas/brief/v1.1.json section by section; weights and
 // per-dimension metrics sit under "Advanced". Validation happens on the server, and each error
 // is shown next to the field it names.
 import type { ReactNode } from "react";
@@ -14,6 +14,7 @@ import {
   numberOrUndefined,
   setPath,
 } from "../briefDraft";
+import { RowsEditor, type Column } from "./RowsEditor";
 
 const DIMENSIONS = ["attention", "adoption", "community", "business"] as const;
 const RANKABLE = ["attention", "adoption", "community"] as const;
@@ -30,6 +31,17 @@ const SIGNALS = ["pricing_page", "hiring_hn_posts", "careers_roles"];
 const SENSITIVITY = ["primary_swap", "band_shift", "weights", "fake_star_filter"];
 const EXACT = ["founder_audience_bucket", "launch_half_year"];
 const PAID = ["trendshift", "x", "bigquery"];
+const MATCH_ON = ["launch_type", "launch_period", "audience_bucket"];
+const PROJECT_COLUMNS: Column[] = [
+  { key: "name", label: "Name" },
+  { key: "urls", label: "URLs", kind: "list", placeholder: "space-separated" },
+  { key: "repo", label: "Repo (optional)", placeholder: "owner/name" },
+  { key: "note", label: "Note" },
+];
+const COMPETITOR_COLUMNS: Column[] = [
+  { key: "name", label: "Name" },
+  { key: "url", label: "URL (optional)" },
+];
 
 interface Props {
   draft: BriefData;
@@ -142,12 +154,32 @@ export function BriefForm({ draft, errors, onChange, lockId = false }: Props) {
     );
   };
 
-  const toggle = (path: string, label: string) => (
+  const toggle = (path: string, label: string, defaultOn = false) => (
     <label className="inline">
-      <input type="checkbox" checked={getPath(draft, path) === true} onChange={(e) => set(path, e.target.checked)} />
+      <input
+        type="checkbox"
+        checked={defaultOn ? getPath(draft, path) !== false : getPath(draft, path) === true}
+        onChange={(e) => set(path, e.target.checked)}
+      />
       {label}
     </label>
   );
+
+  const rows = (path: string, label: string, columns: Column[], hint?: string, max?: number) => (
+    <RowsEditor
+      label={label}
+      path={path}
+      rows={getPath(draft, path)}
+      columns={columns}
+      errors={errors}
+      onChange={(next) => set(path, next)}
+      hint={hint}
+      max={max}
+    />
+  );
+
+  const provenance = getPath(draft, "expansion.provenance");
+  const prov = provenance !== null && typeof provenance === "object" ? (provenance as Record<string, unknown>) : null;
 
   const minimum = (dim: (typeof RANKABLE)[number]) => {
     const path = `success.minimums.${dim}`;
@@ -200,7 +232,13 @@ export function BriefForm({ draft, errors, onChange, lockId = false }: Props) {
         {list("field.include", "Include")}
         {list("field.exclude", "Exclude")}
         {list("field.seed_projects", "Seed projects", "names only; discovery proposes matches you confirm")}
-        {list("field.reference_cases", "Reference cases", "kept in the report whatever their outcome (R4.11)")}
+        {rows(
+          "field.reference_cases",
+          "Reference cases",
+          PROJECT_COLUMNS,
+          "always studied, whatever their outcome (R4.11). Without a repo, the repo their launch posts linked to is chosen and shown for your confirmation in the shortlist review.",
+          10,
+        )}
         {list("field.reference_models", "Reference models", "studied qualitatively, not in the panel")}
         {list("field.widening_steps", "Widening steps", "adjacent fields, in order, used only if the core field is too small")}
       </Section>
@@ -271,6 +309,25 @@ export function BriefForm({ draft, errors, onChange, lockId = false }: Props) {
         {num("panel.headline_exclusion_smd", "Exclude pairs above (SMD)", { min: 0, max: 2, step: 0.05 })}
       </Section>
 
+      <Section title="Distribution examples panel">
+        <p className="muted small">
+          Projects chosen for exceptional distribution, whatever their field. Each gets 1–2 losers matched on launch
+          type, launch period and audience bucket, never on field.
+        </p>
+        {rows("distribution_exemplars.projects", "Distribution exemplars", PROJECT_COLUMNS, undefined, 10)}
+        {num("distribution_exemplars.losers_per_exemplar", "Losers per exemplar (1–2)", { min: 1, max: 2 })}
+        {checks("distribution_exemplars.match_on", "Match exemplar losers on", MATCH_ON)}
+      </Section>
+
+      <Section title="Report">
+        {toggle("report.show_absolute_numbers", "Show absolute stars, downloads and contributors per class and panel", true)}
+        {toggle(
+          "report.transferability_labels",
+          "Label patterns from exemplars as transferable, conditional or not transferable",
+          true,
+        )}
+      </Section>
+
       <Section title="Budget">
         {num("budget.money_usd", "Money for paid services (USD)", { min: 0, step: 1 })}
         {num("budget.subscription_share", "Max share of weekly Claude subscription", { min: 0.05, max: 1, step: 0.05 })}
@@ -288,8 +345,17 @@ export function BriefForm({ draft, errors, onChange, lockId = false }: Props) {
         {text("expansion.problem_statement", "Problem statement", { area: true })}
         {list("expansion.users", "Users")}
         {list("expansion.keywords", "Keywords")}
-        {list("expansion.topics", "GitHub topics")}
-        {list("expansion.competitors", "Competitors")}
+        {list("expansion.topics", "Topics", "subject areas, one per line")}
+        {list("expansion.github_topics", "GitHub topics", "topic slugs, one per line (lowercase, dashes)")}
+        {list("expansion.search_queries", "Search queries")}
+        {rows("expansion.competitors", "Competitors", COMPETITOR_COLUMNS, "unverified until you check them")}
+        {prov && (
+          <p className="muted small">
+            Proposed by {asString(prov.model)} ({asString(prov.backend)}), prompt {asString(prov.prompt_id)} v
+            {asString(prov.prompt_version)}
+            {prov.edited_by_user === true ? ", edited by you" : ""}.
+          </p>
+        )}
       </Section>
 
       <Section title="Notes">{text("notes", "Notes (optional)", { area: true })}</Section>

@@ -17,7 +17,7 @@ Anything else is served from the built UI (`ui/dist`, single-page app fallback).
 # No `from __future__ import annotations`: FastAPI must resolve the closure-local dependency
 # annotations (`Conn`, `require_operator`) at definition time.
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -48,6 +48,8 @@ from pigtail.capture.snapshots import (
     SnapshotStore,
 )
 from pigtail.config import Settings
+from pigtail.llm import LLMClient
+from pigtail.llm import build_client as build_llm_client
 
 _HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 _ID_RE = re.compile(r"^[a-z]+_[0-9a-f]{16,40}$")
@@ -103,6 +105,7 @@ def create_app(
     ui: UISettings,
     store: SnapshotStore,
     settings: Settings | None = None,
+    llm_client: Callable[[], LLMClient] | None = None,
 ) -> FastAPI:
     capture = settings or Settings.from_env({})
     pools: dict[str, ConnectionPool[Any]] = {}
@@ -397,6 +400,14 @@ def create_app(
         )
 
     # --- D7 briefs (M12): read and write, behind the same login -----------------------------
+    llm_clients: dict[str, LLMClient] = {}
+
+    def shared_llm_client() -> LLMClient:
+        """One `LLMClient` per app, built on first use (R18.7 expansion proposals)."""
+        if "default" not in llm_clients:
+            llm_clients["default"] = build_llm_client(capture)
+        return llm_clients["default"]
+
     def audit_write(event: str, route: str, request: Request, status: int) -> None:
         auth_store().audit(
             event,
@@ -415,6 +426,7 @@ def create_app(
             same_origin=same_origin,
             audit=audit_write,
             read_conn=read_conn,
+            llm_client=llm_client or shared_llm_client,
         )
     )
 

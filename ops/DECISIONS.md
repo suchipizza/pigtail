@@ -442,3 +442,11 @@ How to reverse: Remove the examples from the brief; drop the report section thro
 3. **Absolute numbers:** reports show absolute stars, downloads and contributors next to each winner and loser class, per panel, so the scale of "winning" is visible.
 4. **Reference cases** become a brief-schema field (`field.reference_cases`, structured): named projects always studied whatever their outcome class. The repo follows the launch-link rule (ADR-054.3) and is confirmed by the user in the shortlist review. Unresolved ones don't block the run. Brief schema v1.1 also adds `distribution_exemplars` and the report options.
 How to reverse: Per item, through an ADR.
+
+## ADR-058 — Brief expansion, stale-edit defaults, brief schema v1.1 (M12 fixes) (2026-09-26)
+1. **Expansion (R18.7):** `pigtail brief expand` and `POST /api/briefs/{id}/expansion` return a **proposal** and save nothing. Only the description, target users, business model and field include/exclude are sent to the model; never the name, context, reference cases, examples, channels or notes. The prompt is versioned (`brief_expansion` v1) with a closed output schema, runs through `LLMClient` as job `brief_expansion`, and is checked by `BudgetGuard` (never an automatic backend switch; ADR-053). Accepting saves a new version with provenance. Accepting is refused if the brief changed after the proposal. Migration 0016 adds the audit event `brief_expansion`.
+2. **Stale edits:** an edit is based on `--base-version`, else the file's `version:`, else the latest version with a warning. The API uses `base_version`, else the payload's `version`, else returns 409 unless `force_latest: true`. An edit exported from an older version is refused, so it can't silently undo newer changes.
+3. **Brief schema v1.1** (ADR-057): structured `field.reference_cases`, a `distribution_exemplars` section (`losers_per_exemplar` 1–2; `match_on` launch type, launch period, audience bucket), and `report.show_absolute_numbers` / `report.transferability_labels`. v1 briefs are converted in memory and written as v1.1 on the next save.
+4. **Estimate** is now `estimate-v1` (supersedes ADR-055.4's `estimate-v0`). Its per-unit figures are still placeholders until measured.
+Also fixed: a time-dependent test (`due_case_repos` now takes an injectable clock).
+How to reverse: Per item, through an ADR.

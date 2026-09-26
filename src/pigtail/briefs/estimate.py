@@ -17,6 +17,10 @@ What it reports:
   listed and `requires_approval` is true; the run won't start without explicit approval.
 - Reuse: with a `RerunPlan` (a previous run of an earlier version), stages that will be reused
   cost nothing (R18.4).
+- Expansion (R18.7): the LLM expansion is proposed on demand, before a run
+  (`pigtail brief expand`, "Propose expansion" in `/briefs`), and only an accepted expansion is
+  part of the brief version. A run therefore makes no expansion call; the `expansion` block
+  reports whether the brief has one and what one proposal call costs (estimate-v1).
 """
 
 from __future__ import annotations
@@ -28,11 +32,12 @@ from typing import Any
 
 from pigtail.briefs.budget import WEEK, Allowance, resolve_allowance, utcnow
 from pigtail.briefs.cache import RerunPlan, plan_rerun
+from pigtail.briefs.expansion import EXPANSION_TOKENS
 from pigtail.briefs.model import Brief, BriefInvalid
 from pigtail.briefs.store import BriefNotFound, BriefStore
 from pigtail.connectors.github_budget import DEFAULT_CAP_FRACTION, GITHUB_LIMITS_PER_HOUR
 
-ESTIMATE_MODEL = "estimate-v0"
+ESTIMATE_MODEL = "estimate-v1"  # v1: expansion is an on-demand call, not a run stage
 
 # --- planning assumptions (estimate-v0; replaced by measured values after the example run) ---
 SEARCH_PAGES_PER_QUERY = 2  # 100 results per page
@@ -49,7 +54,7 @@ HN_QUERIES_PER_TERM_SLICE = 1
 
 # (input tokens, output tokens) per call
 TOKENS = {
-    "expansion": (3_000, 1_500),
+    "expansion": EXPANSION_TOKENS,
     "relevance": (1_500, 250),
     "extraction": (8_000, 1_500),
     "adjudication": (6_000, 1_000),
@@ -118,6 +123,8 @@ class Estimate:
     llm_api_usd: float
     paid_steps: list[PaidStep] = field(default_factory=list)
     reuse: dict[str, Any] | None = None
+    expansion: dict[str, Any] = field(default_factory=dict)
+    exemplar_cases: int = 0  # distribution exemplars + their matched losers (in `cases`)
 
     @property
     def llm_calls(self) -> int:
@@ -174,6 +181,7 @@ class Estimate:
                 "candidates": self.candidates,
                 "shortlisted": self.shortlisted,
                 "cases": self.cases,
+                "exemplar_cases": self.exemplar_cases,
             },
             "llm": {
                 "backend": self.llm_backend,
@@ -195,14 +203,40 @@ class Estimate:
                 "requires_approval": self.requires_approval,
             },
             "reuse": self.reuse,
+            "expansion": self.expansion,
         }
 
 
 def _terms(brief: Brief) -> int:
     n = len(brief.field.include) + 1  # + the core field itself
     if brief.expansion is not None:
-        n += len(brief.expansion.keywords) + len(brief.expansion.topics)
+        e = brief.expansion
+        n += len(e.keywords) + len(e.topics) + len(e.github_topics) + len(e.search_queries)
     return n
+
+
+def expansion_status(brief: Brief) -> dict[str, Any]:
+    """R18.7: whether the brief has an accepted expansion, and the cost of one proposal."""
+    e = brief.expansion
+    if e is None:
+        status = "none"
+    elif e.generated_by == "llm":
+        status = "accepted_llm_proposal"
+    else:
+        status = "written_by_user"
+    tin, tout = TOKENS["expansion"]
+    return {
+        "status": status,
+        "edited_by_user": bool(e and e.provenance and e.provenance.edited_by_user),
+        "run_llm_calls": 0,
+        "proposal": {
+            "llm_calls": 1,
+            "input_tokens": tin,
+            "output_tokens": tout,
+            "command": f"pigtail brief expand {brief.brief_id}",
+            "note": "on demand, before a run; saved only when you accept it",
+        },
+    }
 
 
 def estimate(
@@ -221,7 +255,13 @@ def estimate(
     shortlisted = max(
         math.ceil(candidates * SHORTLIST_FRACTION), brief.panel.winners + brief.panel.losers
     )
-    cases = brief.panel.winners + brief.panel.losers + len(brief.field.reference_cases)
+    ex = brief.distribution_exemplars
+    # Deep forensics: field panel, reference cases, and each distribution exemplar with its
+    # matched losers (ADR-057.1).
+    exemplar_cases = len(ex.projects) * (1 + ex.losers_per_exemplar)
+    cases = (
+        brief.panel.winners + brief.panel.losers + len(brief.field.reference_cases) + exemplar_cases
+    )
     star_pages = math.ceil(brief.window.months * 4.35 / STAR_HISTORY_WEEKS_PER_PAGE) + 1
     reused = set(plan.fully_reused()) if plan is not None else set()
 
@@ -242,10 +282,10 @@ def estimate(
     def cost(stage: str, calls: int, per: tuple[int, int]) -> StageCost:
         return StageCost(stage, calls, calls * per[0], calls * per[1], reused=stage in reused)
 
-    need_expansion = brief.expansion is None or brief.expansion.generated_by == "llm"
     chunks = cases * EXTRACTION_CHUNKS_PER_CASE
     stages = [
-        cost("expansion", 1 if need_expansion else 0, TOKENS["expansion"]),
+        # R18.7: the run uses the accepted expansion; proposing one is a separate, on-demand call.
+        cost("expansion", 0, TOKENS["expansion"]),
         cost("relevance", candidates, TOKENS["relevance"]),
         cost("extraction", chunks * CODERS, TOKENS["extraction"]),
         StageCost(
@@ -297,6 +337,8 @@ def estimate(
         llm_api_usd=api_usd,
         paid_steps=paid,
         reuse=plan.to_dict() if plan is not None else None,
+        expansion=expansion_status(brief),
+        exemplar_cases=exemplar_cases,
     )
 
 
@@ -339,7 +381,8 @@ def render_text(e: Estimate, brief: Brief) -> str:
         f"  about {e.github_hours:.1f} h at the default 70 % caps",
         "Other free sources:",
         *(f"  {k:<11} {v:>5,} requests" for k, v in e.other_requests.items()),
-        f"Candidates ~{e.candidates:,}, shortlisted ~{e.shortlisted:,}, cases {e.cases}",
+        f"Candidates ~{e.candidates:,}, shortlisted ~{e.shortlisted:,}, cases {e.cases}"
+        + (f" (incl. {e.exemplar_cases} distribution-exemplar cases)" if e.exemplar_cases else ""),
         "",
         f"LLM ({e.llm_backend} backend): {e.llm_calls:,} calls, {e.tokens:,} tokens",
         *(
@@ -373,6 +416,21 @@ def render_text(e: Estimate, brief: Brief) -> str:
             for p in e.paid_steps
         ]
         lines.append("  Paid steps need explicit approval: re-run with --approve-paid.")
+    x = e.expansion
+    if x:
+        state = {
+            "none": "none yet",
+            "accepted_llm_proposal": "accepted model proposal"
+            + (" (edited)" if x["edited_by_user"] else ""),
+            "written_by_user": "written by you",
+        }[x["status"]]
+        p = x["proposal"]
+        lines += [
+            "",
+            f"Expansion (R18.7): {state}. The run makes no expansion call; a proposal "
+            f"(`{p['command']}`) is 1 call, ~{p['input_tokens'] + p['output_tokens']:,} tokens, "
+            "on demand.",
+        ]
     if e.reuse is not None:
         lines += ["", f"Re-run from v{e.reuse['from_version']}:"]
         lines += [f"  {s['stage']:<13} {s['action']}" for s in e.reuse["stages"]]

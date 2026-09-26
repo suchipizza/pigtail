@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BriefData, BriefDiff, Estimate } from "./api";
-import { errorsFor, getPath, linesToList, linesToMap, mapToLines, setPath } from "./briefDraft";
+import { asRows, errorsFor, getPath, linesToList, linesToMap, mapToLines, setPath, setRowField } from "./briefDraft";
 import { BriefDiffView } from "./components/BriefDiffView";
 import { BriefForm } from "./components/BriefForm";
 import { EstimatePanel } from "./components/EstimatePanel";
@@ -66,6 +66,8 @@ describe("D7 briefs", () => {
       "Channels and geography",
       "Winners and losers",
       "Budget",
+      "Distribution examples panel",
+      "Report",
       "Expansion (editable before saving)",
     ]) {
       expect(screen.getByText(title)).toBeTruthy();
@@ -126,6 +128,39 @@ describe("D7 briefs", () => {
   });
 });
 
+
+describe("brief schema v1.1 (ADR-057) and expansion fields (R18.7)", () => {
+  it("row helpers: a v1 string is a name, list cells split on whitespace, empty removes", () => {
+    expect(asRows(["Synthetic", { name: "B", urls: ["https://example.com"] }])).toEqual([
+      { name: "Synthetic" },
+      { name: "B", urls: ["https://example.com"] },
+    ]);
+    expect(setRowField({ name: "A" }, "urls", " https://example.com  https://example.org ", "list")).toEqual({
+      name: "A",
+      urls: ["https://example.com", "https://example.org"],
+    });
+    expect(setRowField({ name: "A", repo: "o/r" }, "repo", "")).toEqual({ name: "A" });
+  });
+
+  it("edits reference cases and distribution exemplars as rows; report options default on", () => {
+    const onChange = vi.fn();
+    const d = setPath(draft, "field.reference_cases", [{ name: "Synthetic Ref" }]);
+    render(<BriefForm draft={d} errors={[]} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText("Reference cases 1 Repo (optional)"), { target: { value: "synthetic-org/ref" } });
+    expect(getPath(onChange.mock.calls.at(-1)?.[0], "field.reference_cases")).toEqual([
+      { name: "Synthetic Ref", repo: "synthetic-org/ref" },
+    ]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Add" })[1] as HTMLElement);
+    expect(getPath(onChange.mock.calls.at(-1)?.[0], "distribution_exemplars.projects")).toEqual([{ name: "" }]);
+    const abs = screen.getByLabelText(/Show absolute stars/) as HTMLInputElement;
+    expect(abs.checked).toBe(true);
+    fireEvent.click(abs);
+    expect(getPath(onChange.mock.calls.at(-1)?.[0], "report.show_absolute_numbers")).toBe(false);
+    expect(screen.getByLabelText(/^GitHub topics/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Search queries/)).toBeTruthy();
+  });
+});
+
 describe("D7 pages with a mocked API", () => {
   const stored = {
     brief: { ...draft, version: 2 },
@@ -178,5 +213,63 @@ describe("D7 pages with a mocked API", () => {
     expect(await screen.findByText("window.months")).toBeTruthy();
     expect(screen.getAllByText(/^v1$/).length).toBeGreaterThan(0);
     expect(await screen.findByText(/Estimate unavailable/)).toBeTruthy();
+  });
+  it("R18.7: Propose expansion shows a proposal, saves nothing until accepted, then saves a version", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const proposal = {
+      label: "proposal",
+      saved: false,
+      brief_id: "synthetic-brief",
+      base_version: 2,
+      cached: false,
+      est_tokens: 4500,
+      notes: ["This is a proposal from a language model, not evidence."],
+      expansion: {
+        problem_statement: "A synthetic problem.",
+        users: ["devs"],
+        keywords: ["synthetic keyword"],
+        topics: [],
+        github_topics: ["synthetic"],
+        search_queries: [],
+        competitors: [{ name: "Synthetic Rival", url: "https://example.com/rival" }],
+        generated_by: "llm",
+        provenance: {
+          job: "brief_expansion",
+          prompt_id: "brief_expansion",
+          prompt_version: "1",
+          prompt_fingerprint: "abc123",
+          model: "test-model",
+          backend: "subscription",
+          input_hash: "c".repeat(64),
+          proposal_hash: "d".repeat(64),
+          generated_at: "2026-09-26T12:00:00Z",
+          edited_by_user: false,
+        },
+      },
+    };
+    vi.stubGlobal("fetch", (url: string, init?: RequestInit) => {
+      calls.push({ url, ...(init ? { init } : {}) });
+      if (url === "/api/briefs/synthetic-brief") return json({ ...stored, versions: [] });
+      if (url === "/api/briefs/synthetic-brief/expansion") return json(proposal);
+      if (url === "/api/briefs/synthetic-brief/versions") return json({ ...stored, version: 3, created: true }, 201);
+      return json({}, 404);
+    });
+    const { BriefEditorPage } = await import("./pages/BriefEditorPage");
+    render(<BriefEditorPage id="synthetic-brief" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Propose expansion" }));
+    expect(await screen.findByText(/proposal · not saved/)).toBeTruthy();
+    expect(calls.some((c) => c.url.endsWith("/versions"))).toBe(false);
+    const req = calls.find((c) => c.url.endsWith("/expansion"));
+    expect(JSON.parse(String(req?.init?.body))).toEqual({ version: 2, approve_paid: false });
+    fireEvent.change(screen.getByLabelText("Keywords", { selector: ".proposal textarea" }), {
+      target: { value: "edited keyword" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Accept and save as new version" }));
+    await vi.waitFor(() => expect(calls.some((c) => c.url.endsWith("/versions"))).toBe(true));
+    const post = calls.find((c) => c.url.endsWith("/versions"));
+    const body = JSON.parse(String(post?.init?.body)) as { base_version: number; brief: BriefData };
+    expect(body.base_version).toBe(2);
+    expect(getPath(body.brief, "expansion.keywords")).toEqual(["edited keyword"]);
+    expect(getPath(body.brief, "expansion.provenance.prompt_id")).toBe("brief_expansion");
   });
 });

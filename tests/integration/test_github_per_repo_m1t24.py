@@ -233,11 +233,14 @@ def test_m11_star_history_cases_queue_is_open_cases_only(capture_db, tmp_path):
     closed = Case(id=case_id("github:7000002", "manual", NOW), repo_id="github:7000002",
                   opened_at=NOW, trigger="manual", status="closed", detection=None)  # fmt: skip
     db.insert_case(closed)
-    assert due_case_repos(db) == [(7000001, "org-x/repo-1")]  # the closed case's repo is not due
+    assert due_case_repos(db, now=NOW) == [
+        (7000001, "org-x/repo-1")
+    ]  # the closed case's repo is not due
     c = connector(db, FakeGitHub(), tmp_path)
     fetch_star_history(c, db, 7000001, "org-x/repo-1")
-    assert due_case_repos(db) == []  # fetched just now
-    assert due_case_repos(db, refresh=timedelta(0)) == [(7000001, "org-x/repo-1")]
+    assert due_case_repos(db, now=NOW) == []  # fetched just now
+    later = NOW + timedelta(seconds=1)
+    assert due_case_repos(db, refresh=timedelta(0), now=later) == [(7000001, "org-x/repo-1")]
 
 
 # --- per-repo events (TM-33, CB-22, CB-23) -------------------------------------------------------

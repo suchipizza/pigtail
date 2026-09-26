@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -155,20 +155,21 @@ def fetch_star_history(
 
 
 def due_case_repos(
-    db: CaptureDB, *, refresh: timedelta = timedelta(hours=20)
+    db: CaptureDB, *, refresh: timedelta = timedelta(hours=20), now: datetime | None = None
 ) -> list[tuple[int, str]]:
     """GitHub repos of open cases whose star history was never fetched or is older than
-    `refresh` (`capture github star-history --cases`). Most recently opened cases first."""
+    `refresh` (`capture github star-history --cases`). Most recently opened cases first.
+    `now` defaults to the current time; tests pass their fixed clock."""
     rows = db.conn.execute(
         """
         SELECT r.host_id, r.full_name FROM repos r
         WHERE r.host = 'github' AND r.host_id IS NOT NULL
           AND EXISTS (SELECT 1 FROM cases c WHERE c.repo_id = r.id AND c.status = ANY(%s))
           AND coalesce((SELECT max(f.fetched_at) FROM star_history_fetch f
-                        WHERE f.repo_host_id = r.host_id), '-infinity') < now() - %s
+                        WHERE f.repo_host_id = r.host_id), '-infinity') < %s
         ORDER BY (SELECT max(c.opened_at) FROM cases c WHERE c.repo_id = r.id) DESC, r.host_id
         """,
-        (list(OPEN_CASE_STATUSES), refresh),
+        (list(OPEN_CASE_STATUSES), (now or datetime.now(UTC)) - refresh),
     ).fetchall()
     return [(int(h), str(n)) for h, n in rows]
 

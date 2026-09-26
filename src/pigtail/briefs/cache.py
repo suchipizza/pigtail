@@ -64,14 +64,28 @@ PER_ITEM: frozenset[Stage] = frozenset({"relevance", "evidence", "extraction"})
 
 # The brief fields each stage reads (dotted prefixes of `Brief.content()`).
 STAGE_INPUTS: dict[Stage, tuple[str, ...]] = {
-    "expansion": ("project", "field.core_field", "field.include", "field.exclude"),
-    "discovery": ("field", "window", "expansion", "optional_sources", "geography.languages"),
+    # Exactly what `pigtail.briefs.expansion.expansion_input` sends to the model (R18.7).
+    "expansion": (
+        "project.description",
+        "project.target_users",
+        "project.business_model",
+        "field.include",
+        "field.exclude",
+    ),
+    "discovery": (
+        "field",
+        "window",
+        "expansion",
+        "optional_sources",
+        "geography.languages",
+        "distribution_exemplars",
+    ),
     "relevance": ("project", "field", "expansion"),
     "evidence": ("window", "optional_sources"),
     "outcome_sort": ("success", "panel.winners", "window", "field.reference_cases"),
-    "matching": ("panel",),
+    "matching": ("panel", "distribution_exemplars"),
     "extraction": (),
-    "patterns": ("success", "panel"),
+    "patterns": ("success", "panel", "distribution_exemplars", "report"),
 }
 # Whole-stage upstream dependencies (per-item stages depend on their items instead).
 UPSTREAM: dict[Stage, tuple[Stage, ...]] = {

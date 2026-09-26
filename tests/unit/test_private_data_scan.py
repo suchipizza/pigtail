@@ -54,7 +54,7 @@ def test_role_addresses_allowed(tmp_path):
     assert scanner.scan([rel], tmp_path) == []
 
 
-# --- M12 (PRD R18.9, D7): research briefs never enter git -------------------------------------
+# --- M12 (PRD R18.9, D7): research briefs never enter git ----------------------------------------
 BRIEF_YAML = """brief_id: synthetic-private
 project:
   name: Synthetic
@@ -95,3 +95,36 @@ def test_m12_the_real_repo_example_passes_and_data_dir_is_blocked():
     root = Path(__file__).parents[2]
     assert scanner.scan(["docs/examples/brief-example.yaml", "schemas/brief/v1.json"], root) == []
     assert scanner.scan(["data/briefs/anything/v0001.yaml"], root)
+
+
+# --- M12 verifier fix: flow-style and indented brief content -------------------------------------
+def test_m12_brief_content_flow_style_blocked(tmp_path):
+    for text in (
+        "brief_id: synthetic-private\nproject: {name: Synthetic, description: x}\n",
+        "{brief_id: synthetic-private, project: {name: Synthetic}}\n",
+        "- brief_id: synthetic-private\n  project: {name: Synthetic}\n",
+        "'brief_id': synthetic-private\n\"project\":\n  name: Synthetic\n",
+    ):
+        rel = write(tmp_path, "notes/pasted.md", text)
+        assert any("brief's structure" in f for f in scanner.scan([rel], tmp_path)), text
+
+
+def test_m12_brief_content_indented_blocked(tmp_path):
+    for text in (
+        "Here is my brief:\n\n    brief_id: synthetic-private\n    project:\n      name: S\n",
+        "saved:\n  brief:\n    brief_id: synthetic-private\n    project:   # the project\n",
+        "\tbrief_id: synthetic-private\n\tproject:\n",
+    ):
+        rel = write(tmp_path, "ops/log.yaml", text)
+        assert any("brief's structure" in f for f in scanner.scan([rel], tmp_path)), text
+
+
+def test_m12_brief_rule_does_not_flag_prose_or_unrelated_keys(tmp_path):
+    for text in (
+        "The brief_id: field names a brief; the project: section describes it.\n",
+        "brief_id_prefix: x\nproject_name: y\n",
+        "brief_id: # empty\nproject:\n",
+        "brief_id: synthetic\nproject: just a string value\n",
+    ):
+        rel = write(tmp_path, "docs/guide.md", text)
+        assert scanner.scan([rel], tmp_path) == [], text

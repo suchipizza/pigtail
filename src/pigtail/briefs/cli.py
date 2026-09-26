@@ -9,10 +9,18 @@
     pigtail brief diff ID [A [B]] [--json]                   default: previous vs latest
     pigtail brief validate FILE|ID [--upgrade-v0] [--json]
     pigtail brief estimate ID [--version N] [--approve-paid] [--json]
-    pigtail brief schema                                     print schemas/brief/v1.json
+    pigtail brief expand ID [--version N] [--approve-paid] [--out FILE] [--json]
+                                                             propose an LLM expansion (R18.7)
+    pigtail brief expand ID --accept FILE                    save an (edited) proposal
+    pigtail brief expand ID --edit                           propose, edit in $EDITOR, save
+    pigtail brief schema                                     print schemas/brief/v1.1.json
 
-Exit codes: 0 ok; 1 invalid brief or not found; 2 usage/config error; 3 the estimate has paid
-steps that were not approved (`--approve-paid`).
+`edit` refuses a stale edit: the base version is `--base-version`, else the file's `version:`
+field, else (with a warning) the latest version.
+
+Exit codes: 0 ok; 1 invalid brief, not found or stale edit; 2 usage/config error; 3 paid steps
+not approved (`--approve-paid`); 4 a budget cap or LLM limit stopped the expansion (nothing was
+saved).
 Briefs are private: they live in PIGTAIL_DATA_DIR/briefs and never in git (R18.9).
 """
 
@@ -40,6 +48,7 @@ from pigtail.briefs.store import BriefExists, BriefNotFound, BriefStore, Version
 EXIT_INVALID = 1
 EXIT_USAGE = 2
 EXIT_NEEDS_APPROVAL = 3
+EXIT_BUDGET = 4
 
 
 def example_path() -> Path:
@@ -135,6 +144,42 @@ def _edit_in_editor(current: str, store: BriefStore) -> str | None:
         Path(tmp).unlink(missing_ok=True)
 
 
+STALE_HINT = (
+    "Your file is based on an older version, and saving it would silently revert the newer "
+    "changes. Export the latest (`pigtail brief show ID > file`), re-apply your edit, and save "
+    "again; or pass --base-version N if you really mean to replace the latest version."
+)
+
+
+def edit_base_version(
+    *, explicit: int | None, file_version: int | None, latest: int, from_editor: bool
+) -> int:
+    """The version an edit is based on (stale edits are refused against it).
+
+    `--base-version` wins; an edit opened in $EDITOR is based on the version it loaded; a file
+    is based on its own `version:` field. Only a file without one falls back to the latest
+    version, with a warning.
+    """
+    if explicit is not None:
+        if file_version is not None and file_version != explicit:
+            print(
+                f"warning: the file says version {file_version}; using --base-version {explicit}",
+                file=sys.stderr,
+            )
+        return explicit
+    if from_editor:
+        return latest
+    if file_version is not None:
+        return file_version
+    print(
+        f"warning: the file has no `version:` field, so it is treated as an edit of the latest "
+        f"version (v{latest}); keep the `version:` line from `pigtail brief show` so stale "
+        "edits can be detected",
+        file=sys.stderr,
+    )
+    return latest
+
+
 def cmd_edit(args: argparse.Namespace) -> int:
     """R18.4: every edit creates a new, immutable version; unchanged content is a no-op."""
     store = _store()
@@ -159,12 +204,17 @@ def cmd_edit(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return EXIT_INVALID
-        base = args.base_version if args.base_version is not None else latest.version
+        base = edit_base_version(
+            explicit=args.base_version,
+            file_version=brief.version,
+            latest=latest.version,
+            from_editor=not args.source,
+        )
         stored, created = store.save_version(brief, base_version=base)
     except BriefInvalid as e:
         return _print_invalid(e)
     except VersionConflict as e:
-        print(str(e), file=sys.stderr)
+        print(f"refused, nothing saved: {e}. {STALE_HINT}", file=sys.stderr)
         return EXIT_INVALID
     _warn(stored.brief, store)
     if created:
@@ -341,6 +391,134 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _llm_client() -> Any:
+    """The product LLM client (PRD F15). Tests replace this with a fake backend."""
+    from pigtail.llm import build_client
+
+    return build_client(_settings())
+
+
+def _write_private(path: str, text: str) -> None:
+    if path == "-":
+        sys.stdout.write(text)
+        return
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
+def _proposal_yaml(proposal: dict[str, Any]) -> str:
+    import yaml
+
+    header = (
+        "# LLM expansion PROPOSAL (PRD R18.7). Nothing is saved yet. Edit the `expansion` fields,\n"
+        "# then accept: pigtail brief expand {bid} --accept <this file>\n"
+        "# Unverified model output: check every competitor and URL. Keep this file out of git.\n"
+    ).format(bid=proposal["brief_id"])
+    body = {
+        "brief_id": proposal["brief_id"],
+        "base_version": proposal["base_version"],
+        "notes": proposal["notes"],
+        "expansion": proposal["expansion"],
+    }
+    return header + yaml.safe_dump(body, sort_keys=False, allow_unicode=True, width=100)
+
+
+def _accept(store: BriefStore, brief_id: str, text: str) -> int:
+    from pigtail.briefs.expansion import apply_expansion
+
+    try:
+        doc = parse_yaml(text)
+    except BriefInvalid as e:
+        return _print_invalid(e)
+    if not isinstance(doc, dict) or "expansion" not in doc:
+        print("the file has no `expansion:` block (use the file `--out` wrote)", file=sys.stderr)
+        return EXIT_INVALID
+    if doc.get("brief_id", brief_id) != brief_id:
+        print(f"the proposal is for {doc.get('brief_id')!r}, not {brief_id!r}", file=sys.stderr)
+        return EXIT_INVALID
+    base = doc.get("base_version")
+    if not isinstance(base, int) or isinstance(base, bool):
+        print("the proposal has no `base_version:`; propose again", file=sys.stderr)
+        return EXIT_INVALID
+    try:
+        stored, created = apply_expansion(store, brief_id, doc["expansion"], base_version=base)
+    except BriefInvalid as e:
+        return _print_invalid(e)
+    except BriefNotFound as e:
+        print(str(e), file=sys.stderr)
+        return EXIT_INVALID
+    except VersionConflict as e:
+        print(
+            f"refused, nothing saved: {e}. The brief changed after this proposal; propose again "
+            "(or copy your edits into a new proposal).",
+            file=sys.stderr,
+        )
+        return EXIT_INVALID
+    _warn(stored.brief, store)
+    exp = stored.brief.expansion
+    edited = bool(exp and exp.provenance and exp.provenance.edited_by_user)
+    if created:
+        print(
+            f"saved {brief_id} v{stored.version} with the expansion"
+            + (" (edited by you)" if edited else "")
+        )
+    else:
+        print(f"no changes; {brief_id} stays at v{stored.version}")
+    return 0
+
+
+def cmd_expand(args: argparse.Namespace) -> int:
+    """R18.7: propose an LLM expansion; save it only when the user accepts it."""
+    from pigtail.briefs.budget import BudgetStop
+    from pigtail.briefs.expansion import make_guard, propose_expansion
+    from pigtail.llm import LLMError
+
+    store = _store()
+    if args.accept is not None:
+        if args.edit or args.out:
+            print("--accept can't be combined with --edit or --out", file=sys.stderr)
+            return EXIT_USAGE
+        return _accept(store, args.brief_id, _read_source(args.accept))
+    try:
+        brief = store.get(args.brief_id, args.version).brief
+    except (BriefNotFound, BriefInvalid) as e:
+        print(str(e), file=sys.stderr)
+        return EXIT_INVALID
+    try:
+        client = _llm_client()
+    except ValueError as e:
+        print(f"LLM client not configured: {e}", file=sys.stderr)
+        return EXIT_USAGE
+    try:
+        proposal = propose_expansion(
+            brief, client, make_guard(client, brief, approved_paid=args.approve_paid)
+        )
+    except BudgetStop as e:
+        print(f"nothing was sent to the model: {e}", file=sys.stderr)
+        return EXIT_NEEDS_APPROVAL if e.kind == "approval" else EXIT_BUDGET
+    except LLMError as e:
+        print(f"expansion failed, nothing saved: {type(e).__name__}: {e}", file=sys.stderr)
+        return EXIT_BUDGET
+    out = proposal.to_dict()
+    if args.edit:
+        edited = _edit_in_editor(_proposal_yaml(out), store)
+        if edited is None:
+            return EXIT_USAGE
+        return _accept(store, args.brief_id, edited)
+    if args.json and not args.out:
+        _json(out)
+    else:
+        _write_private(args.out or "-", _proposal_yaml(out))
+        if args.out:
+            print(
+                f"proposal written to {args.out} (not saved). Edit it, then: "
+                f"pigtail brief expand {brief.brief_id} --accept {args.out}",
+                file=sys.stderr,
+            )
+    return 0
+
+
 def cmd_schema(_args: argparse.Namespace) -> int:
     print(json.dumps(json_schema(), indent=2))
     return 0
@@ -402,4 +580,16 @@ def add_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> No
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_estimate)
 
-    bs.add_parser("schema", help="print the brief JSON Schema (v1)").set_defaults(func=cmd_schema)
+    p = bs.add_parser("expand", help="propose an LLM expansion; saved only when you accept it")
+    p.add_argument("brief_id")
+    p.add_argument("--version", type=int, help="brief version to expand (default: latest)")
+    p.add_argument(
+        "--approve-paid", action="store_true", help="approve the call's cost on the api backend"
+    )
+    p.add_argument("--out", help="write the proposal (YAML) to this file instead of stdout")
+    p.add_argument("--json", action="store_true", help="print the proposal as JSON")
+    p.add_argument("--accept", metavar="FILE", help="save an (edited) proposal file, or -")
+    p.add_argument("--edit", action="store_true", help="edit the proposal in $EDITOR, then save")
+    p.set_defaults(func=cmd_expand)
+
+    bs.add_parser("schema", help="print the brief JSON Schema (v1.1)").set_defaults(func=cmd_schema)

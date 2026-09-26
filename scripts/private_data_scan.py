@@ -51,7 +51,14 @@ EMAIL_ALLOW = re.compile(
 # Code files are exempt from the content rule (tests build synthetic briefs in memory); the
 # explicit allowlist holds the synthetic example the repo ships (docs/examples).
 BRIEF_PATH = re.compile(r"(^|/)briefs/.+\.(ya?ml|json)$|(^|/)[^/]*brief[^/]*\.ya?ml$", re.I)
-BRIEF_YAML = (re.compile(r"^brief_id:[ \t]*\S", re.M), re.compile(r"^project:[ \t]*$", re.M))
+# A key at the start of a line (any indentation, optionally a list item or quoted) or inside a
+# flow mapping (after `{` or `,`), so indented and flow-style briefs (`project: {name: …}`) match
+# as well as block style. `project` must open a mapping: end of line, a comment, or `{`.
+_KEY = r"(?:^[ \t]*(?:-[ \t]+)?|[{,][ \t]*)[\"']?"
+BRIEF_YAML = (
+    re.compile(_KEY + r"brief_id[\"']?[ \t]*:[ \t]*[^\s#]", re.M),
+    re.compile(_KEY + r"project[\"']?[ \t]*:[ \t]*(?:$|#|\{)", re.M),
+)
 BRIEF_JSON = (
     re.compile(r'"brief_id"\s*:\s*"'),
     re.compile(r'"project"\s*:\s*\{\s*"(name|description|target_users)"'),

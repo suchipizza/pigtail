@@ -289,17 +289,48 @@ export const api = {
     request<BriefDiff>(withQuery(`/api/briefs/${encodeURIComponent(id)}/diff`, { from, to })),
   briefEstimate: (id: string, version?: number) =>
     request<Estimate>(withQuery(`/api/briefs/${encodeURIComponent(id)}/estimate`, { version })),
+  /** R18.7: an LLM expansion proposal. Nothing is saved until the user saves the brief. */
+  proposeExpansion: (id: string, body: { version?: number; approve_paid?: boolean }) =>
+    request<ExpansionProposal>(`/api/briefs/${encodeURIComponent(id)}/expansion`, json(body)),
 };
 
 // --- D7 briefs --------------------------------------------------------------------------------
 
-/** A brief as JSON (schemas/brief/v1.json). The form edits it by path; the server validates. */
+/** A brief as JSON (schemas/brief/v1.1.json). The form edits it by path; the server validates. */
 export type BriefData = Record<string, unknown>;
 
 export interface BriefWrite {
   brief?: BriefData;
   yaml?: string;
   base_version?: number;
+  /** Save over the latest version when no base version is known (explicit opt-in). */
+  force_latest?: boolean;
+}
+
+export interface ExpansionProvenance {
+  job: "brief_expansion";
+  prompt_id: string;
+  prompt_version: string;
+  prompt_fingerprint: string;
+  model: string;
+  backend: "subscription" | "api";
+  input_hash: string;
+  proposal_hash: string;
+  generated_at: string;
+  based_on_version?: number;
+  edited_by_user: boolean;
+}
+
+/** R18.7 proposal: shown to the user, editable, never saved by the request that made it. */
+export interface ExpansionProposal {
+  label: "proposal";
+  saved: false;
+  brief_id: string;
+  base_version: number;
+  expansion: BriefData & { provenance?: ExpansionProvenance };
+  cached: boolean;
+  est_tokens: number;
+  notes: string[];
 }
 
 export interface StoredBriefView {
@@ -377,7 +408,7 @@ export interface Estimate {
   model: string;
   github: { requests: Record<string, number>; hours_at_default_caps: number };
   other_requests: Record<string, number>;
-  counts: { candidates: number; shortlisted: number; cases: number };
+  counts: { candidates: number; shortlisted: number; cases: number; exemplar_cases?: number };
   llm: {
     backend: string;
     calls: number;
@@ -398,4 +429,10 @@ export interface Estimate {
     requires_approval: boolean;
   };
   reuse: { from_version: number | null; changed_fields: string[]; stages: { stage: string; action: string }[] } | null;
+  expansion?: {
+    status: "none" | "accepted_llm_proposal" | "written_by_user";
+    edited_by_user: boolean;
+    run_llm_calls: number;
+    proposal: { llm_calls: number; input_tokens: number; output_tokens: number; command: string; note: string };
+  };
 }

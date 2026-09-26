@@ -93,7 +93,7 @@ def test_adr_053_estimate_with_paid_step_requires_approval_flag(capsys, tmp_path
 
 def test_schema_command_prints_the_committed_schema(capsys):
     assert main(["brief", "schema"]) == 0
-    committed = json.loads((EXAMPLE.parents[2] / "schemas" / "brief" / "v1.json").read_text())
+    committed = json.loads((EXAMPLE.parents[2] / "schemas" / "brief" / "v1.1.json").read_text())
     assert json.loads(capsys.readouterr().out) == committed
 
 

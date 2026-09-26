@@ -1,9 +1,12 @@
 // D7 `/briefs/new` and `/briefs/:id/edit`: guided form and YAML view of one brief (R18.2).
 // Saving an existing brief creates a new version (R18.4); unchanged content creates none.
+// "Propose expansion" (R18.7) asks the model for a proposal; nothing is saved until the user
+// accepts it (a new version with the expansion and its provenance).
 import { useState, type FormEvent } from "react";
-import { api, ApiError, type BriefData, type BriefWrite, type FieldError } from "../api";
+import { api, ApiError, type BriefData, type BriefWrite, type ExpansionProposal, type FieldError } from "../api";
 import { BriefForm } from "../components/BriefForm";
-import { asString, getPath } from "../briefDraft";
+import { ExpansionProposalPanel } from "../components/ExpansionProposalPanel";
+import { asString, getPath, setPath } from "../briefDraft";
 import { Link, navigate } from "../router";
 import { useAsync } from "../useAsync";
 
@@ -30,6 +33,8 @@ export function BriefEditorPage({ id, importYaml = false }: { id?: string; impor
   const [warnings, setWarnings] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [proposal, setProposal] = useState<ExpansionProposal | null>(null);
+  const [approvePaid, setApprovePaid] = useState(false);
 
   if (source.status === "error") {
     return (
@@ -71,6 +76,35 @@ export function BriefEditorPage({ id, importYaml = false }: { id?: string; impor
     } catch (err) {
       fail(err);
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const propose = async () => {
+    if (!id || loaded.version === null) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await api.proposeExpansion(id, { version: loaded.version, approve_paid: approvePaid });
+      setProposal(res);
+      setMessage("Expansion proposed. Review and edit it below; nothing is saved yet.");
+    } catch (err) {
+      fail(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const acceptExpansion = async (expansion: BriefData) => {
+    if (!id) return;
+    setBusy(true);
+    try {
+      const b: BriefWrite = { brief: setPath(draft, "expansion", expansion) };
+      if (loaded.version !== null) b.base_version = loaded.version;
+      const res = await api.saveBriefVersion(id, b);
+      navigate(`/briefs/${id}?saved=${res.created ? res.version : "unchanged"}`);
+    } catch (err) {
+      fail(err);
       setBusy(false);
     }
   };
@@ -121,7 +155,7 @@ export function BriefEditorPage({ id, importYaml = false }: { id?: string; impor
               className="yaml"
               rows={30}
               value={yamlText}
-              placeholder="Paste a brief (schema brief/v1)"
+              placeholder="Paste a brief (schema brief/v1.1; v1 briefs are migrated on save)"
               onChange={(e) => setYamlEdits(e.target.value)}
             />
             <span className="muted small">
@@ -138,6 +172,40 @@ export function BriefEditorPage({ id, importYaml = false }: { id?: string; impor
             </li>
           ))}
         </ul>
+      )}
+      {id && tab === "form" && !proposal && (
+        <div className="filters">
+          <button type="button" onClick={propose} disabled={busy}>
+            Propose expansion
+          </button>
+          {asString(getPath(draft, "budget.llm_backend")) === "api" && (
+            <label className="inline">
+              <input type="checkbox" checked={approvePaid} onChange={(e) => setApprovePaid(e.target.checked)} />
+              Approve the API cost of this call
+            </label>
+          )}
+          <span className="muted small">
+            Sends only the description, target users, business model and field include/exclude of v{loaded.version} to
+            the model.
+          </span>
+        </div>
+      )}
+      {proposal && (
+        <ExpansionProposalPanel
+          proposal={proposal}
+          errors={errors}
+          busy={busy}
+          onAccept={acceptExpansion}
+          onUseInForm={(exp) => {
+            setEdits(setPath(draft, "expansion", exp));
+            setProposal(null);
+            setMessage("The proposal is in the form. Save to keep it.");
+          }}
+          onDiscard={() => {
+            setProposal(null);
+            setMessage("Proposal discarded; nothing was saved.");
+          }}
+        />
       )}
       {message && <p role="status">{message}</p>}
       {warnings.length > 0 && (

@@ -28,7 +28,8 @@ from pigtail.briefs.model import (
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE = ROOT / "docs" / "examples" / "brief-example.yaml"
-SCHEMA = ROOT / "schemas" / "brief" / "v1.json"
+SCHEMA = ROOT / "schemas" / "brief" / "v1.1.json"
+SCHEMA_V1 = ROOT / "schemas" / "brief" / "v1.json"
 
 
 def example() -> dict[str, Any]:
@@ -45,8 +46,8 @@ def problems(data: dict[str, Any]) -> dict[str, str]:
 def test_r18_1_schema_file_is_valid_2020_12_and_matches_the_model():
     committed = json.loads(SCHEMA.read_text())
     Draft202012Validator.check_schema(committed)
-    assert committed == json_schema(), "schemas/brief/v1.json drifted: `pigtail brief schema`"
-    assert committed["$id"].endswith("/schemas/brief/v1.json")
+    assert committed == json_schema(), "schemas/brief/v1.1.json drifted: `pigtail brief schema`"
+    assert committed["$id"].endswith("/schemas/brief/v1.1.json")
     assert committed["additionalProperties"] is False
 
 

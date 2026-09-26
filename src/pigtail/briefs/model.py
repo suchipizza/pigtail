@@ -1,11 +1,20 @@
-"""Brief schema v1: the pydantic model behind `schemas/brief/v1.json` (PRD R18.1, ADR-053,
-ADR-054, outcome-model v2 §5).
+"""Brief schema v1.1: the pydantic model behind `schemas/brief/v1.1.json` (PRD R18.1, ADR-053,
+ADR-054, ADR-057, outcome-model v2 §5).
+
+v1 briefs (`schemas/brief/v1.json`, kept unchanged) still load: `migrate_v1` maps them onto
+v1.1 in memory, and the next saved version is written as v1.1 ("migrate on save").
 
 Every field of PRD R18.1 is here, plus the owner decisions that became brief options:
 
 - `project`: name, description, target users, business model (R18.1).
-- `field`: core field, include/exclude boundaries, seed projects, named reference cases (R4.11),
-  qualitative reference models, and the widening steps to adjacent fields (R4.10, ADR-054.2).
+- `field`: core field, include/exclude boundaries, seed projects, named reference cases (R4.11,
+  ADR-057.4: structured, always studied whatever their outcome class), qualitative reference
+  models, and the widening steps to adjacent fields (R4.10, ADR-054.2).
+- `distribution_exemplars`: the distribution examples panel (ADR-057.1): projects chosen for
+  exceptional distribution, each with 1–2 losers matched on launch type, launch period and
+  audience bucket (never on field).
+- `report`: absolute numbers next to each winner/loser class (ADR-057.3) and transferability
+  labels on patterns from the examples panel (ADR-057.2).
 - `window`: discovery and backfill window, 12–18 months (R18.1, ADR-047.1).
 - `success`: one primary dimension, its threshold, minimum thresholds on the others, the
   advanced weights option (§5.3), per-dimension metric and `if_not_applicable` (outcome-model
@@ -43,8 +52,9 @@ from pydantic import (
     model_validator,
 )
 
-SCHEMA_VERSION: Literal["brief/v1"] = "brief/v1"
-SCHEMA_ID = "https://github.com/suchipizza/pigtail/schemas/brief/v1.json"
+SCHEMA_VERSION: Literal["brief/v1.1"] = "brief/v1.1"
+SCHEMA_VERSIONS = ("brief/v1", "brief/v1.1")  # every version that still loads
+SCHEMA_ID = "https://github.com/suchipizza/pigtail/schemas/brief/v1.1.json"
 
 Dimension = Literal["attention", "adoption", "community", "business"]
 RankableDimension = Literal["attention", "adoption", "community"]
@@ -104,6 +114,11 @@ Text = Annotated[str, Field(min_length=1, max_length=500)]
 BriefId = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$")]
 Language = Annotated[str, Field(pattern=r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")]
 Topic = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9-]{0,49}$")]
+Url = Annotated[str, Field(pattern=r"^https?://[^\s|]+$", max_length=500)]
+RepoSlug = Annotated[
+    str, Field(pattern=r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")
+]
+MatchOn = Literal["launch_type", "launch_period", "audience_bucket"]
 
 METADATA_FIELDS = frozenset(
     {"schema_version", "brief_id", "version", "supersedes", "created_at", "edited_at"}
@@ -144,14 +159,112 @@ class Project(_Strict):
     context: Annotated[str, Field(max_length=2000)] | None = None
 
 
+_URLISH = re.compile(r"^https?://[^\s|]+$")
+_REPO = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}")
+
+
+def parse_named_line(line: str) -> tuple[str | None, dict[str, Any]]:
+    """Parse a v1 one-line entry: `[label |] NAME [| URL ...] [| owner/repo] [| note]`.
+
+    Returns (label, fields). The label is `reference` or `distribution_exemplar` when the line
+    starts with one; URL-like parts become `urls`, an `owner/repo` part becomes `repo`, and the
+    remaining parts are joined into `note`.
+    """
+    parts = [p.strip() for p in line.split("|")]
+    parts = [p for p in parts if p]
+    label = None
+    if len(parts) > 1 and parts[0].lower() in ("reference", "distribution_exemplar"):
+        label = parts.pop(0).lower()
+    if not parts:
+        return label, {"name": line.strip()}
+    out: dict[str, Any] = {"name": parts.pop(0)}
+    urls: list[str] = []
+    notes: list[str] = []
+    for part in parts:
+        if all(_URLISH.match(u) for u in part.split()):
+            urls.extend(part.split())
+        elif "repo" not in out and _REPO.fullmatch(part):
+            out["repo"] = part
+        else:
+            notes.append(part)
+    if urls:
+        out["urls"] = urls
+    if notes:
+        out["note"] = "; ".join(notes)
+    return label, out
+
+
+class NamedProject(_Strict):
+    """A project named by the user (ADR-057). `repo` is optional: when absent, pigtail picks the
+    repo by the launch-link rule (ADR-054.3) and shows the choice for confirmation in the
+    shortlist review; an unresolved project doesn't block the run."""
+
+    name: Annotated[str, Field(min_length=1, max_length=120)]
+    urls: Annotated[list[Url], Field(max_length=10)] = []
+    repo: RepoSlug | None = None
+    note: Annotated[str, Field(max_length=500)] | None = None
+
+    _lists = field_validator("urls", mode="before")(_none_to_list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_line(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return parse_named_line(v)[1]
+        return v
+
+
+class ReferenceCase(NamedProject):
+    """R4.11 / ADR-057.4: always studied and reported, whatever its outcome class."""
+
+    role: Literal["reference"] = "reference"
+
+
+class DistributionExemplar(NamedProject):
+    """ADR-057.1: a project chosen for exceptional distribution, whatever its field."""
+
+
+class DistributionExemplars(_Strict):
+    """ADR-057.1: the distribution examples panel. Losers are matched on launch type, launch
+    period and audience bucket, never on field."""
+
+    projects: Annotated[list[DistributionExemplar], Field(max_length=10)] = []
+    losers_per_exemplar: Annotated[int, Field(ge=1, le=2)] = 2
+    match_on: Annotated[list[MatchOn], Field(min_length=1)] = [
+        "launch_type",
+        "launch_period",
+        "audience_bucket",
+    ]
+
+    _lists = field_validator("projects", mode="before")(_none_to_list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_list(cls, v: Any) -> Any:
+        return {"projects": v} if isinstance(v, list) else v
+
+    @model_validator(mode="after")
+    def _rules(self) -> DistributionExemplars:
+        if len(set(self.match_on)) != len(self.match_on):
+            raise ValueError("match_on: a characteristic is listed twice")
+        return self
+
+
+class ReportOptions(_Strict):
+    """ADR-057.2–3: what the neighbourhood report shows."""
+
+    show_absolute_numbers: bool = True
+    transferability_labels: bool = True
+
+
 class FieldBoundaries(_Strict):
-    """R18.1 `field`, R4.10 widening, R4.11 reference cases."""
+    """R18.1 `field`, R4.10 widening, R4.11 reference cases (structured since v1.1)."""
 
     core_field: Text
     include: Annotated[list[Text], Field(min_length=1, max_length=30)]
     exclude: Annotated[list[Text], Field(max_length=30)] = []
     seed_projects: Annotated[list[Text], Field(max_length=50)] = []
-    reference_cases: Annotated[list[Text], Field(max_length=10)] = []
+    reference_cases: Annotated[list[ReferenceCase], Field(max_length=10)] = []
     reference_models: Annotated[list[Text], Field(max_length=10)] = []
     widening_steps: Annotated[list[Text], Field(max_length=5)] = []
 
@@ -355,20 +468,134 @@ class OptionalSources(_Strict):
         return [s for s in PAID_SOURCES if getattr(self, s)]
 
 
+class Competitor(_Strict):
+    """A competitor named in the expansion: a name and, optionally, a URL (R18.7)."""
+
+    name: Annotated[str, Field(min_length=1, max_length=200)]
+    url: Annotated[str, Field(pattern=r"^https?://[^\s]+$", max_length=500)] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_name(cls, v: Any) -> Any:
+        return {"name": v} if isinstance(v, str) else v
+
+
+class ExpansionProvenance(_Strict):
+    """Where an LLM-proposed expansion came from (R18.6, R18.7).
+
+    `proposal_hash` is the SHA-256 of the proposed fields as the model returned them (after
+    normalization); `edited_by_user` is derived on every load by comparing it with the fields
+    as they now stand, so it can't drift from the content.
+    """
+
+    job: Literal["brief_expansion"] = "brief_expansion"
+    prompt_id: Annotated[str, Field(min_length=1, max_length=100)]
+    prompt_version: Annotated[str, Field(min_length=1, max_length=40)]
+    prompt_fingerprint: Annotated[str, Field(min_length=1, max_length=64)]
+    model: Annotated[str, Field(min_length=1, max_length=100)]
+    backend: Literal["subscription", "api"]
+    input_hash: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    proposal_hash: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    generated_at: datetime
+    based_on_version: Annotated[int, Field(ge=1)] | None = None
+    edited_by_user: bool = False
+
+
+EXPANSION_FIELDS: tuple[str, ...] = (
+    "problem_statement",
+    "users",
+    "keywords",
+    "topics",
+    "competitors",
+    "github_topics",
+    "search_queries",
+)
+
+
 class Expansion(_Strict):
-    """R18.7: the LLM-proposed expansion, as edited by the user (part of the brief version)."""
+    """R18.7: the LLM-proposed expansion, as edited by the user (part of the brief version).
+
+    `topics` are subject areas in words; `github_topics` are GitHub topic slugs used by
+    discovery; `search_queries` are ready-made search strings. `generated_by: llm` expansions
+    carry `provenance`. `prompt_version` is the pre-provenance field, kept so older briefs load.
+    """
 
     problem_statement: Annotated[str, Field(max_length=2000)] | None = None
-    users: list[Text] = []
+    users: Annotated[list[Text], Field(max_length=40)] = []
     keywords: Annotated[list[Text], Field(max_length=40)] = []
-    topics: Annotated[list[Topic], Field(max_length=40)] = []
-    competitors: Annotated[list[Text], Field(max_length=40)] = []
+    topics: Annotated[list[Text], Field(max_length=40)] = []
+    competitors: Annotated[list[Competitor], Field(max_length=40)] = []
+    github_topics: Annotated[list[Topic], Field(max_length=40)] = []
+    search_queries: Annotated[list[Text], Field(max_length=40)] = []
     generated_by: Literal["user", "llm"] = "user"
     prompt_version: str | None = None
+    provenance: ExpansionProvenance | None = None
+
+    _lists = field_validator(
+        "users",
+        "keywords",
+        "topics",
+        "competitors",
+        "github_topics",
+        "search_queries",
+        mode="before",
+    )(_none_to_list)
+
+    def fields_hash(self) -> str:
+        """SHA-256 of the editable fields (what the user can change in a proposal)."""
+        d = self.model_dump(mode="json", include=set(EXPANSION_FIELDS))
+        return sha256_json(d)
+
+    @model_validator(mode="after")
+    def _provenance(self) -> Expansion:
+        if self.provenance is not None:
+            if self.generated_by != "llm":
+                raise ValueError(
+                    "generated_by: provenance is set, so this expansion came from the model; "
+                    "use generated_by: llm (or remove provenance if you wrote it yourself)"
+                )
+            self.provenance.edited_by_user = self.fields_hash() != self.provenance.proposal_hash
+        return self
+
+
+def migrate_v1(data: dict[str, Any]) -> dict[str, Any]:
+    """Map a v1 brief onto v1.1 (idempotent; a v1.1 brief passes through unchanged).
+
+    v1 kept `field.reference_cases` as strings. Each string becomes a reference case object
+    (`reference | NAME | URL | note`, or a bare name); strings labelled
+    `distribution_exemplar | ...` move to `distribution_exemplars.projects` (ADR-057).
+    """
+    d = dict(data)
+    fld = d.get("field")
+    if isinstance(fld, dict) and isinstance(fld.get("reference_cases"), list):
+        refs: list[Any] = []
+        moved: list[dict[str, Any]] = []
+        for item in fld["reference_cases"]:
+            if isinstance(item, str):
+                label, obj = parse_named_line(item)
+                if label == "distribution_exemplar":
+                    moved.append(obj)
+                    continue
+                refs.append(obj)
+            else:
+                refs.append(item)
+        if moved:
+            ex = d.get("distribution_exemplars")
+            if ex is None:
+                ex = {}
+            elif isinstance(ex, list):
+                ex = {"projects": ex}
+            if isinstance(ex, dict):
+                ex = {**ex, "projects": [*(ex.get("projects") or []), *moved]}
+                d["distribution_exemplars"] = ex
+        d["field"] = {**fld, "reference_cases": refs}
+    if d.get("schema_version") in SCHEMA_VERSIONS:
+        d["schema_version"] = SCHEMA_VERSION
+    return d
 
 
 class Brief(_Strict):
-    schema_version: Literal["brief/v1"] = SCHEMA_VERSION
+    schema_version: Literal["brief/v1.1"] = SCHEMA_VERSION
     brief_id: BriefId
     version: Annotated[int, Field(ge=1)] | None = None  # set by the store
     supersedes: Annotated[int, Field(ge=1)] | None = None  # set by the store
@@ -385,8 +612,15 @@ class Brief(_Strict):
     panel: Panel = Panel()
     budget: Budget = Budget()
     optional_sources: OptionalSources = OptionalSources()
+    distribution_exemplars: DistributionExemplars = DistributionExemplars()
+    report: ReportOptions = ReportOptions()
     expansion: Expansion | None = None
     notes: Annotated[str, Field(max_length=4000)] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate(cls, data: Any) -> Any:
+        return migrate_v1(data) if isinstance(data, dict) else data
 
     @model_validator(mode="after")
     def _cross(self) -> Brief:
@@ -485,6 +719,9 @@ def _problems(err: ValidationError) -> list[BriefProblem]:
     return out
 
 
+problems_of = _problems  # field-named problems of a pydantic ValidationError
+
+
 def validate_brief(data: Any) -> Brief:
     """Validate a parsed brief; raise `BriefInvalid` with one message per field."""
     if not isinstance(data, dict):
@@ -529,6 +766,11 @@ CROSS_FIELD_RULES = [
     "success.fallbacks.too_few_winners.min_winners <= panel.winners",
     "channels: planned and avoid don't overlap",
     "panel: headline_exclusion_smd > smd_target; exact_match has no duplicates",
+    "distribution_exemplars.match_on: no duplicates; never matched on field (ADR-057.1)",
+    "v1 briefs load through migrate_v1 (string reference cases become objects; "
+    "'distribution_exemplar | ...' entries move to distribution_exemplars.projects)",
+    "expansion: provenance requires generated_by llm; provenance.edited_by_user is derived "
+    "from proposal_hash",
 ]
 
 
@@ -540,8 +782,9 @@ def json_schema() -> dict[str, Any]:
         "$id": SCHEMA_ID,
         "title": "brief",
         "description": (
-            "A pigtail research brief, schema v1 (PRD R18.1, ADR-053, ADR-054). Briefs are "
-            "private and live only in the instance's data directory (R18.9)."
+            "A pigtail research brief, schema v1.1 (PRD R18.1, ADR-053, ADR-054, ADR-057). "
+            "Briefs are private and live only in the instance's data directory (R18.9). v1 "
+            "briefs still load and are migrated on save."
         ),
         **{k: v for k, v in body.items() if k not in ("title", "description")},
         "x-cross-field-rules": CROSS_FIELD_RULES,
@@ -612,7 +855,7 @@ def upgrade_v0(d: dict[str, Any]) -> dict[str, Any]:
         }
     elif geo is not None:
         out["geography"] = geo
-    for k in ("panel", "budget", "expansion", "notes"):
+    for k in ("panel", "budget", "distribution_exemplars", "report", "expansion", "notes"):
         if k in d:
             out[k] = d.pop(k)
     if "optional_sources" in d:

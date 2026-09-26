@@ -1,7 +1,7 @@
 # Synthetic example brief (schema brief/v1; PRD R18.9, D6). It describes a made-up project, not a
 # real one: copy it, change every field, and save it with `pigtail brief new --from <file>`.
 # Your own briefs live only in PIGTAIL_DATA_DIR/briefs and never in git.
-schema_version: brief/v1
+schema_version: brief/v1.1
 brief_id: example-config-linter
 status: draft
 
@@ -26,7 +26,12 @@ field:
     - general-purpose code linters for programming languages
     - infrastructure-as-code security scanners
   seed_projects: []        # names only; discovery proposes matches, you confirm them (ADR-053.3)
-  reference_cases: []      # stay in the report whatever their outcome (R4.11)
+  reference_cases:         # always studied, whatever their outcome class (R4.11, ADR-057.4)
+    - name: Example Schema Checker          # synthetic: replace with a real project or delete
+      urls: [https://example.com/schema-checker]
+      # repo: owner/name   optional; if absent, the repo its launch posts linked to is chosen
+      #                    and shown for your confirmation in the shortlist review (ADR-054.3)
+      note: synthetic placeholder for a named comparable
   reference_models: []     # studied qualitatively; not in the winner/loser panel
   widening_steps:          # used only if the core field yields too few winners or losers (R4.10)
     - developer command-line tools for CI pipelines
@@ -79,12 +84,26 @@ optional_sources:
   x: false
   bigquery: false
 
+distribution_exemplars:    # second panel: exceptional distribution, whatever the field (ADR-057.1)
+  projects:
+    - name: Example Launch Showcase          # synthetic: replace with a real project or delete
+      urls: [https://example.org/launch-showcase]
+      note: synthetic placeholder for a project known for its launch
+  losers_per_exemplar: 2   # 1-2 losers per exemplar
+  match_on: [launch_type, launch_period, audience_bucket]   # never on field
+
+report:
+  show_absolute_numbers: true    # absolute stars, downloads, contributors per class and panel
+  transferability_labels: true   # transferable / conditional / not transferable, with conditions
+
 expansion:
   problem_statement: >-
     Configuration mistakes are found late, in CI or production, because config files are not
     validated where they are written.
   users: [backend developers, platform engineers]
   keywords: [config linter, yaml validation, toml linter, json schema cli]
-  topics: [yaml, toml, json-schema, linter, cli]
+  topics: [configuration validation, developer tooling]
+  github_topics: [yaml, toml, json-schema, linter, cli]
+  search_queries: [yaml linter cli, validate config files in ci]
   competitors: []
   generated_by: user

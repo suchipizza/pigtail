@@ -252,3 +252,7 @@ table.data caption { text-align: left; color: var(--text-secondary); padding: 8p
 textarea { font: inherit; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); }
 textarea.yaml, pre.yaml { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
 pre.yaml { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 8px; overflow-x: auto; }
+.brief-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+.brief-cell { display: flex; flex-direction: column; gap: 2px; flex: 1 1 140px; min-width: 120px; }
+.brief-cell input { width: 100%; }
+.proposal { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin-top: 12px; background: var(--surface-1); }

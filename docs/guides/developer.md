@@ -54,10 +54,13 @@ them back without an ADR. New code is scoped to a brief or a tracked project: ta
 queries as input, never enumerate GitHub. The full rewrite of this guide comes with M12/M14.
 
 ## Briefs (M12; PRD F18, D7)
-`pigtail.briefs`: `model` (pydantic model behind `schemas/brief/v1.json`; regenerate the file
-with `uv run pigtail brief schema > schemas/brief/v1.json`, a test fails on drift), `store`
-(private, immutable versions under `PIGTAIL_DATA_DIR/briefs`), `diff`, `estimate`
-(`estimate-v0` planning model), `budget` and `cache`. Stages built from M13 on must:
+`pigtail.briefs`: `model` (pydantic model behind `schemas/brief/v1.1.json`; regenerate the
+file with `uv run pigtail brief schema > schemas/brief/v1.1.json`, a test fails on drift;
+`schemas/brief/v1.json` is frozen, and `migrate_v1` maps v1 briefs onto v1.1 when they load),
+`store` (private, immutable versions under `PIGTAIL_DATA_DIR/briefs`; stale edits are refused),
+`diff`, `estimate` (`estimate-v1` planning model), `expansion` (R18.7: the versioned
+`brief_expansion` prompt, `propose_expansion` and `apply_expansion`; tests use the fake backend
+from `tests/conftest.py`), `budget` and `cache`. Stages built from M13 on must:
 - call `BudgetGuard.check_llm` before each LLM call or chunk, `check_paid`/`charge_paid` around
   any paid request and `check_backend` before routing a job; on `BudgetStop`, write a checkpoint
   with `BriefRun.pause_for_budget` and exit cleanly (R18.5, ADR-053.1);

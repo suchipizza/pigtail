@@ -6,7 +6,8 @@
     GET  /api/brief-template                  the synthetic example as a starting point
     GET  /api/briefs/{id}                     latest version (JSON and YAML), versions, warnings
     GET  /api/briefs/{id}/versions/{n}        one version
-    POST /api/briefs/{id}/versions            save an edit as a new version (`base_version`)
+    POST /api/briefs/{id}/versions            save an edit as a new version (see "Stale edits")
+    POST /api/briefs/{id}/expansion           propose an LLM expansion (R18.7); nothing is saved
     GET  /api/briefs/{id}/diff?from=&to=      field-level and unified diff
     GET  /api/briefs/{id}/estimate?version=   cost estimate (label: estimate)
 
@@ -15,6 +16,18 @@ required, `Sec-Fetch-Site`/`Origin` checked, SameSite=Strict session cookie) and
 by event only (`brief_create`, `brief_version`), never with brief content. The form and YAML are
 two views of one model: both are validated by `pigtail.briefs.model.validate_brief` and stored
 as the same canonical YAML (R18.2).
+
+Stale edits: a save is based on `base_version`, else on the payload's own `version` field (a
+brief exported from version N says `version: N`). If both are given they must agree. A save
+with neither is refused (409) unless it sets `force_latest: true`. A base older than the latest
+version is refused (409), so an old export can't silently revert newer changes.
+
+Expansion (R18.7): `POST /api/briefs/{id}/expansion` sends only the brief's description, target
+users, business model and field include/exclude to the model through `LLMClient` (job
+`brief_expansion`), after `BudgetGuard` checks (no automatic backend switch, ADR-053.1). It
+returns a proposal and saves nothing; the user edits it in `/briefs` and saving the brief
+stores it with its provenance (a normal new version, audited as `brief_version`). Calls are
+audited as `brief_expansion` (event only, no content).
 """
 
 # No `from __future__ import annotations`: FastAPI resolves the dependency annotations.
@@ -56,6 +69,14 @@ class BriefBody(BaseModel):
     brief: dict[str, Any] | None = None
     yaml: str | None = Field(default=None, max_length=MAX_YAML)
     base_version: int | None = Field(default=None, ge=1)
+    # Save over the latest version when neither `base_version` nor the payload's `version` says
+    # which version the edit started from (explicit opt-in; otherwise 409).
+    force_latest: bool = False
+
+
+class ExpandBody(BaseModel):
+    version: int | None = Field(default=None, ge=1)
+    approve_paid: bool = False
 
 
 def invalid_response(e: BriefInvalid) -> JSONResponse:
@@ -95,6 +116,7 @@ def make_router(
     same_origin: Callable[[Request], None],
     audit: Callable[[str, str, Request, int], None],
     read_conn: Callable[[], Iterator[psycopg.Connection[Any]]],
+    llm_client: Callable[[], Any] | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api", dependencies=[Depends(require_operator)])
     Conn = Annotated[psycopg.Connection[Any], Depends(read_conn)]
@@ -204,15 +226,69 @@ def make_router(
                     [BriefProblem("brief_id", f"is {b.brief_id!r}; this brief is {brief_id!r}")]
                 )
             )
+        if body.base_version is not None and b.version not in (None, body.base_version):
+            raise HTTPException(
+                409,
+                f"the brief says version {b.version} but base_version is "
+                f"{body.base_version}; reload the latest version and re-apply your edit",
+            )
+        base = body.base_version if body.base_version is not None else b.version
+        if base is None and not body.force_latest:
+            raise HTTPException(
+                409,
+                "which version is this edit based on? Send base_version (or keep the brief's "
+                "`version` field); to save over the latest version anyway, set force_latest",
+            )
         try:
-            stored, created = store.save_version(b, base_version=body.base_version)
+            stored, created = store.save_version(b, base_version=base)
         except VersionConflict as e:
-            raise HTTPException(409, str(e)) from None
+            raise HTTPException(
+                409,
+                f"{e}; saving would revert the newer changes. Reload the latest version and "
+                "re-apply your edit",
+            ) from None
         if created:
             audit("brief_version", "/api/briefs/{id}/versions", request, 201)
         out = stored_view(stored)
         out["created"] = created
         return JSONResponse(jsonable(out), status_code=201 if created else 200)
+
+    @router.post("/briefs/{brief_id}/expansion", response_model=None)
+    def expansion(
+        brief_id: str, body: ExpandBody, request: Request
+    ) -> dict[str, Any] | JSONResponse:
+        """R18.7: an LLM expansion proposal for a stored brief version. Nothing is saved."""
+        from pigtail.briefs.budget import BudgetStop
+        from pigtail.briefs.expansion import make_guard, propose_expansion
+        from pigtail.llm import LLMError, QueuePaused
+
+        same_origin(request)
+        s = get_or_404(brief_id, body.version)
+        if llm_client is None:
+            raise HTTPException(503, "no LLM client is configured on this instance")
+        try:
+            client = llm_client()
+        except ValueError as e:
+            raise HTTPException(503, f"LLM client not configured: {e}") from None
+        try:
+            proposal = propose_expansion(
+                s.brief, client, make_guard(client, s.brief, approved_paid=body.approve_paid)
+            )
+        except BudgetStop as e:
+            audit("brief_expansion", "/api/briefs/{id}/expansion", request, 409)
+            return JSONResponse(
+                {"detail": f"nothing was sent to the model: {e}", "stop": e.to_dict()},
+                status_code=409,
+            )
+        except QueuePaused as e:
+            raise HTTPException(503, f"{e}; try again later") from None
+        except LLMError as e:
+            audit("brief_expansion", "/api/briefs/{id}/expansion", request, 502)
+            raise HTTPException(
+                502, f"expansion failed ({type(e).__name__}); nothing saved"
+            ) from None
+        audit("brief_expansion", "/api/briefs/{id}/expansion", request, 200)
+        return proposal.to_dict()
 
     @router.get("/briefs/{brief_id}/diff")
     def diff(

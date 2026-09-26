@@ -71,3 +71,34 @@ export function numberOrUndefined(text: string): number | undefined {
   const n = Number(text);
   return Number.isFinite(n) ? n : undefined;
 }
+
+/** Rows of objects (reference cases, exemplars, competitors). A v1 string entry is a name. */
+export function asRows(v: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) =>
+    typeof x === "string" ? { name: x } : x !== null && typeof x === "object" ? (x as Record<string, unknown>) : {},
+  );
+}
+
+/** Set one cell; "list" cells are whitespace-separated. Empty values remove the key. */
+export function setRowField(
+  row: Record<string, unknown>,
+  key: string,
+  text: string,
+  kind: "text" | "list" = "text",
+): Record<string, unknown> {
+  const value: string | string[] = kind === "list" ? splitWords(text) : text;
+  const empty = Array.isArray(value) ? value.length === 0 : value === "";
+  if (empty) return Object.fromEntries(Object.entries(row).filter(([k]) => k !== key));
+  return { ...row, [key]: value };
+}
+
+export function splitWords(text: string): string[] {
+  return text.split(/\s+/).filter((s) => s.length > 0);
+}
+
+export function cellText(row: Record<string, unknown>, key: string): string {
+  const v = row[key];
+  if (Array.isArray(v)) return v.map((x) => String(x)).join(" ");
+  return asString(v);
+}
