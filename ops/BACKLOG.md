@@ -4,10 +4,11 @@ v2 plan (ADR-047/048/049). Format: `- [ ] [ID] title — depends on — acceptan
 ## Now
 - [x] [M11] Re-scope cleanup (verifier PASS round 2, 2026-09-26) — — none — tag on origin ✓ (archive/global-collection); remove the watch list, all-GitHub search sweeps, global breakout detection, holdout split/guard and settle-lag code + their scheduler jobs and CLI; forward-only migration dropping their tables; HN poller repurposed (ADR-049.1); withdrawal amendments pushed (ADR-049.5); operator/developer guides, codebook, .claude/agents updated to v2 scope; CI green; verifier sign-off
 - [ ] [M12] Research brief v1 (D7) — M11 — create/edit briefs (form + YAML), validation, versions + diff, multiple briefs, cost estimate, hard stop at budget (tested), cache reuse, brief files private (scan blocks them); example brief in docs
-- [ ] [OWNER] Owner's first brief (private, data/briefs/): seed matches to confirm in shortlist review; owner to identify three of the named reference projects (else ADR-054.3 rule)
+- [ ] [OWNER] Owner's first brief (private brief store, v2): reference cases confirmed except one incomplete answer; distribution examples added (ADR-056)
+- [ ] [CB-12] Privacy notice: controller name + contact received 2026-09-26; still needed: controller type (person or company) and address/country, and where to publish (see chat)
 
 ## Next
-- [ ] [M13] Discovery, relevance filter, shortlist — M12, GITHUB_TOKEN — Trendshift terms audit; logged candidates, verdicts, reasons; precision; deterministic selection; balance diagnostics; sensitivity check
+- [ ] [M13] Discovery, relevance filter (batched ~20 candidates per call), shortlist (deep coding only after the owner's review); brief schema v1.1 with a `distribution_exemplars` field (ADR-056) — M12, GITHUB_TOKEN ✓ — Trendshift terms audit; logged candidates, verdicts, reasons; precision; deterministic selection; balance diagnostics; sensitivity check
 - [ ] [M14] Batch runs, launch mode, ops (launchd, Docker only during runs, FileVault check in doctor) — M12, M13, H1
 - [ ] [M15] Pilot: first end-to-end neighbourhood report on the owner's brief — M13, M14, H1, H3, H5, CB-12 (ADR-049.2)
 - [ ] [M16] Plan generator (D3) — M15

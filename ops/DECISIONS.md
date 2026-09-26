@@ -422,3 +422,14 @@ How to reverse: A new ADR (these are the owner's decisions).
 4. **Estimates:** the `estimate-v0` per-unit figures are placeholders until they are measured on a real run (M13, D6).
 5. **Threshold fallbacks:** ADR-053's owner-set fallbacks (top quartile → top third, then drop the community minimum) are an explicit, pre-declared brief rule. They override outcome-model §5.5 ("thresholds are not loosened automatically") only when a brief declares them. Each step is logged and the sensitivity check reported. `top_third` is added to the threshold ladder in outcome-model §5.3 (spec update in M13).
 How to reverse: Per item, through an ADR.
+
+## ADR-056 — Distribution examples in a brief (owner decision) (2026-09-26)
+Context: The owner noted that launches within a narrow core field may be too few or too small to teach distribution. Some projects with a different audience distributed very well and are worth studying for *how* they spread.
+Decision: A brief may name **distribution examples**: projects outside the core field that are studied mainly for their distribution (launch sequence, channels, assets, contribution loops). They are:
+- not part of the core winner/loser panel;
+- given matched losers from their own niche where the shortlist allows, so the lessons still have a loser contrast;
+- reported in their own "distribution lessons" section, labelled cross-field and with their distance from the core field;
+- kept out of core-field headline patterns.
+
+For now they sit in `field.reference_cases` with a `distribution_exemplar` label. A dedicated schema field comes in M13 (brief schema v1.1). Brief content, including the named projects, stays in the private brief store (ADR-055.1).
+How to reverse: Remove the examples from the brief; drop the report section through an ADR.
