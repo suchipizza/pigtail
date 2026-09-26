@@ -111,7 +111,9 @@ def make_router(
     *,
     store: BriefStore,
     data_dir: Path,
-    llm_model: str,
+    llm_models: dict[str, str] | None = None,
+    llm_batch: bool = True,
+    month_cap_usd: float = 200.0,
     require_operator: Callable[..., str],
     same_origin: Callable[[Request], None],
     audit: Callable[[str, str, Request, int], None],
@@ -255,7 +257,7 @@ def make_router(
 
     @router.post("/briefs/{brief_id}/expansion", response_model=None)
     def expansion(
-        brief_id: str, body: ExpandBody, request: Request
+        brief_id: str, body: ExpandBody, request: Request, conn: Conn
     ) -> dict[str, Any] | JSONResponse:
         """R18.7: an LLM expansion proposal for a stored brief version. Nothing is saved."""
         from pigtail.briefs.budget import BudgetStop
@@ -270,10 +272,17 @@ def make_router(
             client = llm_client()
         except ValueError as e:
             raise HTTPException(503, f"LLM client not configured: {e}") from None
+        from pigtail.llm.batch import PgCostLedger
+
+        guard = make_guard(
+            client,
+            s.brief,
+            approved_paid=body.approve_paid,
+            month_cap_usd=month_cap_usd,
+            spent_usd=PgCostLedger(conn).brief_total(brief_id),
+        )
         try:
-            proposal = propose_expansion(
-                s.brief, client, make_guard(client, s.brief, approved_paid=body.approve_paid)
-            )
+            proposal = propose_expansion(s.brief, client, guard)
         except BudgetStop as e:
             audit("brief_expansion", "/api/briefs/{id}/expansion", request, 409)
             return JSONResponse(
@@ -303,14 +312,20 @@ def make_router(
     def estimate(
         brief_id: str, conn: Conn, version: Annotated[int | None, Query(ge=1)] = None
     ) -> dict[str, Any]:
-        """R18.5: the cost estimate shown before a run (always labelled an estimate)."""
+        """R18.5, R15.11: the cost estimate shown before a run, per stage and model, against the
+        brief's total cap and the monthly cap (always labelled an estimate)."""
+        from pigtail.llm.batch import PgCostLedger
+
         s = get_or_404(brief_id, version)
         est, _plan = estimate_for(
             s.brief,
             store=store,
             data_dir=data_dir,
-            model=llm_model,
+            models=llm_models,
+            batch=llm_batch,
+            month_cap_usd=month_cap_usd,
             last_run_version=runs(conn).last_run_version(brief_id),
+            brief_spent_usd=PgCostLedger(conn).brief_total(brief_id),
         )
         return est.to_dict()
 

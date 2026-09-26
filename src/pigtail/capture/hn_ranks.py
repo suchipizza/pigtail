@@ -177,7 +177,7 @@ class RankPoller:
                 self.db,
                 HN_POLICY,
                 f.evidence.id,
-                [(str(iid), None)],
+                [str(iid)],
                 seen_at=at,
                 open_case=bool(link and link.case_id),
             )

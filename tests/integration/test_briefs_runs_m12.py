@@ -15,7 +15,7 @@ from typing import Any
 import psycopg
 import pytest
 
-from pigtail.briefs.budget import Allowance, BudgetGuard, BudgetStop
+from pigtail.briefs.budget import BudgetGuard, BudgetStop
 from pigtail.briefs.cache import (
     BriefRuns,
     StageCache,
@@ -30,6 +30,7 @@ pytestmark = pytest.mark.db
 
 EXAMPLE = Path(__file__).resolve().parents[2] / "docs" / "examples" / "brief-example.yaml"
 CANDIDATES = [f"cand_{i}" for i in range(6)]
+USD_PER_CALL = 0.1
 
 
 def brief(version: int = 1, **success: Any) -> Brief:
@@ -89,8 +90,9 @@ def run_brief(
             continue
         key = item_key(b, "relevance", cand, input_hash=f"snap-{cand}")
         try:
-            if guard is not None and cache.get(key) is None:
-                guard.check_llm(f"relevance {cand}", est_tokens=llm.tokens)
+            miss = guard is not None and cache.get(key) is None
+            if guard is not None and miss:
+                guard.check_llm(f"relevance {cand}", est_usd=USD_PER_CALL, est_tokens=llm.tokens)
             cache.get_or_compute(
                 key,
                 lambda c=cand: llm(c),  # type: ignore[misc]
@@ -101,6 +103,8 @@ def run_brief(
                 brief_run_id=run.id,
                 counter=run.counter,
             )
+            if guard is not None and miss:
+                guard.charge_api(f"relevance {cand}", USD_PER_CALL)
         except BudgetStop as stop:
             run.pause_for_budget(stop, {"stage": "relevance", "relevance_done": i}, {})
             out = runs.get(run.id)
@@ -175,15 +179,17 @@ def test_d7_r18_5_tiny_budget_hard_stops_with_resumable_checkpoint(conn):
     ledger = LLMStore(":memory:")
     llm = FakeLLM(ledger, tokens_per_call=100)
     b = brief()
-    # allowance 1,000 tokens x share 0.5 = 500 tokens: the estimate (600) is above the budget
-    guard = BudgetGuard(b.budget, ledger, Allowance(1_000, "configured"))
+    # ADR-072.4: a brief total cap of USD 0.50 at USD 0.10 per call; the estimate (0.60) is above
+    tight = b.budget.model_copy(update={"money_usd": 0.5})
+    guard = BudgetGuard(tight, ledger, approved_paid=True)
     paused = run_brief(conn, b, llm, guard=guard)
     assert paused["status"] == "paused_budget"
-    assert paused["stop"]["kind"] == "subscription_share"
+    assert paused["stop"]["kind"] == "money" and "H6" in paused["stop"]["detail"]
     assert paused["checkpoint"] == {"stage": "relevance", "relevance_done": 5}
     assert llm.calls == 5  # stopped before the call that would cross the cap
-    # next week (bigger remaining allowance): resume from the checkpoint; cached items reused
-    guard2 = BudgetGuard(b.budget, ledger, Allowance(10_000, "configured"))
+    # H6 approved a higher cap: resume from the checkpoint with the spend carried over
+    raised = b.budget.model_copy(update={"money_usd": 1.0})
+    guard2 = BudgetGuard(raised, ledger, approved_paid=True, spent_usd=guard.spent_usd)
     done = run_brief(conn, b, llm, guard=guard2, resume_from=paused)
     assert done["status"] == "succeeded" and done["resumed_from"] == paused["id"]
     assert llm.calls == len(CANDIDATES)

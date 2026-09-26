@@ -9,7 +9,10 @@ CLEARED-WITH-CONDITIONS; use by commercial operators is pending LQ-6. Conditions
   poller (`pigtail.connectors.hn_ranks`) polls `topstories` at most once a minute.
 - Raw JSON is snapshotted (private storage) before parsing; comment text is person-level content
   (retention class `person_level_24m`) and is never republished.
-- `by` / `author` handles are pseudonymized at ingest in namespace "hn".
+- `by` / `author` handles are used in memory only (opt-out match, bot rule, maintainer match) and
+  discarded at ingest: records carry a role and bucket instead (Directive §8.1, ADR-066.1).
+- Mention search is for shortlisted projects only (Directive §8.3; `pigtail.capture.scope`,
+  enforced by `pigtail.capture.mentions`): never a search for a person.
 - The `deleted` / `dead` flags are propagated by deletion sync (`pigtail.privacy.deletion_sync`).
 
 Both connectors are **disabled by default** (`PIGTAIL_ENABLE_HN=0`) and held by ADR-022: enabling
@@ -53,7 +56,8 @@ STORY_LISTS: tuple[StoryList, ...] = ("topstories", "newstories", "beststories",
 
 HN_CONDITIONS = (
     "Conditions: API only, never scrape news.ycombinator.com; snapshots private, no "
-    "republication of comment text; usernames pseudonymized; commercial use pending LQ-6."
+    "republication of comment text; usernames discarded at ingest (roles and buckets only); "
+    "shortlisted projects only; commercial use pending LQ-6."
 )
 
 FIREBASE_TERMS = TermsMetadata(
@@ -180,7 +184,7 @@ def is_list_url(url: str) -> bool:
 class HNFirebaseConnector(Connector):
     """Official HN API: items by id and the story lists (M1-T4a, TM-04).
 
-    Records: an item document yields one record (`by` pseudonymized, `text` kept in memory only
+    Records: an item document yields one record (`by` coded and dropped, `text` kept in memory only
     for mention matching; callers must not persist it); a story list yields one record per id
     (`{"list", "rank", "item_id"}`). A missing item (`null`) yields nothing.
     """
@@ -233,7 +237,8 @@ class HNFirebaseConnector(Connector):
 
 
 def parse_firebase_item(item: dict[str, Any]) -> Record:
-    """Minimal record from a Firebase item. `by` is still raw here (pseudonymized by records())."""
+    """Minimal record from a Firebase item. `by` is still raw here (coded and dropped by
+    `records()`)."""
     typ = _item_type(item.get("type"))
     url = item.get("url") if isinstance(item.get("url"), str) else None
     text = html.unescape(item["text"]) if isinstance(item.get("text"), str) else None
@@ -415,7 +420,8 @@ class HNAlgoliaConnector(Connector):
 
 
 def parse_algolia_hit(hit: dict[str, Any]) -> Record | None:
-    """Minimal record from a search hit. `author` is raw here; `_tags` / `_highlightResult`
+    """Minimal record from a search hit. `author` is raw here (coded and dropped by `records()`);
+    `_tags` / `_highlightResult`
     (which repeat the username) are never copied."""
     try:
         item_id = int(hit["objectID"])

@@ -379,4 +379,4 @@ def test_cb34_erasure_with_only_unparseable_data_still_completes(capture_db, tmp
     assert res.outcome == "completed" and res.counts["snapshots_unparseable_raw_dropped"] == 1
     assert state(capture_db, bad) == "raw_dropped"
     p = subject_pseudonym(pz, "github", "user0009")
-    assert p in suppression.load(capture_db, pz).pseudonyms
+    assert p in suppression.load(capture_db, pz).persons

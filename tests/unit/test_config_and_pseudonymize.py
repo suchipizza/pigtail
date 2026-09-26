@@ -33,7 +33,7 @@ def test_prd10_pseudonym_stable_keyed_and_namespaced(pz):
 
 def test_prd10_strip_identifiers(pz):
     out = pz.strip_identifiers("by @bob, contact bob@example.org or +41 79 123 45 67")
-    assert "bob" not in out.replace(pz.pseudonym("bob"), "")
+    assert "bob" not in out and "@user1" in out
     assert "[email]" in out and "[phone]" in out
 
 

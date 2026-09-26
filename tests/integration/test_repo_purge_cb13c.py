@@ -110,16 +110,25 @@ def seed(db: Any, store: LocalSnapshotStore, repo: tuple[int, str]) -> dict[str,
         (hid, t),
     )
     q(
-        "INSERT INTO repo_event_actor (repo_host_id, event_id, event_type, actor_pseudonym,"
-        " is_bot, created_at, observed_at) VALUES (%s, %s, 'WatchEvent', %s, false, %s, %s)",
-        (hid, f"e{hid}", "p_" + f"{hid:016x}", t, t),
+        "INSERT INTO repo_event_hourly_agg (repo_host_id, hour, stars, bot_rule_version)"
+        " VALUES (%s, date_trunc('hour', %s::timestamptz), 1, 'bot-filter-v0')",
+        (hid, t),
+    )
+    q(
+        "INSERT INTO brief_shortlist_entry (brief_id, brief_version, repo_full_name, repo_id,"
+        " status) VALUES ('brief_synthetic', 1, %s, %s, 'final')",
+        (name.lower(), key),
     )
     q(
         "INSERT INTO repo_event_poll (repo_host_id, polled_at, status, pages)"
         " VALUES (%s, %s, 200, 1)",
         (hid, t),
     )
-    q("INSERT INTO repo_event_daily_agg (repo_host_id, day) VALUES (%s, %s)", (hid, t.date()))
+    q(
+        "INSERT INTO repo_event_daily_agg (repo_host_id, day, bot_rule_version)"
+        " VALUES (%s, %s, 'bot-filter-v0')",
+        (hid, t.date()),
+    )
     q(
         "INSERT INTO github_http_cache (url, etag, content_hash, evidence_id, fetched_at)"
         " VALUES (%s, 'W/\"x\"', %s, %s, %s)",
@@ -127,8 +136,10 @@ def seed(db: Any, store: LocalSnapshotStore, repo: tuple[int, str]) -> dict[str,
     )
     q(
         "INSERT INTO hn_mention (repo_full_name, item_id, item_type, match_kind, repo_id,"
-        " case_id, evidence_id, first_seen_at, last_seen_at, title)"
-        " VALUES (%s, %s, 'story', 'url', %s, %s, %s, %s, %s, 'Show HN: synthetic')",
+        " case_id, evidence_id, first_seen_at, last_seen_at, title, author_role, author_bucket,"
+        " automated_account, bot_rule_version, role_rule_version)"
+        " VALUES (%s, %s, 'story', 'url', %s, %s, %s, %s, %s, 'Show HN: synthetic', 'maintainer',"
+        " 'r0', false, 'bot-filter-v0', 'roles-v1')",
         (name, hid, key, case, search.id, t, t),
     )
     q(

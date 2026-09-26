@@ -6,6 +6,7 @@ import pytest
 from pydantic import BaseModel
 
 from pigtail.llm import LLMClient, PromptSpec
+from pigtail.llm.redact import alias_redact
 from pigtail.llm.store import LLMStore
 from pigtail.llm.types import BackendResponse
 from pigtail.pseudonymize import Pseudonymizer
@@ -27,10 +28,22 @@ class FakeBackend:
         self.calls: list[dict[str, Any]] = []
 
     def complete(
-        self, *, system: str, prompt: str, json_schema: dict[str, Any], model: str
+        self,
+        *,
+        system: str,
+        prompt: str,
+        json_schema: dict[str, Any],
+        model: str,
+        context: str = "",
     ) -> BackendResponse:
         self.calls.append(
-            {"system": system, "prompt": prompt, "schema": json_schema, "model": model}
+            {
+                "system": system,
+                "prompt": prompt,
+                "schema": json_schema,
+                "model": model,
+                "context": context,
+            }
         )
         item = self.script.pop(0)
         if isinstance(item, Exception):
@@ -59,9 +72,23 @@ def make_client(sub: list[Any], api: list[Any] | None = None, **kw: Any) -> LLMC
         default_backend=kw.pop("default_backend", "subscription"),
         store=LLMStore(":memory:"),
         model="test-model",
-        redactor=Pseudonymizer(TEST_KEY).strip_identifiers,
+        redactor=alias_redact,
         **kw,
     )
+
+
+# --- M21b (ADR-071.3): tests never touch the real briefs directory -----------------------------
+@pytest.fixture(autouse=True)
+def _isolated_briefs_dir(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
+    """The default briefs dir is ~/.pigtail/briefs; every test gets a private one instead
+    (env and code default), so no test can write into the operator's real briefs."""
+    import pigtail.config as config
+
+    d = tmp_path_factory.mktemp("briefs-home") / ".pigtail" / "briefs"
+    monkeypatch.setattr(config, "DEFAULT_BRIEFS_DIR", str(d))
+    monkeypatch.setenv("PIGTAIL_BRIEFS_DIR", str(d))
+    monkeypatch.delenv("PIGTAIL_BRIEFS_IN_DATA_DIR", raising=False)
+    return d
 
 
 # --- Postgres / S3 fixtures (M1-T1) ------------------------------------------------------------

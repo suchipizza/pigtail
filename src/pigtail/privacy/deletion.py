@@ -4,11 +4,16 @@ Every purge writes one row per action to `deletion_log` (migration 0003). The ta
 append-only (a trigger rejects UPDATE, DELETE and TRUNCATE) and holds hashes and ids, never
 content, so deletions can be re-applied after a backup restore (retention-policy.md §4, §5).
 
-`PERSON_TABLES` is the registry of Postgres tables holding pseudonymous person-level rows, so the
-retention purge (by `time_column`) and erasure (by `pseudonym_column`) reach them:
-`hn_mention` (M1-T4), `upstream_items` (deletion sync, CB-02; migration 0005) and
-`repo_event_actor` (GitHub per-repo events, M1-T24; TM-33; capped at 30 days by `retention_days`,
-CB-22). M5 tables (actors, edges, posts) must register here too.
+`PERSON_TABLES` is the registry of Postgres tables holding a per-person value, so the retention
+purge (by `time_column`) and erasure (by `pseudonym_column`) reach them. **It is empty since
+migration 0017** (Directive §8.1, ADR-066.1, ADR-071): coded data holds roles and buckets, never
+a handle or a pseudonym; `hn_mention.author`, `upstream_items.author_pseudonym` and the table
+`repo_event_actor` were migrated to roles, buckets and counts and purged (reason
+`directive_001_handle_purge`). The only per-person value left is the opt-out fingerprint in
+`privacy_suppression`, which is kept on purpose. A schema test fails if a column that looks like
+a handle or pseudonym (`author`, `actor`, `*pseudonym*`, `handle`, `login`, ...) appears again.
+Raw snapshots (person-level content) are reached by retention (R19.9) and by in-memory scans
+(access, erasure).
 
 `REPO_TABLES` (CB-13c) is the matching registry for a project owner's opt-out: every column that
 keys a row to a repository (by `<host>:<id>`, by GitHub id, by `owner/name`, or by an API URL of
@@ -45,7 +50,13 @@ PARSE_ERRORS: tuple[type[BaseException], ...] = (
 )
 
 Reason = Literal[
-    "retention", "erasure", "objection", "deleted_upstream", "key_rotation", "purpose_limitation"
+    "retention",
+    "erasure",
+    "objection",
+    "deleted_upstream",
+    "key_rotation",
+    "purpose_limitation",
+    "directive_001_handle_purge",
 ]
 Action = Literal[
     "raw_dropped",
@@ -73,18 +84,8 @@ class PersonTable:
     rekey_unmapped: Literal["delete", "null"] = "delete"
 
 
-PERSON_TABLES: tuple[PersonTable, ...] = (
-    PersonTable("hn_mention", "author", "last_seen_at"),
-    # rows without an author are valid (rank-poller stories): deletion sync keeps tracking them
-    PersonTable("upstream_items", "author_pseudonym", "last_seen_at", rekey_unmapped="null"),
-    PersonTable(
-        "repo_event_actor",
-        "actor_pseudonym",
-        "created_at",
-        retention_days=30,
-        retention_class="person_level_30d",
-    ),
-)
+# Empty since migration 0017: no table stores handles or pseudonyms (Directive §8.1).
+PERSON_TABLES: tuple[PersonTable, ...] = ()
 
 
 RepoMatch = Literal["id", "host_id", "name", "url"]
@@ -128,14 +129,19 @@ REPO_TABLES: tuple[RepoTable, ...] = (
     # per-repo GitHub collectors (M1-T24): star history and events
     RepoTable("repo_star_daily", "repo_host_id", "host_id", "delete"),
     RepoTable("star_history_fetch", "repo_host_id", "host_id", "delete"),
-    RepoTable("repo_event_actor", "repo_host_id", "host_id", "delete"),
     RepoTable("repo_event_poll", "repo_host_id", "host_id", "delete"),
+    RepoTable("repo_event_hourly_agg", "repo_host_id", "host_id", "delete"),
     RepoTable("repo_event_daily_agg", "repo_host_id", "host_id", "delete"),
     # launch-mode windows of a tracked project (M11 stub, filled from M14; ADR-049.1)
     RepoTable("launch_mode_window", "repo_id", "id", "delete"),
     # brief stage cache items and shortlist decisions about the repo (M12, R18.4, R4.7)
     RepoTable("brief_stage_cache", "repo_id", "id", "delete"),
     RepoTable("shortlist_decision", "candidate_repo_id", "id", "delete"),
+    # mention scope (Directive §8.3, migration 0019): an opted-out repo leaves every shortlist
+    RepoTable("brief_shortlist_entry", "repo_id", "id", "delete", "shortlist_entry_rows_deleted"),
+    RepoTable(
+        "brief_shortlist_entry", "repo_full_name", "name", "delete", "shortlist_entry_rows_deleted"
+    ),
     # ETag cache of per-repo GitHub API pages (url and etag only)
     RepoTable("github_http_cache", "url", "url", "delete"),
     # HN (M1-T4, M1-T14, M1-T23): mentions are deleted; the rank history keeps the item id but

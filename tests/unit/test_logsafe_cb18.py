@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 
 import pytest
 
@@ -64,9 +65,20 @@ def test_cb18_filter_is_idempotent_and_installed_once(logger):
     assert sum(isinstance(f, RedactingFilter) for f in log.handlers[0].filters) == 1
 
 
-def test_cb18_scrub_with_pseudonymizer_keeps_correlation():
+def test_cb18_logs_carry_no_keyed_token(logger):
+    """ADR-074: logs use keyless placeholders only; the opt-out key is never used for log
+    correlation, so no `p_` fingerprint, alias or HMAC hex appears."""
     pz = Pseudonymizer("test-key-not-secret-0123456789")
-    assert scrub("@user0001", pz=pz) == "@" + pz.pseudonym("user0001")
+    log, buf = logger
+    log.warning("retry @%s at https://github.com/%s", "user0001", "user0001")
+    out = buf.getvalue() + scrub("@user0001 https://bsky.app/profile/tester.example.social")
+    for ns in ("generic", "github", "bluesky"):
+        assert pz.person_fingerprint("user0001", ns) not in out
+    assert "p_" not in out and "user1" not in out and "user0001" not in out
+    assert not re.search(r"[0-9a-f]{16,}", out)
+    assert "@[handle]" in out and "[profile:github]" in out and "[profile:bluesky]" in out
+    with pytest.raises(TypeError):
+        scrub("@user0001", pz=pz)  # type: ignore[call-arg]  # no keyed mode any more
 
 
 def test_cb18_run_error_is_scrubbed_and_truncated():

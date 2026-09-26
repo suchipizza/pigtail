@@ -3,8 +3,9 @@
 
 Blocks: secrets/tokens, snapshot/raw-data paths and formats, personal e-mail addresses,
 unlisted test fixtures (fixtures must be synthetic or pseudonymized and listed in
-tests/fixtures/MANIFEST.md), research briefs (PRD R18.9: briefs live only in the instance's data
-directory; the one synthetic example is allowlisted by path), and oversized files. Scans
+tests/fixtures/MANIFEST.md), research briefs and their LLM expansion proposals (PRD R18.9,
+ADR-071.3: briefs live outside git in PIGTAIL_BRIEFS_DIR; the one synthetic example is
+allowlisted by path), and oversized files. Scans
 git-tracked + staged files by default, or the paths given on the command line (pre-commit
 passes staged files).
 
@@ -63,6 +64,17 @@ BRIEF_JSON = (
     re.compile(r'"brief_id"\s*:\s*"'),
     re.compile(r'"project"\s*:\s*\{\s*"(name|description|target_users)"'),
 )
+# LLM expansion proposal files (`pigtail brief expand --out`, R18.7): a top-level `brief_id`
+# and a top-level `expansion` mapping, with no `project` block (M12 follow-up, M21b).
+_TOP = r"^[\"']?"
+PROPOSAL_YAML = (
+    re.compile(_TOP + r"brief_id[\"']?[ \t]*:[ \t]*[^\s#]", re.M),
+    re.compile(_TOP + r"expansion[\"']?[ \t]*:[ \t]*(?:$|#|\{)", re.M),
+)
+PROPOSAL_JSON = (
+    re.compile(r'"brief_id"\s*:\s*"'),
+    re.compile(r'"expansion"\s*:\s*\{\s*"(problem_statement|users|keywords|topics|competitors)"'),
+)
 BRIEF_ALLOW = {"docs/examples/brief-example.yaml"}
 CODE_EXT = {".py", ".ts", ".tsx", ".js", ".jsx", ".sql", ".sh"}
 
@@ -99,6 +111,15 @@ def looks_like_brief(rel: str, text: str) -> bool:
     return all(p.search(text) for p in pats)
 
 
+def looks_like_proposal(rel: str, text: str) -> bool:
+    """An LLM expansion proposal (`brief_id` + `expansion` at the top level, R18.7)."""
+    suffix = Path(rel).suffix.lower()
+    if suffix in CODE_EXT:
+        return False
+    pats = PROPOSAL_JSON if suffix == ".json" else PROPOSAL_YAML
+    return all(p.search(text) for p in pats)
+
+
 def scan(paths: list[str], root: Path = ROOT) -> list[str]:
     findings: list[str] = []
     listed = manifest_entries(root)
@@ -108,7 +129,9 @@ def scan(paths: list[str], root: Path = ROOT) -> list[str]:
             findings.append(f"{rel}: forbidden path/format (raw data, snapshots or .env)")
             continue
         if BRIEF_PATH.search(rel) and rel not in BRIEF_ALLOW:
-            findings.append(f"{rel}: research brief file (briefs stay in PIGTAIL_DATA_DIR)")
+            findings.append(
+                f"{rel}: research brief file (briefs stay in PIGTAIL_BRIEFS_DIR, outside git)"
+            )
             continue
         if not p.is_file():
             continue
@@ -124,6 +147,10 @@ def scan(paths: list[str], root: Path = ROOT) -> list[str]:
             continue
         if rel not in BRIEF_ALLOW and looks_like_brief(rel, text):
             findings.append(f"{rel}: content has a research brief's structure (brief_id + project)")
+        elif rel not in BRIEF_ALLOW and looks_like_proposal(rel, text):
+            findings.append(
+                f"{rel}: content is a brief expansion proposal (top-level brief_id + expansion)"
+            )
         for name, pat in SECRET_PATTERNS.items():
             if pat.search(text):
                 findings.append(f"{rel}: possible {name}")

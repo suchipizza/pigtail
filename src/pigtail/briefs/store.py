@@ -1,6 +1,11 @@
 """Private brief store (PRD R18.3, R18.4, R18.9; D7).
 
-Layout, under `PIGTAIL_DATA_DIR/briefs` (default `data/briefs`, gitignored):
+Location (R18.9, ADR-071.3): `PIGTAIL_BRIEFS_DIR`, default `~/.pigtail/briefs`, outside any git
+tree and included in the encrypted backup (`pigtail backup create`). The pre-M21 location
+`PIGTAIL_DATA_DIR/briefs` is used only when `PIGTAIL_BRIEFS_IN_DATA_DIR=1` says so explicitly;
+`pigtail brief migrate-store --from DIR` moves an existing store once (`migrate_store`).
+
+Layout:
 
     briefs/                 mode 0700
       <brief_id>/           mode 0700, one directory per brief (several briefs per install)
@@ -16,14 +21,21 @@ are ignored.
 
 from __future__ import annotations
 
+import contextlib
+import errno
+import hashlib
 import os
 import re
 import subprocess
 import tempfile
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pigtail.config import Settings
 
 from pigtail.briefs.model import Brief, BriefInvalid, BriefProblem, dump_yaml, load_brief_text
 
@@ -99,7 +111,34 @@ class BriefStore:
 
     @classmethod
     def from_data_dir(cls, data_dir: Path) -> BriefStore:
+        """The pre-M21 location (ADR-055.1); only for an explicit opt-in or a migration."""
         return cls(Path(data_dir) / "briefs")
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> BriefStore:
+        """The configured store (`PIGTAIL_BRIEFS_DIR`, default `~/.pigtail/briefs`)."""
+        return cls(settings.briefs_dir)
+
+    def legacy_warning(self, data_dir: Path) -> str | None:
+        """A hint when briefs are still in the old PIGTAIL_DATA_DIR/briefs but not here."""
+        old = BriefStore.from_data_dir(data_dir)
+        if old.root.resolve() == self.root.resolve() or not old.list_ids():
+            return None
+        if self.list_ids():
+            return None
+        return (
+            f"briefs found in the old location {old.root} but none in {self.root}; move them "
+            f"once with `pigtail brief migrate-store --from {old.root}` (ADR-071.3)"
+        )
+
+    def list_ids(self) -> list[str]:
+        if not self.root.is_dir():
+            return []
+        return sorted(
+            d.name
+            for d in self.root.iterdir()
+            if d.is_dir() and _ID.match(d.name) and self._version_numbers(d.name)
+        )
 
     # --- private directories --------------------------------------------------------------------
     def _ensure_dir(self, path: Path) -> None:
@@ -137,7 +176,8 @@ class BriefStore:
             return None
         return (
             f"brief store {root} is inside a git work tree and not git-ignored; set "
-            "PIGTAIL_DATA_DIR outside the repo or ignore it (briefs are private, R18.9)"
+            "PIGTAIL_BRIEFS_DIR outside the repo (default ~/.pigtail/briefs; briefs are "
+            "private, R18.9, ADR-071.3)"
         )
 
     # --- reading ----------------------------------------------------------------------------------
@@ -275,3 +315,124 @@ class BriefStore:
         finally:
             Path(tmp).unlink(missing_ok=True)
         return StoredBrief(brief, text, final)
+
+
+# --- one-time move to the new location (ADR-071.3) ----------------------------------------------
+
+
+@dataclass
+class MigrationReport:
+    """Counts only: brief content and ids are never printed by the migration."""
+
+    source: str
+    target: str
+    briefs: int = 0
+    moved: int = 0  # brief version files moved
+    other_files_moved: int = 0  # notes, drafts, proposals kept next to briefs (moved as bytes)
+    already_there: int = 0
+    conflicts: int = 0
+    left_behind: int = 0  # hidden or temporary files, symlinks (left in place, not read)
+    dry_run: bool = False
+    conflict_paths: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        d = dict(self.__dict__)
+        d["conflict_paths"] = list(self.conflict_paths)
+        return d
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 16), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _move_file(src: Path, dst: Path) -> None:
+    """Move `src` to `dst` without ever overwriting `dst` (link, then unlink; across
+    filesystems: copy into a private temp file in `dst`'s directory, verify, link, unlink)."""
+    try:
+        os.link(src, dst)
+    except OSError as e:
+        if e.errno not in (errno.EXDEV, errno.EPERM, errno.ENOTSUP, errno.EMLINK):
+            raise
+        fd, tmp = tempfile.mkstemp(prefix=".tmp-", suffix=".yaml", dir=dst.parent)
+        try:
+            os.fchmod(fd, FILE_MODE)
+            with os.fdopen(fd, "wb") as out, src.open("rb") as inp:
+                for chunk in iter(lambda: inp.read(1 << 16), b""):
+                    out.write(chunk)
+                out.flush()
+                os.fsync(out.fileno())
+            if _sha256_file(Path(tmp)) != _sha256_file(src):
+                raise OSError(f"copy of {src.name} does not match its source") from None
+            os.link(tmp, dst)
+        finally:
+            Path(tmp).unlink(missing_ok=True)
+    os.chmod(dst, FILE_MODE)
+    src.unlink()
+
+
+def migrate_store(source: Path, target: Path, *, dry_run: bool = False) -> MigrationReport:
+    """Move a brief store from `source` to `target` (R18.9, ADR-071.3): every brief version
+    file `<id>/vNNNN.yaml` and every other regular, non-hidden file kept in the store (notes,
+    drafts, expansion proposals), with the same relative paths. Files are moved as bytes, never
+    parsed or printed. A file that already exists in `target` with the same bytes is removed
+    from `source`; one that differs is a conflict and both copies are kept. Hidden files (temp
+    files) and symlinks are left in place and counted. Empty directories in `source` are removed
+    afterwards. Idempotent: running it again moves nothing."""
+    src = source.expanduser().resolve()
+    dst = target.expanduser().resolve()
+    rep = MigrationReport(str(src), str(dst), dry_run=dry_run)
+    if src == dst:
+        raise ValueError("source and target are the same directory")
+    if not src.is_dir():
+        raise BriefNotFound(f"no brief store at {src}")
+    if dst.is_relative_to(src) or src.is_relative_to(dst):
+        raise ValueError("source and target must not contain each other")
+    store = BriefStore(dst)
+    briefs: set[str] = set()
+    for p in sorted(src.rglob("*")):
+        rel = p.relative_to(src)
+        if any(part.startswith(".") for part in rel.parts) or p.is_symlink():
+            if p.is_file() or p.is_symlink():
+                rep.left_behind += 1
+            continue
+        if not p.is_file():
+            continue
+        is_version = len(rel.parts) == 2 and bool(
+            _ID.match(rel.parts[0]) and _VERSION_FILE.match(p.name)
+        )
+        if is_version:
+            briefs.add(rel.parts[0])
+        final = dst / rel
+        if final.exists():
+            if _sha256_file(final) == _sha256_file(p):
+                rep.already_there += 1
+                if not dry_run:
+                    p.unlink()
+            else:
+                rep.conflicts += 1
+                rep.conflict_paths.append(str(rel))
+            continue
+        if is_version:
+            rep.moved += 1
+        else:
+            rep.other_files_moved += 1
+        if dry_run:
+            continue
+        chain: list[Path] = []
+        d = final.parent
+        while d != dst:
+            chain.append(d)
+            d = d.parent
+        for d in [dst, *reversed(chain)]:
+            store._ensure_dir(d)
+        _move_file(p, final)
+    rep.briefs = len(briefs)
+    if not dry_run:
+        for d in sorted((q for q in src.rglob("*") if q.is_dir()), key=lambda q: -len(q.parts)):
+            with contextlib.suppress(OSError):
+                d.rmdir()  # only if now empty
+    return rep

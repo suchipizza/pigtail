@@ -11,19 +11,28 @@ from pydantic import BaseModel
 
 @dataclass(frozen=True)
 class PromptSpec:
-    """A versioned prompt (R7.4, R15.4). Bump `version` whenever `system` or `template` changes."""
+    """A versioned prompt (R7.4, R15.4). Bump `version` whenever `system`, `context` or
+    `template` changes.
+
+    `context` is stable reference text sent after the system prompt, typically the codebook
+    (R15.9). The `api` backend sends system and context as the request's cached prefix
+    (`cache_control` on the last stable block), so every call of a stage reads them from the
+    prompt cache; per-call input goes after it, in the user turn.
+    """
 
     id: str
     version: str
     system: str
     template: str  # must contain "{input}"
+    context: str = ""
 
     def render(self, input_text: str) -> str:
         return self.template.replace("{input}", input_text)
 
     @property
     def fingerprint(self) -> str:
-        return sha256_text(self.system + "\x00" + self.template)[:12]
+        parts = [self.system, self.template] + ([self.context] if self.context else [])
+        return sha256_text("\x00".join(parts))[:12]
 
 
 @dataclass(frozen=True)
@@ -38,6 +47,9 @@ class BackendResponse:
     # not money spent (usage is covered by the plan).
     cost_usd: float = 0.0
     raw_meta: dict[str, Any] = field(default_factory=dict)
+    cache_write_tokens: int = 0  # prompt-cache writes (api backend)
+    cache_read_tokens: int = 0  # prompt-cache reads (api backend)
+    batch_id: str | None = None  # Message Batches API id when the call went through a batch
 
 
 @dataclass(frozen=True)
@@ -51,16 +63,25 @@ class LLMResult[T: BaseModel]:
     input_hash: str
     cached: bool
     created_at: datetime
+    stage: str | None = None  # R15.8 stage the job ran in
+    batch_id: str | None = None  # R15.9: the batch the output came from (None: standard call)
+    trim_version: str | None = None  # R15.10: evidence-trimming version applied to the input
+    redaction_version: str | None = None  # CB-06: identifier redaction applied to the input
 
-    def provenance(self) -> dict[str, str]:
-        """Version record stored alongside every coded output (R7.4)."""
+    def provenance(self) -> dict[str, str | None]:
+        """Version record stored alongside every coded output (R7.4; Directive §6.3: model id,
+        prompt version and batch id with every output)."""
         return {
             "backend": self.backend,
+            "stage": self.stage,
             "model": self.model,
             "prompt_id": self.prompt_id,
             "prompt_version": self.prompt_version,
             "prompt_fingerprint": self.prompt_fingerprint,
             "input_hash": self.input_hash,
+            "batch_id": self.batch_id,
+            "trim_version": self.trim_version,
+            "redaction_version": self.redaction_version,
         }
 
 
@@ -68,7 +89,13 @@ class Backend(Protocol):
     name: str
 
     def complete(
-        self, *, system: str, prompt: str, json_schema: dict[str, Any], model: str
+        self,
+        *,
+        system: str,
+        prompt: str,
+        json_schema: dict[str, Any],
+        model: str,
+        context: str = "",
     ) -> BackendResponse: ...
 
 

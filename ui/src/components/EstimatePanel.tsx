@@ -1,15 +1,37 @@
-// D7 "Run": the cost estimate shown before any run (R18.5, ADR-053.1). Always labelled an
-// estimate. Starting runs arrives with M14; paid steps then need explicit approval.
-import type { Estimate } from "../api";
+// D7 "Run": the cost estimate shown before any run (R18.5, R15.8-R15.11; ADR-064.4, ADR-072.4).
+// Always labelled an estimate: USD per stage and model (Batch API and prompt caching included)
+// against the brief's total cap and the monthly cap. Starting runs arrives later; paid steps
+// then need explicit approval, and nothing is spent above a cap without the owner (H6).
+import type { Estimate, EstimateCap } from "../api";
 import { fmtNum } from "../format";
 
+function usd(v: number | null | undefined): string {
+  return v === null || v === undefined ? "unknown" : `$${v.toFixed(2)}`;
+}
+
+function CapRow({ label, c }: { label: string; c: EstimateCap }) {
+  const verdict = c.within === null ? "unknown" : c.within ? "fits" : "exceeds the cap";
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>
+        {usd(c.cap_usd)} cap · {usd(c.spent_usd)} spent · {usd(c.remaining_usd)} left ·{" "}
+        <span className={c.within === false ? "error" : undefined}>{verdict}</span>
+      </dd>
+    </div>
+  );
+}
+
 export function EstimatePanel({ e }: { e: Estimate }) {
-  const sub = e.llm.subscription;
+  const api = e.llm.backend === "api";
+  const live = e.llm.stages.filter((s) => s.llm_calls > 0 && !s.reused);
   return (
     <section className="card" aria-label="Cost estimate">
-      <h2>Cost estimate <span className="pill">estimate</span></h2>
+      <h2>
+        Cost estimate <span className="pill">estimate</span>
+      </h2>
       <p className="muted small">
-        From the planning model <code>{e.model}</code>, not a measurement. Runs start from the CLI until M14.
+        From the planning model <code>{e.model}</code>, not a measurement. Runs start from the CLI for now.
       </p>
       <dl className="metrics">
         <div>
@@ -27,27 +49,60 @@ export function EstimatePanel({ e }: { e: Estimate }) {
           <dt>LLM tokens</dt>
           <dd>{fmtNum(e.llm.tokens)}</dd>
         </div>
-        {e.llm.backend === "subscription" ? (
+        {api && (
           <div>
-            <dt>Share of weekly subscription (cap {Math.round(sub.share_cap * 100)}%)</dt>
-            <dd>
-              {Math.round(sub.share_of_weekly_allowance * 100)}% · {sub.weeks} week(s)
-            </dd>
-          </div>
-        ) : (
-          <div>
-            <dt>API cost (list price)</dt>
-            <dd>${e.llm.api_usd.toFixed(2)}</dd>
+            <dt>API cost (list price{e.llm.batch ? ", Batch API" : ""}, prompt caching)</dt>
+            <dd>{usd(e.llm.api_usd)}</dd>
           </div>
         )}
         <div>
-          <dt>Money (paid services)</dt>
-          <dd>{e.money.usd === null ? "unknown" : `$${e.money.usd.toFixed(2)}`}</dd>
+          <dt>Money (API and paid services)</dt>
+          <dd>{usd(e.money.usd)}</dd>
         </div>
       </dl>
-      <p className="muted small">
-        Weekly allowance {fmtNum(sub.allowance.weekly_tokens)} tokens, basis: {sub.allowance.basis.replaceAll("_", " ")}.
-      </p>
+      {api && live.length > 0 && (
+        <table className="small" aria-label="Cost per stage">
+          <thead>
+            <tr>
+              <th>Stage</th>
+              <th>Model</th>
+              <th>Mode</th>
+              <th className="num">Calls</th>
+              <th className="num">USD</th>
+            </tr>
+          </thead>
+          <tbody>
+            {live.map((s) => (
+              <tr key={s.stage}>
+                <td>{s.stage}</td>
+                <td>
+                  <code>{s.model}</code>
+                </td>
+                <td>{s.mode}</td>
+                <td className="num">{fmtNum(s.llm_calls)}</td>
+                <td className="num">{usd(s.usd)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <dl className="metrics" aria-label="Caps">
+        <CapRow label="Brief cap (budget.money_usd, API included)" c={e.caps.brief} />
+        <CapRow label="Monthly cap (BUDGET_USD_MONTH)" c={e.caps.month} />
+      </dl>
+      {e.caps.within_caps === false && (
+        <p className="error" role="alert">
+          This estimate exceeds a cap: the run would stop there with a resumable checkpoint. Spending above a cap needs
+          the owner&apos;s approval (H6).
+        </p>
+      )}
+      {e.llm.pricing && (
+        <p className="muted small">
+          Prices as of {e.llm.pricing.as_of} ({e.llm.pricing.unit}); batch requests cost{" "}
+          {Math.round(e.llm.pricing.batch_discount * 100)}% of standard.
+        </p>
+      )}
+      {e.llm.subscription_note && <p className="muted small">Subscription backend: {e.llm.subscription_note}.</p>}
       {e.money.requires_approval && (
         <p className="error" role="alert">
           This run has paid steps ({e.money.paid_steps.map((p) => p.step).join(", ")}). It won&apos;t start without your

@@ -370,7 +370,8 @@ def test_m1_t24_events_connector_off_by_default_and_held_by_adr022(tmp_path):
     assert ok.enabled and ok.person_level_hold
 
 
-def test_m1_t24_events_parse_keeps_only_watch_and_fork_pseudonymized(tmp_path):
+def test_m1_t24_events_parse_keeps_only_watch_and_fork_m21a_no_actor(tmp_path):
+    """CB-23 plus Directive §8.1 / ADR-071.2: only Watch/Fork; actors coded, never kept."""
     pz = Pseudonymizer(TEST_KEY)
     fake = FakeGitHub()
     fake.events["org-x/repo-1"] = json.loads((FIX / "events_page.json").read_text())
@@ -388,9 +389,12 @@ def test_m1_t24_events_parse_keeps_only_watch_and_fork_pseudonymized(tmp_path):
     assert len(recs) == 4
     text = json.dumps(recs)
     assert "ghuser" not in text and "helper-app" not in text and "payload" not in text
-    bot = next(r for r in recs if r["is_bot"])
-    assert bot["actor"] is None  # bots are neither kept nor hashed
-    assert all(r["actor"] is None or r["actor"].startswith("p_") for r in recs)
+    bot = next(r for r in recs if r["automated_account"])
+    assert bot["_actor_token"] is None  # bots are neither kept nor hashed
+    assert all(r["actor"] is None for r in recs) and "p_" not in text
+    assert all(r["bot_rule_version"] == "bot-filter-v0" for r in recs)
+    humans = [r["_actor_token"] for r in recs if not r["automated_account"]]
+    assert all(isinstance(t, str) and len(t) == 16 for t in humans)  # in-run de-duplication only
     assert got.fetched.evidence.retention_class == "person_level_30d"
     with pytest.raises(ValueError):
         c.repo_events("org-x/repo-1", page=4)  # the window is 300 events

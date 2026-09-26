@@ -4,9 +4,10 @@
 Kinds:
 - `command`: a fixed argv, e.g. `capture hn-ranks --once`, `retention purge`.
 - `hn_mentions`: `capture mentions --repo … --since …` for every live case opened within
-  `window` (default 48 h). Person-level: it runs only when the HN connectors are enabled *and*
-  `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` (ADR-022, ADR-031.2); otherwise it is skipped and logged,
-  never failed.
+  `window` (default 48 h) **whose repo is on an in-review or final shortlist** (Directive §8.3,
+  `pigtail.capture.scope`; other cases are not planned). Person-level: it runs only when the HN
+  connectors are enabled *and* `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` (ADR-022, ADR-031.2);
+  otherwise it is skipped and logged, never failed.
 
 `requires` (list of connector names) makes any job skip while one of them is disabled, held
 by ADR-022 (`PersonSourceHold`), or missing an environment variable it needs for live calls
@@ -125,7 +126,8 @@ class Planner:
 
 
 def pg_open_cases(conninfo: str) -> OpenCases:
-    """Live cases opened since a cutoff, with their repo names (for `hn_mentions`)."""
+    """Live cases opened since a cutoff whose repo is in mention scope (on an in-review or final
+    shortlist, Directive §8.3), with their repo names (for `hn_mentions`)."""
 
     def fetch(since: datetime) -> list[CaseRef]:
         import psycopg
@@ -134,6 +136,9 @@ def pg_open_cases(conninfo: str) -> OpenCases:
             rows = conn.execute(
                 "SELECT c.id, r.full_name, c.opened_at FROM cases c JOIN repos r "
                 "ON r.id = c.repo_id WHERE c.status = 'live' AND c.opened_at >= %s "
+                "AND EXISTS (SELECT 1 FROM brief_shortlist_entry s"
+                " WHERE s.status IN ('in_review', 'final')"
+                " AND (s.repo_full_name = lower(r.full_name) OR s.repo_id = r.id)) "
                 "ORDER BY c.opened_at",
                 (since,),
             ).fetchall()

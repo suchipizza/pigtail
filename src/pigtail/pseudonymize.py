@@ -1,20 +1,34 @@
-"""Keyed pseudonymization of handles and stripping of direct identifiers (PRD §10).
+"""The opt-out key, opt-out fingerprints and stripping of direct identifiers (PRD §7, §10;
+Directive §8.1, ADR-066.1, ADR-071.1).
 
-Handles are replaced with a keyed HMAC-SHA256 pseudonym. The key (`PSEUDONYM_KEY`) is stored
-separately from the data, so pseudonyms are stable across runs but not reversible without it.
+**No handle and no pseudonym of an individual is stored in coded data** (roles and buckets,
+`pigtail.privacy.roles`). The one person-derived value pigtail keeps is the **opt-out
+fingerprint** of someone who opted out or asked for erasure: `p_` + 16 hex of
+HMAC-SHA256(`OPTOUT_KEY`, `<namespace>:<handle lowercase>`) (`OptoutKey.person_fingerprint`).
+It is used only to exclude that person at ingest and to purge them (`pigtail.privacy.suppression`).
+The key is kept apart from the data (environment, never the database) and identified by its
+CB-25 fingerprint. `OPTOUT_KEY` is the variable name; the earlier name `PSEUDONYM_KEY` is still
+read as an alias (`optout_key_from_env`), and the value format is unchanged so existing opt-outs
+keep matching. `Pseudonymizer` is kept as an alias of `OptoutKey`.
 
-`strip_identifiers()` runs before every LLM call (ADR-006) and redacts (DPIA CB-06):
+Before LLM calls handles are replaced by **per-call aliases** (`user1`, `user2`, …) that use no
+key and are not stable across calls (ADR-074), so neither the model nor the LLM cache ever sees a
+value that can be linked back to a person. The one implementation is
+`pigtail.llm.redact.alias_redact` (the LLM-path entry point, `redaction_version` "alias-v1");
+`OptoutKey.strip_identifiers` delegates to it.
+
+`alias_redact()` runs before every LLM call (ADR-006) and redacts (DPIA CB-06):
 
 - e-mail addresses -> `[email]`; phone numbers in unambiguous forms -> `[phone]`;
-- profile URLs -> `[profile:<platform>:<pseudonym>]`: `github.com/<login>` (a single path
+- profile URLs -> `[profile:<platform>:<alias>]`: `github.com/<login>` (a single path
   segment that is not a reserved GitHub page; `github.com/<owner>/<repo>` is kept),
   `github.com/sponsors/<login>`, `api.github.com/users/<login>`, `bsky.app/profile/<handle|did>`
   (the rest of the path, e.g. `/post/<rkey>`, is kept) and
   `news.ycombinator.com/{user,submitted,threads,favorites}?id=<name>`;
-- AT Protocol identifiers `did:plc:…` and `did:web:…` -> `[did:<pseudonym>]`;
-- `@mentions` -> `@<pseudonym>` in the caller's namespace (per source, e.g. "github", "hn").
+- AT Protocol identifiers `did:plc:…` and `did:web:…` -> `[did:<alias>]`;
+- `@mentions` -> `@<alias>` in the caller's namespace (per source, e.g. "github", "hn").
 
-A profile URL names its platform, so its pseudonym always uses that platform's namespace
+A profile URL names its platform, so its alias always uses that platform's namespace
 (`PLATFORM_NAMESPACES`), whatever namespace the caller passed. Dates, counts, versions and DOIs
 are left intact. `scrub_identifiers()` applies the same rules without a key (placeholders only)
 for logs and error text (CB-18).
@@ -24,8 +38,9 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 # Namespace per platform: the same handle on two platforms may be two different people.
 PLATFORM_NAMESPACES: dict[str, str] = {
@@ -35,8 +50,10 @@ PLATFORM_NAMESPACES: dict[str, str] = {
     "v2ex": "v2ex",
 }
 
-PSEUDONYM_RE = re.compile(r"^p_[0-9a-f]{16}$")
-# CB-25 (ADR-043): fixed label whose keyed hash identifies the key (`Pseudonymizer.fingerprint`).
+# An opt-out fingerprint (`OptoutKey.person_fingerprint`); `PSEUDONYM_RE` is the earlier name.
+PERSON_FINGERPRINT_RE = re.compile(r"^p_[0-9a-f]{16}$")
+PSEUDONYM_RE = PERSON_FINGERPRINT_RE
+# CB-25 (ADR-043): fixed label whose keyed hash identifies the key (`OptoutKey.fingerprint`).
 KEY_FINGERPRINT_LABEL = "pigtail-key-fingerprint-v1"
 KEY_FINGERPRINT_RE = re.compile(r"^kfp1_[0-9a-f]{32}$")
 
@@ -191,16 +208,51 @@ def scrub_identifiers(text: str) -> str:
     return redact_identifiers(text, lambda _h, _ns: None)
 
 
-class Pseudonymizer:
+OPTOUT_KEY_ENV = "OPTOUT_KEY"
+LEGACY_KEY_ENV = "PSEUDONYM_KEY"  # the earlier name, still read (alias)
+KEY_ENVS = (OPTOUT_KEY_ENV, LEGACY_KEY_ENV)
+
+
+class ConflictingKeys(ValueError):
+    """`OPTOUT_KEY` and its alias `PSEUDONYM_KEY` are both set, to different values."""
+
+
+def optout_key_from_env(env: Mapping[str, str] | None = None) -> str | None:
+    """The opt-out key: `OPTOUT_KEY`, else the legacy alias `PSEUDONYM_KEY`, else None.
+
+    Both set to different values is refused (a silent pick could stop every opt-out matching)."""
+    e = os.environ if env is None else env
+    new = (e.get(OPTOUT_KEY_ENV) or "").strip() and e.get(OPTOUT_KEY_ENV)
+    old = (e.get(LEGACY_KEY_ENV) or "").strip() and e.get(LEGACY_KEY_ENV)
+    if new and old and new != old:
+        raise ConflictingKeys(
+            f"{OPTOUT_KEY_ENV} and {LEGACY_KEY_ENV} are both set to different values; keep one "
+            f"({LEGACY_KEY_ENV} is the earlier name of {OPTOUT_KEY_ENV})"
+        )
+    return new or old or None
+
+
+class OptoutKey:
+    """The secret key behind opt-out fingerprints (ADR-071.1). Kept apart from the data."""
+
     def __init__(self, key: str) -> None:
         if not key or len(key) < 16:
-            raise ValueError("PSEUDONYM_KEY must be set and at least 16 characters")
+            raise ValueError(
+                f"{OPTOUT_KEY_ENV} (or its alias {LEGACY_KEY_ENV}) must be set and at least 16 "
+                "characters"
+            )
         self._key = key.encode()
 
-    def pseudonym(self, handle: str, namespace: str = "generic") -> str:
-        """Stable pseudonym for a handle within a namespace (e.g. 'github', 'hn')."""
+    def person_fingerprint(self, handle: str, namespace: str = "generic") -> str:
+        """Opt-out fingerprint of a handle within a platform namespace (e.g. 'github', 'hn').
+
+        Stored only for people who opted out; computed in memory at ingest to exclude them."""
         norm = f"{namespace}:{handle.strip().lstrip('@').lower()}".encode()
         return "p_" + hmac.new(self._key, norm, hashlib.sha256).hexdigest()[:16]
+
+    def pseudonym(self, handle: str, namespace: str = "generic") -> str:
+        """Same value as `person_fingerprint`; the name used by the transient LLM redaction."""
+        return self.person_fingerprint(handle, namespace)
 
     def keyed_hex(self, value: str, namespace: str) -> str:
         """Full HMAC-SHA256 hex of `namespace:value` (no normalization: the caller normalizes).
@@ -219,6 +271,16 @@ class Pseudonymizer:
     def strip_identifiers(self, text: str, namespace: str = "generic") -> str:
         """Redact e-mails, phones, profile URLs, DIDs and @mentions before an LLM call (CB-06).
 
-        `namespace` is the source's pseudonym namespace for @mentions (e.g. "github").
+        Handles become **per-call aliases** (`user1`, `user2`, … in order of first appearance
+        within this one input). They use no key and are not stable across calls, so nothing sent
+        to the model, or cached from its output, can be linked back to a person or across inputs
+        (ADR-066.1, ADR-074). `namespace` still separates platforms: the same handle on two
+        platforms gets two aliases.
         """
-        return redact_identifiers(text, self.pseudonym, namespace)
+        from pigtail.llm.redact import alias_redact  # the one alias implementation (M21b)
+
+        return alias_redact(text, namespace)
+
+
+# Earlier name of `OptoutKey` (M1-T8 to M20), kept so existing callers keep working.
+Pseudonymizer = OptoutKey

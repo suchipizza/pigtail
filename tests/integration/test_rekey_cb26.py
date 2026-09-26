@@ -1,5 +1,7 @@
-"""CB-26 (ADR-043): `pigtail privacy rekey` re-derives every stored pseudonym under a new key in
-one transaction, or refuses and changes nothing. CB-27 (dual-key window) is not needed because
+"""CB-26 (ADR-043): `pigtail privacy rekey` re-derives every stored keyed value under a new key in
+one transaction, or refuses and changes nothing. Since M21a (Directive §8.1, ADR-071.1, migration
+0017) those values are the opt-out entries only (person fingerprints and repo-name keys): no
+table holds pseudonyms any more. CB-27 (dual-key window) is not needed because
 of that atomicity. Synthetic handles (`user0001`, `hnuser01`, …) and repos (`org-a/repo-1`) only.
 """
 
@@ -61,27 +63,6 @@ def private_handles(tmp_path: Path, lines: list[str]) -> Path:
     return p
 
 
-def add_actor(db: Any, event_id: str, pseudonym: str | None) -> None:
-    db.conn.execute(
-        "INSERT INTO repo_event_actor (repo_host_id, event_id, event_type, actor_pseudonym,"
-        " is_bot, created_at, observed_at) VALUES (1000001, %s, 'WatchEvent', %s, false, %s, %s)",
-        (event_id, pseudonym, NOW, NOW),
-    )
-
-
-def add_mention(db: Any, item_id: int, author: str) -> None:
-    db.conn.execute(
-        "INSERT INTO hn_mention (repo_full_name, item_id, item_type, author, match_kind,"
-        " first_seen_at, last_seen_at) VALUES ('org-a/repo-1', %s, 'comment', %s, 'url', %s, %s)",
-        (item_id, author, NOW, NOW),
-    )
-    db.conn.execute(
-        "INSERT INTO upstream_items (platform, item_id, author_pseudonym, first_seen_at,"
-        " last_seen_at, next_check_at) VALUES ('hn', %s, %s, %s, %s, %s)",
-        (str(item_id), author, NOW, NOW, NOW),
-    )
-
-
 def column(db: Any, table: str, col: str) -> list[Any]:
     return [r[0] for r in db.conn.execute(f"SELECT {col} FROM {table} ORDER BY 1 NULLS LAST")]
 
@@ -92,19 +73,16 @@ def optouts(db: Any) -> set[tuple[str, str]]:
 
 @pytest.fixture
 def seeded(capture_db: Any) -> tuple[Any, LLMStore]:
-    """Opt-outs and person-level rows under the OLD key, fingerprint recorded, LLM cache."""
+    """Opt-outs under the OLD key, fingerprint recorded, LLM cache."""
     db = capture_db
     suppression.load(db, OLD)  # records the old key's fingerprint (CB-25)
-    suppression.add(db, "pseudonym", gh(OLD, "user0001"), platform="github", reason="objection")
-    suppression.add(db, "pseudonym", hn(OLD, "hnuser01"), platform="hn", reason="erasure")
+    suppression.add(db, "person", gh(OLD, "user0001"), platform="github", reason="objection")
+    suppression.add(db, "person", hn(OLD, "hnuser01"), platform="hn", reason="erasure")
     suppression.add(
         db, "repo_name", suppression.repo_name_key("org-z/optout-1", OLD),
         platform="github", reason="objection",
     )  # fmt: skip
     suppression.add(db, "repo", "github:4242", platform="github", reason="objection")
-    add_actor(db, "e1", gh(OLD, "user0002"))
-    add_actor(db, "e2", None)
-    add_mention(db, 101, hn(OLD, "hnuser02"))
     llm = LLMStore(":memory:", clock=lambda: NOW)
     llm.cache_put("k1", {"q": f"thanks @{gh(OLD, 'user0002')}"}, "m")
     return db, llm
@@ -157,8 +135,9 @@ def test_cb26_old_key_only_from_a_named_env_var_and_never_echoed():
     with pytest.raises(ValueError, match="NAME of an environment variable") as e:
         rekey.old_key_from_env(key, {})  # the key pasted in place of the name
     assert key not in str(e.value)
-    with pytest.raises(ValueError, match="other than PSEUDONYM_KEY"):
-        rekey.old_key_from_env("PSEUDONYM_KEY", {"PSEUDONYM_KEY": key})
+    for new_name in ("PSEUDONYM_KEY", "OPTOUT_KEY"):  # the new key and its alias
+        with pytest.raises(ValueError, match="other than OPTOUT_KEY"):
+            rekey.old_key_from_env(new_name, {new_name: key})
     with pytest.raises(ValueError, match="not set"):
         rekey.old_key_from_env("OLD_PSEUDONYM_KEY", {})
     with pytest.raises(ValueError, match="shorter than 16") as e:
@@ -203,23 +182,19 @@ def test_cb26_rekey_maps_every_optout_and_row_in_one_transaction(seeded, tmp_pat
     assert rep.committed and not rep.unmapped_optouts
     # refusal list: every keyed entry under the new key; repo ids unchanged
     assert optouts(db) == {
-        ("pseudonym", gh(NEW, "user0001")),
-        ("pseudonym", hn(NEW, "hnuser01")),
+        ("person", gh(NEW, "user0001")),
+        ("person", hn(NEW, "hnuser01")),
         ("repo_name", suppression.repo_name_key("org-z/optout-1", NEW)),
         ("repo", "github:4242"),
     }
     reasons = {(e["kind"], e["reason"]) for e in suppression.entries(db)}
-    assert ("pseudonym", "erasure") in reasons  # platform, reason and date are kept
-    # person-level rows re-derived
-    assert column(db, "repo_event_actor", "actor_pseudonym") == [gh(NEW, "user0002"), None]
-    assert column(db, "hn_mention", "author") == [hn(NEW, "hnuser02")]
-    assert column(db, "upstream_items", "author_pseudonym") == [hn(NEW, "hnuser02")]
+    assert ("person", "erasure") in reasons  # platform, reason and date are kept
     # the fingerprint now names the new key (event `rekey`), and the new key works everywhere
     assert key_fingerprint.status(db.conn, NEW) == "ok"
     events = [r["event"] for r in key_fingerprint.history(db.conn)]
     assert events == ["recorded", "rekey"]
     sup = suppression.load(db, NEW)
-    assert gh(NEW, "user0001") in sup.pseudonyms
+    assert gh(NEW, "user0001") in sup.persons
     assert sup.name_suppressed("org-z/optout-1")
     with pytest.raises(KeyFingerprintMismatch):
         suppression.load(db, OLD)
@@ -234,26 +209,26 @@ def test_cb26_rekey_maps_every_optout_and_row_in_one_transaction(seeded, tmp_pat
         assert p not in dump
     assert rep.counts["optouts_pseudonym_mapped"] == 2
     assert rep.counts["optouts_repo_name_mapped"] == 1
-    assert rep.counts["repo_event_actor_rows_mapped"] == 1
+    assert rep.counts["person_pseudonyms"] == 0  # PERSON_TABLES is empty since 0017
     assert rep.counts["llm_cache_rows_deleted"] == 1
 
 
-def test_cb26_erasure_under_new_key_reaches_rows_mapped_by_rekey(seeded, tmp_path):
+def test_cb26_erasure_under_new_key_matches_optouts_mapped_by_rekey(seeded, tmp_path):
     db, llm = seeded
     handles = rekey.read_handles_file(private_handles(tmp_path, FULL_HANDLES))
     rekey.rekey(db, None, OLD, NEW, handles=handles, llm_store=llm, require_exclusive=False)
     from pigtail.capture.snapshots import LocalSnapshotStore
 
     res = requests.erasure(
-        db, LocalSnapshotStore(tmp_path / "s"), NEW, platform="hn", handle="hnuser02"
+        db, LocalSnapshotStore(tmp_path / "s"), NEW, platform="hn", handle="hnuser01"
     )
-    assert res.counts["person_rows_deleted"] == 2  # hn_mention + upstream_items
-    assert column(db, "hn_mention", "author") == []
+    assert res.counts["suppression_added"] == 0  # already on the list under the new key
+    assert res.counts["person_rows_deleted"] == 0
 
 
 def test_cb26_refuses_when_an_optout_cannot_be_mapped_and_changes_nothing(seeded, tmp_path):
     db, llm = seeded
-    before_optouts, before_actor = optouts(db), column(db, "repo_event_actor", "actor_pseudonym")
+    before_optouts = optouts(db)
     # the hn opt-out's handle is missing
     lines = [x for x in FULL_HANDLES if x != "hn hnuser01"]
     handles = rekey.read_handles_file(private_handles(tmp_path, lines))
@@ -272,56 +247,30 @@ def test_cb26_refuses_when_an_optout_cannot_be_mapped_and_changes_nothing(seeded
     rep = e.value.report
     assert rep is not None and not rep.committed
     assert rep.unmapped_optouts == [
-        {"kind": "pseudonym", "platform": "hn", "request_id": None, "added_at": mock_any()}
+        {"kind": "person", "platform": "hn", "request_id": None, "added_at": mock_any()}
     ]
     assert hn(OLD, "hnuser01") not in json.dumps(rep.to_dict(), default=str)  # no pseudonym shown
     # rolled back: list, rows, fingerprint, fingerprint log and cache untouched
     assert optouts(db) == before_optouts
-    assert column(db, "repo_event_actor", "actor_pseudonym") == before_actor
     assert key_fingerprint.status(db.conn, OLD) == "ok"
     assert [r["event"] for r in key_fingerprint.history(db.conn)] == ["recorded"]
     assert llm.cache_count() == 1
 
 
-def test_cb26_unmapped_person_rows_refuse_unless_dropped(seeded, tmp_path):
+def test_cb26_m21a_person_table_options_have_nothing_left_to_do(seeded, tmp_path):
+    """No table holds pseudonyms since 0017: once every opt-out is mapped the rotation commits
+    without --drop-unmapped, and --purge-person-level deletes nothing."""
     db, _llm = seeded
-    # every opt-out is mapped, but not the two person-level authors
     lines = ["github user0001", "hn hnuser01", "repo org-z/optout-1"]
     handles = rekey.read_handles_file(private_handles(tmp_path, lines))
-    with pytest.raises(RekeyRefused, match="--drop-unmapped"):
-        rekey.rekey(db, None, OLD, NEW, handles=handles, require_exclusive=False)
-    assert key_fingerprint.status(db.conn, OLD) == "ok"
-    rep = rekey.rekey(
-        db, None, OLD, NEW, handles=handles, drop_unmapped=True, require_exclusive=False
-    )
-    assert rep.committed
-    assert column(db, "repo_event_actor", "actor_pseudonym") == [None]  # e1 deleted, e2 kept
-    assert column(db, "hn_mention", "author") == []
-    # upstream_items keeps the item for deletion sync; only the author is cleared
-    assert column(db, "upstream_items", "author_pseudonym") == [None]
-    assert rep.counts["repo_event_actor_rows_deleted"] == 1
-    assert rep.counts["upstream_items_pseudonyms_cleared"] == 1
-    log = db.conn.execute(
-        "SELECT reason, action, target, rows_affected FROM deletion_log ORDER BY id"
-    ).fetchall()
-    assert set(log) == {
-        ("key_rotation", "rows_deleted", "hn_mention", 1),
-        ("key_rotation", "fields_cleared", "upstream_items.author_pseudonym", 1),
-        ("key_rotation", "rows_deleted", "repo_event_actor", 1),
-    }
-
-
-def test_cb26_purge_person_level_deletes_rows_instead_of_mapping(seeded, tmp_path):
-    db, _llm = seeded
-    handles = rekey.read_handles_file(private_handles(tmp_path, FULL_HANDLES))
     rep = rekey.rekey(
         db, None, OLD, NEW, handles=handles, purge_person_level=True, require_exclusive=False
     )
-    assert rep.committed
-    assert column(db, "repo_event_actor", "actor_pseudonym") == [None]
-    assert column(db, "hn_mention", "author") == []
-    assert column(db, "upstream_items", "author_pseudonym") == [None]
-    assert ("pseudonym", gh(NEW, "user0001")) in optouts(db)  # opt-outs are still mapped
+    assert rep.committed and rep.counts["person_pseudonyms_unmapped"] == 0
+    assert ("person", gh(NEW, "user0001")) in optouts(db)  # opt-outs are still mapped
+    assert db.conn.execute(
+        "SELECT count(*) FROM deletion_log WHERE reason = 'key_rotation'"
+    ).fetchone() == (0,)
 
 
 def test_cb26_dry_run_reports_and_rolls_back(seeded, tmp_path):
@@ -354,25 +303,23 @@ def test_cb26_repo_name_mapped_from_names_held_locally(capture_db):
     assert optouts(db) == {("repo_name", suppression.repo_name_key("org-a/repo-9", NEW))}
 
 
-def test_cb26_person_rows_mapped_from_retained_snapshots(ingested, pz):  # noqa: F811
-    """No handles file: the GH Archive snapshots (which contain handles) map the actors."""
+def test_cb26_optouts_mapped_from_retained_snapshots(ingested, pz):  # noqa: F811
+    """No handles file: the GH Archive snapshots (which contain handles) map the opt-outs, the
+    fingerprints being computed in memory while they are re-parsed."""
     db, store, _fetched, llm = ingested
     suppression.load(db, pz)
-    add_actor(db, "e1", gh(pz, "user0003"))
-    add_actor(db, "e2", gh(pz, "user0001"))
+    suppression.add(db, "person", gh(pz, "user0001"), platform="github", reason="objection")
     rep = rekey.rekey(db, store, pz, NEW, llm_store=llm, require_exclusive=False)
     assert rep.committed
-    assert sorted(column(db, "repo_event_actor", "actor_pseudonym")) == sorted(
-        [gh(NEW, "user0003"), gh(NEW, "user0001")]
-    )
-    assert rep.counts["mapped_from_snapshots"] == 2
+    assert optouts(db) == {("person", gh(NEW, "user0001"))}
+    assert rep.counts["mapped_from_snapshots"] == 1
     assert rep.counts["snapshots_scanned"] >= 1
 
 
 def test_cb26_snapshot_scan_can_be_skipped(ingested, pz):  # noqa: F811
     db, store, _f, _llm = ingested
     suppression.load(db, pz)
-    add_actor(db, "e1", gh(pz, "user0003"))
+    suppression.add(db, "person", gh(pz, "user0001"), platform="github", reason="objection")
     with pytest.raises(RekeyRefused, match="cannot be mapped"):
         rekey.rekey(db, store, pz, NEW, scan_snapshots=False, require_exclusive=False)
 

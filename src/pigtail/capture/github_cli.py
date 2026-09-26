@@ -190,7 +190,7 @@ def cmd_repo_events(args: argparse.Namespace) -> int:
         from pigtail.pseudonymize import Pseudonymizer
 
         if not s.pseudonym_key:
-            raise _Exit(2, "PSEUDONYM_KEY is not set (>= 16 chars; PRD §10)")
+            raise _Exit(2, "OPTOUT_KEY (or its alias PSEUDONYM_KEY) is not set (>= 16 chars)")
         conn = GitHubRepoEventsConnector(  # raises PersonSourceHold without the ADR-022 flag
             store=build_store(s),
             pseudonymizer=Pseudonymizer(s.pseudonym_key),

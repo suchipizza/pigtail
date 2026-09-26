@@ -296,7 +296,7 @@ export const api = {
 
 // --- D7 briefs --------------------------------------------------------------------------------
 
-/** A brief as JSON (schemas/brief/v1.1.json). The form edits it by path; the server validates. */
+/** A brief as JSON (schemas/brief/v1.2.json). The form edits it by path; the server validates. */
 export type BriefData = Record<string, unknown>;
 
 export interface BriefWrite {
@@ -371,7 +371,7 @@ export interface BriefListItem {
   edited_at: string | null;
   status: string;
   last_run: BriefRunSummary | null;
-  budget: { money_usd: number; subscription_share: number; llm_backend: string; llm_api_usd: number };
+  budget: { money_usd: number; subscription_share: number; llm_backend: string };
 }
 
 export interface BriefList {
@@ -403,6 +403,29 @@ export interface BriefDiff {
   unified: string;
 }
 
+export interface EstimateStage {
+  stage: string;
+  llm_stage: string | null;
+  model: string | null;
+  mode: "batch" | "standard";
+  llm_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  usd: number | null;
+  reused: boolean;
+}
+
+export interface EstimateCap {
+  cap_usd: number;
+  spent_usd: number;
+  remaining_usd: number;
+  estimate_usd: number | null;
+  within: boolean | null;
+  field: string;
+}
+
 export interface Estimate {
   label: "estimate";
   model: string;
@@ -413,15 +436,18 @@ export interface Estimate {
     backend: string;
     calls: number;
     tokens: number;
-    stages: { stage: string; llm_calls: number; input_tokens: number; output_tokens: number; reused: boolean }[];
-    subscription: {
-      share_of_weekly_allowance: number;
-      share_cap: number;
-      used_last_7_days_tokens: number;
-      weeks: number;
-      allowance: { weekly_tokens: number; basis: string; label: string };
-    };
-    api_usd: number;
+    batch: boolean;
+    stages: EstimateStage[];
+    api_usd: number | null;
+    per_llm_stage: Record<string, { model: string | null; calls: number; tokens: number; usd: number | null }>;
+    pricing: { as_of: string; source: string; unit: string; batch_discount: number } | null;
+    subscription_note: string | null;
+  };
+  caps: {
+    brief: EstimateCap;
+    month: EstimateCap;
+    within_caps: boolean | null;
+    on_exceed: string;
   };
   money: {
     usd: number | null;

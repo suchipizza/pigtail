@@ -10,7 +10,12 @@ import pytest
 from pigtail.capture.runs import RunRecorder
 from pigtail.capture.snapshots import LocalSnapshotStore, SnapshotMeta
 from pigtail.connectors.gharchive import GHArchiveConnector
-from pigtail.privacy.suppression import Suppressions, platform_namespace, subject_pseudonym
+from pigtail.privacy.suppression import (
+    Suppressions,
+    platform_namespace,
+    subject_fingerprint,
+    subject_pseudonym,
+)
 
 FIX = Path(__file__).resolve().parents[1] / "fixtures" / "gharchive" / "2026-09-20-0.json.gz"
 META = SnapshotMeta(
@@ -28,18 +33,19 @@ def conn(tmp_path: Path, pz, sup: Suppressions | None = None, run=None) -> GHArc
     )
 
 
-def test_cb13_suppressed_pseudonym_dropped_at_ingest(tmp_path, pz):
+def test_cb13_adr071_1_suppressed_fingerprint_dropped_at_ingest(tmp_path, pz):
+    """ADR-071.1: the opt-out fingerprint is matched in memory at ingest; records keep no actor."""
     data = FIX.read_bytes()
-    base = list(conn(tmp_path, pz).records(data, META))
-    p = subject_pseudonym(pz, "github", "user0001")
-    assert any(r["actor"] == p for r in base)
+    c = conn(tmp_path, pz)
+    p = subject_fingerprint(pz, "github", "user0001")
+    subject = [r for r, fps in c.subject_records(data, META) if p in fps]
+    assert subject
+    base = list(c.records(data, META))
+    assert all(r["actor"] is None for r in base)  # Directive §8.1: no handle, no pseudonym
     run = RunRecorder("t", detect_commit=False)
-    kept = list(
-        conn(tmp_path, pz, Suppressions(pseudonyms=frozenset({p})), run).records(data, META)
-    )
-    assert all(r["actor"] != p for r in kept)
+    kept = list(conn(tmp_path, pz, Suppressions(persons=frozenset({p})), run).records(data, META))
     dropped = len(base) - len(kept)
-    assert dropped > 0 and run.counts["gharchive.suppressed"] == dropped
+    assert dropped == len(subject) and run.counts["gharchive.suppressed"] == dropped
 
 
 def test_cb13_opted_out_repo_dropped_at_ingest(tmp_path, pz):

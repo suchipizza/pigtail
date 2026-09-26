@@ -4,19 +4,21 @@
 
 1. **CB-04**: GH Archive raw dumps older than `GHARCHIVE_RAW_RETENTION_DAYS` (default 30) lose
    their raw bytes (`pigtail.capture.retention.purge_raw`).
-2. **CB-01**: every `person_level_24m` evidence record older than `PERSON_LEVEL_RETENTION_DAYS`
-   (default 730 = 24 months, from `fetched_at`) loses its raw bytes and moves to
-   `deletion_state = 'raw_dropped'`. The record keeps `content_hash`, `url`, `source`,
-   `fetched_at` and `terms_basis`, so coded facts keep their provenance. Content addressing means
-   one blob can back several records: a hash is dropped only when no *present* record still
-   needs it (a `project_level` or `derived_aggregate` record, or a younger person-level one).
-   Such hashes are reported as `blocked_shared`.
+2. **R19.9 / CB-01** (Directive §8.2, ADR-066.2): every person-level snapshot (`person_level_24m`
+   evidence) whose due date has passed loses its raw bytes and moves to
+   `deletion_state = 'raw_dropped'`. The due date is the brief's **report final + 12 months**
+   (`SNAPSHOT_AFTER_REPORT_DAYS`, ≤ 365) once every brief that used the snapshot has a final
+   report, else the ceiling `PERSON_LEVEL_RETENTION_DAYS` (≤ 730 days from the newest fetch;
+   `pigtail.privacy.snapshot_retention`). The record keeps `content_hash`, `url`, `source`,
+   `fetched_at` and `terms_basis`, so coded facts keep their provenance and the hash is the
+   permanent record. Content addressing means one blob can back several records: a hash is
+   dropped only when no *present* record of another class still needs it (reported as
+   `blocked_shared`).
    **CB-22**: `person_level_30d` evidence (GitHub per-repo events, TM-33) older than
    `GITHUB_EVENTS_RETENTION_DAYS` (default 16, ceiling 30; ADR-038) is treated the same way.
    Its raw bytes are normally dropped right after parsing; this catches anything left behind.
-3. Rows of registered person-level tables (`PERSON_TABLES`) older than the cutoff are deleted;
-   a table with its own `retention_days` (GitHub per-repo event actors: 16 days, cap 30) uses
-   the shorter of the two cutoffs.
+3. Rows of registered person-level tables (`PERSON_TABLES`) older than the cutoff are deleted.
+   The registry is empty since migration 0017 (no table stores handles or pseudonyms).
 4. **CB-05**: LLM cache rows linked to the evidence dropped in step 2 and rows past
    `LLM_CACHE_RETENTION_DAYS` are deleted; the usage ledger and pause log follow the same period.
 5. **CB-18**: `runs.error` text older than `LOG_RETENTION_DAYS` (default 365) is cleared.
@@ -45,6 +47,7 @@ from pigtail.privacy.deletion import (
     delete_person_rows,
     drop_raw,
 )
+from pigtail.privacy.snapshot_retention import person_snapshots
 
 if TYPE_CHECKING:
     from pigtail.capture.db import CaptureDB
@@ -55,10 +58,11 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class RetentionConfig:
-    person_level_days: int = 730
+    person_level_days: int = 730  # ceiling for snapshots no final report anchors (R19.9)
     gharchive_raw_days: int = 30
     log_days: int = 365
-    github_events_days: int = 16  # CB-22 / ADR-038: person_level_30d evidence + person rows
+    github_events_days: int = 16  # CB-22 / ADR-038: person_level_30d evidence
+    after_report_days: int = 365  # R19.9: report final + 12 months
 
 
 @dataclass
@@ -71,6 +75,9 @@ class PurgeReport:
     person_level_hashes_dropped: int = 0
     person_level_evidence_raw_dropped: int = 0
     person_level_30d_hashes_dropped: int = 0
+    snapshots_dropped_report_final: int = 0  # R19.9: report final + 12 months passed
+    snapshots_dropped_ceiling: int = 0  # no final anchor: PERSON_LEVEL_RETENTION_DAYS passed
+    snapshots_held_pending_report: int = 0  # not due yet, a referencing report is pending
     blocked_shared: int = 0
     person_rows_deleted: dict[str, int] = field(default_factory=dict)
     llm_cache_rows_for_evidence: int = 0
@@ -113,23 +120,38 @@ def purge(
         db, store, source="gharchive", retention_days=cfg.gharchive_raw_days, now=now, log=log
     )
 
-    # 2. CB-01: person-level evidence past 24 months; CB-22: 30-day class past its cap.
+    # 2. R19.9: person-level snapshots past report final + 12 months (or the ceiling);
+    #    CB-22: the 30-day class past its cap.
     done = {e["content_hash"] for e in log.entries if e["action"] == "raw_dropped"}
     dropped_evidence: list[str] = []
-    events_cutoff = now - timedelta(days=min(cfg.github_events_days, cfg.person_level_days))
-    for rclass, class_cutoff in (
-        ("person_level_24m", cutoff),
-        ("person_level_30d", events_cutoff),
+    for snap in person_snapshots(
+        db.conn, after_report_days=cfg.after_report_days, ceiling_days=cfg.person_level_days
     ):
-        for h, ids in _expired_hashes(db, rclass, class_cutoff, done, rep):
-            dropped_evidence += list(ids)
-            drop_raw(db, store, h, log)
-            done.add(h)
-            rep.dropped_hashes.append(h)
-            if rclass == "person_level_24m":
-                rep.person_level_hashes_dropped += 1
-            else:
-                rep.person_level_30d_hashes_dropped += 1
+        if snap.content_hash in done:
+            continue
+        if snap.due_at > now:
+            if snap.basis == "ceiling_pending_report":
+                rep.snapshots_held_pending_report += 1
+            continue
+        if snap.blocked:
+            rep.blocked_shared += 1
+            continue
+        dropped_evidence += list(snap.evidence_ids)
+        drop_raw(db, store, snap.content_hash, log)
+        done.add(snap.content_hash)
+        rep.dropped_hashes.append(snap.content_hash)
+        rep.person_level_hashes_dropped += 1
+        if snap.basis == "report_final":
+            rep.snapshots_dropped_report_final += 1
+        else:
+            rep.snapshots_dropped_ceiling += 1
+    events_cutoff = now - timedelta(days=min(cfg.github_events_days, cfg.person_level_days))
+    for h, ids in _expired_hashes(db, "person_level_30d", events_cutoff, done, rep):
+        dropped_evidence += list(ids)
+        drop_raw(db, store, h, log)
+        done.add(h)
+        rep.dropped_hashes.append(h)
+        rep.person_level_30d_hashes_dropped += 1
     rep.person_level_evidence_raw_dropped = len(dropped_evidence)
 
     # 3. Pseudonymous person-level rows; tables with their own cap use the shorter cutoff.
@@ -188,6 +210,9 @@ def purge(
             "person_level_hashes_dropped",
             "person_level_evidence_raw_dropped",
             "person_level_30d_hashes_dropped",
+            "snapshots_dropped_report_final",
+            "snapshots_dropped_ceiling",
+            "snapshots_held_pending_report",
             "blocked_shared",
             "llm_cache_rows_for_evidence",
             "llm_cache_rows_expired",

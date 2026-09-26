@@ -1,8 +1,8 @@
 """M1-T24 privacy and gating invariants (TM-33; CB-22, CB-23; ADR-022/ADR-036; schema v0).
 
-- No function, CLI command or API path lists the stargazers of a repo: `repo_event_actor` is
-  mentioned only by the events poller and the person-table registry, and every query on it is an
-  aggregate.
+- No function, CLI command or API path lists the stargazers of a repo: since M21a (Directive
+  §8.1, migration 0017) nothing about individual actors is stored at all (`repo_event_actor` is
+  gone; counts only), and no SQL in the code base names an actor column.
 - Scheduler jobs skip with a logged reason until GITHUB_TOKEN is set; the events job is off.
 - The detection-v1 block and its bot_filter object match the JSON Schema field for field.
 """
@@ -52,47 +52,42 @@ def test_m1_t24_cb23_no_cli_command_lists_stargazers():
     assert not [c for c in cmds if re.search(r"stargazer|actor|who", c)]
 
 
-def test_m1_t24_cb23_repo_event_actor_only_in_poller_and_registry():
-    users = {
-        str(p.relative_to(SRC))
-        for p in SRC.rglob("*.py")
-        if "repo_event_actor" in p.read_text(encoding="utf-8")
-    }
-    # export/jsonl.py only names it to classify it as never exported (M1-T20); the M11 data-cache
-    # inventory only counts its rows, repos and days (never the actor column)
-    assert users == {
-        "capture/repo_events.py",
-        "privacy/deletion.py",
-        "export/jsonl.py",
-        "capture/inventory.py",
-    }
-    assert "actor_pseudonym" not in (SRC / "capture" / "inventory.py").read_text()
-    from pigtail.export.jsonl import TABLE_LEVELS
-
-    assert TABLE_LEVELS["repo_event_actor"] == "never"
-    assert (SRC / "export" / "jsonl.py").read_text().count("repo_event_actor") == 2
-    api = "\n".join(p.read_text() for p in (SRC / "api").rglob("*.py"))
-    assert "repo_event_actor" not in api and "stargazers" not in api
-
-
-def test_m1_t24_cb23_repo_event_actor_is_read_only_in_aggregate():
-    tree = ast.parse((SRC / "capture" / "repo_events.py").read_text())
-    sqls = [
+def _sql_constants(path: Path) -> list[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    return [
         n.value
         for n in ast.walk(tree)
         if isinstance(n, ast.Constant)
         and isinstance(n.value, str)
-        and "repo_event_actor" in n.value
+        and re.search(
+            r"\bSELECT\b[\s\S]*\bFROM\b|\bINSERT INTO\b|\bUPDATE \w+ SET\b|\bDELETE FROM\b", n.value
+        )
     ]
-    reads = [s for s in sqls if re.search(r"\bSELECT\b", s, re.IGNORECASE)]
-    assert reads, "expected aggregate reads"
-    for s in reads:
-        # every SELECT touching the table returns counts / min only, never actor_pseudonym rows
-        selected = re.findall(r"SELECT(.*?)FROM repo_event_actor", s, re.IGNORECASE | re.DOTALL)
-        for cols in selected:
-            stripped = re.sub(r"count\(DISTINCT actor_pseudonym\)", "", cols)
-            assert "actor_pseudonym" not in stripped, s
-            assert re.search(r"count\(|min\(", cols, re.IGNORECASE), s
+
+
+def test_m21a_cb23_no_sql_touches_actor_rows():
+    """Directive §8.1 / ADR-071.2: no SQL anywhere reads or writes per-actor event rows."""
+    for path in SRC.rglob("*.py"):
+        for q in _sql_constants(path):
+            assert "repo_event_actor" not in q, path
+            assert not re.search(r"actor_pseudonym|author_pseudonym|_actor_token", q), path
+    from pigtail.export.jsonl import TABLE_LEVELS
+
+    assert "repo_event_actor" not in TABLE_LEVELS
+    api = "\n".join(p.read_text() for p in (SRC / "api").rglob("*.py"))
+    assert "repo_event_actor" not in api and "stargazers" not in api
+
+
+def test_m21a_cb23_repo_events_poller_writes_counts_only():
+    writes = [
+        q for q in _sql_constants(SRC / "capture" / "repo_events.py") if "INSERT" in q.upper()
+    ]
+    assert writes
+    for q in writes:
+        cols = re.search(r"INSERT INTO (\w+) \((.*?)\)", q, re.DOTALL)
+        assert cols is not None, q
+        assert cols.group(1) in {"repo_event_poll", "repo_event_hourly_agg", "repo_event_daily_agg"}
+        assert not re.search(r"actor|login|token|author", cols.group(2)), q
 
 
 def test_m1_t24_schedule_jobs_skip_without_token(caplog: pytest.LogCaptureFixture):

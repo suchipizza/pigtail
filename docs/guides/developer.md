@@ -15,7 +15,7 @@ uv run mypy                  # strict on src/
 uv run pytest -q             # unit tests; smoke tests skip by default
 python3 scripts/private_data_scan.py
 ```
-Real-backend smoke tests: `PIGTAIL_RUN_SMOKE=1 uv run pytest tests/smoke` (subscription, uses your own Claude plan). The api smoke test runs automatically when `ANTHROPIC_API_KEY` is set.
+Real-backend smoke tests: `PIGTAIL_RUN_SMOKE=1 uv run pytest tests/smoke` (subscription, uses your own Claude plan). The api smoke test also needs `PIGTAIL_RUN_SMOKE=1` (and `ANTHROPIC_API_KEY`); it makes one tiny call on the relevance model (Haiku). No other test makes a real API call.
 
 ## LLM calls (PRD F15)
 Every product LLM call goes through `pigtail.llm.LLMClient`. Never call the SDK or the CLI directly.
@@ -33,12 +33,27 @@ res = build_client().complete(PROMPT, text, Out, job="pilot_extraction")
 res.output, res.provenance()  # store the provenance with every coded record (R7.4)
 ```
 - Bump `PromptSpec.version` whenever the prompt text changes. The cache is keyed on it (ADR-006).
-- `job` names route to a backend through `LLM_BACKEND_OVERRIDES` (e.g. `tier2_extraction:api`).
+- `job` names route to a backend through `LLM_BACKEND_OVERRIDES` (e.g. `tier2_extraction:api`)
+  and to a **stage and model** through `pigtail.llm.stages.JOB_STAGES` (R15.8: `relevance`,
+  `extraction`, `synthesis`; `LLM_MODEL_<STAGE>`). A job missing from `JOB_STAGES` is refused:
+  add new jobs there. `launch_<job>` runs in `<job>`'s stage as a standard call.
+- Put stable reference text (the codebook) in `PromptSpec.context`: the `api` backend sends
+  system prompt + context as the cache-marked prefix (R15.9). Keep per-call data in `{input}`.
+- Many inputs of one job: `client.run_batch(PROMPT, [BatchItem(ref, text, case_ref=...)], Out,
+  job=..., brief_run_id=..., before_submit=guard.before_submit, est_usd_per_item=...)`. On `api`
+  it uses the Message Batches API for non-time-sensitive jobs, stores batch ids (Postgres,
+  migration 0020) and on a restart collects them instead of resubmitting; it raises
+  `BatchPending` after `timeout_seconds`. Results carry `batch_id` in `provenance()`.
+- Trim evidence before sending (R15.10): `pigtail.llm.trim.trim_evidence(items, terms=...)` for
+  a thread or list of excerpts, or `complete(..., trim=TrimPolicy())` for one text.
+- Pass `brief_run_id=` and `case_ref=` so the actual cost lands in `llm_cost_ledger` per case
+  (R15.11); prices and multipliers are in `pigtail.llm.pricing` (dated table).
 - `UsageLimitReached` pauses the backend; later calls raise `QueuePaused(until)` until the reset. Job runners must catch `QueuePaused`, sleep until `until`, and resume (R15.5).
 - Inputs are stripped of e-mails, phone numbers, @handles, profile URLs (`github.com/<login>`,
   `bsky.app/profile/…`, `news.ycombinator.com/user?id=…`) and `did:plc:`/`did:web:` ids before
-  they leave the process (DPIA CB-06). Pass `namespace="github"` (the source's pseudonym
-  namespace) so @mentions get the same pseudonyms the connector stores, and `evidence_id=` so the
+  they leave the process (DPIA CB-06). Pass `namespace="github"` (the source's namespace) so
+  @mentions get the same transient token an erasure purges the cache by (connectors store no
+  handles or pseudonyms since M21a), and `evidence_id=` so the
   cache row is purged with its source (CB-05).
 
 ## Direction since M11 (ADR-047, ADR-048, ADR-049)
@@ -54,23 +69,30 @@ them back without an ADR. New code is scoped to a brief or a tracked project: ta
 queries as input, never enumerate GitHub. The full rewrite of this guide comes with M12/M14.
 
 ## Briefs (M12; PRD F18, D7)
-`pigtail.briefs`: `model` (pydantic model behind `schemas/brief/v1.1.json`; regenerate the
-file with `uv run pigtail brief schema > schemas/brief/v1.1.json`, a test fails on drift;
-`schemas/brief/v1.json` is frozen, and `migrate_v1` maps v1 briefs onto v1.1 when they load),
-`store` (private, immutable versions under `PIGTAIL_DATA_DIR/briefs`; stale edits are refused),
-`diff`, `estimate` (`estimate-v1` planning model), `expansion` (R18.7: the versioned
+`pigtail.briefs`: `model` (pydantic model behind `schemas/brief/v1.2.json`; regenerate the
+file with `uv run pigtail brief schema > schemas/brief/v1.2.json`, a test fails on drift;
+`schemas/brief/v1.json` and `v1.1.json` are frozen, and `migrate_v1` / `migrate_v1_1` map older
+briefs onto v1.2 when they load), `store` (private, immutable versions under
+`PIGTAIL_BRIEFS_DIR`, default `~/.pigtail/briefs`; stale edits are refused; `migrate_store`),
+`backup` (the briefs archive in `pigtail backup create/restore/prune`),
+`diff`, `estimate` (`estimate-v2` planning model: USD per stage and model against the brief's
+and the monthly cap), `expansion` (R18.7: the versioned
 `brief_expansion` prompt, `propose_expansion` and `apply_expansion`; tests use the fake backend
 from `tests/conftest.py`), `budget` and `cache`. Stages built from M13 on must:
-- call `BudgetGuard.check_llm` before each LLM call or chunk, `check_paid`/`charge_paid` around
-  any paid request and `check_backend` before routing a job; on `BudgetStop`, write a checkpoint
-  with `BriefRun.pause_for_budget` and exit cleanly (R18.5, ADR-053.1);
+- call `BudgetGuard.check_llm(step, est_usd=...)` before each LLM call or batch (or pass
+  `guard.before_submit` to `run_batch`), `charge_api` after it, `check_paid`/`charge_paid` around
+  any other paid request and `check_backend` before routing a job; start the guard with the
+  brief's past spend (`PgCostLedger.brief_total`) and `BUDGET_USD_MONTH`; on `BudgetStop`, write
+  a checkpoint with `BriefRun.pause_for_budget` and exit cleanly (R15.11, R18.5, ADR-072.4);
 - look results up through `StageCache.get_or_compute` with `item_key(...)` for per-item work
   (relevance per candidate, evidence per repo, extraction per case) or the run's `stage_keys`
   for whole-stage outputs, and declare in `cache.STAGE_INPUTS` every brief field the stage reads
   (a stage that reads an undeclared field would be wrongly reused; bump `STAGE_VERSIONS` when a
   stage's logic changes) (R18.4);
 - record provenance through `BriefRuns.create` (R18.6).
-Tests use synthetic briefs only (the example); never a real brief.
+Tests use synthetic briefs only (the example); never a real brief. An autouse fixture in
+`tests/conftest.py` points `PIGTAIL_BRIEFS_DIR` and the code default at a temp dir, so no test
+can write into the real `~/.pigtail/briefs`.
 
 ## Capture layer (M1)
 ```bash
@@ -80,8 +102,26 @@ uv run pigtail scheduler run --once             # one batch run of the jobs in i
 - Records follow `schemas/v0/*.schema.json`; `pigtail.capture.models` mirrors them (a test checks both).
 - Connectors subclass `pigtail.connectors.base.Connector`: declare `terms`, rate limit, `handle_fields`;
   implement `_parse()`. `fetch()` snapshots raw bytes (content-addressed, `SNAPSHOT_BACKEND=local|s3`)
-  and writes `evidence` before anything is parsed; `records()` always pseudonymizes the handle fields.
+  and writes `evidence` before anything is parsed.
   `pigtail.capture.replay.replay()` re-parses a stored snapshot through the same path.
+- **Roles and buckets, no handles (M21a; Directive §8.1, ADR-066.1, ADR-071; PRD R5.3, §7).**
+  `records()` codes the actor of every record in memory and sets every `handle_fields` value to
+  None: records carry `actor_role` (vocabulary in `pigtail.privacy.roles`: `maintainer`,
+  `account`, `newsletter`, `community`, `organization`, `automated_account`), `actor_bucket`
+  (`r0`–`r4`, codebook §4.5; from `follower_fields` if the source returns a count with the post,
+  which is then dropped), `automated_account` + `bot_rule_version` (bot rule in memory) and
+  `role_rule_version`. `actor_owns` (repos in `repo_full_names` owned by the handle) is a
+  transient hint for the `maintainer` role; `_actor_token` (with `transient_actor_tokens`) is a
+  per-instance random-key hash for de-duplication within one run. **Never persist `actor_owns`,
+  `_actor_token`, a handle, a name or any hash of a handle.** A connector sees raw handles only in
+  `_parse()` and `_pre_code()` (bot drops; set `automated_account` there if the rule needs more
+  than the login). `subject_records()` yields each coded record with the opt-out fingerprints of
+  its handles, in memory, for access/erasure scans and key rotation.
+- **Opt-out key (ADR-071.1).** `pigtail.pseudonymize.OptoutKey` (alias `Pseudonymizer`) holds
+  `OPTOUT_KEY` (alias env `PSEUDONYM_KEY`, `optout_key_from_env`; both set to different values is
+  refused). `person_fingerprint(handle, ns)` is the only person-derived value stored, and only in
+  `privacy_suppression` (kind `person`). CB-25 (`key_fingerprint`) still guards the key.
+  `strip_identifiers()` (LLM path, CB-06) still emits keyed `@p_…` tokens transiently.
 - Wrap jobs in `RunRecorder` so each run writes a `run` record. Its error text is scrubbed of
   identifiers and truncated (CB-18); use `pigtail.logsafe.configure_logging()` for log output.
 - Connectors take `suppression=pigtail.privacy.suppression.load(db)` and drop opted-out people
@@ -92,11 +132,22 @@ uv run pigtail scheduler run --once             # one batch run of the jobs in i
 - Person-level captures register the upstream items in each snapshot with
   `pigtail.privacy.deletion_sync.track_items()`, so deletion sync (CB-02) can drop the snapshot when
   an item is deleted upstream. New platforms implement a `DeletionSource` (poll or push).
-- Tables holding pseudonymous person-level rows must be registered in
-  `pigtail.privacy.deletion.PERSON_TABLES` so retention (CB-01) and erasure (CB-08) reach them.
-  Operator commands: docs/guides/operator.md "Privacy operations".
-- A table with a shorter cap than 24 months sets `PersonTable.retention_days` and
-  `retention_class` (e.g. `repo_event_actor`: 30 days, `person_level_30d`, CB-22).
+- **No table may hold handles or pseudonyms.** `pigtail.privacy.deletion.PERSON_TABLES` is empty
+  since migration 0017; `tests/integration/test_privacy_model_m21a.py` fails on any handle-like
+  column (`author`, `actor`, `login`, `*pseudonym*`, …) and on any `p_…` CHECK outside
+  `privacy_suppression`. Store coded roles, buckets and counts instead. People are found only
+  in raw snapshots, in memory (`requests.scan_snapshots`). Operator commands:
+  docs/guides/operator.md "Privacy operations".
+- **Mention scope (Directive §8.3).** Person-level mention capture runs only for repos on an
+  in-review or final shortlist: call `pigtail.capture.scope.require_in_scope()` before any
+  request (`capture_hn_mentions` does; `NotShortlisted` otherwise). The brief pipeline writes the
+  entries with `scope.set_entries(db, brief_id, version, names, status)`. Never add a search for a
+  person or account, and never collect follower lists.
+- **Snapshot retention (R19.9).** Raw person-level snapshots are purged at report final + 12
+  months (`pigtail.privacy.snapshot_retention`). The brief pipeline must call
+  `snapshot_retention.link(db, brief_run_id, evidence_ids)` for the evidence each run uses and
+  `mark_report_final(db, brief_id, version, at=...)` when a report becomes final; without them a
+  snapshot falls back to the `PERSON_LEVEL_RETENTION_DAYS` ceiling from its fetch.
 - **GitHub (M1-T24, ADR-032; per-repo since M11).** `pigtail.connectors.github` has two
   connectors on one HTTP layer (`GitHubAPI`): `github` (project-level: GraphQL, Search, star
   history) and `github_events` (person-level per-repo events; off, ADR-022 hold). The layer adds
@@ -108,9 +159,10 @@ uv run pigtail scheduler run --once             # one batch run of the jobs in i
   never converted to UTC; `due_case_repos` for `star-history --cases`),
   `capture/github_search.py` (`search_repos`: pages one caller-supplied query under the
   1,000-result cap and drops each page's raw bytes after parsing, for brief-scoped discovery in
-  M13), `capture/repo_events.py` (events polling for live cases, aggregate-only bot filter), CLI
-  in `capture/github_cli.py`. Tests run against `tests/github_fake.py` (httpx `MockTransport`):
-  no network and no real token in tests. `repo_event_actor` may only be read in aggregate
+  M13), `capture/repo_events.py` (events polling for live cases: in-memory de-duplication per
+  poll, hourly/daily counts only, event-id watermark, aggregate bot filter), CLI in
+  `capture/github_cli.py`. Tests run against `tests/github_fake.py` (httpx `MockTransport`):
+  no network and no real token in tests. No SQL may touch per-actor rows
   (`tests/unit/test_github_privacy_m1t24.py` enforces this); never add a function, command or
   API path that lists a repo's stargazers.
 - **GH Archive connector.** `connectors/gharchive.py` is kept, unused by any job, for
@@ -125,10 +177,10 @@ uv run pigtail scheduler run --once             # one batch run of the jobs in i
   `parse_failure_sink` the capture job set (`unparseable_sink(...)`) and returns `ParseFailed`.
   Record failures as counts only (`<source>.parse_failed.<Type>`), never the exception message.
 - **Repo opt-outs by name (M1-T23, CB-13b).** Besides `<host>:<id>`, the refusal list holds
-  keyed `repo_name_key(owner/name, pz)` hashes (`rk_…`: HMAC-SHA256 with `PSEUDONYM_KEY`,
+  keyed `repo_name_key(owner/name, pz)` hashes (`rk_…`: HMAC-SHA256 with `OPTOUT_KEY`,
   namespace `repo_name`). Check `Suppressions.name_suppressed(full_name)` wherever a repo is known
   only by name (HN stories, mentions, search results). `suppression.load(db, pz)` binds
-  the key (default: `PSEUDONYM_KEY` from the environment) and raises `MissingNameKey` when keyed
+  the key (default: `OPTOUT_KEY` / `PSEUDONYM_KEY` from the environment) and raises `MissingNameKey` when keyed
   entries exist but no key does. Never write an unkeyed hash: `legacy_repo_name_key` exists only
   to match and convert rows from before migration 0009 (`repo_name_unkeyed`), and the database
   refuses new ones.
@@ -148,16 +200,20 @@ always-on job. Job kinds are `command` and `hn_mentions`.
 `pigtail.analysis.bursts` derives bursts and quiet intervals from one repo's star-history days
 (codebook v0.3.0 §3.2-3.3, outcome model v2 §2.1): pure functions (`segment`, `evaluate_day`,
 `onset`, `burst_end`, `daily_baseline`), no database and no global scan. Its parameters, and the
-StarScout fake-star parameters, are versioned in `pigtail.analysis.params`
-(`PARAMS_VERSION`), which mirrors `schemas/analysis-params/v1.0.0.json`
-(`tests/unit/test_analysis_bursts_m11.py` keeps the two equal). Changing a value means a new
+retired StarScout fake-star parameters and the aggregate anomaly checks
+(`pigtail.analysis.anomaly`, ADR-070.4: star spikes without matching forks, issues, downloads or
+mentions, and odd stars-to-activity ratios; star metrics are labelled "unfiltered,
+anomaly-checked"), are versioned in `pigtail.analysis.params` (`PARAMS_VERSION` 1.1.0), which
+mirrors `schemas/analysis-params/v1.1.0.json` (`v1.0.0.json` is kept; tests keep them equal). Changing a value means a new
 version of both, logged as an ADR. There is no held-out split any more (ADR-049.5).
 
 ## JSONL export (M1-T20)
 `pigtail.export.jsonl`: one file per table. It fails closed on tables missing from
 `TABLE_LEVELS` (`project` / `person` / `never`). **Every new migration that creates a table must
 classify it** (`tests/integration/test_export_jsonl_m1t20.py` checks this). Person-level tables
-are `person` or `never`; anything that would list a repo's stargazers is `never`.
+are `person` or `never`; anything that would list a repo's stargazers is `never`. Every new table
+also goes into the data-cache inventory (`pigtail.capture.inventory.TABLES`) and, if it has a
+repo key column, into `REPO_TABLES` (`pigtail.privacy.deletion`).
 
 ## External liveness (M1-T26)
 `pigtail.scheduler.liveness`: the scheduler calls `write_heartbeat` each tick through the

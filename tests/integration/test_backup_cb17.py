@@ -228,7 +228,7 @@ def test_cb17_restore_reapplies_deletions_made_after_the_backup(
     mark_deleted_upstream(db, store, upstream.content_hash, DeletionLog(db, "deleted_upstream"))
     drop_raw(db, store, parsed.content_hash, DeletionLog(db, "retention"))
     person = "p_" + f"{Y[0]:016x}"  # Y's synthetic event actor objects
-    suppression.add(db, "pseudonym", person, platform="github", reason="erasure")
+    suppression.add(db, "person", person, platform="github", reason="erasure")
     requests.reapply_refusals(db, store, pz)
     db.conn.execute(
         "INSERT INTO repos (id, host, host_id, full_name, first_seen_at)"
@@ -268,7 +268,7 @@ def test_cb17_restore_reapplies_deletions_made_after_the_backup(
             "SELECT count(*) FROM repo_event_actor WHERE actor_pseudonym = %s", (person,)
         ).fetchone() == (0,)
         sup = suppression.load(db2, pz)
-        assert x["key"] in sup.repos and person in sup.pseudonyms
+        assert x["key"] in sup.repos and person in sup.persons
         assert sup.name_suppressed(X[1])
         # the other repo is otherwise intact
         y_after = {(r.table, r.column): rows_of(db2, r, Y) for r in REPO_TABLES}

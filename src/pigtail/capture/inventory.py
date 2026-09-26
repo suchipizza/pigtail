@@ -40,8 +40,8 @@ TABLES: tuple[TableSpec, ...] = (
     TableSpec("evidence_upstream_items", "cache", None, None),
     TableSpec("repo_star_daily", "cache", "repo_host_id", "day"),
     TableSpec("star_history_fetch", "cache", "repo_host_id", "fetched_at"),
-    TableSpec("repo_event_actor", "cache", "repo_host_id", "created_at"),
     TableSpec("repo_event_poll", "cache", "repo_host_id", "polled_at"),
+    TableSpec("repo_event_hourly_agg", "cache", "repo_host_id", "hour"),
     TableSpec("repo_event_daily_agg", "cache", "repo_host_id", "day"),
     TableSpec("hn_story", "cache", "repo_id", "created_at"),
     TableSpec("hn_mention", "cache", "COALESCE(repo_id, lower(repo_full_name))", "created_at"),
@@ -55,6 +55,13 @@ TABLES: tuple[TableSpec, ...] = (
     TableSpec("runs", "operational", None, "started_at"),
     TableSpec("brief_runs", "operational", None, "created_at"),
     TableSpec("shortlist_decision", "operational", "candidate_repo_id", "decided_at"),
+    TableSpec("brief_shortlist_entry", "operational", "repo_full_name", "updated_at"),
+    TableSpec("brief_report_final", "operational", None, "report_final_at"),
+    TableSpec("brief_evidence", "operational", None, "linked_at"),
+    # M21b (0020): Message Batches state and the actual-cost ledger (counts only)
+    TableSpec("llm_batches", "operational", None, "submitted_at"),
+    TableSpec("llm_batch_requests", "operational", None, None),
+    TableSpec("llm_cost_ledger", "operational", None, "created_at"),
     TableSpec("deletion_log", "operational", None, "logged_at"),
     TableSpec("privacy_requests", "operational", None, "received_at"),
     TableSpec("privacy_suppression", "operational", None, "added_at"),
@@ -62,6 +69,9 @@ TABLES: tuple[TableSpec, ...] = (
     TableSpec("pseudonym_key_fingerprint_log", "operational", None, "logged_at"),
     TableSpec("ui_sessions", "operational", None, "created_at"),
     TableSpec("ui_audit_log", "operational", None, "at"),
+    TableSpec("llm_batches", "operational", None, "submitted_at"),
+    TableSpec("llm_batch_requests", "operational", None, None),
+    TableSpec("llm_cost_ledger", "operational", None, "created_at"),
     TableSpec("schema_migrations", "operational", None, "applied_at"),
 )
 

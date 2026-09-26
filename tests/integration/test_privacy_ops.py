@@ -106,10 +106,15 @@ def test_cb13_suppression_table_rejects_raw_handles(capture_db):
     with pytest.raises(psycopg.errors.CheckViolation):
         capture_db.conn.execute(
             "INSERT INTO privacy_suppression (kind, value, platform, reason)"
-            " VALUES ('pseudonym', 'user0001', 'github', 'objection')"
+            " VALUES ('person', 'user0001', 'github', 'objection')"
         )
-    with pytest.raises(ValueError, match="never raw handles"):
-        suppression.add(capture_db, "pseudonym", "user0001", platform="github", reason="objection")
+    with pytest.raises(psycopg.errors.CheckViolation):  # kind renamed in 0017 (ADR-071.1)
+        capture_db.conn.execute(
+            "INSERT INTO privacy_suppression (kind, value, platform, reason)"
+            " VALUES ('pseudonym', 'p_0123456789abcdef', 'github', 'objection')"
+        )
+    with pytest.raises(ValueError, match="never handles"):
+        suppression.add(capture_db, "person", "user0001", platform="github", reason="objection")
 
 
 # --- CB-01 retention purge -----------------------------------------------------------------------
@@ -138,7 +143,9 @@ def seeded(capture_db, tmp_path):
 def test_cb01_dry_run_changes_nothing(seeded):
     db, store, evs, llm = seeded
     rep = purge(db, store, llm_store=llm, now=NOW, dry_run=True)
-    assert rep.person_level_hashes_dropped == 1 and rep.blocked_shared == 1
+    # the shared blob's newest fetch is young, so it is not due (R19.9 anchors per hash)
+    assert rep.person_level_hashes_dropped == 1 and rep.blocked_shared == 0
+    assert rep.snapshots_dropped_ceiling == 1 and rep.snapshots_dropped_report_final == 0
     assert rep.llm_cache_rows_for_evidence == 1 and rep.run_errors_cleared == 1
     assert state(db, evs["old"]) == "present" and store.exists(evs["old"].content_hash)
     assert llm.cache_get("k_old") is not None
@@ -243,7 +250,9 @@ def ingested(capture_db, tmp_path, pz):
     return capture_db, store, fetched, llm
 
 
-def test_cb08_access_exports_records_keyed_by_pseudonym(ingested, pz, tmp_path):
+def test_cb08_m21a_access_searches_snapshots_for_the_handle_in_memory(ingested, pz, tmp_path):
+    """M21a: stored data has no handles; access finds the person's records in the temporary
+    evidence copies (snapshots) and exports them coded, without handle or fingerprint."""
     db, store, _fetched, llm = ingested
     with RunRecorder("privacy.access", {}, sink=db.upsert_run, detect_commit=False) as run:
         res = requests.access(
@@ -260,10 +269,11 @@ def test_cb08_access_exports_records_keyed_by_pseudonym(ingested, pz, tmp_path):
     assert stat.S_IMODE(res.export_path.stat().st_mode) == 0o600
     export = json.loads(res.export_path.read_text())
     p = subject_pseudonym(pz, "github", "user0001")
-    assert export["pseudonym"] == p and export["request_id"] == res.request_id
-    assert export["counts"]["records"] > 0
+    assert "pseudonym" not in export and export["request_id"] == res.request_id
+    assert export["counts"]["records"] > 0 and export["counts"]["person_rows"] == 0
     recs = [r for s in export["snapshots"] for r in s["records"]]
-    assert recs and all(r["actor"] == p for r in recs)
+    assert recs and all(r["actor"] is None and "actor_role" in r for r in recs)
+    assert p not in json.dumps(export["snapshots"])
     assert [r["key"] for r in export["llm_cache"]] == ["k_mention"]
     assert "user0001" not in res.export_path.read_text()
     # request log: type, dates, outcome; no handle and no pseudonym anywhere in the row
@@ -299,7 +309,8 @@ def test_cb08_erasure_purges_and_suppresses(ingested, pz, tmp_path):
     assert state(db, fetched[1].evidence) == "present"
     assert llm.cache_get("k_mention") is None and llm.cache_get("k_hour") is None
     assert llm.cache_get("k_other") is not None
-    assert p in suppression.load(db, pz).pseudonyms
+    assert p in suppression.load(db, pz).persons
+    assert suppression.entries(db)[0]["kind"] == "person"
     entry = suppression.entries(db)[0]
     assert (entry["reason"], entry["request_id"]) == ("erasure", res.request_id)
     logs = log_rows(db)
@@ -313,7 +324,10 @@ def test_cb08_erasure_purges_and_suppresses(ingested, pz, tmp_path):
         store=store, pseudonymizer=pz, env={}, suppression=suppression.load(db, pz)
     )
     data = (FIX / "2026-09-20-0.json.gz").read_bytes()
-    assert all(r["actor"] != p for r in conn.records(data, fetched[0].meta))
+    kept = list(conn.records(data, fetched[0].meta))
+    base = GHArchiveConnector(store=store, pseudonymizer=pz, env={})
+    subject = [r for r, fps in base.subject_records(data, fetched[0].meta) if p in fps]
+    assert len(kept) == len(list(base.records(data, fetched[0].meta))) - len(subject) > 0
     # no raw handle stored anywhere in the privacy tables
     dump = db.conn.execute(
         "SELECT (SELECT json_agg(t)::text FROM privacy_suppression t) ||"
@@ -373,7 +387,7 @@ def test_cb13_reapply_refusals_after_restore(ingested, pz):
     """A restore brings raw data back; `optout purge` re-applies the whole list (CB-13/CB-17)."""
     db, store, fetched, llm = ingested
     p = subject_pseudonym(pz, "github", "user0001")
-    suppression.add(db, "pseudonym", p, platform="github", reason="objection")
+    suppression.add(db, "person", p, platform="github", reason="objection")
     totals = requests.reapply_refusals(db, store, pz, llm_store=llm)
     assert totals["snapshots_raw_dropped"] == 1
     assert not store.exists(fetched[0].content_hash)

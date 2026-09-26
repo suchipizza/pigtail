@@ -21,7 +21,7 @@ function Row({ b }: { b: BriefListItem }) {
       <td>{b.last_run ? `${fmtTime(b.last_run.created_at)} (v${b.last_run.brief_version})` : "never run"}</td>
       <td>—</td>
       <td>
-        ${b.budget.money_usd} · {Math.round(b.budget.subscription_share * 100)}% of subscription · {b.budget.llm_backend}
+        ${b.budget.money_usd} total cap · {b.budget.llm_backend}
       </td>
       <td>{spend}</td>
     </tr>

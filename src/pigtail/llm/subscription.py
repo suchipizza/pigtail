@@ -96,10 +96,20 @@ class SubscriptionBackend:
             "--no-session-persistence",
         ]
 
+    supports_batch = False
+
     def complete(
-        self, *, system: str, prompt: str, json_schema: dict[str, Any], model: str
+        self,
+        *,
+        system: str,
+        prompt: str,
+        json_schema: dict[str, Any],
+        model: str,
+        context: str = "",
     ) -> BackendResponse:
-        cmd = self.command(system=system, json_schema=json_schema, model=model)
+        # No prompt caching or batches through the CLI: the context joins the system prompt.
+        full_system = f"{system}\n\n{context}" if context else system
+        cmd = self.command(system=full_system, json_schema=json_schema, model=model)
         # Empty working dir so no project CLAUDE.md or settings leak into product calls.
         with tempfile.TemporaryDirectory(prefix="pigtail-llm-") as cwd:
             try:

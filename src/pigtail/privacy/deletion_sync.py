@@ -9,8 +9,8 @@ in a snapshot (`upstream_items`, `evidence_upstream_items`; migration 0005). `sy
 2. for every item signalled `deleted`, `dead` or `missing` (per the source's `SyncPolicy.act_on`),
    acts at once: the raw bytes of every snapshot holding it are dropped and all evidence with
    those hashes moves to `deletion_state = 'deleted_upstream'` (hash, URL, fetch time, terms basis
-   and coded facts without person identifiers stay; R1.5), the parsed person-level rows of the item
-   are deleted (`DeletionSource.delete_rows`), LLM cache rows derived from the evidence are purged
+   and coded facts, which hold no person identifiers, stay; R1.5), the item's coded rows are
+   deleted (`DeletionSource.delete_rows`), LLM cache rows derived from the evidence are purged
    (CB-05), and tombstones go to the append-only `deletion_log` (reason `deleted_upstream`);
 3. re-applies step 2 to any evidence still linked to an item already known to be gone (a later
    capture of a stale index, or a backup restore: CB-17);
@@ -25,8 +25,11 @@ Two kinds of source plug in through the same `DeletionSource` interface:
   `Connector.check()`, which stores nothing) and returns one signal per item;
 - **push** sources (Bluesky, to be added under CB-02 with a ≤ 48 h window): `signals(due)` ignores
   `due` and drains tombstones received since its saved cursor (Jetstream delete events, account
-  deactivate/delete events). An account-level signal (`account=<pseudonym>`) applies to every
-  tracked item of that pseudonym on the platform. `BLUESKY_POLICY` holds its SLA.
+  deactivate/delete events). `BLUESKY_POLICY` holds its SLA. Items are tracked **by id only**
+  (Directive §8.1, migration 0017: no author is stored), so an account-level signal
+  (`account=...`, the raw account id, in memory) cannot be resolved from the database: it is
+  counted (`account_signals`) and needs the push source to resolve it to item ids itself, or an
+  in-memory scan of retained snapshots like an erasure (follow-up with the Bluesky source).
 
 `dry_run=True` computes the same report and changes nothing.
 """
@@ -68,7 +71,7 @@ class UpstreamSignal:
 
     state: UpstreamState
     item_id: str | None = None
-    account: str | None = None  # pseudonym; push sources only (account deleted/deactivated)
+    account: str | None = None  # push sources only (account deleted/deactivated); never stored
 
     def __post_init__(self) -> None:
         if (self.item_id is None) == (self.account is None):
@@ -108,7 +111,6 @@ BLUESKY_POLICY = SyncPolicy(
 class TrackedItem:
     platform: str
     item_id: str
-    author_pseudonym: str | None
     next_check_at: datetime
 
 
@@ -208,34 +210,32 @@ def track_items(
     db: CaptureDB,
     policy: SyncPolicy,
     evidence_id: str,
-    items: Iterable[tuple[str, str | None]],
+    items: Iterable[str],
     *,
     seen_at: datetime,
     open_case: bool,
 ) -> int:
-    """Register `(item_id, author_pseudonym)` pairs contained in the snapshot `evidence_id`."""
-    rows = sorted({(str(i), a) for i, a in items})
+    """Register the upstream item ids contained in the snapshot `evidence_id` (no author)."""
+    rows = sorted({str(i) for i in items})
     if not rows:
         return 0
     nxt = seen_at + (policy.recheck_open if open_case else policy.recheck_closed)
     with db.conn.cursor() as cur:
         cur.executemany(
             """
-            INSERT INTO upstream_items (platform, item_id, author_pseudonym, first_seen_at,
-                                        last_seen_at, next_check_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO upstream_items (platform, item_id, first_seen_at, last_seen_at,
+                                        next_check_at)
+            VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (platform, item_id) DO UPDATE SET
-                author_pseudonym = COALESCE(EXCLUDED.author_pseudonym,
-                                            upstream_items.author_pseudonym),
                 last_seen_at = GREATEST(upstream_items.last_seen_at, EXCLUDED.last_seen_at),
                 next_check_at = LEAST(upstream_items.next_check_at, EXCLUDED.next_check_at)
             """,
-            [(policy.platform, i, a, seen_at, seen_at, nxt) for i, a in rows],
+            [(policy.platform, i, seen_at, seen_at, nxt) for i in rows],
         )
         cur.executemany(
             "INSERT INTO evidence_upstream_items (evidence_id, platform, item_id)"
             " VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
-            [(evidence_id, policy.platform, i) for i, _ in rows],
+            [(evidence_id, policy.platform, i) for i in rows],
         )
     return len(rows)
 
@@ -266,7 +266,7 @@ class SyncReport:
 
 def _due(db: CaptureDB, platform: str, now: datetime, limit: int | None) -> list[TrackedItem]:
     q = (
-        "SELECT platform, item_id, author_pseudonym, next_check_at FROM upstream_items"
+        "SELECT platform, item_id, next_check_at FROM upstream_items"
         " WHERE platform = %s AND state = 'present' AND next_check_at <= %s"
         " ORDER BY next_check_at, item_id"
     )
@@ -340,15 +340,9 @@ def sync(
     for sig in src.signals(due):
         targets: list[str]
         if sig.account is not None:
+            # no author is stored (Directive §8.1): the source must resolve accounts to items
             rep.account_signals += 1
-            targets = [
-                r[0]
-                for r in db.conn.execute(
-                    "SELECT item_id FROM upstream_items WHERE platform = %s"
-                    " AND author_pseudonym = %s AND state = 'present'",
-                    (pol.platform, sig.account),
-                )
-            ]
+            continue
         else:
             assert sig.item_id is not None
             targets = [sig.item_id]

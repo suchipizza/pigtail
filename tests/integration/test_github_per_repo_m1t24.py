@@ -10,6 +10,7 @@ org-y/repo-n; fake users ghuserNNN, helper-app[bot]).
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -37,9 +38,10 @@ from pigtail.connectors.github import (
     GitHubConnector,
     GitHubRepoEventsConnector,
     PostgresCache,
+    events_url,
+    full_url,
 )
 from pigtail.connectors.github_budget import Budget, JobCaps, PostgresLedger
-from pigtail.privacy.deletion import PERSON_TABLES, DeletionLog, delete_person_rows
 from pigtail.privacy.retention import RetentionConfig, purge
 from pigtail.pseudonymize import Pseudonymizer
 from tests.conftest import TEST_KEY
@@ -163,29 +165,26 @@ def test_m1_t24_migration_tables_and_constraints(capture_db):
         "github_http_cache",
         "repo_star_daily",
         "star_history_fetch",
-        "repo_event_actor",
         "repo_event_poll",
+        "repo_event_hourly_agg",
         "repo_event_daily_agg",
     } <= names
-    with pytest.raises(psycopg.errors.CheckViolation):  # pseudonyms only, never handles
+    # M21a (Directive §8.1, migration 0017): per-actor event rows are gone; counts only
+    assert "repo_event_actor" not in names
+    with pytest.raises(psycopg.errors.CheckViolation):  # hourly buckets only
         capture_db.conn.execute(
-            "INSERT INTO repo_event_actor (repo_host_id, event_id, event_type, actor_pseudonym,"
-            " is_bot, created_at, observed_at) VALUES (1, 'e', 'WatchEvent', 'ghuser001', false,"
-            " now(), now())"
-        )
-    with pytest.raises(psycopg.errors.CheckViolation):  # CB-23: stars and forks only
-        capture_db.conn.execute(
-            "INSERT INTO repo_event_actor (repo_host_id, event_id, event_type, is_bot, created_at,"
-            " observed_at) VALUES (1, 'e', 'PushEvent', true, now(), now())"
+            "INSERT INTO repo_event_hourly_agg (repo_host_id, hour, bot_rule_version)"
+            " VALUES (1, '2026-09-25T12:30:00Z', 'v')"
         )
     cols = {
         r[0]
         for r in capture_db.conn.execute(
             "SELECT column_name FROM information_schema.columns WHERE table_name IN"
-            " ('repo_star_daily', 'repo_event_daily_agg')"
+            " ('repo_star_daily', 'repo_event_daily_agg', 'repo_event_hourly_agg',"
+            " 'repo_event_poll')"
         )
     }
-    assert not cols & {"login", "actor", "owner_login", "actor_pseudonym"}
+    assert not cols & {"login", "actor", "owner_login", "actor_pseudonym", "author"}
 
 
 # --- star history --------------------------------------------------------------------------------
@@ -274,7 +273,9 @@ def events_setup(db: Any, fake: FakeGitHub, tmp_path: Path, clock: Clock) -> Any
     )
 
 
-def test_m1_t24_repo_events_pseudonymized_minimised_and_bot_filter_applied(capture_db, tmp_path):
+def test_m1_t24_m21a_repo_events_counts_only_minimised_and_bot_filter_applied(capture_db, tmp_path):
+    """CB-23 + Directive §8.1 / ADR-071.2: actors are used in memory only (bot rule, one count
+    per account within the poll); only hourly and daily counts with the bot-rule version stay."""
     db = capture_db
     fake = FakeGitHub()
     clock = Clock()
@@ -282,16 +283,16 @@ def test_m1_t24_repo_events_pseudonymized_minimised_and_bot_filter_applied(captu
     with RunRecorder("t", {}, sink=db.upsert_run, detect_commit=False) as run:
         st = RepoEventsPoller(ev, db, run=run).poll_due(NOW)
     assert st.targets == 1 and st.polled == 1 and st.pages == 2 and st.overflow == 0
-    kinds = dict(
-        db.conn.execute("SELECT event_type, count(*) FROM repo_event_actor GROUP BY 1").fetchall()
-    )
-    assert kinds == {"WatchEvent": 153, "ForkEvent": 1}  # CB-23: Push/Issues/PR events dropped
-    assert st.events_kept == 154
+    sums = db.conn.execute(
+        "SELECT sum(stars), sum(stars_automated), sum(forks) + sum(forks_automated),"
+        " array_agg(DISTINCT bot_rule_version) FROM repo_event_hourly_agg"
+    ).fetchone()
+    # CB-23: Push/Issues/PR events dropped; 3 generated bot stars + 1 fixture bot star
+    assert sums == (149, 4, 1, ["bot-filter-v0"])
+    assert st.events_kept == 154 and st.events_new == 154
     text = dump_all_tables(db)
     assert "ghuser" not in text and "helper-app" not in text  # no raw handle anywhere
-    assert db.conn.execute(
-        "SELECT count(*) FROM repo_event_actor WHERE is_bot AND actor_pseudonym IS NULL"
-    ).fetchone() == (4,)  # 3 generated bot stars + 1 fixture bot star; logins never hashed
+    assert Pseudonymizer(TEST_KEY).pseudonym("ghuser001", "github") not in text  # nor pseudonyms
     # raw events bytes dropped right after parsing (hash + URL kept, tombstones written)
     evs = db.conn.execute(
         "SELECT deletion_state, retention_class, content_hash FROM evidence"
@@ -309,7 +310,17 @@ def test_m1_t24_repo_events_pseudonymized_minimised_and_bot_filter_applied(captu
     assert bf.stars_bot == 4 and bf.stars_seen == 149 and bf.stars_lockstep is None
     assert bf.confirmed is True  # 350 star-history stars - 4 bot stars >= 100
     assert bf.coverage_ratio == pytest.approx(149 / 350, abs=1e-4)
-    assert db.conn.execute("SELECT sum(stars_seen) FROM repo_event_daily_agg").fetchone()[0] > 0
+    assert db.conn.execute("SELECT sum(stars_seen) FROM repo_event_daily_agg").fetchone() == (149,)
+    # a second poll that re-reads the same events adds nothing (event-id watermark)
+    for page in (1, 2):
+        key = full_url(events_url("org-x/repo-1"), {"per_page": 100, "page": page})
+        prev = ev.cache.get(key)
+        assert prev is not None
+        ev.cache.put(replace(prev, etag=None))  # force a full re-read instead of a 304
+    before = db.conn.execute("SELECT sum(stars) FROM repo_event_hourly_agg").fetchone()
+    st2 = RepoEventsPoller(ev, db).poll_due(NOW + timedelta(hours=1))
+    assert st2.polled == 1 and st2.events_new == 0
+    assert db.conn.execute("SELECT sum(stars) FROM repo_event_hourly_agg").fetchone() == before
 
 
 def test_m1_t24_repo_events_etag_poll_interval_and_overflow(capture_db, tmp_path):
@@ -354,18 +365,9 @@ def test_m1_t24_repo_events_etag_poll_interval_and_overflow(capture_db, tmp_path
 
 
 # --- retention (CB-22) ---------------------------------------------------------------------------
-def test_m1_t24_cb22_repo_event_rows_and_raw_purged_after_30_days(capture_db, tmp_path):
+def test_m1_t24_cb22_repo_event_raw_purged_after_30_days(capture_db, tmp_path):
     db = capture_db
     store = LocalSnapshotStore(tmp_path / "snap")
-    pz = Pseudonymizer(TEST_KEY)
-    p_old, p_new = pz.pseudonym("ghuser801", "github"), pz.pseudonym("ghuser802", "github")
-    for p, age in ((p_old, 40), (p_new, 5)):
-        db.conn.execute(
-            "INSERT INTO repo_event_actor (repo_host_id, event_id, event_type, actor_pseudonym,"
-            " is_bot, created_at, observed_at) VALUES (7000001, %s, 'WatchEvent', %s, false,"
-            " %s, %s)",
-            (p, p, NOW - timedelta(days=age), NOW - timedelta(days=age)),
-        )
     from pigtail.capture.models import Evidence, evidence_id
 
     def evidence(data: bytes, cls: str, age: int) -> str:
@@ -398,14 +400,9 @@ def test_m1_t24_cb22_repo_event_rows_and_raw_purged_after_30_days(capture_db, tm
     h30 = evidence(b"[1]", "person_level_30d", 40)
     h24 = evidence(b"[2]", "person_level_24m", 40)
     rep = purge(db, store, cfg=RetentionConfig(), now=NOW)
-    assert rep.person_rows_deleted["repo_event_actor"] == 1
+    assert rep.person_rows_deleted == {}  # no person tables since 0017
     assert rep.person_level_30d_hashes_dropped == 1 and not store.exists(h30)
-    assert store.exists(h24)  # 24-month class untouched at 40 days
-    left = db.conn.execute("SELECT actor_pseudonym FROM repo_event_actor").fetchall()
-    assert left == [(p_new,)]
-    # erasure by pseudonym reaches the table too (CB-08)
-    log = DeletionLog(db, "erasure")
-    assert delete_person_rows(db, PERSON_TABLES, log, pseudonyms=[p_new])["repo_event_actor"] == 1
+    assert store.exists(h24)  # person-level snapshot untouched at 40 days (R19.9 ceiling)
     # a second purge is a no-op
     rep2 = purge(db, store, cfg=RetentionConfig(), now=NOW)
     assert rep2.person_level_30d_hashes_dropped == 0 and not any(rep2.person_rows_deleted.values())

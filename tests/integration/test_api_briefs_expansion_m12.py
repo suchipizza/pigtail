@@ -41,7 +41,6 @@ def env(
     password_hash: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[tuple[TestClient, dict[str, Any], Any]]:
-    monkeypatch.setenv("PIGTAIL_SUBSCRIPTION_WEEKLY_TOKENS", "20000000")
     holder: dict[str, Any] = {"client": make_client([copy.deepcopy(FAKE_OUTPUT)])}
     ui = UISettings(password_hash=password_hash, dist_dir=tmp_path / "dist")
     s = Settings.from_env({"PIGTAIL_DATA_DIR": str(tmp_path / "data")})
@@ -58,7 +57,9 @@ def env(
 
 
 def example() -> dict[str, Any]:
-    return copy.deepcopy(yaml.safe_load(EXAMPLE.read_text()))
+    d = copy.deepcopy(yaml.safe_load(EXAMPLE.read_text()))
+    d["budget"]["llm_backend"] = "subscription"  # the fake default backend
+    return d
 
 
 def versions(client: TestClient) -> list[int]:

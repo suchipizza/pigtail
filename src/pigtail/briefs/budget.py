@@ -1,25 +1,29 @@
-"""Budget hard stop for brief runs (PRD R18.5; ADR-053.1).
+"""Budget hard stop for brief runs (PRD R15.11, R18.5; Directive §6.4, ADR-064.4, ADR-072.4).
 
-Two separate caps from the brief's `budget`:
+Two money caps, both hard stops:
 
-- `money_usd`: non-LLM paid services (BigQuery beyond its free tier, Trendshift, X, any paid
-  API). Default 0. A step that costs money also needs the user's **explicit approval** of the
-  estimate (`approved_paid=True`, from `pigtail brief estimate --approve-paid` or the D7 run
-  dialog); without it the step is refused even if the cap would allow it.
-- `subscription_share`: the maximum share of the user's weekly Claude subscription allowance
-  that pigtail may use. Claude Code exposes no machine-readable remaining allowance, so the
-  share is measured against pigtail's own usage ledger (`LLMStore`, trailing 7 days) and an
-  allowance that is configured (`PIGTAIL_SUBSCRIPTION_WEEKLY_TOKENS`), calibrated from the last
-  observed limit hit, or, failing both, an assumed default. The basis is always reported, and
-  every figure is labelled an estimate.
+- **Per brief:** `budget.money_usd` is the brief's total money cap over all its runs, API spend
+  included (brief schema v1.2; the owner set USD 150 for her first full brief). Spend already
+  recorded for the brief (the cost ledger, carried over when a run resumes) counts against it.
+- **Per month:** `BUDGET_USD_MONTH` (default USD 200) caps the instance's API spend in the
+  current calendar month (UTC), measured from the usage ledger, plus any other paid step this
+  guard charged.
 
-On the `api` backend LLM calls cost money: they are capped by `budget.llm_api_usd` and need the
-same approval. The guard **never switches backends**: a call routed to a backend other than the
-brief's `llm_backend` is refused unless the user set an explicit per-job override (R15.5).
+Every paid step (an API call or batch, or an enabled paid service) needs the user's **explicit
+approval** of the estimate (`approved_paid=True`, from `pigtail brief estimate --approve-paid`
+or the D7 run dialog). A refused check raises `BudgetStop` whose message says that going on
+needs H6 (the owner's approval of spend above the caps); the stage writes a resumable
+checkpoint (`pigtail.briefs.cache.BriefRun`) and the run ends with status `paused_budget`, never
+with partial silent spending.
 
-Stages call `check_*` before a unit of work and `charge_*` after it. A refused check raises
-`BudgetStop`; the stage writes a resumable checkpoint (see `pigtail.briefs.cache.BriefRun`) and
-the run ends with status `paused_budget`, never with partial silent spending.
+The `subscription` backend costs no money. `budget.subscription_share` applies only to the
+agents building pigtail (ADR-064.4) and is not enforced on product calls; usage limits on that
+backend pause the queue (R15.5, `LLMClient`). `resolve_allowance` is kept for the agents'
+allowance reporting. The guard **never switches backends**: a call routed to a backend other
+than the brief's `llm_backend` is refused unless the user set an explicit per-job override
+(R15.5).
+
+Stages call `check_*` before a unit of work and `charge_*` after it.
 """
 
 from __future__ import annotations
@@ -33,14 +37,16 @@ from typing import Any, Literal, Protocol
 from pigtail.briefs.model import Budget
 
 WEEK = timedelta(days=7)
-# Used only when the allowance is neither configured nor calibrated. An assumption, not a
-# measurement: Anthropic publishes no token figure for subscription plans. Deliberately low so
-# an uncalibrated install stops early rather than late. Override with
-# PIGTAIL_SUBSCRIPTION_WEEKLY_TOKENS once you know your plan's behaviour.
+# Used only when the allowance is neither configured nor calibrated (agents' allowance
+# reporting; ADR-055.2). An assumption, not a measurement.
 ASSUMED_WEEKLY_TOKENS = 5_000_000
 ALLOWANCE_ENV = "PIGTAIL_SUBSCRIPTION_WEEKLY_TOKENS"
+H6 = (
+    "going on needs H6, the owner's approval of spend above the caps (Directive §6.4); the "
+    "run paused with a resumable checkpoint"
+)
 
-StopKind = Literal["money", "approval", "subscription_share", "api_usd", "backend"]
+StopKind = Literal["money", "month", "approval", "backend"]
 AllowanceBasis = Literal["configured", "calibrated_from_limit_event", "assumed_default"]
 
 
@@ -107,17 +113,25 @@ class BudgetStop(Exception):
         return {"kind": self.kind, "step": self.step, "detail": self.detail}
 
 
+def month_start(now: datetime) -> datetime:
+    """Start of the calendar month (UTC) the monthly cap is measured over."""
+    n = now.astimezone(UTC)
+    return n.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
 @dataclass
 class BudgetGuard:
     budget: Budget
     usage: UsageSource
-    allowance: Allowance
+    month_cap_usd: float = 200.0
     approved_paid: bool = False
-    spent_money_usd: float = 0.0  # carried over from the checkpoint when a run resumes
-    spent_api_usd: float = 0.0
+    # Money already spent on this brief (earlier runs and, on resume, this run's checkpoint).
+    spent_usd: float = 0.0
     overrides: dict[str, str] = field(default_factory=dict)  # explicit per-job backends (R15.5)
     clock: Callable[[], datetime] = utcnow
     log: list[dict[str, Any]] = field(default_factory=list)
+    # Non-API money charged by this guard this month (not in the LLM usage ledger).
+    paid_this_month_usd: float = 0.0
 
     # --- backend -------------------------------------------------------------------------------
     def check_backend(self, backend: str, *, job: str) -> None:
@@ -131,83 +145,82 @@ class BudgetGuard:
                 "backends on its own (set an explicit per-job override to allow it)",
             )
 
-    # --- money (non-LLM paid services) --------------------------------------------------------
-    def check_paid(self, step: str, usd: float) -> None:
-        if usd < 0:
+    # --- the two caps --------------------------------------------------------------------------
+    def month_spent(self) -> float:
+        """API spend this calendar month (usage ledger) plus other paid steps charged here."""
+        api = self.usage.usage_since("api", month_start(self.clock()))["cost_usd"]
+        return api + self.paid_this_month_usd
+
+    def _check_money(self, step: str, usd: float | None, what: str) -> None:
+        if usd is not None and usd < 0:
             raise ValueError("usd must be >= 0")
         if usd == 0:
             return
+        shown = "an unknown amount" if usd is None else f"an estimated ${usd:.2f}"
         if not self.approved_paid:
             raise BudgetStop(
                 "approval",
                 step,
-                f"costs an estimated ${usd:.2f}; paid steps need explicit approval of the "
-                "estimate (pigtail brief estimate <id> --approve-paid)",
+                f"{what} costs {shown}; paid steps need explicit approval of the estimate "
+                "(pigtail brief estimate <id> --approve-paid)",
             )
-        if self.spent_money_usd + usd > self.budget.money_usd + 1e-9:
+        if usd is None:
+            return  # approved although the amount is unknown (caps are re-checked on charge)
+        cap = self.budget.money_usd
+        if self.spent_usd + usd > cap + 1e-9:
             raise BudgetStop(
                 "money",
                 step,
-                f"${self.spent_money_usd:.2f} spent + ${usd:.2f} would exceed "
-                f"budget.money_usd ${self.budget.money_usd:.2f}",
+                f"${self.spent_usd:.2f} spent on this brief + ${usd:.2f} would exceed "
+                f"budget.money_usd ${cap:.2f} (the brief's total cap, API included); {H6}",
             )
+        month = self.month_spent()
+        if month + usd > self.month_cap_usd + 1e-9:
+            raise BudgetStop(
+                "month",
+                step,
+                f"${month:.2f} spent this month + ${usd:.2f} would exceed the monthly cap "
+                f"BUDGET_USD_MONTH ${self.month_cap_usd:.2f}; {H6}",
+            )
+
+    # --- paid services other than the API ------------------------------------------------------
+    def check_paid(self, step: str, usd: float) -> None:
+        self._check_money(step, usd, "this step")
 
     def charge_paid(self, step: str, usd: float) -> None:
         self.check_paid(step, usd)
-        self.spent_money_usd += usd
+        self.spent_usd += usd
+        self.paid_this_month_usd += usd
         self.log.append({"step": step, "kind": "money", "usd": usd, "at": self.clock().isoformat()})
 
     # --- LLM -----------------------------------------------------------------------------------
-    def subscription_used(self) -> float:
-        return self.usage.usage_since("subscription", self.clock() - WEEK)["tokens"]
-
-    def subscription_cap(self) -> float:
-        return self.budget.subscription_share * self.allowance.weekly_tokens
-
     def check_llm(
-        self, step: str, *, est_tokens: int, backend: str | None = None, est_usd: float = 0.0
+        self, step: str, *, est_usd: float | None, backend: str | None = None, est_tokens: int = 0
     ) -> None:
-        """Before an LLM call or chunk: would it exceed the subscription share (or API cap)?"""
+        """Before an LLM call or batch: approval and both caps on `api`; nothing on
+        `subscription` (no money; its usage limits pause the queue, R15.5)."""
         b = backend or self.budget.llm_backend
         if b == "subscription":
-            used = self.subscription_used()
-            cap = self.subscription_cap()
-            if used + est_tokens > cap:
-                raise BudgetStop(
-                    "subscription_share",
-                    step,
-                    f"estimated {used:,.0f} tokens used in the last 7 days + {est_tokens:,} "
-                    f"would exceed {self.budget.subscription_share:.0%} of the weekly allowance "
-                    f"({cap:,.0f} tokens; allowance basis: {self.allowance.basis}); the run "
-                    "pauses and can resume when older usage leaves the 7-day window",
-                )
             return
-        if not self.approved_paid and est_usd > 0:
-            raise BudgetStop(
-                "approval", step, "LLM calls on the api backend cost money and need approval"
-            )
-        if self.spent_api_usd + est_usd > self.budget.llm_api_usd + 1e-9:
-            raise BudgetStop(
-                "api_usd",
-                step,
-                f"${self.spent_api_usd:.2f} spent + ${est_usd:.2f} would exceed "
-                f"budget.llm_api_usd ${self.budget.llm_api_usd:.2f}",
-            )
+        self._check_money(step, est_usd, "LLM work on the api backend")
 
     def charge_api(self, step: str, usd: float) -> None:
-        self.spent_api_usd += usd
+        """Record actual API spend (the usage ledger already holds it for the monthly cap)."""
+        self.spent_usd += usd
         self.log.append({"step": step, "kind": "api", "usd": usd, "at": self.clock().isoformat()})
+
+    def before_submit(self, job: str, requests: int, est_usd: float | None) -> None:
+        """`LLMClient.run_batch` hook: the budget check before a batch is submitted."""
+        self.check_llm(f"{job} batch of {requests}", est_usd=est_usd, backend="api")
 
     def status(self) -> dict[str, Any]:
         return {
-            "money_usd": {"spent": self.spent_money_usd, "cap": self.budget.money_usd},
-            "llm_api_usd": {"spent": self.spent_api_usd, "cap": self.budget.llm_api_usd},
-            "subscription": {
-                "used_tokens_7d": self.subscription_used(),
-                "cap_tokens": self.subscription_cap(),
-                "share_cap": self.budget.subscription_share,
-                "allowance": self.allowance.to_dict(),
-            },
+            "brief_usd": {"spent": round(self.spent_usd, 6), "cap": self.budget.money_usd},
+            "month_usd": {"spent": round(self.month_spent(), 6), "cap": self.month_cap_usd},
             "approved_paid": self.approved_paid,
+            "subscription_share": {
+                "value": self.budget.subscription_share,
+                "applies_to": "agents building pigtail only (ADR-064.4)",
+            },
             "label": "estimate",
         }

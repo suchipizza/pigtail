@@ -2,13 +2,15 @@
 
 Two layers:
 
-1. **Login rules** (applied to the raw login *before* pseudonymization, in the connector):
+1. **Login rules** (applied in memory to the raw login, in the connector, before it is discarded;
+   the outcome is stored as `automated_account` plus `BOT_FILTER_VERSION`, ADR-071.2):
    the actor is a bot if the login ends with `[bot]` (GitHub Apps), or matches a known automation
    account / naming pattern (`KNOWN_BOTS`, `-bot`/`_bot` suffix, `bot-`/`bot_` prefix). Events
    with no actor login are treated like bot events. Bot events are counted (`stars_bot`) and
-   excluded from filtered counts; their logins are neither stored nor hashed.
+   excluded from filtered counts; no login is stored or hashed (Directive §8.1).
 
-2. **Lockstep bursts** (per repo-hour, on pseudonyms; applied by the GH Archive velocity scan,
+2. **Lockstep bursts** (per repo-hour, on per-run actor identities held in memory; applied by the
+   GH Archive velocity scan,
    which was removed in M11 (ADR-047.6), and reported as not applied by per-repo events):
    a *star-only* actor is one whose every event in the filter window (the scan chunk: the UTC day
    intersected with the requested range) is a WatchEvent. A repo-hour is flagged when it has at

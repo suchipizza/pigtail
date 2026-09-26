@@ -2,7 +2,8 @@
 
     pigtail brief new --from FILE [--id ID] [--upgrade-v0]   create a brief (version 1)
     pigtail brief new --example --id ID                      start from the synthetic example
-    pigtail brief edit ID [--from FILE] [--base-version N]   new version ($EDITOR without --from)
+    pigtail brief edit ID [--from FILE] [--base-version N | --force-latest]
+                                                             new version ($EDITOR without --from)
     pigtail brief show ID [--version N] [--json]
     pigtail brief list [--json]
     pigtail brief versions ID [--json]
@@ -13,15 +14,18 @@
                                                              propose an LLM expansion (R18.7)
     pigtail brief expand ID --accept FILE                    save an (edited) proposal
     pigtail brief expand ID --edit                           propose, edit in $EDITOR, save
-    pigtail brief schema                                     print schemas/brief/v1.1.json
+    pigtail brief schema                                     print schemas/brief/v1.2.json
+    pigtail brief migrate-store --from DIR [--dry-run]       move briefs to PIGTAIL_BRIEFS_DIR
 
 `edit` refuses a stale edit: the base version is `--base-version`, else the file's `version:`
-field, else (with a warning) the latest version.
+field. A file without `version:` is refused unless `--force-latest` says to treat it as an edit
+of the latest version (M12 follow-up, ADR-058.2).
 
 Exit codes: 0 ok; 1 invalid brief, not found or stale edit; 2 usage/config error; 3 paid steps
-not approved (`--approve-paid`); 4 a budget cap or LLM limit stopped the expansion (nothing was
-saved).
-Briefs are private: they live in PIGTAIL_DATA_DIR/briefs and never in git (R18.9).
+not approved (`--approve-paid`); 4 a budget cap (H6) or LLM limit stopped the work (nothing was
+saved), or the estimate exceeds a cap.
+Briefs are private: they live in PIGTAIL_BRIEFS_DIR (default ~/.pigtail/briefs), outside git,
+and are included in the encrypted backup (R18.9, ADR-071.3).
 """
 
 from __future__ import annotations
@@ -67,7 +71,30 @@ def _settings() -> Any:
 
 
 def _store() -> BriefStore:
-    return BriefStore.from_data_dir(_settings().data_dir)
+    s = _settings()
+    store = BriefStore.from_settings(s)
+    if (hint := store.legacy_warning(s.data_dir)) is not None:
+        print(f"warning: {hint}", file=sys.stderr)
+    return store
+
+
+def _brief_spent(settings: Any, brief_id: str) -> float:
+    """What the brief has already spent (API cost ledger, migration 0020); 0 without a DB."""
+    if not settings.database_url:
+        return 0.0
+    import psycopg
+
+    from pigtail.llm.batch import PgCostLedger
+
+    try:
+        with psycopg.connect(settings.database_url, connect_timeout=3) as conn:
+            return PgCostLedger(conn).brief_total(brief_id)
+    except psycopg.Error as e:
+        print(
+            f"warning: no cost ledger ({type(e).__name__}); counting this brief's past spend as 0",
+            file=sys.stderr,
+        )
+        return 0.0
 
 
 def _read_source(path: str) -> str:
@@ -151,14 +178,23 @@ STALE_HINT = (
 )
 
 
+class MissingVersion(ValueError):
+    """An edit file without `version:` and without `--force-latest`/`--base-version`."""
+
+
 def edit_base_version(
-    *, explicit: int | None, file_version: int | None, latest: int, from_editor: bool
+    *,
+    explicit: int | None,
+    file_version: int | None,
+    latest: int,
+    from_editor: bool,
+    force_latest: bool = False,
 ) -> int:
     """The version an edit is based on (stale edits are refused against it).
 
     `--base-version` wins; an edit opened in $EDITOR is based on the version it loaded; a file
-    is based on its own `version:` field. Only a file without one falls back to the latest
-    version, with a warning.
+    is based on its own `version:` field. A file without one is refused (`MissingVersion`)
+    unless `force_latest` says to treat it as an edit of the latest version.
     """
     if explicit is not None:
         if file_version is not None and file_version != explicit:
@@ -171,10 +207,16 @@ def edit_base_version(
         return latest
     if file_version is not None:
         return file_version
+    if not force_latest:
+        raise MissingVersion(
+            "the file has no `version:` field, so pigtail can't tell which version it edits "
+            "(an old export would silently revert newer changes). Keep the `version:` line from "
+            f"`pigtail brief show`, pass --base-version N, or --force-latest to treat it as an "
+            f"edit of the latest version (v{latest})"
+        )
     print(
-        f"warning: the file has no `version:` field, so it is treated as an edit of the latest "
-        f"version (v{latest}); keep the `version:` line from `pigtail brief show` so stale "
-        "edits can be detected",
+        f"warning: --force-latest: the file has no `version:` field and is treated as an edit "
+        f"of the latest version (v{latest})",
         file=sys.stderr,
     )
     return latest
@@ -209,8 +251,12 @@ def cmd_edit(args: argparse.Namespace) -> int:
             file_version=brief.version,
             latest=latest.version,
             from_editor=not args.source,
+            force_latest=args.force_latest,
         )
         stored, created = store.save_version(brief, base_version=base)
+    except MissingVersion as e:
+        print(f"refused, nothing saved: {e}", file=sys.stderr)
+        return EXIT_INVALID
     except BriefInvalid as e:
         return _print_invalid(e)
     except VersionConflict as e:
@@ -341,7 +387,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     from pigtail.briefs.estimate import estimate_for, render_text
 
     s = _settings()
-    store = BriefStore.from_data_dir(s.data_dir)
+    store = _store()
     try:
         brief = store.get(args.brief_id, args.version).brief
     except (BriefNotFound, BriefInvalid) as e:
@@ -351,11 +397,25 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         brief,
         store=store,
         data_dir=s.data_dir,
-        model=s.llm_model,
+        models=dict(s.llm_models),
+        batch=s.llm_batch,
+        month_cap_usd=s.budget_usd_month,
         last_run_version=_last_run_version(s, brief.brief_id),
+        brief_spent_usd=_brief_spent(s, brief.brief_id),
     )
     out = est.to_dict()
     recorded = None
+    over_cap = out["caps"]["within_caps"] is False
+    if over_cap:
+        print(
+            "\nThe estimate exceeds a cap (see above): the run would hard-stop there. Spending "
+            "above budget.money_usd or BUDGET_USD_MONTH needs the owner's approval (H6); lower "
+            "the scope or raise the cap first.",
+            file=sys.stderr,
+        )
+    if est.requires_approval and args.approve_paid and over_cap:
+        print("approval not recorded: the estimate exceeds a cap (H6)", file=sys.stderr)
+        return EXIT_BUDGET
     if est.requires_approval and args.approve_paid and s.database_url:
         import psycopg
 
@@ -491,9 +551,15 @@ def cmd_expand(args: argparse.Namespace) -> int:
         print(f"LLM client not configured: {e}", file=sys.stderr)
         return EXIT_USAGE
     try:
-        proposal = propose_expansion(
-            brief, client, make_guard(client, brief, approved_paid=args.approve_paid)
+        s = _settings()
+        guard = make_guard(
+            client,
+            brief,
+            approved_paid=args.approve_paid,
+            month_cap_usd=s.budget_usd_month,
+            spent_usd=_brief_spent(s, brief.brief_id),
         )
+        proposal = propose_expansion(brief, client, guard)
     except BudgetStop as e:
         print(f"nothing was sent to the model: {e}", file=sys.stderr)
         return EXIT_NEEDS_APPROVAL if e.kind == "approval" else EXIT_BUDGET
@@ -524,6 +590,34 @@ def cmd_schema(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_migrate_store(args: argparse.Namespace) -> int:
+    """ADR-071.3 / R18.9: move briefs once from an old store (e.g. PIGTAIL_DATA_DIR/briefs) to
+    PIGTAIL_BRIEFS_DIR. Moves bytes; never reads or prints brief content (counts only)."""
+    from pigtail.briefs.store import migrate_store
+
+    s = _settings()
+    target = Path(args.to).expanduser() if args.to else s.briefs_dir
+    try:
+        rep = migrate_store(Path(args.source), target, dry_run=args.dry_run)
+    except (BriefNotFound, ValueError) as e:
+        print(str(e), file=sys.stderr)
+        return EXIT_USAGE
+    out = rep.to_dict()
+    if not args.verbose:
+        out.pop("conflict_paths")
+    print(json.dumps(out, indent=2))
+    if (w := BriefStore(target).exposure_warning()) is not None:
+        print(f"warning: {w}", file=sys.stderr)
+    if rep.conflicts:
+        print(
+            f"{rep.conflicts} version file(s) differ between the two stores and were left in "
+            "place in both; compare them (--verbose lists their paths) before deleting either",
+            file=sys.stderr,
+        )
+        return EXIT_INVALID
+    return 0
+
+
 def add_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     br = sub.add_parser("brief", help="research briefs (PRD F18; private, never in git)")
     bs = br.add_subparsers(dest="brief_command", required=True)
@@ -540,7 +634,13 @@ def add_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> No
     p = bs.add_parser("edit", help="save an edit as a new version")
     p.add_argument("brief_id")
     p.add_argument("--from", dest="source", help="YAML file, or - (default: open $EDITOR)")
-    p.add_argument("--base-version", type=int, help="the version your edit started from")
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--base-version", type=int, help="the version your edit started from")
+    g.add_argument(
+        "--force-latest",
+        action="store_true",
+        help="accept a file without `version:` as an edit of the latest version",
+    )
     p.set_defaults(func=cmd_edit)
 
     p = bs.add_parser("show", help="print a brief version (YAML, or --json)")
@@ -592,4 +692,13 @@ def add_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> No
     p.add_argument("--edit", action="store_true", help="edit the proposal in $EDITOR, then save")
     p.set_defaults(func=cmd_expand)
 
-    bs.add_parser("schema", help="print the brief JSON Schema (v1.1)").set_defaults(func=cmd_schema)
+    bs.add_parser("schema", help="print the brief JSON Schema (v1.2)").set_defaults(func=cmd_schema)
+
+    p = bs.add_parser(
+        "migrate-store", help="move briefs once from an old store to PIGTAIL_BRIEFS_DIR"
+    )
+    p.add_argument("--from", dest="source", required=True, help="old store, e.g. data/briefs")
+    p.add_argument("--to", help="target store (default: PIGTAIL_BRIEFS_DIR)")
+    p.add_argument("--dry-run", action="store_true", help="count what would move; move nothing")
+    p.add_argument("--verbose", action="store_true", help="list conflicting version paths")
+    p.set_defaults(func=cmd_migrate_store)

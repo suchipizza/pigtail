@@ -28,9 +28,10 @@ key handling and backups, the breach runbook, the subscription-vs-api scope of t
 (ADR-008, ADR-023), and EU or Swiss hosting. Related:
 - [Record of processing activities](../compliance/ropa.md) (template to fill in)
 - [Breach response runbook](../compliance/runbooks/breach.md)
-- [`PSEUDONYM_KEY` management and rotation](../compliance/runbooks/key-rotation.md). Don't
-  change the key without reading it: opt-outs stop matching. pigtail detects a changed key and
-  refuses to run (see "Pseudonym key check" under Privacy operations). To rotate the key,
+- [Opt-out key (`OPTOUT_KEY`, formerly `PSEUDONYM_KEY`) management and
+  rotation](../compliance/runbooks/key-rotation.md). Don't change the key without reading it:
+  opt-outs stop matching. pigtail detects a changed key and refuses to run (see "Opt-out key
+  check" under Privacy operations). To rotate the key,
   follow the runbook's §4.1, which uses `pigtail privacy rekey` ("Rotating the key" under
   Privacy operations); scheduled rotation every 24 months is allowed (runbook §4.3).
 
@@ -50,18 +51,28 @@ about 15 minutes for credentials, 30 for the brief, a few for the estimate.
 - Optional: a BigQuery project, only if you enable `optional_sources.bigquery` (off by default).
 - Run `uv run pigtail doctor`: disk encryption must be on for the machine that holds your data.
 
-**2. Where briefs live.** Only in `PIGTAIL_DATA_DIR/briefs/<brief_id>/vNNNN.yaml` (default
-`data/briefs`, git-ignored; directories 0700, files 0600). Every save of changed content writes a
-new, immutable version; old versions stay readable and diffable. An install can hold several
-briefs. The repo ships one synthetic example,
-[`docs/examples/brief-example.yaml`](../examples/brief-example.yaml); the schema is
-[`schemas/brief/v1.1.json`](../../schemas/brief/v1.1.json). Briefs written with schema v1
-([`schemas/brief/v1.json`](../../schemas/brief/v1.json)) still load; the next version you save
-is written as v1.1 (one-line reference cases become objects, and entries labelled
-`distribution_exemplar | ...` move to `distribution_exemplars`). The private-data scan
-(pre-commit and CI) refuses any other brief file in git, by path (`*/briefs/*.yaml`,
-`*brief*.yaml`) and by content (`brief_id:` plus a `project:` mapping, in block, flow or
-indented style), so don't paste a brief into an issue, doc or fixture either.
+**2. Where briefs live.** Outside git, in `PIGTAIL_BRIEFS_DIR/<brief_id>/vNNNN.yaml` (default
+`~/.pigtail/briefs`; directories 0700, files 0600; ADR-071.3, R18.9). `pigtail backup create`
+includes that directory (see "Backups and restore"). Every save of changed content writes a new,
+immutable version; old versions stay readable and diffable. An install can hold several briefs.
+If you have briefs from before M21 in `PIGTAIL_DATA_DIR/briefs`, move them once:
+```bash
+uv run pigtail brief migrate-store --from data/briefs --dry-run   # counts only, moves nothing
+uv run pigtail brief migrate-store --from data/briefs             # moves the version files
+```
+It moves bytes (never reads or prints a brief), never overwrites a version that already exists
+in the target (a differing copy is reported as a conflict and both are kept) and is safe to run
+again. `PIGTAIL_BRIEFS_IN_DATA_DIR=1` keeps using the old location, explicitly. The repo ships
+one synthetic example, [`docs/examples/brief-example.yaml`](../examples/brief-example.yaml); the
+schema is [`schemas/brief/v1.2.json`](../../schemas/brief/v1.2.json). Briefs written with schema
+v1 or v1.1 ([`v1.json`](../../schemas/brief/v1.json), [`v1.1.json`](../../schemas/brief/v1.1.json))
+still load; the next version you save is written as v1.2 (v1: one-line reference cases become
+objects, and entries labelled `distribution_exemplar | ...` move to `distribution_exemplars`;
+v1.1: `budget.llm_api_usd` is added to `budget.money_usd`, now the brief's total cap). The
+private-data scan (pre-commit and CI) refuses any other brief file in git, by path
+(`*/briefs/*.yaml`, `*brief*.yaml`) and by content (`brief_id:` plus a `project:` mapping, in
+block, flow or indented style, or a top-level `brief_id:` plus `expansion:`, i.e. an expansion
+proposal file), so don't paste a brief or a proposal into an issue, doc or fixture either.
 
 **3. Write the brief.** Either in the web app (`/briefs` → *New brief*: a guided form pre-filled
 with the example, plus a YAML tab for import and export; both are validated by the same model),
@@ -82,20 +93,21 @@ uv run pigtail brief expand my-project --edit          # or: propose, edit in $E
 **Stale edits are refused.** `brief edit --from FILE` treats the file as an edit of the version
 named in its `version:` line (files from `pigtail brief show` have one) and refuses it if a newer
 version exists, so an old export can't silently revert later changes; export the latest, re-apply
-your edit and save again. Only a file without a `version:` line is taken as an edit of the latest
-version, with a warning. `--base-version N` overrides both. The web app and API refuse the same
-way (`409`); an API client that sends neither `base_version` nor a `version` field must set
-`force_latest: true` to save over the latest version.
+your edit and save again. A file without a `version:` line is refused too, unless you pass
+`--force-latest` to take it as an edit of the latest version; `--base-version N` overrides both.
+The web app and API refuse the same way (`409`); an API client that sends neither `base_version`
+nor a `version` field must set `force_latest: true` to save over the latest version.
 
 **LLM expansion (R18.7).** `pigtail brief expand` (or *Propose expansion* in the `/briefs`
 editor) asks the model to propose a problem statement, users, keywords, topics, competitors (names
 and optional URLs), GitHub topics and search queries. Only the project description, target users,
 business model and the field's include/exclude lists are sent (not the name, context, seed or
 reference projects, audience, budget or notes), through the same `LLMClient` as every other call
-(job `brief_expansion`; identifiers stripped; cached). It is one call of about 4,500 tokens, checked
-against the brief's budget first: on the `subscription` backend against `budget.subscription_share`;
-on the `api` backend it needs `--approve-paid` (or the approval box in the editor) and
-`budget.llm_api_usd`. The call uses the brief's `budget.llm_backend` and is refused, never
+(job `brief_expansion`, synthesis model, a standard call; identifiers stripped; cached). It is one
+call of about 4,500 tokens (about USD 0.04 at list price on `api`), checked against the budget
+first: on the `api` backend it needs `--approve-paid` (or the approval box in the editor) and must
+fit both `budget.money_usd` and the monthly cap; the `subscription` backend costs no money. The
+call uses the brief's `budget.llm_backend` and is refused, never
 rerouted, if `LLM_BACKEND` differs, unless you set a per-job override
 (`LLM_BACKEND_OVERRIDES=brief_expansion:api`). The result is a **proposal**: nothing is saved until
 you accept it, and model output is unverified, so check every competitor and URL. Accepting saves
@@ -120,41 +132,71 @@ the others, and the fallbacks for projects without measurable adoption or too fe
 band and not stored); channels to use and avoid; geography; 15–25 winners and losers with the
 matching rules (ADR-054); and the budget.
 
-**4. Cost expectations and the budget.** Two caps, both in the brief (ADR-053.1):
-- `budget.money_usd` (default **0**) for non-LLM paid services. With the default, and with
-  Trendshift, X and BigQuery off (the default), a run costs **no money**: the GitHub API and
-  Hacker News are free with your own token. Any step that would cost money is listed in the
-  estimate and needs explicit approval (`--approve-paid`); without it nothing starts.
-- `budget.subscription_share` (default **0.5**): the largest share of your weekly Claude
-  subscription allowance pigtail may use. Heavy stages run in chunks and pause at the cap, then
-  resume the next week; pigtail **never switches to the API on its own**. Claude Code exposes no
-  remaining-allowance figure, so pigtail meters its own usage ledger against an allowance that is
-  configured (`PIGTAIL_SUBSCRIPTION_WEEKLY_TOKENS`), calibrated from the last limit hit it saw,
-  or, failing both, a deliberately low assumed default (5M tokens/week). The estimate says which.
-  With `llm_backend: api`, calls cost money at list price and are capped by `budget.llm_api_usd`.
+**4. Cost expectations and the budget.** Two money caps, both hard stops (R15.11, ADR-064.4,
+ADR-072.4):
+- `budget.money_usd` in the brief: the brief's **total** money cap over all its runs, API spend
+  included (suggested USD 150; default 0, so nothing is spent unless you set it). Trendshift, X
+  and BigQuery are off by default; each one you enable is a paid step against the same cap. The
+  GitHub API and Hacker News are free with your own token.
+- `BUDGET_USD_MONTH` for the instance (default USD 200): API spend in the current calendar month.
+
+Every paid step, API calls included, is listed in the estimate and needs explicit approval
+(`--approve-paid`); without it nothing starts. A run that would cross either cap stops before the
+step with a resumable checkpoint; going on needs the owner's approval of more spend (H6).
+pigtail **never switches backends on its own**. On the `subscription` backend product calls cost
+no money and are not capped by `budget.subscription_share`, which applies only to the agents
+building pigtail (ADR-064.4); usage limits there pause the queue and resume later (R15.5).
+
+**Models and batching (R15.8, R15.9).** Each LLM stage has its own model: relevance filter
+`LLM_MODEL_RELEVANCE` (default `claude-haiku-4-5-20251001`), extraction, coding and adjudication
+`LLM_MODEL_EXTRACTION` (`claude-sonnet-5`), synthesis, report, plan and brief expansion
+`LLM_MODEL_SYNTHESIS` (`claude-opus-5-5`); `LLM_MODEL`, if set, is the fallback for a stage without
+its own variable. On `api`, every stage that isn't time-sensitive goes through the Message Batches
+API (half price; results usually within an hour, at most 24 h); batch ids are stored in the
+database, so a paused or restarted run collects its batches instead of paying twice. Interactive
+calls (expansion) and launch mode use standard calls; `LLM_BATCH=0` sends standard calls
+everywhere. The system prompt and the codebook are sent as a cached prefix (prompt caching), and
+evidence is trimmed before sending (reposts deduplicated, long threads cut to their first and
+last items, only relevant excerpts of long items; R15.10). Every output records its model, prompt
+version and batch id.
 
 Before every run, look at the estimate:
 ```bash
 uv run pigtail brief estimate my-project          # or the "Cost estimate" panel on /briefs/my-project
 ```
 It shows GitHub requests per bucket (core, GraphQL, search) and the hours they take at the
-default 70 % caps, the number of LLM calls and tokens per stage, the share of your weekly
-allowance and how many weeks the run spreads over, and the money cost. **Every figure is an
-estimate** from the `estimate-v1` planning model; measured costs and run times for the example
-brief will replace these numbers after its first real run (D6). For the example brief with the
-default budget, expect $0 in money, roughly 6,000 GitHub requests (under 2 hours of API time)
-and an LLM volume of about 12–13M tokens, several times the assumed weekly allowance, so at the
-0.5 share it spreads over several weeks unless your calibrated allowance is larger. The estimate exits with code 3 when paid steps need
-approval. When you re-run an edited brief, the estimate and the run record list which stages are
-reused and which are recomputed (R18.4).
+default 70 % caps, the LLM calls, tokens and **USD per stage and model** (batch or standard,
+cached prefix priced at the cache rates), and the total against the brief's cap (minus what the
+brief has already spent) and the monthly cap (minus this month's spend). Prices come from a dated
+table in `src/pigtail/llm/pricing.py` (list prices as of 2026-06-24; check the pricing page before
+a large run). **Every figure is an estimate** from the `estimate-v2` planning model; the pilot's
+measured cost per case replaces the per-unit placeholders (M23). For the synthetic example brief
+on `api`, expect roughly 6,000 GitHub requests (under 2 hours of API time), about 14M LLM tokens
+and about USD 19 at list price with batching (about USD 33 without). The estimate exits with code 3
+when paid steps need approval, and with code 4 (approval not recorded) when the estimate exceeds a
+cap. When you re-run an edited brief, the estimate and the run record list which stages are reused
+and which are recomputed (R18.4).
 
 **5. Run it.** Discovery and the shortlist arrive in M13 and `pigtail run` with the launchd
 schedule in M14; until then the brief, its versions and its estimate are what you can prepare.
 Runs will record the brief version and content hash, the data version and the code, codebook,
 prompt and model versions (`brief_runs`, R18.6), and a run that reaches its budget stops with a
-resumable checkpoint (status `paused_budget`).
+resumable checkpoint (status `paused_budget`). The actual cost of every model call (tokens in and
+out, prompt-cache reads and writes, batch id, USD) goes to the cost ledger with its brief run and
+case (`llm_cost_ledger`), which the pilot report uses for the cost per case.
 
 ## LLM backend (`LLM_BACKEND`, PRD F15)
+**Redaction on the LLM path (CB-06; ADR-066 follow-up, M21b, ADR-074).** Before any input leaves the
+process, e-mails, phone numbers, profile URLs, DIDs and @mentions are removed; people become
+per-call aliases (`@user1`, `@user2`, … in order of appearance within that one input), with no
+key and not stable across calls. **One-time step after upgrading to M21b:** cached outputs
+written before it may quote keyed `@p_…` tokens; delete them once (they are recomputed on
+demand):
+```bash
+uv run pigtail llm cache clear --all --dry-run   # how many rows
+uv run pigtail llm cache clear --all --yes       # delete them (the usage ledger is kept)
+```
+
 | Value | What it uses | When |
 |---|---|---|
 | `subscription` (default) | Your locally installed, official Claude Code CLI (`claude -p`) on **your own** Claude plan | Running pigtail for yourself |
@@ -206,9 +248,9 @@ long-running loop (`pigtail scheduler run` without `--once`) is optional: the se
 | Job | Command | Every | Notes |
 |---|---|---|---|
 | `hn_ranks` | `capture hn-ranks --once` | start of each run; 5 min in launch mode | project-level, on by default (ADR-031.1); see below |
-| `retention_purge` | `retention purge` | 1 d | CB-01, CB-04, CB-05, CB-18, CB-33 (UI audit rows); also drops raw GH Archive dumps past retention |
-| `deletion_sync` | `privacy deletion-sync` | 1 d | CB-02; needs `PSEUDONYM_KEY` |
-| `hn_mentions` | `capture mentions --repo … --since <opened −14 d>` per live case opened in the last 48 h | 3 h | person-level: **skipped and logged** unless `PIGTAIL_ENABLE_HN=1` *and* `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` (ADR-022) |
+| `retention_purge` | `retention purge` | 1 d | R19.9 snapshot purge (report final + 12 months), CB-01, CB-04, CB-05, CB-18, CB-33 (UI audit rows); also drops raw GH Archive dumps past retention |
+| `deletion_sync` | `privacy deletion-sync` | 1 d | CB-02; needs `OPTOUT_KEY` |
+| `hn_mentions` | `capture mentions --repo … --since <opened −14 d>` per live case opened in the last 48 h **whose repo is on an in-review or final shortlist** (Directive §8.3) | 3 h | person-level: **skipped and logged** unless `PIGTAIL_ENABLE_HN=1` *and* `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` (ADR-022) |
 | `gh_star_history` | `capture github star-history --cases` | 1 d | per-repo star history of open cases; skipped without `GITHUB_TOKEN` |
 | `gh_repo_events` | `capture github repo-events` | 15 min | person-level, **off** (`enabled = false`); see "GitHub token and budgets" |
 | `backup_create`, `backup_prune` | `backup create`, `backup prune` | 1 d | off by default (see "Backups and restore") |
@@ -230,7 +272,7 @@ mode and, per job, its next due time and what it would run now.
 
 ### With Docker Compose
 ```bash
-cp .env.example .env            # set PSEUDONYM_KEY, S3_*, SNAPSHOT_BACKEND=s3 for production, SMTP_URL/ALERT_EMAIL
+cp .env.example .env            # set OPTOUT_KEY, S3_*, SNAPSHOT_BACKEND=s3 for production, SMTP_URL/ALERT_EMAIL
 docker compose up -d --wait db objectstore && docker compose run --rm objectstore-init
 docker compose build scheduler
 docker compose run --rm scheduler pigtail scheduler run --once     # one batch run
@@ -252,7 +294,7 @@ running jobs 2 minutes to finish.
 The `ui` service does **not** load `.env` (CB-29). It gets only the variables listed under its
 `environment:` in `docker-compose.yml` (database, snapshot store, login, retention periods),
 taken from the host environment or `.env` by Compose interpolation. So it never receives
-`PSEUDONYM_KEY`, `GITHUB_TOKEN`, `SMTP_URL` or API keys; the web app doesn't use them. If you add a
+`OPTOUT_KEY` / `PSEUDONYM_KEY`, `GITHUB_TOKEN`, `SMTP_URL` or API keys; the web app doesn't use them. If you add a
 UI setting to `.env`, add it to that list too.
 
 ### With systemd (no Docker; optional server path)
@@ -398,6 +440,19 @@ hash, every `/api` route needs a session, and there is no public API explorer.
    `127.0.0.1:8080` only; reads local snapshots from the `app-data` volume, read-only).
 3. Open http://127.0.0.1:8080 and log in.
 
+**Briefs in the container.** The `ui` service bind-mounts the host briefs directory
+`${PIGTAIL_BRIEFS_DIR:-~/.pigtail/briefs}` read-write at `/briefs` and sets
+`PIGTAIL_BRIEFS_DIR=/briefs` inside, so the UI reads and saves the same briefs as the CLI on the
+host (keep that directory outside any git work tree, ADR-071.3). **UID and permissions:** the
+container runs as UID/GID `10001` and the store keeps directories at `0700` and files at `0600`
+(it also `chmod`s the store root). On **Linux**, the host directory must therefore belong to
+UID 10001, or the UI cannot read or save briefs (and the `chmod` fails): create it first
+(`mkdir -p ~/.pigtail/briefs && sudo chown -R 10001:10001 ~/.pigtail/briefs`); if Docker
+creates a missing mount source itself it is owned by root and unusable. Changing the owner means
+the host CLI then needs `sudo` or a shared group to write briefs; the alternative is to run the
+CLI inside the container too. On **macOS** (Docker Desktop) file sharing maps ownership to your
+user, so no `chown` is needed.
+
 Settings (environment): `PIGTAIL_UI_SESSION_HOURS` (absolute session lifetime, default 12),
 `PIGTAIL_UI_IDLE_MINUTES` (default 120), `PIGTAIL_UI_SECURE_COOKIE` (`auto` by default: the
 cookie is `Secure` unless the app is reached on a loopback host; set `1` behind a TLS proxy),
@@ -460,9 +515,10 @@ uv run pigtail export jsonl --out /srv/private/export --include-person-level
   files, which diff and merge cleanly.
 - **Never inside the pigtail repository** (it is public). Such a path is refused with or without
   flags.
-- **Person-level tables** (`hn_mention`, `upstream_items`, `evidence_upstream_items`, the refusal
-  list) are exported only with `--include-person-level`, and only to a directory outside **any**
-  git working tree. `repo_event_actor`, UI sessions and the UI audit log are never exported.
+- **Person-level tables** (`hn_mention` — coded roles, no handles, but tied to individual posts —
+  `upstream_items`, `evidence_upstream_items`, the refusal list with its opt-out fingerprints)
+  are exported only with `--include-person-level`, and only to a directory outside **any** git
+  working tree. UI sessions, the UI audit log and the key fingerprint are never exported.
   Files are mode 0600 in a 0700 directory. Treat a person-level export like the database:
   private, encrypted storage, covered by the retention policy. Delete it when you're done.
 - A table the export doesn't know stops it. Every new migration must classify its tables in
@@ -471,9 +527,39 @@ uv run pigtail export jsonl --out /srv/private/export --include-person-level
 ## Privacy operations
 These commands implement the code side of the retention policy and the DPIA controls
 (`docs/compliance/retention-policy.md`, `docs/compliance/dpia.md` §9). They need
-`DATABASE_URL`; everything that turns a handle into a pseudonym also needs `PSEUDONYM_KEY`.
+`DATABASE_URL`; everything that matches or adds opt-outs also needs the opt-out key
+(`OPTOUT_KEY`; the earlier name `PSEUDONYM_KEY` is still read — set only one of them).
 Every command runs migrations first, writes a `run` record, and logs each deletion as a tombstone
 in the append-only `deletion_log` table (hashes and ids only, never content).
+
+### What is stored about people: roles and buckets (Directive §8.1, ADR-066.1, ADR-071)
+Since M21a (migrations 0017–0019) pigtail **never stores a handle, a personal name or a
+pseudonym** of an individual in coded data. Each actor is coded at ingest, in memory, and the
+handle is then discarded:
+
+| Stored | Values |
+|---|---|
+| role | `maintainer` (the account owns the repo the record is about; rule `roles-v1`), `account`, `newsletter`, `community`, `organization`, `automated_account` |
+| follower bucket | `r0` unknown, `r1` < 1,000, `r2` 1,000–9,999, `r3` 10,000–99,999, `r4` ≥ 100,000 (codebook §4.5); computed from a follower count the source returns with the post, then the count is dropped. Follower **lists** are never collected. |
+| automated account | `true`/`false` plus the bot-rule version (`bot-filter-v0`); bot filtering runs in memory |
+| per-repo star/fork events | hourly and daily **counts** only (`repo_event_hourly_agg`, `repo_event_daily_agg`); accounts are de-duplicated within one poll in memory, and `repo_event_actor` no longer exists |
+
+The **only person-derived value kept** is the **opt-out fingerprint** of someone who opted out or
+asked for erasure (HMAC-SHA256 of the handle under `OPTOUT_KEY`, kept apart from the data;
+ADR-071.1). It is used only to exclude that person at ingest and to purge them. The raw
+snapshots (encrypted, private) still contain whatever the source returned until the retention
+purge deletes them (R19.9, below); they are the only place a person can be found, and only by
+an in-memory scan (access, erasure, opt-out).
+
+Migration 0017 moved existing rows to this model and purged the pseudonyms: HN mention authors
+became role `account` / bucket `r0` with `automated_account` unknown and rule versions
+`migrated-0017`; upstream-item authors were cleared; per-actor event rows became hourly counts
+and the table was dropped. Each purge wrote a count-only `deletion_log` row with reason
+`directive_001_handle_purge`. **The LLM cache** (SQLite, outside Postgres) can still hold keyed
+`@p_…` tokens in outputs cached before the LLM path switched to per-call, keyless aliases (M21b,
+ADR-074; nothing keyed reaches the model or the cache any more). Run
+`pigtail llm cache clear --all --yes` once after upgrading (see "LLM backend"); otherwise they
+expire with `LLM_CACHE_RETENTION_DAYS`.
 
 ### Startup check: `pigtail doctor` (CB-03)
 ```bash
@@ -481,7 +567,7 @@ uv run pigtail doctor            # human-readable; exit 1 on any FAIL
 uv run pigtail doctor --strict   # also exit 1 on WARN (use in deploy scripts)
 uv run pigtail doctor --json
 ```
-It checks `PSEUDONYM_KEY` and its fingerprint (below), the database and pending migrations, the
+It checks the opt-out key and its fingerprint (below), the database and pending migrations, the
 snapshot bucket's default
 encryption (`GetBucketEncryption`), TLS to a remote object store, and prints the retention
 settings. `scheduler run` logs the same encryption warning when it starts. Two items show as
@@ -508,16 +594,16 @@ Backups (CB-17b):
   lives on the host only: run `pigtail doctor` on the host with `BACKUP_DIR` set, or accept the
   `WARN` in the container.
 
-### Pseudonym key check (CB-25, ADR-043)
-Opt-outs and stored pseudonyms are keyed hashes of `PSEUDONYM_KEY`. With a different key they
-silently stop matching: people and repos that opted out would be collected again, and erasure
-would miss their earlier rows. So the database stores a **fingerprint** of the key (`kfp1_` + 32
+### Opt-out key check (CB-25, ADR-043, ADR-071.1)
+Opt-out entries (person fingerprints and repo-name keys) are keyed hashes of `OPTOUT_KEY` (alias
+`PSEUDONYM_KEY`). With a different key they silently stop matching: people and repos that opted
+out would be collected again. So the database stores a **fingerprint** of the key (`kfp1_` + 32
 hex of HMAC-SHA256(key, `pigtail-key-fingerprint-v1`); it does not reveal the key, and the key
 itself is never stored or printed) in table `pseudonym_key_fingerprint` (migration 0012).
-- **Recorded on first use**: the first command that pseudonymizes or loads the opt-out list with a
-  key (a capture, a `privacy` command, or `scheduler run` at startup) stores it.
+- **Recorded on first use**: the first command that loads the opt-out list with a key (a
+  capture, a `privacy` command, or `scheduler run` at startup) stores it.
 - **Checked on every use**: every capture command (the opt-out list is loaded first and the
-  connector base refuses a pseudonymizer with another key), every `privacy` command that uses the
+  connector base refuses an opt-out key other than that one), every `privacy` command that uses the
   key, `backup restore` (before anything is replaced) and `scheduler run` (it doesn't start).
   On a mismatch they **refuse** with exit code 2 and a message naming CB-25; scheduled jobs fail
   and alert.
@@ -543,17 +629,16 @@ fingerprint (its opt-outs are keyed with the live key) and **refuses a backup ta
 reset** (CB-35); the command reminds you to take a fresh backup.
 
 ### Rotating the key: `privacy rekey` (CB-26)
-`privacy rekey` moves the database from the old `PSEUDONYM_KEY` to a new one in **one
-transaction**: every stored pseudonym is re-derived under the new key (or deleted), the LLM
-cache is cleared, and the key fingerprint switches to the new key last. If anything can't be
+`privacy rekey` moves the database from the old opt-out key to a new one in **one
+transaction**: every opt-out entry is re-derived under the new key, the LLM cache is cleared, and the key fingerprint switches to the new key last. If anything can't be
 done, nothing changes. **Follow the rotation runbook, §4.1**
 ([`docs/compliance/runbooks/key-rotation.md`](../compliance/runbooks/key-rotation.md)), for the
 full procedure: decision record, sealed old key, handles file, stopping every service, backups
 before and after, and when to destroy the old key. Its §4.3 gives the schedule (every 24 months,
 and after a compromise or a departure).
 
-A pseudonym is a one-way hash of a handle, and pigtail stores no handles, so re-deriving needs the
-handle again. `rekey` gets it, only in memory, from:
+An opt-out fingerprint is a one-way hash of a handle, and pigtail stores no handles, so
+re-deriving needs the handle again. `rekey` gets it, only in memory, from:
 1. **your handles file** (`--handles-file`): the handles and repo names from the original opt-out
    and erasure requests, one per line: `github <handle>`, `hn <handle>`, `bluesky <handle>`,
    `v2ex <handle>` or `repo <owner/name>` (`#` starts a comment). It must be outside any git
@@ -562,32 +647,30 @@ handle again. `rekey` gets it, only in memory, from:
 2. **repo names pigtail still holds** (HN mentions, story links, `repos`), for repo-name
    opt-outs. These names are usually purged with the opt-out, so
    the handles file is the main source.
-3. **retained raw snapshots**, for person-level rows (`hn_mention`, `upstream_items`,
-   `repo_event_actor`): each connector re-parses them as at ingest and pairs each old pseudonym
-   with the new one. `--no-snapshot-scan` skips this (it can be slow with many GH Archive dumps).
+3. **retained raw snapshots**: each connector re-parses them in memory and pairs each old
+   fingerprint with the new one. `--no-snapshot-scan` skips this (it can be slow with many GH
+   Archive dumps).
 
 Rules:
 - **Every opt-out must be mapped.** An opt-out (a person, or a repo by name) that can't be mapped
   would stop matching, and collection would resume for someone who objected. So `rekey`
   refuses, and no flag overrides this. The refusal lists each unmapped entry's kind, platform,
-  request id and date (never the pseudonym) so you can find the original request and add its
+  request id and date (never the fingerprint) so you can find the original request and add its
   handle to the file. Opt-outs by repo id and legacy unkeyed name entries don't use the key and
   stay as they are.
-- **Person-level rows that can't be mapped** make it refuse too, unless you choose
-  `--drop-unmapped` (those rows are deleted; for `upstream_items` only the author is cleared, so
-  deletion sync keeps tracking the item) or `--purge-person-level` (every person-level row,
-  mapped or not). Deletions are logged in `deletion_log` with reason `key_rotation`.
+- `--drop-unmapped` and `--purge-person-level` concern registered person tables
+  (`PERSON_TABLES`), which are **empty since migration 0017**: they have nothing to do today.
 - It refuses while other sessions are connected to the database. Stop the `scheduler` and `ui`
   services and any cron jobs first.
 
 ```bash
-export OLD_PSEUDONYM_KEY=...   # the old key, only for this shell (e.g. `read -s`); never an argument
-export PSEUDONYM_KEY=...       # the new key
-uv run pigtail privacy rekey --old-key-env OLD_PSEUDONYM_KEY \
+export OLD_OPTOUT_KEY=...   # the old key, only for this shell (e.g. `read -s`); never an argument
+export OPTOUT_KEY=...       # the new key (unset PSEUDONYM_KEY if you still had it)
+uv run pigtail privacy rekey --old-key-env OLD_OPTOUT_KEY \
   --handles-file /secure/rotation/handles.txt --dry-run            # report, then roll back
-uv run pigtail privacy rekey --old-key-env OLD_PSEUDONYM_KEY \
+uv run pigtail privacy rekey --old-key-env OLD_OPTOUT_KEY \
   --handles-file /secure/rotation/handles.txt --confirm-rotation   # the rotation itself
-unset OLD_PSEUDONYM_KEY
+unset OLD_OPTOUT_KEY
 ```
 `--old-key-env` takes the **name** of the variable, never the key. The output is JSON counts only
 (mapped and unmapped opt-outs, rows mapped or deleted per table, snapshots scanned, cache rows
@@ -595,11 +678,11 @@ deleted) with a `privacy.rekey` run record. Neither the output nor the run recor
 a handle, a repo name or the file's path. Exit 2 means it refused and nothing changed.
 
 Afterwards: `pigtail privacy key-fingerprint` shows the new key with a `rekey` event. Backups taken
-before the rotation hold old pseudonyms: `backup restore` refuses them, and they expire with
+before the rotation hold old-key opt-outs: `backup restore` refuses them, and they expire with
 `backup prune` after 35 days. **Take a fresh backup right away.** Keep the old key sealed until
 the old backups are pruned, then destroy it. Delete JSONL exports made with
 `--include-person-level` before the rotation. Run `rekey` with the same `PIGTAIL_DATA_DIR` as the
-scheduler (under Compose, `docker compose run --rm -e OLD_PSEUDONYM_KEY scheduler pigtail privacy
+scheduler (under Compose, `docker compose run --rm -e OLD_OPTOUT_KEY scheduler pigtail privacy
 rekey …`), or it clears a different LLM cache; runbook §4.1 has the Compose details.
 
 No dual-key window (CB-27) is needed: the switch is atomic, and every command started afterwards
@@ -627,21 +710,39 @@ Required before production capture (ADR-022).
   that directory on an encrypted disk.
 - **Backups** must be encrypted too (CB-17, planned).
 
-### Retention purge (CB-01, CB-04, CB-05, CB-18)
+### Retention purge (R19.9, CB-01, CB-04, CB-05, CB-18)
 ```bash
 uv run pigtail retention purge --dry-run   # report only; still writes a run record
-uv run pigtail retention purge             # run daily (cron or systemd timer)
+uv run pigtail retention purge             # daily: the scheduler's `retention_purge` job
+uv run pigtail retention report-final --brief ID --version N [--at 2026-10-01T12]
 ```
-What it does, in order:
+**Snapshot retention (R19.9, Directive §8.2, ADR-066.2).** Raw person-level snapshots are kept
+until the report of the brief that used them is **final plus 12 months**, then deleted; the
+coded facts and the content hash stay (the evidence row moves to `raw_dropped`), and the purge is
+logged (`deletion_log`, reason `retention`, plus the `retention.purge` run record with the counts
+`snapshots_dropped_report_final`, `snapshots_dropped_ceiling`, `snapshots_held_pending_report`).
+- The brief pipeline records which evidence each brief run used (`brief_evidence`) and when a
+  brief version's report became final (`brief_report_final`; by hand:
+  `pigtail retention report-final`, which only stores the id, version and time). Re-finalizing a
+  revised report moves the date.
+- `SNAPSHOT_AFTER_REPORT_DAYS` (default and maximum 365) is the "+ 12 months".
+- `PERSON_LEVEL_RETENTION_DAYS` (default and maximum 730, from the newest fetch of the blob) is now
+  the **ceiling** for snapshots no final report anchors: those no brief used, and those whose
+  brief's report is still pending (so an abandoned brief can't hold snapshots forever). When a
+  snapshot is used by several briefs, it is kept until every one of their reports is final plus
+  12 months, or the ceiling, whichever is later.
+- The evidence view in the web app shows each snapshot's due date and which rule applies.
+
+What the purge does, in order:
 1. Drops raw GH Archive dumps after `GHARCHIVE_RAW_RETENTION_DAYS` (default and maximum 30,
    CB-32; `capture purge-raw --retention-days` has the same ceiling).
-2. Drops the raw bytes of every `person_level_24m` evidence record after
-   `PERSON_LEVEL_RETENTION_DAYS` (default and maximum 730, counted from `fetched_at`). The evidence
-   row keeps its hash, URL, source, fetch time and terms basis, and moves to
-   `deletion_state = raw_dropped`. A blob shared with a `project_level` record or with a younger
-   capture is kept and reported as `blocked_shared`.
-3. Deletes pseudonymous person-level rows older than the cutoff (tables registered in
-   `pigtail.privacy.deletion.PERSON_TABLES`: `hn_mention`, `upstream_items`; M5 tables add to it).
+2. Drops the raw bytes of every person-level snapshot that is due (above). The evidence row keeps
+   its hash, URL, source, fetch time and terms basis, and moves to `deletion_state = raw_dropped`.
+   A blob a `project_level` record still needs is kept and reported as `blocked_shared`.
+   Per-repo event pages (`person_level_30d`) older than `GITHUB_EVENTS_RETENTION_DAYS` are dropped
+   too (normally they are dropped right after parsing).
+3. Deletes rows of registered person-level tables (`PERSON_TABLES`) past the cutoff. The registry
+   is **empty since migration 0017** (no table holds handles or pseudonyms).
 4. Deletes LLM cache rows linked to the evidence dropped in step 2, and every cache row older than
    `LLM_CACHE_RETENTION_DAYS` (default and maximum 730). The LLM usage ledger follows the same
    period. Expired cache rows are never served, even before a purge runs.
@@ -665,8 +766,7 @@ Capture jobs register every upstream item whose content sits in a person-level s
 1. drops the raw bytes of every snapshot that holds it (a search page holds many items, so the
    whole page goes) and moves all evidence with those hashes to `deletion_state =
    deleted_upstream` (hash, URL, fetch time and terms basis stay);
-2. deletes its parsed person-level rows (`hn_mention`) and the LLM cache rows derived from the
-   evidence, and clears the title and url of front-page stories stored by the rank poller
+2. deletes its coded rows (`hn_mention`) and the LLM cache rows derived from the evidence, and clears the title and url of front-page stories stored by the rank poller
    (`hn_story`; M1-T23). The rank history and the story's repo link stay, so front-page minutes
    remain computable; a later poll never refills a cleared title;
 3. writes tombstones (reason `deleted_upstream`) to `deletion_log`.
@@ -675,8 +775,10 @@ It also re-applies deletions to evidence captured after an item was found gone (
 index, or a backup restore). Schedule per source (retention-policy.md §4): HN items linked to an
 open case are re-checked daily, others monthly; action within 7 days of detection. The report
 lists `overdue_before_run` (re-checks more than 7 days late) and `detected_not_acted`. Checks store
-nothing and run even when HN collection is switched off. Bluesky (≤ 48 h, push/tombstone based)
-will plug into the same job before it may be enabled.
+nothing and run even when HN collection is switched off. Items are tracked by id only (no author
+since migration 0017). Bluesky (≤ 48 h, push/tombstone based) will plug into the same job before
+it may be enabled; its account-level deletion signals will have to be resolved to items by the
+source itself, since pigtail no longer stores who wrote what.
 
 ### Hacker News sources (M1-T4, M1-T14)
 - **Rank poller** (`hn_ranks`, enabled by default; `PIGTAIL_CONNECTOR_HN_RANKS_ENABLED=false`
@@ -704,8 +806,18 @@ will plug into the same job before it may be enabled.
   `before_polling_minutes`. `quality` is `verified` when the window is fully covered, `estimated`
   (a lower bound) when not, and `unknown` (`minutes: null`) when nothing in the window was
   polled. Opted-out repos are refused.
-- **Mention capture** (`hn_algolia`, `hn_firebase`): person-level (usernames are pseudonymized,
-  comment text stays in private snapshots). **Disabled by default** (`PIGTAIL_ENABLE_HN=0`).
+- **Mention capture** (`hn_algolia`, `hn_firebase`): person-level (usernames are coded as a role
+  and bucket and discarded at ingest; comment text stays in private snapshots). **Shortlisted
+  projects only** (Directive §8.3, ADR-066.3): a repo must be on a brief version's shortlist with
+  status `in_review` or `final`, or the command refuses before any request (`NotShortlisted`,
+  exit 2) and the scheduler doesn't plan it. The brief pipeline sets the shortlist; by hand:
+  ```bash
+  uv run pigtail capture shortlist set --brief ID --version N --status in_review --repo owner/name
+  uv run pigtail capture shortlist set --brief ID --version N --status removed --repo owner/name
+  uv run pigtail capture shortlist list
+  ```
+  There are no searches for people or accounts and no follower lists.
+  **Disabled by default** (`PIGTAIL_ENABLE_HN=0`).
   Setting `PIGTAIL_ENABLE_HN=1` fails with an error unless `PIGTAIL_ADR022_PERSON_SOURCES_OK=1`
   is also set. **Set that flag only after every ADR-022 precondition for person-level sources is
   in place on your deployment:** CB-01 (retention purge scheduled), CB-02 (deletion sync
@@ -770,12 +882,15 @@ already in the `repos` table (`--full` pages back to the creation week).
 repos with an open case, to confirm the bot filter. It is off by default. To turn it on, meet
 every ADR-022 precondition (see "Hacker News sources" above; ADR-036), then set
 `PIGTAIL_ENABLE_GITHUB_EVENTS=1` and `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` and change
-`enabled = true` on `gh_repo_events`. Actors are pseudonymized at ingest; raw event pages are
-deleted right after parsing (a page that fails to parse is deleted at once too, CB-23b, and
-counted as `repo_events.parse_failed` in the run record); the pseudonymous rows are kept at most
-30 days (`GITHUB_EVENTS_RETENTION_DAYS`, default 16, maximum 30; ADR-038) and deleted by
-`pigtail retention purge`; only daily aggregates stay (CB-22, CB-23). pigtail never builds or exports a list of a repo's
-stargazers.
+`enabled = true` on `gh_repo_events`. Actors are used in memory only: the bot rule flags
+automated accounts and each account counts once per poll; then the login is discarded (Directive
+§8.1, ADR-071.2). Only hourly and daily counts with the bot-rule version are stored; an event is
+counted once across polls thanks to an event-id watermark. Raw event pages are deleted right
+after parsing (a page that fails to parse is deleted at once too, CB-23b, and counted as
+`repo_events.parse_failed` in the run record); leftovers are dropped after
+`GITHUB_EVENTS_RETENTION_DAYS` (default 16, maximum 30; ADR-038). pigtail never builds, stores or
+exports a list of a repo's stargazers. Known limitation: an account that stars, unstars and stars
+again across two polls counts twice.
 
 **Search pages (CB-24).** `pigtail.capture.github_search.search_repos` pages one given query
 (M13 builds the queries from a brief). Search result pages embed owner objects, so they are
@@ -803,18 +918,19 @@ uv run pigtail privacy optout remove --platform github --handle -
 uv run pigtail privacy optout purge     # re-apply the whole list (backup restore does this)
 uv run pigtail privacy optout rekey     # CB-13b: convert pre-0009 unkeyed name entries
 ```
-- **Handles are never stored.** A handle is pseudonymized at once with `PSEUDONYM_KEY` in the
-  platform's namespace, which is the same pseudonym the connectors store. The database rejects
-  anything that isn't a pseudonym. `--handle X` also works, but `--handle -` (or leaving the flag
+- **Handles are never stored.** A handle is hashed at once with `OPTOUT_KEY` in the platform's
+  namespace into the person's **opt-out fingerprint** (kind `person`; ADR-071.1), the value the
+  connectors compute in memory at ingest. The database rejects anything that isn't a
+  fingerprint. `--handle X` also works, but `--handle -` (or leaving the flag
   out) reads the handle from stdin and keeps it out of your shell history.
 - **Ingest:** every capture loads the list, and connectors drop matching records before
   aggregation (counted as `<source>.suppressed` in the run record). Opted-out repos are dropped
   by repo id and, for HN data, also by normalized `owner/name` (M1-T23), so an opt-out reaches repos pigtail doesn't track yet. The name is
-  stored only as a **keyed** hash (`rk_…`: HMAC-SHA256 with `PSEUDONYM_KEY`, CB-13b), so the list
+  stored only as a **keyed** hash (`rk_…`: HMAC-SHA256 with `OPTOUT_KEY`, CB-13b), so the list
   can't be reversed with a dictionary of public repo names; `optout list` never shows the name.
-  Matching names needs `PSEUDONYM_KEY`: a capture that finds keyed name entries but no key stops
-  (`MissingNameKey`) instead of ingesting opted-out repos. **Changing `PSEUDONYM_KEY`** would
-  orphan these keys as it does pseudonyms, so rotate only with `privacy rekey`, which re-derives
+  Matching names needs `OPTOUT_KEY`: a capture that finds keyed name entries but no key stops
+  (`MissingNameKey`) instead of ingesting opted-out repos. **Changing `OPTOUT_KEY`** would
+  orphan these keys as it does person fingerprints, so rotate only with `privacy rekey`, which re-derives
   them from the names in your handles file (or still held locally) and refuses if one is missing.
 - **Entries from before migration 0009** were unkeyed SHA-256 hashes (`rn_…`). SQL can't convert
   them, because the name isn't stored. Dropping them would resume collecting repos whose owners
@@ -829,9 +945,10 @@ uv run pigtail privacy optout rekey     # CB-13b: convert pre-0009 unkeyed name 
   not, it is opted out by name only; when it later enters the database, `optout purge` also adds
   its id.
 - **Existing data:** `add` purges at once unless you pass `--no-purge`.
-  - For a person, this drops the raw snapshots that contain their records (whole snapshots;
-    replay re-downloads them and drops the person at ingest), person-level rows, and LLM cache
-    rows derived from those snapshots or mentioning the pseudonym.
+  - For a person, pigtail searches the retained raw snapshots for the handle **in memory** and
+    deletes every snapshot that contains it (whole snapshots; replay re-downloads them and drops
+    the person at ingest), plus LLM cache rows derived from those snapshots or mentioning the
+    person's LLM token. Coded rows hold no handle and stay.
   - For a repo (CB-13c), it removes **every row keyed to the repo in every table**, matched by
     id, GitHub id and each `owner/name` pigtail associates with the id (renames included). The
     tables are listed in `REPO_TABLES` (`src/pigtail/privacy/deletion.py`); a test fails when a
@@ -839,7 +956,7 @@ uv run pigtail privacy optout rekey     # CB-13b: convert pre-0009 unkeyed name 
 
     | Rows | What happens |
     |---|---|
-    | Star history (daily rows and fetch log), per-repo events (actors, polls, daily aggregates), launch-mode windows, ETag cache rows of its API pages | deleted |
+    | Star history (daily rows and fetch log), per-repo events (polls, hourly and daily counts), launch-mode windows, shortlist entries (mention scope), ETag cache rows of its API pages | deleted |
     | HN mention rows | deleted, with their snapshots unless another repo's mention uses the same one |
     | Rank-poller stories | kept without title, url and repo link (the rank history keeps only the item id) |
     | Evidence linked to the repo, its cases or its per-repo API pages | raw bytes dropped first, then the rows and derived LLM cache rows |
@@ -852,7 +969,11 @@ uv run pigtail privacy optout rekey     # CB-13b: convert pre-0009 unkeyed name 
 
 ### Backups and restore (CB-17)
 Backups are encrypted, kept 35 days, and a restore re-applies every deletion made after the
-backup was taken (retention policy §2, §5).
+backup was taken (retention policy §2, §5). Each `backup create` also writes an encrypted archive
+of the briefs directory (`PIGTAIL_BRIEFS_DIR`) beside the database backup, with the same timestamp
+and key (`pigtail-briefs-<time>.age`; ADR-071.3). `backup restore` restores it into
+`PIGTAIL_BRIEFS_DIR` after the database, never overwriting a version that exists (`--briefs-in
+FILE` picks another archive, `--no-briefs` skips it); `backup prune` prunes both kinds of file.
 ```bash
 export BACKUP_RECIPIENT=age1...        # public key only: age (preferred) or a gpg fingerprint
 export BACKUP_DIR=/srv/pigtail-backups    # default for --out / --dir, checked by `pigtail doctor`
@@ -870,7 +991,7 @@ BACKUP_IDENTITY=/secure/age-key.txt \
   Keep the identity file with the owner and in a second safe place. Without it the backups
   can't be read. gpg works too: set `BACKUP_RECIPIENT` to the full fingerprint of a key whose
   public half is in the host keyring. A value that isn't an age or SSH recipient selects gpg.
-- The backup key is **not** `PSEUDONYM_KEY`. That key is backed up separately (retention policy
+- The backup key is **not** the opt-out key (`OPTOUT_KEY`). That key is backed up separately (retention policy
   §3) and never goes into a data backup.
 - Schedule `backup create` and `backup prune` daily (cron or a systemd timer). The
   object-storage replica or versioning of the snapshot bucket needs the same 35-day expiry.
@@ -892,14 +1013,14 @@ server's major version. The run record (`backup.create`) holds no path and no ke
 cache (`PIGTAIL_DATA_DIR/llm.sqlite3`) is not backed up; it is a cache.
 
 **`backup restore --in FILE --yes`** *replaces* the database at `DATABASE_URL`. Stop the
-scheduler first. It needs `PSEUDONYM_KEY` and, for age, the identity file (`--identity` or
+scheduler first. It needs `OPTOUT_KEY` and, for age, the identity file (`--identity` or
 `BACKUP_IDENTITY`; gpg uses its keyring). Steps:
-1. Check that `PSEUDONYM_KEY` matches the live database's key fingerprint (CB-25; exit 2 on a
+1. Check that `OPTOUT_KEY` matches the live database's key fingerprint (CB-25; exit 2 on a
    mismatch, nothing changed). Read the live database's `deletion_log`, opt-out list, request
    log and key fingerprint, plus the run records they reference, before anything changes. A
    backup taken before the last `privacy rekey` (CB-26) or the last bare
    `privacy key-fingerprint --reset` (CB-35) is refused, as is one whose creation time is
-   unknown: its pseudonyms are keyed with the old key (runbook §4.4).
+   unknown: its opt-outs are keyed with the old key (runbook §4.4).
 2. Decrypt and restore the dump with `pg_restore | psql` in **one transaction** that drops and
    recreates schema `public`. The transaction commits only if decryption, `pg_restore` and
    `psql` all succeed, so a wrong key or a truncated file changes nothing.
@@ -937,11 +1058,12 @@ uv run pigtail privacy request erasure --platform github --handle -   # erase + 
 uv run pigtail privacy requests                                       # request log
 ```
 - **Access** writes `PIGTAIL_DATA_DIR/requests/<request id>.json` (mode 0600; override with
-  `--out DIR`). It contains every record keyed by the requester's pseudonym:
-  - parsed records in retained raw snapshots of that platform's sources;
-  - person-level rows;
-  - LLM cache rows that mention the pseudonym. Rows from LLM calls made without a source
-    namespace are listed separately; review them before sending.
+  `--out DIR`). pigtail's coded data holds no handles, so the requester can only be found in the
+  **temporary evidence copies**: every retained raw snapshot of that platform's sources is
+  re-parsed in memory and searched for the handle's opt-out fingerprint. The export contains:
+  - the records found there, as pigtail codes them (role, bucket, automated flag; no handle);
+  - LLM cache rows that mention the person's LLM token. Rows from LLM calls made without a
+    source namespace are listed separately; review them before sending.
 
   Evidence whose raw bytes were already dropped has no person-level content left to search, and
   the export says how many such records exist. A retained snapshot that fails to parse is
@@ -949,14 +1071,17 @@ uv run pigtail privacy requests                                       # request 
   exception type) and counts it in `snapshots_unparseable`. Access requires proof of account control
   (retention policy §5); check it before running the command. Send the file through a secure
   channel, then delete it.
-- **Erasure** adds the pseudonym to the opt-out list, then purges as described under Opt-outs.
+- **Erasure** deletes every retained snapshot containing the handle (found in memory, as for
+  access), then adds the person's opt-out fingerprint to the opt-out list so they are excluded
+  at ingest from then on; see Opt-outs.
   A retained **person-level** snapshot that fails to parse is dropped too (raw bytes deleted,
   tombstone logged), because pigtail can't prove the person isn't in it (CB-34;
   `snapshots_unparseable_raw_dropped`). Project-level ones are only counted. `optout add` and
   `optout purge` behave the same way.
-  Project-level aggregates without pseudonyms are kept (retention policy §5).
+  Coded facts and project-level aggregates hold no person identifier and are kept (retention
+  policy §5).
 - **The request log** (`privacy_requests`) stores the request id, type, platform, received and
-  completed times, outcome and counts. It never stores the handle or the pseudonym. The
+  completed times, outcome and counts. It never stores the handle or the fingerprint. The
   statutory deadline is one month (GDPR Art. 12(3)).
 - Scanning raw snapshots reads every retained snapshot of the platform. With the 30-day GH
   Archive retention that is up to about 720 hourly dumps, so expect minutes to hours.
@@ -967,8 +1092,10 @@ before it runs (CB-18b, in `pigtail.cli.main`), whether you run it by hand or th
 it (scheduled jobs run through `python -m pigtail.scheduler.child`, which installs it before any
 job code runs; the scheduler scrubs captured job output again). Python warnings go through the
 same filter, and the traceback of an uncaught error is scrubbed before it reaches stderr. The
-filter replaces handles, e-mails, profile URLs and DIDs with placeholders and truncates long
-payloads. Pages that fail to parse are counted in run records by source and exception type only
+filter replaces handles, e-mails, profile URLs and DIDs with keyless placeholders (`@[handle]`,
+`[profile:github]`, `[did]`) and truncates long payloads; logs never carry an alias, an opt-out
+fingerprint or any other keyed token, and the opt-out key is not used to correlate log lines
+(ADR-074). Pages that fail to parse are counted in run records by source and exception type only
 (`<source>.parse_failed.<Type>`), never with their content. `runs.error` goes through the same
 scrubber. When you add a service, call `pigtail.logsafe.configure_logging()` or `install()` on
 its handlers.

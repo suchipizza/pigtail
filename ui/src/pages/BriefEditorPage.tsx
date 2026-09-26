@@ -155,7 +155,7 @@ export function BriefEditorPage({ id, importYaml = false }: { id?: string; impor
               className="yaml"
               rows={30}
               value={yamlText}
-              placeholder="Paste a brief (schema brief/v1.1; v1 briefs are migrated on save)"
+              placeholder="Paste a brief (schema brief/v1.2; v1 and v1.1 briefs are migrated on save)"
               onChange={(e) => setYamlEdits(e.target.value)}
             />
             <span className="muted small">

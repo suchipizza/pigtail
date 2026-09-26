@@ -11,13 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from pigtail.briefs.budget import Allowance, BudgetGuard
+from pigtail.briefs.budget import BudgetGuard
 from pigtail.briefs.expansion import propose_expansion
 from pigtail.briefs.model import load_brief_text
 from pigtail.llm import LLMClient
+from pigtail.llm.redact import alias_redact
 from pigtail.llm.store import LLMStore
-from pigtail.pseudonymize import Pseudonymizer
-from tests.conftest import TEST_KEY
 
 EXAMPLE = Path(__file__).resolve().parents[2] / "docs" / "examples" / "brief-example.yaml"
 
@@ -33,11 +32,13 @@ def test_r18_7_expansion_proposal_on_subscription_smoke():
         backends={"subscription": SubscriptionBackend()},
         default_backend="subscription",
         store=store,
-        model=os.environ.get("LLM_MODEL", "claude-opus-5"),
-        redactor=Pseudonymizer(TEST_KEY).strip_identifiers,
+        models={"synthesis": os.environ.get("LLM_MODEL_SYNTHESIS", "claude-opus-5-5")},
+        redactor=alias_redact,
     )
     brief = load_brief_text(EXAMPLE.read_text()).model_copy(update={"version": 1})
-    guard = BudgetGuard(budget=brief.budget, usage=store, allowance=Allowance(10**9, "configured"))
+    budget = brief.budget.model_copy(update={"llm_backend": "subscription"})
+    brief = brief.model_copy(update={"budget": budget})
+    guard = BudgetGuard(budget=brief.budget, usage=store)
     p = propose_expansion(brief, client, guard)
     assert p.expansion.problem_statement
     assert p.expansion.keywords and p.expansion.provenance is not None

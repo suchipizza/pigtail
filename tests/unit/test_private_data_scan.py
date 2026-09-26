@@ -128,3 +128,35 @@ def test_m12_brief_rule_does_not_flag_prose_or_unrelated_keys(tmp_path):
     ):
         rel = write(tmp_path, "docs/guide.md", text)
         assert scanner.scan([rel], tmp_path) == [], text
+
+
+# --- M21b (M12 follow-up): LLM expansion proposal files never enter git -------------------------
+PROPOSAL_YAML = """# LLM expansion PROPOSAL (PRD R18.7). Nothing is saved yet.
+brief_id: synthetic-private
+base_version: 1
+notes: []
+expansion:
+  problem_statement: synthetic
+  keywords: [a, b]
+"""
+
+
+def test_m21b_expansion_proposal_files_blocked(tmp_path):
+    for rel in ("notes/proposal.yaml", "tmp/out.yml", "proposal.txt"):
+        rel = write(tmp_path, rel, PROPOSAL_YAML)
+        assert any("expansion proposal" in f for f in scanner.scan([rel], tmp_path)), rel
+    js = '{"brief_id": "synthetic-private", "base_version": 1, "expansion": {"keywords": []}}'
+    rel = write(tmp_path, "out/proposal.json", js)
+    assert any("expansion proposal" in f for f in scanner.scan([rel], tmp_path))
+
+
+def test_m21b_proposal_rule_needs_top_level_keys_and_skips_code_and_schemas(tmp_path):
+    nested = "saved:\n  brief_id: synthetic\n  expansion:\n    keywords: []\n"
+    code = write(tmp_path, "src/a.py", PROPOSAL_YAML)
+    doc = write(tmp_path, "docs/x.md", nested)
+    schema = write(
+        tmp_path,
+        "schemas/brief/v9.json",
+        '{"properties": {"brief_id": {"type": "string"}, "expansion": {"anyOf": []}}}',
+    )
+    assert scanner.scan([code, doc, schema], tmp_path) == []

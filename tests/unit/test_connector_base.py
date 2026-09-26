@@ -1,4 +1,5 @@
-"""M1-T2 (R2.1, R2.3) and M1-T8 (PRD §10): connector base contract tests. No real network."""
+"""M1-T2 (R2.1, R2.3), M1-T8 (PRD §10) and M21a (Directive §8.1, ADR-066.1, ADR-071.2: roles and
+buckets, no handles): connector base contract tests. No real network."""
 
 from __future__ import annotations
 
@@ -53,7 +54,7 @@ class FakeSource(Connector):
     def _parse(self, data: bytes, meta: SnapshotMeta) -> Iterable[Record]:
         yield from json.loads(data)["items"]
 
-    def _pre_pseudonymize(self, record: Record) -> Record | None:
+    def _pre_code(self, record: Record) -> Record | None:
         return None if record.get("author") == "spam-bot" else record
 
 
@@ -259,30 +260,49 @@ def test_r2_1_snapshot_or_drop_storage_failure_prevents_parsing(tmp_path, pz):
     assert parsed == []
 
 
-def test_m1_t8_handles_pseudonymized_at_ingest(tmp_path, pz):
+def test_m21a_directive_8_1_handles_coded_then_dropped_at_ingest(tmp_path, pz):
+    """Directive §8.1 / ADR-066.1 / ADR-071.2: records leave the connector with a role, a bucket
+    and the automated-account flag plus rule versions, never a handle or a pseudonym."""
     c, _, _ = make(ok_handler, tmp_path, pz)
     f, recs = c.fetch_records("https://api.example.org/items")
     out = list(recs)
-    assert [r["id"] for r in out] == [1, 3]  # spam-bot dropped in the pre-pseudonymize hook
+    assert [r["id"] for r in out] == [1, 3]  # spam-bot dropped in the pre-code hook
     r = out[0]
-    assert r["author"] == pz.pseudonym("alice-synthetic", "fake")
-    assert r["comments"][0]["author"] == pz.pseudonym("bob-synthetic", "fake")
-    assert r["mentions"] == [
-        pz.pseudonym("carol-synthetic", "fake"),
-        pz.pseudonym("dave-synthetic", "fake"),
-    ]
+    assert r["author"] is None and r["comments"][0]["author"] is None
+    assert r["mentions"] is None
+    assert r["actor_role"] == "account" and r["actor_bucket"] == "r0"
+    assert r["automated_account"] is False and r["bot_rule_version"] == "bot-filter-v0"
+    assert r["role_rule_version"] == "roles-v1" and "_actor_token" not in r
     assert out[1]["author"] is None
     blob = json.dumps(out)
     for name in ("alice", "bob", "carol", "dave"):
         assert name not in blob
+    assert "p_" not in blob  # no pseudonym either
     # raw handles remain only in the private snapshot bytes
     assert b"alice-synthetic" in c.store.get(f.content_hash)
+
+
+def test_m21a_adr071_1_subject_records_carry_fingerprints_in_memory(tmp_path, pz):
+    c, _, _ = make(ok_handler, tmp_path, pz)
+    f = c.fetch("https://api.example.org/items")
+    got = list(c.subject_records(f.data, f.meta))
+    fps = got[0][1]
+    assert pz.person_fingerprint("alice-synthetic", "fake") in fps
+    assert pz.person_fingerprint("dave-synthetic", "fake") in fps
+    assert "alice" not in json.dumps(got[0][0])
+
+
+def test_m21a_bot_rule_sets_automated_role(tmp_path, pz):
+    c, _, _ = make(ok_handler, tmp_path, pz)
+    rec = c.code(c._pre_code({"id": 9, "author": "dependabot[bot]"}) or {})
+    assert rec["automated_account"] is True and rec["actor_role"] == "automated_account"
+    assert rec["author"] is None
 
 
 def test_m1_t8_non_string_handle_rejected(tmp_path, pz):
     c, _, _ = make(ok_handler, tmp_path, pz)
     with pytest.raises(TypeError):
-        c.pseudonymize({"author": 42})
+        c.code({"author": 42})
 
 
 def test_replay_hook_reproduces_ingest_records(tmp_path, pz):

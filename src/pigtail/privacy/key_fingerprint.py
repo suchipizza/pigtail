@@ -1,8 +1,10 @@
-"""Pseudonym-key change detection (DPIA CB-25, ADR-043).
+"""Opt-out key change detection (DPIA CB-25, ADR-043; ADR-071.1).
 
-Refusal-list entries and stored pseudonyms are keyed hashes of `PSEUDONYM_KEY`. Under a different
-key they silently stop matching: people and repos that opted out would be collected again, and
-erasure would miss their earlier rows. So the database remembers which key it was built with.
+Refusal-list entries (opt-out fingerprints and repo-name keys) are keyed hashes of the opt-out key
+(`OPTOUT_KEY`, alias `PSEUDONYM_KEY`, kept apart from the data). Under a different key they
+silently stop matching: people and repos that opted out would be collected again. So the
+database remembers which key it was built with. (The table keeps its earlier name,
+`pseudonym_key_fingerprint`.)
 
 - The fingerprint is `Pseudonymizer.fingerprint()`: `kfp1_` + 32 hex of
   HMAC-SHA256(key, "pigtail-key-fingerprint-v1"). It does not reveal the key and cannot compute
@@ -46,12 +48,12 @@ RUNBOOK = "docs/compliance/runbooks/key-rotation.md"
 
 
 class KeyFingerprintMismatch(RuntimeError):
-    """The running `PSEUDONYM_KEY` is not the key this database's pseudonyms were made with."""
+    """The running opt-out key is not the key this database's opt-out entries were made with."""
 
     def __init__(self) -> None:
         super().__init__(
-            "PSEUDONYM_KEY does not match the key this database was built with (CB-25): "
-            "opt-outs and stored pseudonyms would silently stop matching, so pigtail refuses to "
+            "OPTOUT_KEY (or PSEUDONYM_KEY) does not match the key this database was built with "
+            "(CB-25): opt-outs would silently stop matching, so pigtail refuses to "
             "run. Restore the original key. To rotate the key on purpose, follow "
             f"{RUNBOOK} §4.1 (`pigtail privacy rekey`); `{RESET_COMMAND}` is only the §4.2 "
             "fallback when the old key is lost."

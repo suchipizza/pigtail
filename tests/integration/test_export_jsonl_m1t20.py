@@ -50,10 +50,16 @@ def seed(db: Any) -> None:
         (T0 - timedelta(days=7), T0, T0),
     )
     x(
-        "INSERT INTO hn_mention (repo_full_name, item_id, item_type, author, match_kind,"
-        " first_seen_at, last_seen_at)"
-        " VALUES ('org-a/repo-1', 9000001, 'story', %s, 'url', %s, %s)",
-        (PSEUDO, T0, T0),
+        "INSERT INTO hn_mention (repo_full_name, item_id, item_type, author_role, author_bucket,"
+        " automated_account, bot_rule_version, role_rule_version, match_kind, first_seen_at,"
+        " last_seen_at) VALUES ('org-a/repo-1', 9000001, 'story', 'account', 'r0', false,"
+        " 'bot-filter-v0', 'roles-v1', 'url', %s, %s)",
+        (T0, T0),
+    )
+    x(
+        "INSERT INTO privacy_suppression (kind, value, platform, reason)"
+        " VALUES ('person', %s, 'github', 'objection')",
+        (PSEUDO,),
     )
     x(
         "INSERT INTO ui_sessions (token_hash, created_at, last_seen_at, expires_at)"
@@ -77,7 +83,8 @@ def test_m1_t20_every_table_is_classified(capture_db):
     assert tables == set(TABLE_LEVELS)
     for t in PERSON_TABLES:  # registered person-level tables are never project-level here
         assert TABLE_LEVELS[t.table] in ("person", "never")
-    assert TABLE_LEVELS["repo_event_actor"] == "never"  # CB-23: aggregate reads only
+    assert "repo_event_actor" not in TABLE_LEVELS  # dropped in 0017 (Directive §8.1)
+    assert TABLE_LEVELS["repo_event_hourly_agg"] == "project"  # counts only
     assert TABLE_LEVELS["privacy_suppression"] == "person"
     assert TABLE_LEVELS["ui_sessions"] == TABLE_LEVELS["ui_audit_log"] == "never"
 
@@ -126,8 +133,11 @@ def test_m1_t20_person_level_needs_flag_and_a_dir_outside_git(capture_db, pg_url
     export_jsonl(pg_url, tree / "project", tables=["repos"])
     res = export_jsonl(pg_url, tmp_path / "private", include_person_level=True)
     (m,) = lines(tmp_path / "private" / "hn_mention.jsonl")
-    assert m["author"] == PSEUDO and res.tables["hn_mention"]["level"] == "person"
-    for t in ("ui_sessions", "ui_audit_log", "repo_event_actor"):
+    assert m["author_role"] == "account" and "author" not in m
+    assert res.tables["hn_mention"]["level"] == "person"
+    (o,) = lines(tmp_path / "private" / "privacy_suppression.jsonl")
+    assert o["value"] == PSEUDO  # the opt-out fingerprint is person-level (ADR-071.1)
+    for t in ("ui_sessions", "ui_audit_log"):
         assert t not in res.tables and res.skipped[t] == "never_exported"
 
 

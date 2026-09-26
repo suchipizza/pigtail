@@ -78,6 +78,25 @@ class UsageRow:
     input_tokens: int = 0
     output_tokens: int = 0
     cost_usd: float = 0.0
+    # M21b (R15.8-R15.11): stage, prompt-cache tokens, batch id and the brief run and case the
+    # call was made for, so the cost of a case can be reported (M23).
+    stage: str | None = None
+    cache_write_tokens: int = 0
+    cache_read_tokens: int = 0
+    batch_id: str | None = None
+    brief_run_id: str | None = None
+    case_ref: str | None = None
+
+
+# Columns added after the first release of the ledger (added by `_upgrade`, idempotent).
+_USAGE_COLUMNS = {
+    "stage": "TEXT",
+    "cache_write_tokens": "INTEGER NOT NULL DEFAULT 0",
+    "cache_read_tokens": "INTEGER NOT NULL DEFAULT 0",
+    "batch_id": "TEXT",
+    "brief_run_id": "TEXT",
+    "case_ref": "TEXT",
+}
 
 
 DEFAULT_CACHE_RETENTION_DAYS = 730
@@ -123,6 +142,10 @@ class LLMStore:
             self._db.execute(
                 "CREATE INDEX IF NOT EXISTS llm_cache_created_idx ON llm_cache (created_at)"
             )
+            ucols = {r[1] for r in self._db.execute("PRAGMA table_info(llm_usage)")}
+            for name, decl in _USAGE_COLUMNS.items():
+                if name not in ucols:
+                    self._db.execute(f"ALTER TABLE llm_usage ADD COLUMN {name} {decl}")
 
     def _cutoff(self, now: datetime | None = None) -> str:
         return _ts((now or self.clock()) - timedelta(days=self.retention_days))
@@ -319,7 +342,9 @@ class LLMStore:
         with self._lock, self._db:
             self._db.execute(
                 "INSERT INTO llm_usage (ts, backend, job, model, prompt_id, prompt_version, status,"
-                " input_tokens, output_tokens, cost_usd) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                " input_tokens, output_tokens, cost_usd, stage, cache_write_tokens,"
+                " cache_read_tokens, batch_id, brief_run_id, case_ref)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     utcnow().isoformat(),
                     row.backend,
@@ -331,6 +356,12 @@ class LLMStore:
                     row.input_tokens,
                     row.output_tokens,
                     row.cost_usd,
+                    row.stage,
+                    row.cache_write_tokens,
+                    row.cache_read_tokens,
+                    row.batch_id,
+                    row.brief_run_id,
+                    row.case_ref,
                 ),
             )
 
@@ -367,17 +398,42 @@ class LLMStore:
         """
         with self._lock:
             row = self._db.execute(
-                "SELECT COUNT(*), SUM(input_tokens), SUM(output_tokens), SUM(cost_usd)"
+                "SELECT COUNT(*), SUM(input_tokens), SUM(output_tokens), SUM(cost_usd),"
+                " SUM(cache_write_tokens), SUM(cache_read_tokens)"
                 " FROM llm_usage WHERE backend = ? AND ts >= ?"
                 " AND status IN ('ok', 'invalid_output', 'error')",
                 (backend, _ts(since)),
             ).fetchone()
-        calls, tin, tout, cost = row
+        calls, tin, tout, cost, cw, cr = row
         return {
             "calls": float(calls or 0),
-            "tokens": float((tin or 0) + (tout or 0)),
+            "tokens": float((tin or 0) + (tout or 0) + (cw or 0) + (cr or 0)),
             "cost_usd": float(cost or 0),
         }
+
+    def cost_by_brief_run(self, brief_run_id: str) -> dict[str, dict[str, float]]:
+        """Actual cost of one brief run per case (`case_ref`, "-" when none), from this
+        install's ledger: calls, tokens (in, out, cache write, cache read), batched calls, USD
+        (R15.11: the pilot's cost per case, M23)."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT COALESCE(case_ref, '-'), COUNT(*), SUM(input_tokens), SUM(output_tokens),"
+                " SUM(cache_write_tokens), SUM(cache_read_tokens),"
+                " SUM(batch_id IS NOT NULL), SUM(cost_usd)"
+                " FROM llm_usage WHERE brief_run_id = ?"
+                " AND status IN ('ok', 'invalid_output', 'error') GROUP BY 1 ORDER BY 1",
+                (brief_run_id,),
+            ).fetchall()
+        keys = (
+            "calls",
+            "input_tokens",
+            "output_tokens",
+            "cache_write_tokens",
+            "cache_read_tokens",
+            "batched_calls",
+            "cost_usd",
+        )
+        return {r[0]: {k: float(v or 0) for k, v in zip(keys, r[1:], strict=True)} for r in rows}
 
     def last_limit(self, backend: str) -> datetime | None:
         """Time of the most recent usage-limit hit on `backend` (allowance calibration)."""

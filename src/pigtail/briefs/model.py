@@ -1,8 +1,14 @@
-"""Brief schema v1.1: the pydantic model behind `schemas/brief/v1.1.json` (PRD R18.1, ADR-053,
-ADR-054, ADR-057, outcome-model v2 §5).
+"""Brief schema v1.2: the pydantic model behind `schemas/brief/v1.2.json` (PRD R18.1, R15.11,
+ADR-053, ADR-054, ADR-057, ADR-064.4, ADR-072.4, outcome-model v2 §5).
 
-v1 briefs (`schemas/brief/v1.json`, kept unchanged) still load: `migrate_v1` maps them onto
-v1.1 in memory, and the next saved version is written as v1.1 ("migrate on save").
+v1 and v1.1 briefs (`schemas/brief/v1.json`, `v1.1.json`, kept unchanged) still load:
+`migrate_v1` maps v1 onto v1.1 and `migrate_v1_1` maps v1.1 onto v1.2, in memory; the next
+saved version is written as v1.2 ("migrate on save").
+
+v1.2 (M21b, ADR-072.4): `budget.money_usd` is the brief's **total** money cap, API spend
+included; v1.1's separate `budget.llm_api_usd` is folded into it (the two caps are added, so a
+migrated brief may spend no more than before). `budget.subscription_share` is kept but applies
+only to the agents building pigtail, never to product calls (ADR-064.4).
 
 Every field of PRD R18.1 is here, plus the owner decisions that became brief options:
 
@@ -23,8 +29,9 @@ Every field of PRD R18.1 is here, plus the owner decisions that became brief opt
 - `channels`, `geography`.
 - `panel`: winners and losers (15–25 each), exact-match characteristics and balance targets
   (R4.3, R4.8, ADR-054.1).
-- `budget`: `money_usd` (non-LLM paid services, default 0), `subscription_share` (default 0.5)
-  and the LLM backend, which is never switched automatically (ADR-053.1).
+- `budget`: `money_usd` (the brief's total money cap, API spend included; default 0, so nothing
+  is spent unless the brief sets a cap), `subscription_share` (agents only, no product effect)
+  and the LLM backend, which is never switched automatically (ADR-053.1, ADR-072.4).
 - `optional_sources`: paid or not-yet-cleared sources, all off by default (ADR-053.1).
 - `expansion`: the LLM expansion as edited by the user (R18.7).
 - Metadata: schema version, brief id, version, supersedes, created and edited times (R18.1).
@@ -52,9 +59,9 @@ from pydantic import (
     model_validator,
 )
 
-SCHEMA_VERSION: Literal["brief/v1.1"] = "brief/v1.1"
-SCHEMA_VERSIONS = ("brief/v1", "brief/v1.1")  # every version that still loads
-SCHEMA_ID = "https://github.com/suchipizza/pigtail/schemas/brief/v1.1.json"
+SCHEMA_VERSION: Literal["brief/v1.2"] = "brief/v1.2"
+SCHEMA_VERSIONS = ("brief/v1", "brief/v1.1", "brief/v1.2")  # every version that still loads
+SCHEMA_ID = "https://github.com/suchipizza/pigtail/schemas/brief/v1.2.json"
 
 Dimension = Literal["attention", "adoption", "community", "business"]
 RankableDimension = Literal["attention", "adoption", "community"]
@@ -447,13 +454,16 @@ class Panel(_Strict):
 
 
 class Budget(_Strict):
-    """ADR-053.1: two separate caps; the LLM backend is never switched automatically."""
+    """R15.11, ADR-064.4, ADR-072.4: `money_usd` is the brief's total money cap over all its
+    runs, API spend included (the instance-wide monthly cap is `BUDGET_USD_MONTH`). Each paid
+    service other than the API is off unless enabled, and every paid step needs explicit
+    approval (H6). `subscription_share` applies only to the agents building pigtail. The LLM
+    backend is never switched automatically (ADR-053.1)."""
 
     money_usd: Annotated[float, Field(ge=0, le=100_000)] = 0.0
+    # Agents only (ADR-064.4): kept for compatibility, no effect on product calls.
     subscription_share: Annotated[float, Field(gt=0, le=1)] = 0.5
     llm_backend: Literal["subscription", "api"] = "subscription"
-    # Spend cap for LLM calls on the `api` backend (R15.5 overrides included). Default 0.
-    llm_api_usd: Annotated[float, Field(ge=0, le=100_000)] = 0.0
     auto_switch_backend: Literal[False] = False
 
 
@@ -589,13 +599,42 @@ def migrate_v1(data: dict[str, Any]) -> dict[str, Any]:
                 ex = {**ex, "projects": [*(ex.get("projects") or []), *moved]}
                 d["distribution_exemplars"] = ex
         d["field"] = {**fld, "reference_cases": refs}
+    if d.get("schema_version") == "brief/v1":
+        d["schema_version"] = "brief/v1.1"
+    return d
+
+
+def migrate_v1_1(data: dict[str, Any]) -> dict[str, Any]:
+    """Map a v1.1 brief onto v1.2 (ADR-072.4; idempotent for v1.2).
+
+    `budget.llm_api_usd` is folded into `budget.money_usd`: v1.1 capped non-LLM paid services
+    and API calls separately, v1.2 has one total cap, so the two are added (the brief can't
+    spend more than before). A v1.2 brief that still has `llm_api_usd` is refused by the
+    schema (unknown field).
+    """
+    d = dict(data)
+    if d.get("schema_version") in ("brief/v1", "brief/v1.1", None):
+        budget = d.get("budget")
+        if isinstance(budget, dict) and "llm_api_usd" in budget:
+            b = dict(budget)
+            api = b.pop("llm_api_usd")
+            money = b.get("money_usd", 0.0)
+            if _number(api) and _number(money):
+                b["money_usd"] = float(money) + float(api)
+            elif api not in (None, 0):
+                b["llm_api_usd"] = api  # not a number: leave it for the validator to report
+            d["budget"] = b
     if d.get("schema_version") in SCHEMA_VERSIONS:
         d["schema_version"] = SCHEMA_VERSION
     return d
 
 
+def _number(v: Any) -> bool:
+    return isinstance(v, int | float) and not isinstance(v, bool)
+
+
 class Brief(_Strict):
-    schema_version: Literal["brief/v1.1"] = SCHEMA_VERSION
+    schema_version: Literal["brief/v1.2"] = SCHEMA_VERSION
     brief_id: BriefId
     version: Annotated[int, Field(ge=1)] | None = None  # set by the store
     supersedes: Annotated[int, Field(ge=1)] | None = None  # set by the store
@@ -620,7 +659,7 @@ class Brief(_Strict):
     @model_validator(mode="before")
     @classmethod
     def _migrate(cls, data: Any) -> Any:
-        return migrate_v1(data) if isinstance(data, dict) else data
+        return migrate_v1_1(migrate_v1(data)) if isinstance(data, dict) else data
 
     @model_validator(mode="after")
     def _cross(self) -> Brief:
@@ -651,9 +690,10 @@ class Brief(_Strict):
                 f"optional_sources: {', '.join(paid)} enabled but budget.money_usd is 0, so any "
                 "paid step stops the run (ADR-053.1)"
             )
-        if self.budget.llm_backend == "api" and self.budget.llm_api_usd == 0:
+        if self.budget.llm_backend == "api" and self.budget.money_usd == 0:
             out.append(
-                "budget.llm_api_usd is 0 with llm_backend: api, so the first LLM call stops the run"
+                "budget.money_usd is 0 with llm_backend: api, so the first LLM call stops the run "
+                "(money_usd is the brief's total cap, API spend included; ADR-072.4)"
             )
         if self.success.weights is not None:
             out.append(
@@ -696,7 +736,7 @@ class BriefInvalid(ValueError):
 _FIELD_PREFIX = re.compile(r"^([a-z_][a-z0-9_.]*): (.+)$", re.DOTALL)
 _MESSAGES = {
     "missing": "is required",
-    "extra_forbidden": "unknown field (check the spelling against schemas/brief/v1.json)",
+    "extra_forbidden": "unknown field (check the spelling against schemas/brief/v1.2.json)",
 }
 
 
@@ -771,20 +811,24 @@ CROSS_FIELD_RULES = [
     "'distribution_exemplar | ...' entries move to distribution_exemplars.projects)",
     "expansion: provenance requires generated_by llm; provenance.edited_by_user is derived "
     "from proposal_hash",
+    "v1.1 briefs load through migrate_v1_1 (budget.llm_api_usd is added to budget.money_usd, "
+    "the brief's total money cap including API spend; ADR-072.4)",
+    "budget.subscription_share applies only to the agents building pigtail (ADR-064.4)",
 ]
 
 
 def json_schema() -> dict[str, Any]:
-    """The public JSON Schema for brief v1 (generated from the model; drift is tested)."""
+    """The public JSON Schema for brief v1.2 (generated from the model; drift is tested)."""
     body = Brief.model_json_schema(mode="validation")
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": SCHEMA_ID,
         "title": "brief",
         "description": (
-            "A pigtail research brief, schema v1.1 (PRD R18.1, ADR-053, ADR-054, ADR-057). "
-            "Briefs are private and live only in the instance's data directory (R18.9). v1 "
-            "briefs still load and are migrated on save."
+            "A pigtail research brief, schema v1.2 (PRD R18.1, R15.11, ADR-053, ADR-054, "
+            "ADR-057, ADR-072.4). Briefs are private and live outside git, by default in "
+            "~/.pigtail/briefs (R18.9, ADR-071.3). v1 and v1.1 briefs still load and are "
+            "migrated on save."
         ),
         **{k: v for k, v in body.items() if k not in ("title", "description")},
         "x-cross-field-rules": CROSS_FIELD_RULES,

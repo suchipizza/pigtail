@@ -1,4 +1,4 @@
-// D7 guided form (R18.1, R18.2). Mirrors schemas/brief/v1.1.json section by section; weights and
+// D7 guided form (R18.1, R18.2). Mirrors schemas/brief/v1.2.json section by section; weights and
 // per-dimension metrics sit under "Advanced". Validation happens on the server, and each error
 // is shown next to the field it names.
 import type { ReactNode } from "react";
@@ -329,10 +329,13 @@ export function BriefForm({ draft, errors, onChange, lockId = false }: Props) {
       </Section>
 
       <Section title="Budget">
-        {num("budget.money_usd", "Money for paid services (USD)", { min: 0, step: 1 })}
-        {num("budget.subscription_share", "Max share of weekly Claude subscription", { min: 0.05, max: 1, step: 0.05 })}
+        {num("budget.money_usd", "Total money cap for this brief, API included (USD)", { min: 0, step: 1 })}
         {select("budget.llm_backend", "LLM backend (never switched automatically)", ["subscription", "api"])}
-        {num("budget.llm_api_usd", "API spend cap (USD, api backend only)", { min: 0, step: 1 })}
+        {num(
+          "budget.subscription_share",
+          "Subscription share (agents building pigtail only; no effect on this brief's runs)",
+          { min: 0.05, max: 1, step: 0.05 },
+        )}
         <div className="brief-field" role="group" aria-label="Optional sources">
           <span>Optional sources (off by default; paid steps need your approval)</span>
           {PAID.map((s) => (

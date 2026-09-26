@@ -119,12 +119,17 @@ services:
     image: pigtail-ui:local
     init: true
     # CB-29 (ADR-043): no `env_file`. The UI gets only the variables below, taken from the host
-    # environment or `.env` by compose interpolation, so it never receives PSEUDONYM_KEY (it does
-    # not pseudonymize), GITHUB_TOKEN, SMTP_URL, API keys or other secrets it does not use.
+    # environment or `.env` by compose interpolation, so it never receives OPTOUT_KEY /
+    # PSEUDONYM_KEY (it matches no opt-outs), GITHUB_TOKEN, SMTP_URL, API keys or other secrets it does not use.
     environment:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://${POSTGRES_USER:-pigtail}:${POSTGRES_PASSWORD:-pigtail}@db:5432/${POSTGRES_DB:-pigtail}}
       S3_ENDPOINT: ${COMPOSE_S3_ENDPOINT:-http://objectstore:9000}
       PIGTAIL_DATA_DIR: /data
+      # brief store (R18.9, ADR-071.3): the host briefs directory, bind-mounted read-write below
+      # so the brief editor can save new versions. Never inside the repo. The container runs as
+      # UID 10001: on Linux that UID must own the host directory (docs/guides/operator.md
+      # "Web app", "Briefs in the container").
+      PIGTAIL_BRIEFS_DIR: /briefs
       # snapshot store (read-only use: snapshot viewer)
       SNAPSHOT_BACKEND: ${SNAPSHOT_BACKEND:-local}
       S3_BUCKET: ${S3_BUCKET:-pigtail-snapshots}
@@ -138,13 +143,16 @@ services:
       PIGTAIL_UI_IDLE_MINUTES: ${PIGTAIL_UI_IDLE_MINUTES:-}
       # retention periods shown in the evidence view; audit-log retention (CB-18, CB-33)
       PERSON_LEVEL_RETENTION_DAYS: ${PERSON_LEVEL_RETENTION_DAYS:-}
+      SNAPSHOT_AFTER_REPORT_DAYS: ${SNAPSHOT_AFTER_REPORT_DAYS:-}
       GHARCHIVE_RAW_RETENTION_DAYS: ${GHARCHIVE_RAW_RETENTION_DAYS:-}
       LLM_CACHE_RETENTION_DAYS: ${LLM_CACHE_RETENTION_DAYS:-}
       LOG_RETENTION_DAYS: ${LOG_RETENTION_DAYS:-}
       GITHUB_EVENTS_RETENTION_DAYS: ${GITHUB_EVENTS_RETENTION_DAYS:-}
     depends_on:
       db: {condition: service_healthy}
-    volumes: ["app-data:/data:ro"]  # local snapshots are only read
+    volumes:
+      - app-data:/data:ro  # local snapshots are only read
+      - ${PIGTAIL_BRIEFS_DIR:-~/.pigtail/briefs}:/briefs:rw  # host briefs dir (outside git)
     ports: ["127.0.0.1:8080:8080"]  # host loopback only; put TLS in front for remote access
     read_only: true
     tmpfs: [/tmp]

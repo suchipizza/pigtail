@@ -228,13 +228,14 @@ def seed_db(db: Any, store: LocalSnapshotStore) -> Seed:
         repo_id="github:1000001",
     )
     x(
-        "INSERT INTO hn_mention (repo_full_name, item_id, item_type, author, created_at,"
+        "INSERT INTO hn_mention (repo_full_name, item_id, item_type, author_role,"
+        " author_bucket, automated_account, bot_rule_version, role_rule_version, created_at,"
         " story_id, title, match_kind, repo_id, case_id, evidence_id, first_seen_at,"
-        " last_seen_at) VALUES ('org-a/repo-1', 9000002, 'story', %s, %s, 9000002,"
+        " last_seen_at) VALUES ('org-a/repo-1', 9000002, 'story', 'account', 'r0', false,"
+        " 'bot-filter-v0', 'roles-v1', %s, 9000002,"
         " 'Ask HN: anyone used org-a/repo-1? cc @hnuser005', 'full_name', 'github:1000001',"
         " %s, %s, %s, %s)",
         (
-            PSEUDO,
             T0 + timedelta(hours=2),
             CASE1,
             search_ev,
@@ -605,6 +606,10 @@ def test_r13_2_evidence_record_links_and_retention(env):
     story = client.get(f"/api/evidence/{seed.ev['story_item']}").json()
     assert story["links"]["hn_stories"] == [{"item_id": 9000001, "repo_id": "github:1000001"}]
     assert story["evidence"]["deletion_state"] == "raw_dropped"
+    # R19.9: a person-level snapshot no brief uses is due at the ceiling from its fetch
+    search = client.get(f"/api/evidence/{seed.ev['search']}").json()["retention"]
+    assert "PERSON_LEVEL_RETENTION_DAYS ceiling" in search["rule"]
+    assert search["raw_drop_due_at"].startswith("2028-09-")  # 730 days after 2026-09-20
     assert client.get("/api/evidence/ev_ffffffffffffffffffffffff").status_code == 404
 
 

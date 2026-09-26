@@ -1,4 +1,5 @@
-"""Source connector interface (R2.1, R2.3; pseudonymization at ingest M1-T8, PRD §10).
+"""Source connector interface (R2.1, R2.3; roles and buckets at ingest, Directive §8.1,
+ADR-066.1, ADR-071; PRD R5.3, §7, §10).
 
 Every connector gets, from this base class:
 
@@ -20,17 +21,28 @@ Every connector gets, from this base class:
 - **snapshot or drop**: `fetch()` stores the raw bytes in the content-addressed snapshot store and
   builds the `evidence` record *before* anything is parsed. If the snapshot cannot be stored the
   fetch fails and nothing is parsed.
-- **pseudonymization at ingest** (M1-T8): a connector lists its handle fields in `handle_fields`
-  (dotted paths; list values allowed). `records()` - the only public way to get parsed records -
-  always replaces them with keyed pseudonyms (namespace `handle_namespace`). A connector can see
-  raw handles only in `_parse()` and `_pre_pseudonymize()` (e.g. to drop bots by login). Raw
-  snapshot bytes stay in private storage only.
-- **refusal list at ingest** (DPIA CB-13): given a `Suppressions` snapshot, `records()` drops
-  every record whose pseudonymized handle fields hold a suppressed pseudonym, or whose
-  `repo_fields` name an opted-out repo (`<repo_host>:<id>`). Drops are counted on the run
-  (`<name>.suppressed`). The pseudonymizer must hold the key the list was loaded under
-  (`Suppressions.check_key`, CB-25): `suppression.load()` verifies that key against the
-  fingerprint stored in the database and a connector refuses to start with any other key.
+- **code, then discard identities** (Directive §8.1, ADR-066.1, ADR-071.2): a connector lists
+  its handle fields in `handle_fields` (dotted paths; list values allowed). `records()` - the
+  only public way to get parsed records - codes the actor **in memory** and then sets every
+  handle field to None, so no record that leaves the connector carries a handle or a pseudonym.
+  The coded fields added to each record are `automated_account` (bot rule, in memory) with
+  `bot_rule_version`, `actor_role` and `actor_bucket` (`pigtail.privacy.roles`; follower counts
+  from `follower_fields`, if the source returns them, are turned into a bucket and dropped), and
+  `role_rule_version`. `actor_owns` lists the repos in the record's `repo_full_names` whose owner
+  is the handle, so a capture job can code the author as `maintainer`; it is a transient hint
+  and is never stored. A connector with `transient_actor_tokens` also adds `_actor_token`, a
+  keyed hash under a random per-instance key, only for de-duplication within one run (it is
+  unlinkable across runs and must never be stored). A connector sees raw handles only in
+  `_parse()` and `_pre_code()` (e.g. to drop bots by login). Raw snapshot bytes stay in private
+  storage only (R19.9).
+- **refusal list at ingest** (DPIA CB-13, ADR-071.1): given a `Suppressions` snapshot,
+  `records()` drops every record whose handles' opt-out fingerprints (computed in memory with
+  the opt-out key) are on the list, or whose `repo_fields` name an opted-out repo
+  (`<repo_host>:<id>`). Drops are counted on the run (`<name>.suppressed`). The key must be the
+  one the list was loaded under (`Suppressions.check_key`, CB-25): `suppression.load()` verifies
+  it against the fingerprint stored in the database and a connector refuses any other key.
+  `subject_records()` yields each coded record with its fingerprints (in memory) for access and
+  erasure scans of retained snapshots (CB-08).
 
 **Unparseable pages** (CB-23b): a connector that parses inside a fetch method (HN Algolia pages,
 Firebase items) reports a failed parse through `parse_failed()`, which calls the
@@ -48,8 +60,11 @@ Subclasses implement `_parse(data, meta)`; the same code path serves live ingest
 from __future__ import annotations
 
 import email.utils
+import hashlib
+import hmac
 import os
 import random
+import secrets
 import threading
 import time
 from abc import ABC, abstractmethod
@@ -62,6 +77,7 @@ from typing import Any, ClassVar
 import httpx
 
 from pigtail import __version__
+from pigtail.capture.botfilter import BOT_FILTER_VERSION, is_bot_login
 from pigtail.capture.models import Evidence, Reliability, RetentionClass, evidence_id
 from pigtail.capture.runs import RunRecorder
 from pigtail.capture.snapshots import (
@@ -70,8 +86,9 @@ from pigtail.capture.snapshots import (
     SnapshotStore,
     sha256_hex,
 )
+from pigtail.privacy.roles import ROLE_RULE_VERSION, code_actor, owned_repos
 from pigtail.privacy.suppression import Suppressions
-from pigtail.pseudonymize import Pseudonymizer
+from pigtail.pseudonymize import OptoutKey
 
 USER_AGENT = f"pigtail/{__version__} (+https://github.com/suchipizza/pigtail)"
 
@@ -257,8 +274,10 @@ class Connector(ABC):
     cost_per_request_usd: ClassVar[float] = 0.0
     reliability: ClassVar[Reliability] = "high"
     retention_class: ClassVar[RetentionClass] = "person_level_24m"
-    handle_fields: ClassVar[tuple[str, ...]] = ()
+    handle_fields: ClassVar[tuple[str, ...]] = ()  # dropped after coding (Directive §8.1)
     handle_namespace: ClassVar[str] = "generic"
+    follower_fields: ClassVar[tuple[str, ...]] = ()  # counts -> bucket at ingest, then dropped
+    transient_actor_tokens: ClassVar[bool] = False  # `_actor_token` for in-run de-duplication
     repo_fields: ClassVar[tuple[str, ...]] = ()  # numeric repo ids, checked against opt-outs
     repo_host: ClassVar[str] = "github"
     timeout_seconds: ClassVar[float] = 60.0
@@ -267,7 +286,7 @@ class Connector(ABC):
         self,
         *,
         store: SnapshotStore,
-        pseudonymizer: Pseudonymizer | None,
+        pseudonymizer: OptoutKey | None,
         http: httpx.Client | None = None,
         enabled: bool | None = None,
         env: Mapping[str, str] | None = None,
@@ -297,7 +316,9 @@ class Connector(ABC):
                 "docs/guides/operator.md)."
             )
         if self.handle_fields and pseudonymizer is None:
-            raise ValueError(f"connector {self.name!r} has handle fields and needs a pseudonymizer")
+            raise ValueError(
+                f"connector {self.name!r} has handle fields and needs the opt-out key (OPTOUT_KEY)"
+            )
         self.store = store
         self.pz = pseudonymizer
         self.http = http or httpx.Client(timeout=self.timeout_seconds, follow_redirects=True)
@@ -313,10 +334,12 @@ class Connector(ABC):
         self.clock = clock
         # `is None`, not `or`: an empty list is falsy but still carries the key fingerprint
         self.suppression = suppression if suppression is not None else Suppressions()
-        # CB-25: the refusal list was verified against the database's key fingerprint; a
-        # pseudonymizer with another key would never match it (KeyFingerprintMismatch).
+        # CB-25: the refusal list was verified against the database's key fingerprint; an
+        # opt-out key other than that one would never match it (KeyFingerprintMismatch).
         self.suppression.check_key(pseudonymizer)
         self.parse_failure_sink = parse_failure_sink
+        # in-run de-duplication only: a fresh random key per instance, never stored
+        self._token_key = secrets.token_bytes(32)
 
     @classmethod
     def enabled_from_env(cls, env: Mapping[str, str]) -> bool:
@@ -481,7 +504,7 @@ class Connector(ABC):
             self.run.incr(f"{self.name}.refetched")
         return resp.content
 
-    # --- parsing + pseudonymization (M1-T8) -----------------------------------------------
+    # --- parsing, coding and opt-out matching (Directive §8.1, ADR-066.1, ADR-071) ------------
     def parse_failed(self, f: Fetched, error: BaseException) -> ParseFailed:
         """CB-23b: hand an unparseable snapshot to `parse_failure_sink` (which drops its raw
         bytes); without a sink only the count is recorded. Returns the error to raise."""
@@ -495,29 +518,69 @@ class Connector(ABC):
     def _parse(self, data: bytes, meta: SnapshotMeta) -> Iterable[Record]:
         """Turn raw snapshot bytes into records. May contain raw handles; never call directly."""
 
-    def _pre_pseudonymize(self, record: Record) -> Record | None:
-        """Hook that sees raw handles (e.g. bot filtering by login). Return None to drop."""
+    def _pre_code(self, record: Record) -> Record | None:
+        """Hook that sees raw handles (e.g. bot rules by login). Return None to drop. It may set
+        `automated_account` itself (e.g. a missing login counts as automated)."""
         return record
 
-    def pseudonymize(self, record: Record) -> Record:
-        out = dict(record)
+    def raw_handles(self, record: Record) -> list[str]:
+        """Handle values of a raw record (before coding). In memory only. A handle field must
+        hold a string, a list of strings or None (TypeError otherwise)."""
+        out: list[str] = []
         for path in self.handle_fields:
-            _replace_path(out, path.split("."), self._pseudo)
+            for v in _get_raw(record, path.split(".")):
+                for h in v if isinstance(v, list) else [v]:
+                    if h is None:
+                        continue
+                    if not isinstance(h, str):
+                        raise TypeError(
+                            f"handle field must be str, list or None, got {type(h).__name__}"
+                        )
+                    out.append(h)
         return out
 
-    def _pseudo(self, value: Any) -> Any:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            assert self.pz is not None  # enforced in __init__ when handle_fields is non-empty
-            return self.pz.pseudonym(value, self.handle_namespace)
-        if isinstance(value, list):
-            return [self._pseudo(v) for v in value]
-        raise TypeError(f"handle field must be str, list or None, got {type(value).__name__}")
+    def fingerprints(self, record: Record) -> frozenset[str]:
+        """Opt-out fingerprints of the raw record's handles (in memory; ADR-071.1)."""
+        if not self.handle_fields:
+            return frozenset()
+        assert self.pz is not None  # enforced in __init__ when handle_fields is non-empty
+        return frozenset(
+            self.pz.person_fingerprint(h, self.handle_namespace) for h in self.raw_handles(record)
+        )
 
-    def handle_values(self, record: Record) -> list[str]:
-        """Values of the handle fields of a (pseudonymized) record."""
-        return [v for path in self.handle_fields for v in _get_path(record, path.split("."))]
+    def code(self, record: Record) -> Record:
+        """Code the actor of a raw record into role, bucket and automated flag, then drop every
+        handle and follower field (Directive §8.1). Records that carry none of the handle fields
+        (e.g. an id list) pass as they are."""
+        if not any(p.split(".")[0] in record for p in self.handle_fields):
+            return dict(record)
+        out = dict(record)
+        handles = self.raw_handles(out)
+        automated = out.get("automated_account")
+        if not isinstance(automated, bool):
+            automated = any(is_bot_login(h) for h in handles)
+        followers = next(
+            (v for p in self.follower_fields for v in _get_raw(out, p.split("."))), None
+        )
+        owns = sorted({r for h in handles for r in owned_repos(h, out.get("repo_full_names"))})
+        actor = code_actor(automated=automated, maintainer=False, followers=followers)
+        out["automated_account"] = automated
+        out["bot_rule_version"] = BOT_FILTER_VERSION
+        out["actor_role"] = actor.role
+        out["actor_bucket"] = actor.bucket
+        out["role_rule_version"] = ROLE_RULE_VERSION
+        out["actor_owns"] = [] if automated else owns  # transient hint, never stored
+        if self.transient_actor_tokens:
+            out["_actor_token"] = (
+                self._actor_token(handles[0]) if handles and not automated else None
+            )
+        for path in (*self.handle_fields, *self.follower_fields):
+            _replace_path(out, path.split("."), lambda _v: None)
+        return out
+
+    def _actor_token(self, handle: str) -> str:
+        norm = f"{self.handle_namespace}:{handle.strip().lstrip('@').lower()}".encode()
+        return hmac.new(self._token_key, norm, hashlib.sha256).hexdigest()[:16]
 
     def repo_keys(self, record: Record) -> list[str]:
         """`<repo_host>:<id>` keys of the repo fields of a record (matches `repos.id`)."""
@@ -527,28 +590,42 @@ class Connector(ABC):
             for v in _get_path(record, path.split("."))
         ]
 
-    def is_suppressed(self, record: Record) -> bool:
-        """True if the record belongs to someone or some repo on the refusal list (CB-13)."""
+    def is_suppressed(self, record: Record, fps: frozenset[str] | None = None) -> bool:
+        """True if the raw record belongs to someone or some repo on the refusal list (CB-13).
+
+        `fps` are the record's opt-out fingerprints if already computed."""
         s = self.suppression
-        if s.pseudonyms and any(v in s.pseudonyms for v in self.handle_values(record)):
+        if s.persons and not (fps if fps is not None else self.fingerprints(record)).isdisjoint(
+            s.persons
+        ):
             return True
         return bool(s.repos) and any(k in s.repos for k in self.repo_keys(record))
 
     def records(self, data: bytes, meta: SnapshotMeta) -> Iterator[Record]:
-        """Parsed records with every declared handle field pseudonymized.
+        """Parsed records, coded (roles and buckets) and without handles.
 
-        Records of suppressed people or repos are dropped here (CB-13).
-        """
+        Records of people or repos on the refusal list are dropped here (CB-13)."""
         for rec in self._parse(data, meta):
-            kept = self._pre_pseudonymize(rec)
+            kept = self._pre_code(rec)
             if kept is None:
                 continue
-            out = self.pseudonymize(kept)
-            if self.suppression and self.is_suppressed(out):
+            if self.suppression and self.is_suppressed(kept):
                 if self.run is not None:
                     self.run.incr(f"{self.name}.suppressed")
                 continue
-            yield out
+            yield self.code(kept)
+
+    def subject_records(
+        self, data: bytes, meta: SnapshotMeta
+    ) -> Iterator[tuple[Record, frozenset[str]]]:
+        """Every coded record with the opt-out fingerprints of its handles, ignoring the refusal
+        list: for access and erasure scans of retained snapshots (CB-08) and key rotation
+        (CB-26). The fingerprints live in memory only."""
+        for rec in self._parse(data, meta):
+            kept = self._pre_code(rec)
+            if kept is None:
+                continue
+            yield self.code(kept), self.fingerprints(kept)
 
     def fetch_records(self, url: str, **kw: Any) -> tuple[Fetched, Iterator[Record]]:
         f = self.fetch(url, **kw)
@@ -566,6 +643,18 @@ def _get_path(obj: Any, parts: list[str]) -> list[str]:
         return _get_path(val, parts[1:])
     items = val if isinstance(val, list) else [val]
     return [str(v) for v in items if v is not None]
+
+
+def _get_raw(obj: Any, parts: list[str]) -> list[Any]:
+    """Raw values at a dotted path (lists are walked), None values skipped."""
+    if isinstance(obj, list):
+        return [v for item in obj for v in _get_raw(item, parts)]
+    if not isinstance(obj, dict) or parts[0] not in obj:
+        return []
+    val = obj[parts[0]]
+    if len(parts) > 1:
+        return _get_raw(val, parts[1:])
+    return [val] if val is not None else []
 
 
 def _replace_path(obj: Any, parts: list[str], fn: Callable[[Any], Any]) -> None:

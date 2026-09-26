@@ -61,8 +61,9 @@ def _rotation(s: Any, alerts: Any) -> dict[str, Any]:
 
 
 def _key_check(s: Any) -> int | None:
-    """CB-25: refuse to start when PSEUDONYM_KEY differs from the database's key fingerprint
-    (recorded on first use). Every job would fail the same check; stopping here is clearer."""
+    """CB-25: refuse to start when the opt-out key (OPTOUT_KEY / PSEUDONYM_KEY) differs from the
+    database's key fingerprint (recorded on first use). Every job would fail the same check;
+    stopping here is clearer."""
     if not s.pseudonym_key:
         return None  # jobs that need the key refuse on their own; doctor reports it
     import psycopg
@@ -79,7 +80,7 @@ def _key_check(s: Any) -> int | None:
         with psycopg.connect(s.database_url, autocommit=True, connect_timeout=10) as c:
             verify(c, pz)
     except KeyFingerprintMismatch as e:
-        log.error("scheduler not started: pseudonym key fingerprint mismatch (CB-25)")
+        log.error("scheduler not started: opt-out key fingerprint mismatch (CB-25)")
         print(str(e), file=sys.stderr)
         return 2
     return None

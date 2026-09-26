@@ -1,12 +1,19 @@
-"""Rotate `PSEUDONYM_KEY` by re-deriving every stored pseudonym (DPIA CB-26, ADR-043).
+"""Rotate the opt-out key by re-deriving every stored keyed value (DPIA CB-26, ADR-043).
 
-`pigtail privacy rekey --old-key-env OLD_PSEUDONYM_KEY` (new key in `PSEUDONYM_KEY`).
+`pigtail privacy rekey --old-key-env OLD_OPTOUT_KEY` (new key in `OPTOUT_KEY`, or its alias
+`PSEUDONYM_KEY`).
 
-**The problem.** A pseudonym is a one-way keyed hash of a handle (`p_` + HMAC-SHA256, and `rk_`
-for repo-name opt-outs). pigtail stores no handles (ADR-030.4), so a stored pseudonym cannot be
-recomputed under a new key from the database alone: the handle is needed. Every mapping
-old -> new therefore goes through a handle (or repo name) that pigtail sees *transiently*, from
-one of three sources, and the handle itself is never stored, logged or printed:
+Since migration 0017 (Directive §8.1, ADR-066.1, ADR-071.1) the only keyed values pigtail stores
+are opt-out entries: person fingerprints (kind `person`, `p_`) and repo-name keys (`rk_`).
+`PERSON_TABLES` is empty, so the person-table options below have nothing to do; they are kept for
+a registry entry a later migration might add.
+
+**The problem.** An opt-out fingerprint is a one-way keyed hash of a handle (`p_` +
+HMAC-SHA256, and `rk_` for repo-name opt-outs). pigtail stores no handles (ADR-030.4), so a
+stored fingerprint cannot be recomputed under a new key from the database alone: the handle is
+needed. Every mapping old -> new therefore goes through a handle (or repo name) that pigtail
+sees *transiently*, from one of three sources, and the handle itself is never stored, logged or
+printed:
 
 1. **The operator's handles file** (`--handles-file`, the runbook's "old-key mapping"): the
    handles and repo names from the original opt-out / erasure requests, one per line
@@ -24,7 +31,7 @@ one of three sources, and the handle itself is never stored, logged or printed:
 
 **What is re-derived** (all in `PERSON_TABLES`, the refusal list, or nothing):
 
-- refusal list, kind `pseudonym`: mapped (sources 1, 3); **refuses** if any is left unmapped;
+- refusal list, kind `person`: mapped (sources 1, 3); **refuses** if any is left unmapped;
 - refusal list, kind `repo_name` (`rk_`): mapped (sources 1, 2); **refuses** if any is left;
 - refusal list, kinds `repo` (`<host>:<id>`) and `repo_name_unkeyed` (`rn_`): unchanged (no key);
 - `PERSON_TABLES` pseudonym columns: mapped (sources 1, 3); unmapped rows **refuse** unless
@@ -88,7 +95,8 @@ log = logging.getLogger("pigtail.privacy.rekey")
 
 _SCAN_ERRORS: tuple[type[BaseException], ...] = (*PARSE_ERRORS, ConnectorError)
 ENV_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]{0,63}$")
-KEY_ENV = "PSEUDONYM_KEY"
+KEY_ENV = "PSEUDONYM_KEY"  # the new key's variables: OPTOUT_KEY and this alias
+NEW_KEY_ENVS = ("OPTOUT_KEY", "PSEUDONYM_KEY")
 
 
 class RekeyRefused(RuntimeError):
@@ -146,8 +154,10 @@ def old_key_from_env(name: str, env: Mapping[str, str] | None = None) -> Pseudon
             "--old-key-env takes the NAME of an environment variable holding the old key "
             "(e.g. OLD_PSEUDONYM_KEY), never the key itself"
         )
-    if name == KEY_ENV:
-        raise ValueError(f"--old-key-env must name a variable other than {KEY_ENV} (the new key)")
+    if name in NEW_KEY_ENVS:
+        raise ValueError(
+            "--old-key-env must name a variable other than OPTOUT_KEY / PSEUDONYM_KEY (the new key)"
+        )
     value = e.get(name, "")
     if not value:
         raise ValueError(f"environment variable {name} is not set or empty")
@@ -225,10 +235,10 @@ class _MappingPseudonymizer(Pseudonymizer):
         self._wanted = wanted
         self._sink = sink
 
-    def pseudonym(self, handle: str, namespace: str = "generic") -> str:
-        old = super().pseudonym(handle, namespace)
+    def person_fingerprint(self, handle: str, namespace: str = "generic") -> str:
+        old = super().person_fingerprint(handle, namespace)
         if old in self._wanted and old not in self._sink:
-            self._sink[old] = self._new.pseudonym(handle, namespace)
+            self._sink[old] = self._new.person_fingerprint(handle, namespace)
         return old
 
 
@@ -271,7 +281,7 @@ def _scan_snapshots(
                 rep.incr("snapshots_scanned")
                 meta = SnapshotMeta(name, url, fetched_at, version, terms, ctype)
                 try:
-                    for _ in conn.records(data, meta):
+                    for _ in conn.subject_records(data, meta):  # computes every fingerprint
                         pass
                 except _SCAN_ERRORS as e:
                     rep.incr("snapshots_unparseable")
@@ -449,9 +459,9 @@ def _rekey_tx(
     # --- what is stored under the old key
     optout_rows = q(
         "SELECT kind, value, platform, request_id, added_at FROM privacy_suppression"
-        " WHERE kind IN ('pseudonym', 'repo_name') ORDER BY added_at, kind, value"
+        " WHERE kind IN ('person', 'repo_name') ORDER BY added_at, kind, value"
     ).fetchall()
-    optout_ps = {str(r[1]) for r in optout_rows if r[0] == "pseudonym"}
+    optout_ps = {str(r[1]) for r in optout_rows if r[0] == "person"}
     name_entries = [(str(r[1]), str(r[2])) for r in optout_rows if r[0] == "repo_name"]
     person = _person_pseudonyms(db, person_tables)
     row_ps = set().union(*person.values()) if person else set()
@@ -464,9 +474,9 @@ def _rekey_tx(
     for e in handles:
         if e.kind == "handle":
             ns = PLATFORM_NAMESPACES[e.platform]
-            po = old.pseudonym(e.value, ns)
+            po = old.person_fingerprint(e.value, ns)
             if po in optout_ps or po in row_ps:
-                pmap.setdefault(po, new.pseudonym(e.value, ns))
+                pmap.setdefault(po, new.person_fingerprint(e.value, ns))
                 rep.incr("mapped_from_handles_file")
         else:
             for host in hosts:
@@ -505,7 +515,7 @@ def _rekey_tx(
     unmapped_optouts = [
         {"kind": str(r[0]), "platform": str(r[2]), "request_id": r[3], "added_at": str(r[4])}
         for r in optout_rows
-        if (r[0] == "pseudonym" and r[1] not in pmap) or (r[0] == "repo_name" and r[1] not in nmap)
+        if (r[0] == "person" and r[1] not in pmap) or (r[0] == "repo_name" and r[1] not in nmap)
     ]
     rep.unmapped_optouts = unmapped_optouts
     rep.counts["optouts_pseudonym"] = len(optout_ps)
@@ -535,7 +545,7 @@ def _rekey_tx(
     # --- writes
     for r in optout_rows:
         kind, value = str(r[0]), str(r[1])
-        if kind == "pseudonym":
+        if kind == "person":
             _move_entry(db, kind, value, [pmap[value]])
             rep.incr("optouts_pseudonym_mapped")
         else:

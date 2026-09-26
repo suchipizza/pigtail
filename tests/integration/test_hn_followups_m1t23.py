@@ -16,6 +16,7 @@ from typing import Any
 import httpx
 import pytest
 
+from pigtail.capture import scope
 from pigtail.capture.hn_ranks import RankPoller
 from pigtail.capture.mentions import RepoSuppressed, capture_hn_mentions
 from pigtail.capture.runs import RunRecorder
@@ -59,10 +60,9 @@ def test_m1_t23_rank_stories_tracked_and_cleared_when_deleted_upstream(capture_d
     fake = FakeHN()
     poll(db, store, fake, items=4)
     tracked = db.conn.execute(
-        "SELECT count(*), bool_and(author_pseudonym IS NULL), min(next_check_at)"
-        " FROM upstream_items WHERE platform = 'hn'"
+        "SELECT count(*), min(next_check_at) FROM upstream_items WHERE platform = 'hn'"
     ).fetchone()
-    assert tracked == (4, True, NOW + timedelta(days=30))  # no open case: monthly re-check
+    assert tracked == (4, NOW + timedelta(days=30))  # no open case: monthly re-check
     # upstream: the org-b story is deleted, the essay killed (dead)
     fake.items[9000004] = {"id": 9000004, "type": "story", "deleted": True, "time": 1790000100}
     fake.items[9000002] = {**(fake.items[9000002] or {}), "dead": True}
@@ -145,6 +145,7 @@ def test_m1_t23_name_optout_purges_existing_hn_data_and_reapplies(capture_db, tm
     fake = FakeHN()
     poll(db, store, fake, items=4)
     kw = conn_kw(store, fake, db, pseudonymizer=pz, env=ON)
+    scope.set_entries(db, "brief_synthetic", 1, ["org-a/repo-1"], "final")  # Directive §8.3
     capture_hn_mentions(
         HNAlgoliaConnector(**kw), db, "org-a/repo-1", firebase=HNFirebaseConnector(**kw)
     )
@@ -173,7 +174,8 @@ def test_m1_t23_name_optout_purges_existing_hn_data_and_reapplies(capture_db, tm
             " AND action IN ('rows_deleted', 'fields_cleared') GROUP BY 1"
         ).fetchall()
     )
-    assert log == {"hn_mention": 5, "hn_story": 1}
+    # the repo also leaves the shortlist that put it in mention scope (Directive §8.3)
+    assert log == {"hn_mention": 5, "hn_story": 1, "brief_shortlist_entry": 1}
     # re-applying the list (e.g. after a restore) is idempotent: nothing more to remove
     totals = requests.reapply_refusals(db, store, pz)
     for k in ("mention_rows_deleted", "story_rows_cleared"):

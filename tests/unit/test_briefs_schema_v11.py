@@ -13,13 +13,13 @@ import pytest
 import yaml
 from jsonschema import Draft202012Validator
 
-from pigtail.briefs.budget import Allowance
 from pigtail.briefs.cache import plan_rerun
 from pigtail.briefs.estimate import estimate
 from pigtail.briefs.model import (
     SCHEMA_VERSION,
     BriefInvalid,
     dump_yaml,
+    json_schema,
     load_brief_text,
     validate_brief,
 )
@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE = ROOT / "docs" / "examples" / "brief-example.yaml"
 V1 = ROOT / "schemas" / "brief" / "v1.json"
 V11 = ROOT / "schemas" / "brief" / "v1.1.json"
-ALLOW = Allowance(10_000_000, "configured")
+V12 = ROOT / "schemas" / "brief" / "v1.2.json"
 
 
 def v1_brief() -> dict[str, Any]:
@@ -62,7 +62,7 @@ def test_adr_057_v1_schema_file_is_kept_and_still_describes_v1_briefs():
 
 def test_adr_057_v1_brief_loads_and_migrates_reference_cases_and_exemplars():
     b = validate_brief(v1_brief())
-    assert b.schema_version == SCHEMA_VERSION == "brief/v1.1"
+    assert b.schema_version == SCHEMA_VERSION == "brief/v1.2"
     refs = b.field.reference_cases
     assert [(r.name, r.urls, r.note, r.role) for r in refs] == [
         ("Synthetic Ref One", ["https://example.com/one"], "engine repo", "reference"),
@@ -75,10 +75,10 @@ def test_adr_057_v1_brief_loads_and_migrates_reference_cases_and_exemplars():
     assert b.distribution_exemplars.losers_per_exemplar == 2
     assert b.distribution_exemplars.match_on == ["launch_type", "launch_period", "audience_bucket"]
     assert b.report.show_absolute_numbers is True and b.report.transferability_labels is True
-    # the migrated brief validates against the v1.1 JSON Schema
-    v11 = json.loads(V11.read_text())
+    # the migrated brief validates against the current (v1.2) JSON Schema
+    v12 = json.loads(V12.read_text())
     dumped = yaml.safe_load(dump_yaml(b))
-    assert not list(Draft202012Validator(v11).iter_errors(dumped))
+    assert not list(Draft202012Validator(v12).iter_errors(dumped))
 
 
 def test_adr_057_v1_file_in_the_store_is_read_and_migrated_on_save(tmp_path: Path):
@@ -95,7 +95,7 @@ def test_adr_057_v1_file_in_the_store_is_read_and_migrated_on_save(tmp_path: Pat
     edited = got.brief.model_copy(update={"notes": "an edit"})
     new, created = store.save_version(edited, base_version=1)
     assert created and new.version == 2
-    assert "schema_version: brief/v1.1" in new.yaml_text
+    assert "schema_version: brief/v1.2" in new.yaml_text
     assert "distribution_exemplars:" in new.yaml_text
 
 
@@ -127,8 +127,8 @@ def test_adr_057_estimate_counts_each_exemplar_and_its_losers_as_cases():
     b = load_brief_text(EXAMPLE.read_text()).model_copy(update={"version": 1})
     no_ex = b.distribution_exemplars.model_copy(update={"projects": []})
     base = b.model_copy(update={"distribution_exemplars": no_ex})
-    e0 = estimate(base, allowance=ALLOW)
-    e1 = estimate(b, allowance=ALLOW)  # the example has 1 exemplar, 2 losers each
+    e0 = estimate(base)
+    e1 = estimate(b)  # the example has 1 exemplar, 2 losers each
     assert e1.cases - e0.cases == 3 and e1.to_dict()["counts"]["exemplar_cases"] == 3
     one = b.model_copy(
         update={
@@ -137,7 +137,7 @@ def test_adr_057_estimate_counts_each_exemplar_and_its_losers_as_cases():
             )
         }
     )
-    assert estimate(one, allowance=ALLOW).cases - e0.cases == 2
+    assert estimate(one).cases - e0.cases == 2
     assert e1.stages[2].llm_calls > e0.stages[2].llm_calls  # extraction grows with cases
 
 
@@ -147,3 +147,54 @@ def test_adr_057_exemplar_and_report_edits_recompute_only_what_reads_them():
     b2 = b.model_copy(update={"version": 2, "report": report})
     a = {s.stage: s.action for s in plan_rerun(b, b2).stages}
     assert a["patterns"] == "recompute" and a["discovery"] == "reuse"
+
+
+# --- M21b: brief schema v1.2 (ADR-072.4) ----------------------------------------------------------
+def v11_brief(**budget: Any) -> dict[str, Any]:
+    d = copy.deepcopy(yaml.safe_load(EXAMPLE.read_text()))
+    d["schema_version"] = "brief/v1.1"
+    d["budget"] = {"money_usd": 0, "subscription_share": 0.5, "llm_backend": "api", **budget}
+    return d
+
+
+def test_adr_072_4_v11_llm_api_usd_is_folded_into_money_usd():
+    b = validate_brief(v11_brief(money_usd=10, llm_api_usd=140))
+    assert b.schema_version == "brief/v1.2"
+    assert b.budget.money_usd == 150.0  # the two caps are added: never more than before
+    assert "llm_api_usd" not in b.budget.model_dump()
+    v12 = json.loads(V12.read_text())
+    assert "llm_api_usd" not in v12["$defs"]["Budget"]["properties"]
+    assert not list(Draft202012Validator(v12).iter_errors(yaml.safe_load(dump_yaml(b))))
+    # the v1.1 schema file is kept unchanged and still describes the v1.1 brief
+    v11 = json.loads(V11.read_text())
+    assert not list(Draft202012Validator(v11).iter_errors(v11_brief(llm_api_usd=140)))
+
+
+def test_adr_072_4_v12_brief_with_llm_api_usd_is_refused():
+    d = v11_brief(llm_api_usd=5)
+    d["schema_version"] = "brief/v1.2"
+    with pytest.raises(BriefInvalid) as ei:
+        validate_brief(d)
+    assert "budget.llm_api_usd" in {p.path for p in ei.value.problems}
+
+
+def test_adr_072_4_v11_file_in_the_store_is_migrated_in_memory_and_on_save(tmp_path: Path):
+    store = BriefStore(tmp_path / "briefs")
+    d = tmp_path / "briefs" / "example-config-linter"
+    d.mkdir(parents=True)
+    raw = {**v11_brief(money_usd=1, llm_api_usd=2), "version": 1}
+    (d / "v0001.yaml").write_text(yaml.safe_dump(raw, sort_keys=False))
+    got = store.get("example-config-linter")
+    assert "llm_api_usd: 2" in got.yaml_text  # untouched on disk
+    assert got.brief.budget.money_usd == 3.0
+    new, created = store.save_version(
+        got.brief.model_copy(update={"notes": "edit"}), base_version=1
+    )
+    assert created and "llm_api_usd" not in new.yaml_text
+    assert "schema_version: brief/v1.2" in new.yaml_text
+
+
+def test_adr_064_4_subscription_share_documented_as_agents_only():
+    s = json_schema()
+    assert any("agents" in r for r in s["x-cross-field-rules"])
+    assert "subscription_share" in s["$defs"]["Budget"]["properties"]  # field kept

@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 import yaml
 
-from pigtail.briefs.budget import Allowance, BudgetGuard, BudgetStop
+from pigtail.briefs.budget import BudgetGuard, BudgetStop
 from pigtail.briefs.estimate import estimate, render_text
 from pigtail.briefs.expansion import (
     EXPANSION_PROMPT,
@@ -51,6 +51,7 @@ FAKE_OUTPUT: dict[str, Any] = {
 def example_data(**extra: Any) -> dict[str, Any]:
     d = yaml.safe_load(EXAMPLE.read_text())
     d.pop("expansion", None)
+    d["budget"]["llm_backend"] = "subscription"  # the fake default backend
     d.update(extra)
     return copy.deepcopy(d)
 
@@ -63,12 +64,7 @@ def store(tmp_path: Path) -> BriefStore:
 
 
 def guard_for(client: Any, brief: Any, **kw: Any) -> BudgetGuard:
-    return BudgetGuard(
-        budget=brief.budget,
-        usage=client.store,
-        allowance=kw.pop("allowance", Allowance(10_000_000, "configured")),
-        **kw,
-    )
+    return BudgetGuard(budget=brief.budget, usage=client.store, **kw)
 
 
 # --- what is sent --------------------------------------------------------------------------------
@@ -223,10 +219,13 @@ def test_adr_053_backend_other_than_the_briefs_is_refused_before_any_call(store)
 
 def test_adr_053_explicit_per_job_override_is_honoured(store):
     d = example_data()
-    d["budget"]["llm_api_usd"] = 5
+    d["budget"]["money_usd"] = 5
     brief = store.save_version(validate_brief(d))[0].brief
     client = make_client(
-        [], api=[copy.deepcopy(FAKE_OUTPUT)], overrides={JOB: "api"}
+        [],
+        api=[copy.deepcopy(FAKE_OUTPUT)],
+        overrides={JOB: "api"},
+        models={"synthesis": "claude-opus-5-5"},
     )  # the user routed this job to the API explicitly
     with pytest.raises(BudgetStop) as ei:  # api costs money: needs approval first
         propose_expansion(brief, client, make_guard(client, brief))
@@ -235,38 +234,58 @@ def test_adr_053_explicit_per_job_override_is_honoured(store):
     assert p.expansion.provenance is not None and p.expansion.provenance.backend == "api"
 
 
-def test_adr_053_subscription_share_cap_stops_before_the_call(store):
+def test_adr_064_4_subscription_share_does_not_stop_product_calls(store):
     brief = store.get("example-config-linter").brief
     client = make_client([copy.deepcopy(FAKE_OUTPUT)])
-    client.store.record(
-        UsageRow("subscription", "other", "m", "p", "1", "ok", input_tokens=4_999_000)
-    )
-    guard = guard_for(client, brief, allowance=Allowance(10_000_000, "configured"))
+    client.store.record(UsageRow("subscription", "other", "m", "p", "1", "ok", input_tokens=10**9))
+    propose_expansion(brief, client, guard_for(client, brief))  # agents only (ADR-064.4)
+    assert len(client.backends["subscription"].calls) == 1  # type: ignore[attr-defined]
+
+
+def test_r15_11_monthly_cap_stops_the_expansion_before_the_call(store):
+    d = example_data()
+    d["budget"]["llm_backend"] = "api"
+    brief = store.save_version(validate_brief(d))[0].brief
+    client = make_client(
+        [], api=[copy.deepcopy(FAKE_OUTPUT)], default_backend="api",
+        models={"synthesis": "claude-opus-5-5"},
+    )  # fmt: skip
+    client.store.record(UsageRow("api", "extraction", "m", "p", "1", "ok", 1, 1, cost_usd=199.99))
+    guard = make_guard(client, brief, approved_paid=True, month_cap_usd=200.0)
     with pytest.raises(BudgetStop) as ei:
         propose_expansion(brief, client, guard)
-    assert ei.value.kind == "subscription_share"
-    assert client.backends["subscription"].calls == []  # type: ignore[attr-defined]
+    assert ei.value.kind == "month" and "H6" in ei.value.detail
+    assert client.backends["api"].calls == []  # type: ignore[attr-defined]
+    # the brief's spend on earlier runs counts against its total cap
+    guard = make_guard(client, brief, approved_paid=True, month_cap_usd=10**6, spent_usd=149.99)
+    with pytest.raises(BudgetStop) as ei:
+        propose_expansion(brief, client, guard)
+    assert ei.value.kind == "money"
 
 
-# --- estimate (estimate-v1) ----------------------------------------------------------------------
+def test_r15_8_expansion_runs_in_the_synthesis_stage_as_a_standard_call(store):
+    brief = store.get("example-config-linter").brief
+    client = make_client([copy.deepcopy(FAKE_OUTPUT)], models={"synthesis": "synth-model"})
+    propose_expansion(brief, client, guard_for(client, brief))
+    sent = client.backends["subscription"].calls[0]  # type: ignore[attr-defined]
+    assert sent["model"] == "synth-model"
+    assert client.stage_of(JOB) == "synthesis" and not client.batches_for(JOB)
+
+
+# --- estimate ------------------------------------------------------------------------------------
 def test_r18_7_estimate_run_makes_no_expansion_call_and_reports_the_proposal_cost():
     b = load_brief_text(EXAMPLE.read_text()).model_copy(update={"version": 1})
-    e = estimate(b, allowance=Allowance(10_000_000, "configured"))
+    e = estimate(b)
     stage = next(s for s in e.stages if s.stage == "expansion")
     assert stage.llm_calls == 0
     d = e.to_dict()
-    assert d["model"] == "estimate-v1"
+    assert d["model"] == "estimate-v2"
     assert d["expansion"]["status"] == "written_by_user"
     assert d["expansion"]["run_llm_calls"] == 0
     assert d["expansion"]["proposal"]["llm_calls"] == 1
     assert "pigtail brief expand example-config-linter" in render_text(e, b)
     no_exp = b.model_copy(update={"expansion": None})
-    assert (
-        estimate(no_exp, allowance=Allowance(10_000_000, "configured")).to_dict()["expansion"][
-            "status"
-        ]
-        == "none"
-    )
+    assert estimate(no_exp).to_dict()["expansion"]["status"] == "none"
 
 
 # --- CLI -----------------------------------------------------------------------------------------
@@ -275,8 +294,10 @@ def cli_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     from pigtail.briefs import cli as brief_cli
 
     monkeypatch.setenv("PIGTAIL_DATA_DIR", str(tmp_path / "data"))
-    monkeypatch.setenv("PIGTAIL_SUBSCRIPTION_WEEKLY_TOKENS", "20000000")
     monkeypatch.delenv("DATABASE_URL", raising=False)
+    example = tmp_path / "example-subscription.yaml"  # the fake client is a subscription one
+    example.write_text(EXAMPLE.read_text().replace("llm_backend: api", "llm_backend: subscription"))
+    monkeypatch.setenv("PIGTAIL_EXAMPLE_BRIEF", str(example))
     holder: dict[str, Any] = {"client": make_client([copy.deepcopy(FAKE_OUTPUT)])}
     monkeypatch.setattr(brief_cli, "_llm_client", lambda: holder["client"])
     return holder
@@ -343,7 +364,7 @@ def test_m12_cli_edit_from_old_export_is_refused_by_default(cli_env, tmp_path, c
     main(["brief", "show", bid, "--json"])
     latest = json.loads(capsys.readouterr().out)
     assert latest["version"] == 2 and latest["window"]["months"] == 12  # v2 not reverted
-    # a file without a version field falls back to latest, with a warning
+    # a file without a version field is refused, unless --force-latest (M21b)
     no_version = (
         "\n".join(line for line in v1_export.splitlines() if not line.startswith("version:"))
         .replace("losers: 20", "losers: 18")
@@ -351,7 +372,10 @@ def test_m12_cli_edit_from_old_export_is_refused_by_default(cli_env, tmp_path, c
     )
     nv = tmp_path / "nv.yaml"
     nv.write_text(no_version)
-    assert main(["brief", "edit", bid, "--from", str(nv)]) == 0
+    assert main(["brief", "edit", bid, "--from", str(nv)]) == 1
+    captured = capsys.readouterr()
+    assert "refused, nothing saved" in captured.err and "--force-latest" in captured.err
+    assert main(["brief", "edit", bid, "--from", str(nv), "--force-latest"]) == 0
     captured = capsys.readouterr()
     assert "no `version:` field" in captured.err and "v3" in captured.out
     # the explicit flag still wins
@@ -362,11 +386,18 @@ def test_m12_cli_edit_from_old_export_is_refused_by_default(cli_env, tmp_path, c
 
 
 def test_m12_edit_base_version_rules():
-    from pigtail.briefs.cli import edit_base_version
+    from pigtail.briefs.cli import MissingVersion, edit_base_version
 
     assert edit_base_version(explicit=4, file_version=1, latest=5, from_editor=False) == 4
     assert edit_base_version(explicit=None, file_version=2, latest=5, from_editor=False) == 2
-    assert edit_base_version(explicit=None, file_version=None, latest=5, from_editor=False) == 5
+    with pytest.raises(MissingVersion):
+        edit_base_version(explicit=None, file_version=None, latest=5, from_editor=False)
+    assert (
+        edit_base_version(
+            explicit=None, file_version=None, latest=5, from_editor=False, force_latest=True
+        )
+        == 5
+    )
     assert edit_base_version(explicit=None, file_version=2, latest=5, from_editor=True) == 5
 
 

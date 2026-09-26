@@ -1,0 +1,1286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/suchipizza/pigtail/schemas/brief/v1.2.json",
+  "title": "brief",
+  "description": "A pigtail research brief, schema v1.2 (PRD R18.1, R15.11, ADR-053, ADR-054, ADR-057, ADR-072.4). Briefs are private and live outside git, by default in ~/.pigtail/briefs (R18.9, ADR-071.3). v1 and v1.1 briefs still load and are migrated on save.",
+  "$defs": {
+    "Budget": {
+      "additionalProperties": false,
+      "description": "R15.11, ADR-064.4, ADR-072.4: `money_usd` is the brief's total money cap over all its\nruns, API spend included (the instance-wide monthly cap is `BUDGET_USD_MONTH`). Each paid\nservice other than the API is off unless enabled, and every paid step needs explicit\napproval (H6). `subscription_share` applies only to the agents building pigtail. The LLM\nbackend is never switched automatically (ADR-053.1).",
+      "properties": {
+        "money_usd": {
+          "default": 0.0,
+          "maximum": 100000,
+          "minimum": 0,
+          "title": "Money Usd",
+          "type": "number"
+        },
+        "subscription_share": {
+          "default": 0.5,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Subscription Share",
+          "type": "number"
+        },
+        "llm_backend": {
+          "default": "subscription",
+          "enum": [
+            "subscription",
+            "api"
+          ],
+          "title": "Llm Backend",
+          "type": "string"
+        },
+        "auto_switch_backend": {
+          "const": false,
+          "default": false,
+          "title": "Auto Switch Backend",
+          "type": "boolean"
+        }
+      },
+      "title": "Budget",
+      "type": "object"
+    },
+    "Channels": {
+      "additionalProperties": false,
+      "properties": {
+        "planned": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "type": "string"
+          },
+          "title": "Planned",
+          "type": "array"
+        },
+        "avoid": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "type": "string"
+          },
+          "title": "Avoid",
+          "type": "array"
+        },
+        "details": {
+          "default": {},
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,39}$": {
+              "items": {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "title": "Details",
+          "type": "object"
+        }
+      },
+      "title": "Channels",
+      "type": "object"
+    },
+    "Competitor": {
+      "additionalProperties": false,
+      "description": "A competitor named in the expansion: a name and, optionally, a URL (R18.7).",
+      "properties": {
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "pattern": "^https?://[^\\s]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Competitor",
+      "type": "object"
+    },
+    "DistributionExemplar": {
+      "additionalProperties": false,
+      "description": "ADR-057.1: a project chosen for exceptional distribution, whatever its field.",
+      "properties": {
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "urls": {
+          "default": [],
+          "items": {
+            "maxLength": 500,
+            "pattern": "^https?://[^\\s|]+$",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Urls",
+          "type": "array"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "DistributionExemplar",
+      "type": "object"
+    },
+    "DistributionExemplars": {
+      "additionalProperties": false,
+      "description": "ADR-057.1: the distribution examples panel. Losers are matched on launch type, launch\nperiod and audience bucket, never on field.",
+      "properties": {
+        "projects": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DistributionExemplar"
+          },
+          "maxItems": 10,
+          "title": "Projects",
+          "type": "array"
+        },
+        "losers_per_exemplar": {
+          "default": 2,
+          "maximum": 2,
+          "minimum": 1,
+          "title": "Losers Per Exemplar",
+          "type": "integer"
+        },
+        "match_on": {
+          "default": [
+            "launch_type",
+            "launch_period",
+            "audience_bucket"
+          ],
+          "items": {
+            "enum": [
+              "launch_type",
+              "launch_period",
+              "audience_bucket"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Match On",
+          "type": "array"
+        }
+      },
+      "title": "DistributionExemplars",
+      "type": "object"
+    },
+    "Expansion": {
+      "additionalProperties": false,
+      "description": "R18.7: the LLM-proposed expansion, as edited by the user (part of the brief version).\n\n`topics` are subject areas in words; `github_topics` are GitHub topic slugs used by\ndiscovery; `search_queries` are ready-made search strings. `generated_by: llm` expansions\ncarry `provenance`. `prompt_version` is the pre-provenance field, kept so older briefs load.",
+      "properties": {
+        "problem_statement": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Problem Statement"
+        },
+        "users": {
+          "default": [],
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 40,
+          "title": "Users",
+          "type": "array"
+        },
+        "keywords": {
+          "default": [],
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 40,
+          "title": "Keywords",
+          "type": "array"
+        },
+        "topics": {
+          "default": [],
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 40,
+          "title": "Topics",
+          "type": "array"
+        },
+        "competitors": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Competitor"
+          },
+          "maxItems": 40,
+          "title": "Competitors",
+          "type": "array"
+        },
+        "github_topics": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z0-9][a-z0-9-]{0,49}$",
+            "type": "string"
+          },
+          "maxItems": 40,
+          "title": "Github Topics",
+          "type": "array"
+        },
+        "search_queries": {
+          "default": [],
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 40,
+          "title": "Search Queries",
+          "type": "array"
+        },
+        "generated_by": {
+          "default": "user",
+          "enum": [
+            "user",
+            "llm"
+          ],
+          "title": "Generated By",
+          "type": "string"
+        },
+        "prompt_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Version"
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExpansionProvenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Expansion",
+      "type": "object"
+    },
+    "ExpansionProvenance": {
+      "additionalProperties": false,
+      "description": "Where an LLM-proposed expansion came from (R18.6, R18.7).\n\n`proposal_hash` is the SHA-256 of the proposed fields as the model returned them (after\nnormalization); `edited_by_user` is derived on every load by comparing it with the fields\nas they now stand, so it can't drift from the content.",
+      "properties": {
+        "job": {
+          "const": "brief_expansion",
+          "default": "brief_expansion",
+          "title": "Job",
+          "type": "string"
+        },
+        "prompt_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Prompt Id",
+          "type": "string"
+        },
+        "prompt_version": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Prompt Version",
+          "type": "string"
+        },
+        "prompt_fingerprint": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Prompt Fingerprint",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "backend": {
+          "enum": [
+            "subscription",
+            "api"
+          ],
+          "title": "Backend",
+          "type": "string"
+        },
+        "input_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Input Hash",
+          "type": "string"
+        },
+        "proposal_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Proposal Hash",
+          "type": "string"
+        },
+        "generated_at": {
+          "format": "date-time",
+          "title": "Generated At",
+          "type": "string"
+        },
+        "based_on_version": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Based On Version"
+        },
+        "edited_by_user": {
+          "default": false,
+          "title": "Edited By User",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "prompt_id",
+        "prompt_version",
+        "prompt_fingerprint",
+        "model",
+        "backend",
+        "input_hash",
+        "proposal_hash",
+        "generated_at"
+      ],
+      "title": "ExpansionProvenance",
+      "type": "object"
+    },
+    "Fallbacks": {
+      "additionalProperties": false,
+      "properties": {
+        "no_measurable_adoption": {
+          "default": "use_community_as_primary_and_flag",
+          "enum": [
+            "use_community_as_primary_and_flag",
+            "fail_threshold",
+            "skip_threshold"
+          ],
+          "title": "No Measurable Adoption",
+          "type": "string"
+        },
+        "too_few_winners": {
+          "$ref": "#/$defs/TooFewWinners",
+          "default": {
+            "min_winners": 10,
+            "steps": [
+              "relax_primary_to_top_third",
+              "drop_community_minimum"
+            ],
+            "log_each_step": true,
+            "report_sensitivity_check": true
+          }
+        }
+      },
+      "title": "Fallbacks",
+      "type": "object"
+    },
+    "FieldBoundaries": {
+      "additionalProperties": false,
+      "description": "R18.1 `field`, R4.10 widening, R4.11 reference cases (structured since v1.1).",
+      "properties": {
+        "core_field": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Core Field",
+          "type": "string"
+        },
+        "include": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Include",
+          "type": "array"
+        },
+        "exclude": {
+          "default": [],
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Exclude",
+          "type": "array"
+        },
+        "seed_projects": {
+          "default": [],
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 50,
+          "title": "Seed Projects",
+          "type": "array"
+        },
+        "reference_cases": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReferenceCase"
+          },
+          "maxItems": 10,
+          "title": "Reference Cases",
+          "type": "array"
+        },
+        "reference_models": {
+          "default": [],
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Reference Models",
+          "type": "array"
+        },
+        "widening_steps": {
+          "default": [],
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 5,
+          "title": "Widening Steps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "core_field",
+        "include"
+      ],
+      "title": "FieldBoundaries",
+      "type": "object"
+    },
+    "Geography": {
+      "additionalProperties": false,
+      "properties": {
+        "scope": {
+          "default": "global",
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Scope",
+          "type": "string"
+        },
+        "languages": {
+          "default": [
+            "en"
+          ],
+          "items": {
+            "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Languages",
+          "type": "array"
+        },
+        "later": {
+          "default": [],
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Later",
+          "type": "array"
+        }
+      },
+      "title": "Geography",
+      "type": "object"
+    },
+    "OptionalSources": {
+      "additionalProperties": false,
+      "description": "Optional, possibly paid sources; all off unless the user enables them (ADR-053.1).",
+      "properties": {
+        "trendshift": {
+          "default": false,
+          "title": "Trendshift",
+          "type": "boolean"
+        },
+        "x": {
+          "default": false,
+          "title": "X",
+          "type": "boolean"
+        },
+        "bigquery": {
+          "default": false,
+          "title": "Bigquery",
+          "type": "boolean"
+        }
+      },
+      "title": "OptionalSources",
+      "type": "object"
+    },
+    "OwnAudience": {
+      "additionalProperties": false,
+      "description": "The user's own audience per channel, as CB-10 reach bands (a count becomes a band).",
+      "properties": {
+        "channels": {
+          "default": {},
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,39}$": {
+              "enum": [
+                "none",
+                "r1",
+                "r2",
+                "r3",
+                "r4",
+                "unknown"
+              ],
+              "type": "string"
+            }
+          },
+          "title": "Channels",
+          "type": "object"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "title": "OwnAudience",
+      "type": "object"
+    },
+    "Panel": {
+      "additionalProperties": false,
+      "description": "R4.3, R4.8 (15\u201325 each, default 20/20), ADR-054.1 (exact match and SMD rules).",
+      "properties": {
+        "winners": {
+          "default": 20,
+          "maximum": 25,
+          "minimum": 15,
+          "title": "Winners",
+          "type": "integer"
+        },
+        "losers": {
+          "default": 20,
+          "maximum": 25,
+          "minimum": 15,
+          "title": "Losers",
+          "type": "integer"
+        },
+        "exact_match": {
+          "default": [
+            "founder_audience_bucket",
+            "launch_half_year"
+          ],
+          "items": {
+            "enum": [
+              "founder_audience_bucket",
+              "launch_half_year"
+            ],
+            "type": "string"
+          },
+          "title": "Exact Match",
+          "type": "array"
+        },
+        "smd_target": {
+          "default": 0.25,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Smd Target",
+          "type": "number"
+        },
+        "headline_exclusion_smd": {
+          "default": 0.5,
+          "exclusiveMinimum": 0,
+          "maximum": 2,
+          "title": "Headline Exclusion Smd",
+          "type": "number"
+        }
+      },
+      "title": "Panel",
+      "type": "object"
+    },
+    "Project": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 2000,
+          "minLength": 10,
+          "title": "Description",
+          "type": "string"
+        },
+        "target_users": {
+          "$ref": "#/$defs/TargetUsers"
+        },
+        "business_model": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Business Model",
+          "type": "string"
+        },
+        "context": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "target_users",
+        "business_model"
+      ],
+      "title": "Project",
+      "type": "object"
+    },
+    "ReferenceCase": {
+      "additionalProperties": false,
+      "description": "R4.11 / ADR-057.4: always studied and reported, whatever its outcome class.",
+      "properties": {
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "urls": {
+          "default": [],
+          "items": {
+            "maxLength": 500,
+            "pattern": "^https?://[^\\s|]+$",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Urls",
+          "type": "array"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "role": {
+          "const": "reference",
+          "default": "reference",
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ReferenceCase",
+      "type": "object"
+    },
+    "ReportOptions": {
+      "additionalProperties": false,
+      "description": "ADR-057.2\u20133: what the neighbourhood report shows.",
+      "properties": {
+        "show_absolute_numbers": {
+          "default": true,
+          "title": "Show Absolute Numbers",
+          "type": "boolean"
+        },
+        "transferability_labels": {
+          "default": true,
+          "title": "Transferability Labels",
+          "type": "boolean"
+        }
+      },
+      "title": "ReportOptions",
+      "type": "object"
+    },
+    "Success": {
+      "additionalProperties": false,
+      "description": "Success definition (R18.8, outcome-model v2 \u00a75\u20136, ADR-053.2).",
+      "properties": {
+        "primary": {
+          "enum": [
+            "attention",
+            "adoption",
+            "community",
+            "business"
+          ],
+          "title": "Primary",
+          "type": "string"
+        },
+        "primary_threshold": {
+          "default": "top_quartile",
+          "enum": [
+            "none",
+            "at_least_p25",
+            "at_least_median",
+            "top_third",
+            "top_quartile",
+            "top_decile"
+          ],
+          "title": "Primary Threshold",
+          "type": "string"
+        },
+        "minimums": {
+          "additionalProperties": {
+            "enum": [
+              "none",
+              "at_least_p25",
+              "at_least_median",
+              "top_third",
+              "top_quartile",
+              "top_decile"
+            ],
+            "type": "string"
+          },
+          "default": {},
+          "propertyNames": {
+            "enum": [
+              "attention",
+              "adoption",
+              "community"
+            ]
+          },
+          "title": "Minimums",
+          "type": "object"
+        },
+        "business_minimum": {
+          "default": [],
+          "items": {
+            "enum": [
+              "pricing_page",
+              "hiring_hn_posts",
+              "careers_roles"
+            ],
+            "type": "string"
+          },
+          "title": "Business Minimum",
+          "type": "array"
+        },
+        "accept_self_reported": {
+          "default": false,
+          "title": "Accept Self Reported",
+          "type": "boolean"
+        },
+        "metrics": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "propertyNames": {
+            "enum": [
+              "attention",
+              "adoption",
+              "community",
+              "business"
+            ]
+          },
+          "title": "Metrics",
+          "type": "object"
+        },
+        "if_not_applicable": {
+          "additionalProperties": {
+            "enum": [
+              "fail",
+              "skip"
+            ],
+            "type": "string"
+          },
+          "default": {},
+          "propertyNames": {
+            "enum": [
+              "attention",
+              "adoption",
+              "community",
+              "business"
+            ]
+          },
+          "title": "If Not Applicable",
+          "type": "object"
+        },
+        "weights": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "propertyNames": {
+                "enum": [
+                  "attention",
+                  "adoption",
+                  "community"
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weights"
+        },
+        "sensitivity": {
+          "default": [
+            "primary_swap",
+            "band_shift",
+            "weights",
+            "fake_star_filter"
+          ],
+          "items": {
+            "enum": [
+              "primary_swap",
+              "band_shift",
+              "weights",
+              "fake_star_filter"
+            ],
+            "type": "string"
+          },
+          "title": "Sensitivity",
+          "type": "array"
+        },
+        "fallbacks": {
+          "$ref": "#/$defs/Fallbacks",
+          "default": {
+            "no_measurable_adoption": "use_community_as_primary_and_flag",
+            "too_few_winners": {
+              "log_each_step": true,
+              "min_winners": 10,
+              "report_sensitivity_check": true,
+              "steps": [
+                "relax_primary_to_top_third",
+                "drop_community_minimum"
+              ]
+            }
+          }
+        }
+      },
+      "required": [
+        "primary"
+      ],
+      "title": "Success",
+      "type": "object"
+    },
+    "TargetUsers": {
+      "additionalProperties": false,
+      "properties": {
+        "primary": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Primary",
+          "type": "string"
+        },
+        "secondary": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Secondary"
+        }
+      },
+      "required": [
+        "primary"
+      ],
+      "title": "TargetUsers",
+      "type": "object"
+    },
+    "TooFewWinners": {
+      "additionalProperties": false,
+      "description": "ADR-053.2: if fewer than `min_winners` qualify, apply `steps` in order.",
+      "properties": {
+        "min_winners": {
+          "default": 10,
+          "maximum": 25,
+          "minimum": 1,
+          "title": "Min Winners",
+          "type": "integer"
+        },
+        "steps": {
+          "default": [
+            "relax_primary_to_top_third",
+            "drop_community_minimum"
+          ],
+          "items": {
+            "enum": [
+              "relax_primary_to_top_third",
+              "drop_attention_minimum",
+              "drop_adoption_minimum",
+              "drop_community_minimum",
+              "drop_business_minimum"
+            ],
+            "type": "string"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "log_each_step": {
+          "const": true,
+          "default": true,
+          "title": "Log Each Step",
+          "type": "boolean"
+        },
+        "report_sensitivity_check": {
+          "const": true,
+          "default": true,
+          "title": "Report Sensitivity Check",
+          "type": "boolean"
+        }
+      },
+      "title": "TooFewWinners",
+      "type": "object"
+    },
+    "Window": {
+      "additionalProperties": false,
+      "description": "Discovery and backfill window (R18.1, ADR-047.1: 12\u201318 months).",
+      "properties": {
+        "months": {
+          "default": 18,
+          "maximum": 18,
+          "minimum": 12,
+          "title": "Months",
+          "type": "integer"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        }
+      },
+      "title": "Window",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "brief/v1.2",
+      "default": "brief/v1.2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "brief_id": {
+      "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$",
+      "title": "Brief Id",
+      "type": "string"
+    },
+    "version": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Version"
+    },
+    "supersedes": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Supersedes"
+    },
+    "created_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created At"
+    },
+    "edited_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Edited At"
+    },
+    "status": {
+      "default": "draft",
+      "enum": [
+        "draft",
+        "ready_for_discovery"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "project": {
+      "$ref": "#/$defs/Project"
+    },
+    "field": {
+      "$ref": "#/$defs/FieldBoundaries"
+    },
+    "window": {
+      "$ref": "#/$defs/Window",
+      "default": {
+        "months": 18,
+        "end": null
+      }
+    },
+    "success": {
+      "$ref": "#/$defs/Success"
+    },
+    "own_audience": {
+      "$ref": "#/$defs/OwnAudience",
+      "default": {
+        "channels": {},
+        "note": null
+      }
+    },
+    "channels": {
+      "$ref": "#/$defs/Channels",
+      "default": {
+        "planned": [],
+        "avoid": [],
+        "details": {}
+      }
+    },
+    "geography": {
+      "$ref": "#/$defs/Geography",
+      "default": {
+        "scope": "global",
+        "languages": [
+          "en"
+        ],
+        "later": []
+      }
+    },
+    "panel": {
+      "$ref": "#/$defs/Panel",
+      "default": {
+        "winners": 20,
+        "losers": 20,
+        "exact_match": [
+          "founder_audience_bucket",
+          "launch_half_year"
+        ],
+        "smd_target": 0.25,
+        "headline_exclusion_smd": 0.5
+      }
+    },
+    "budget": {
+      "$ref": "#/$defs/Budget",
+      "default": {
+        "money_usd": 0.0,
+        "subscription_share": 0.5,
+        "llm_backend": "subscription",
+        "auto_switch_backend": false
+      }
+    },
+    "optional_sources": {
+      "$ref": "#/$defs/OptionalSources",
+      "default": {
+        "trendshift": false,
+        "x": false,
+        "bigquery": false
+      }
+    },
+    "distribution_exemplars": {
+      "$ref": "#/$defs/DistributionExemplars",
+      "default": {
+        "projects": [],
+        "losers_per_exemplar": 2,
+        "match_on": [
+          "launch_type",
+          "launch_period",
+          "audience_bucket"
+        ]
+      }
+    },
+    "report": {
+      "$ref": "#/$defs/ReportOptions",
+      "default": {
+        "show_absolute_numbers": true,
+        "transferability_labels": true
+      }
+    },
+    "expansion": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Expansion"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "maxLength": 4000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Notes"
+    }
+  },
+  "required": [
+    "brief_id",
+    "project",
+    "field",
+    "success"
+  ],
+  "type": "object",
+  "x-cross-field-rules": [
+    "field: include and exclude don't overlap",
+    "success: the primary dimension has no entry in minimums (its floor is primary_threshold)",
+    "success: primary business requires primary_threshold none (ranked by signal count)",
+    "success.metrics: each metric is one of the allowed metrics for its dimension",
+    "success.weights: sums to 1",
+    "success.fallbacks.too_few_winners.steps: relax_primary_to_top_third needs a primary threshold stricter than top_third; drop_<dim>_minimum needs that minimum; no duplicates",
+    "success.fallbacks.too_few_winners.min_winners <= panel.winners",
+    "channels: planned and avoid don't overlap",
+    "panel: headline_exclusion_smd > smd_target; exact_match has no duplicates",
+    "distribution_exemplars.match_on: no duplicates; never matched on field (ADR-057.1)",
+    "v1 briefs load through migrate_v1 (string reference cases become objects; 'distribution_exemplar | ...' entries move to distribution_exemplars.projects)",
+    "expansion: provenance requires generated_by llm; provenance.edited_by_user is derived from proposal_hash",
+    "v1.1 briefs load through migrate_v1_1 (budget.llm_api_usd is added to budget.money_usd, the brief's total money cap including API spend; ADR-072.4)",
+    "budget.subscription_share applies only to the agents building pigtail (ADR-064.4)"
+  ]
+}

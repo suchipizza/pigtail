@@ -30,3 +30,12 @@ class QueuePaused(LLMError):
         super().__init__(f"{backend} backend paused until {until.isoformat()}")
         self.backend = backend
         self.until = until
+
+
+class BatchPending(LLMError):
+    """Batches are still running after the wait limit (R15.9). Their ids are stored, so calling
+    `run_batch` again (or resuming the brief run) collects them instead of resubmitting."""
+
+    def __init__(self, batch_ids: list[str]) -> None:
+        super().__init__(f"{len(batch_ids)} batch(es) still running: {', '.join(batch_ids)}")
+        self.batch_ids = list(batch_ids)

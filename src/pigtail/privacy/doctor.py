@@ -1,6 +1,7 @@
 """`pigtail doctor`: startup checks for the privacy controls (DPIA CB-03, CB-01, CB-05, CB-13).
 
-`pseudonym_key_fingerprint` (CB-25, ADR-043) compares the running `PSEUDONYM_KEY` with the
+`pseudonym_key_fingerprint` (CB-25, ADR-043) compares the running opt-out key (`OPTOUT_KEY`, alias
+`PSEUDONYM_KEY`; ADR-071.1) with the
 fingerprint stored in the database: `ok`, `fail` on a mismatch (every collector and privacy
 command refuses to run), `warn` while none is recorded yet (the first command that uses the key
 records it). It never records anything itself.
@@ -227,14 +228,14 @@ def run_checks(
 ) -> list[Check]:
     out: list[Check] = []
 
-    # Pseudonym key (retention-policy.md §3).
+    # Opt-out key (ADR-071.1; retention-policy.md §3). Check names keep their earlier spelling.
     key = s.pseudonym_key or ""
     if not key:
-        out.append(Check("pseudonym_key", "fail", "PSEUDONYM_KEY is not set"))
+        out.append(Check("pseudonym_key", "fail", "OPTOUT_KEY (alias PSEUDONYM_KEY) is not set"))
     elif len(key) < 16:
-        out.append(Check("pseudonym_key", "fail", "PSEUDONYM_KEY is shorter than 16 characters"))
+        out.append(Check("pseudonym_key", "fail", "OPTOUT_KEY is shorter than 16 characters"))
     elif len(key) < 32:
-        out.append(Check("pseudonym_key", "warn", "PSEUDONYM_KEY: 32+ bytes recommended"))
+        out.append(Check("pseudonym_key", "warn", "OPTOUT_KEY: 32+ bytes recommended"))
     else:
         out.append(Check("pseudonym_key", "ok", "set (value not shown)"))
 
@@ -375,7 +376,7 @@ def _key_fingerprint_check(url: str, key: str) -> Check | None:
     except psycopg.Error:
         return None  # not migrated yet / unreachable: reported by the `database` check
     if st == "ok":
-        return Check(name, "ok", "PSEUDONYM_KEY matches the database's key fingerprint")
+        return Check(name, "ok", "the opt-out key matches the database's key fingerprint")
     if st == "unset":
         return Check(
             name,
@@ -385,7 +386,7 @@ def _key_fingerprint_check(url: str, key: str) -> Check | None:
     return Check(
         name,
         "fail",
-        "PSEUDONYM_KEY does not match the database's key fingerprint: opt-outs would stop "
+        "the opt-out key does not match the database's key fingerprint: opt-outs would stop "
         "matching, so collectors and privacy commands refuse to run. Restore the original key; "
         f"a rotation uses `pigtail privacy rekey` ({RUNBOOK} §4.1), and `{RESET_COMMAND}` only "
         "the §4.2 fallback",

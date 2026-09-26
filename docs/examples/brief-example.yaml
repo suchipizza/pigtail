@@ -1,7 +1,7 @@
-# Synthetic example brief (schema brief/v1; PRD R18.9, D6). It describes a made-up project, not a
-# real one: copy it, change every field, and save it with `pigtail brief new --from <file>`.
-# Your own briefs live only in PIGTAIL_DATA_DIR/briefs and never in git.
-schema_version: brief/v1.1
+# Synthetic example brief (schema brief/v1.2; PRD R18.9, D6). It describes a made-up project, not
+# a real one: copy it, change every field, and save it with `pigtail brief new --from <file>`.
+# Your own briefs live outside git, in PIGTAIL_BRIEFS_DIR (default ~/.pigtail/briefs).
+schema_version: brief/v1.2
 brief_id: example-config-linter
 status: draft
 
@@ -75,9 +75,10 @@ panel:
   headline_exclusion_smd: 0.5
 
 budget:
-  money_usd: 0             # free tiers only; any paid step needs your explicit approval
-  subscription_share: 0.5  # at most half of your weekly Claude subscription allowance
-  llm_backend: subscription
+  money_usd: 150           # total cap for this brief, API spend included (R15.11); every paid
+                           # step needs your explicit approval (`--approve-paid`)
+  subscription_share: 0.5  # applies only to agents building pigtail, not to this brief's runs
+  llm_backend: api         # the backend this brief's LLM calls use; never switched automatically
 
 optional_sources:
   trendshift: false

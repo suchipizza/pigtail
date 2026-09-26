@@ -162,6 +162,14 @@ def test_m1t21_open_cases_window(db: str) -> None:
             "('case_00000000000000000003', 'github:2', %s, 'manual', 'closed')",
             (now - timedelta(hours=3), now - timedelta(days=5), now - timedelta(hours=1)),
         )
+    # Directive §8.3: only cases whose repo is on an in-review or final shortlist
+    assert pg_open_cases(db)(now - timedelta(hours=48)) == []
+    with _conn(db) as c:
+        c.execute(
+            "INSERT INTO brief_shortlist_entry (brief_id, brief_version, repo_full_name, status)"
+            " VALUES ('brief_synthetic', 1, 'acme/one', 'in_review'),"
+            " ('brief_synthetic', 1, 'acme/two', 'in_review')"
+        )
     got = pg_open_cases(db)(now - timedelta(hours=48))
     assert [(c.case_id, c.repo_full_name) for c in got] == [
         ("case_00000000000000000001", "acme/one")

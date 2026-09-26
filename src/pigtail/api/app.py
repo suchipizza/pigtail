@@ -325,7 +325,7 @@ def create_app(
         if out is None:
             raise HTTPException(404, "evidence not found")
         ev = out["evidence"]
-        out["retention"] = retention_info(ev, capture)
+        out["retention"] = retention_info(ev, capture, conn)
         if ev["snapshot"]["available"]:
             try:
                 ev["snapshot"]["in_store"] = store.exists(ev["content_hash"])
@@ -419,9 +419,11 @@ def create_app(
 
     app.include_router(
         make_briefs_router(
-            store=BriefStore.from_data_dir(capture.data_dir),
+            store=BriefStore.from_settings(capture),
             data_dir=capture.data_dir,
-            llm_model=capture.llm_model,
+            llm_models={str(k): v for k, v in capture.llm_models.items()},
+            llm_batch=capture.llm_batch,
+            month_cap_usd=capture.budget_usd_month,
             require_operator=require_operator,
             same_origin=same_origin,
             audit=audit_write,
@@ -451,20 +453,42 @@ def gone_response(state: str, content_hash: str, evidence_id: str) -> JSONRespon
     )
 
 
-def retention_info(ev: dict[str, Any], s: Settings) -> dict[str, Any]:
-    """When the raw bytes are due to be dropped (retention policy), or null if kept."""
+def retention_info(ev: dict[str, Any], s: Settings, conn: Any = None) -> dict[str, Any]:
+    """When the raw bytes are due to be dropped (retention policy), or null if kept.
+
+    Person-level snapshots follow R19.9 (report final + 12 months, else the
+    PERSON_LEVEL_RETENTION_DAYS ceiling; `pigtail.privacy.snapshot_retention`) when a database
+    connection is given; GH Archive dumps keep their shorter rule."""
     fetched: datetime = ev["fetched_at"]
-    rules: list[tuple[int, str]] = []
-    if ev["retention_class"] == "person_level_24m":
-        rules.append((s.person_level_retention_days, "person-level: PERSON_LEVEL_RETENTION_DAYS"))
+    rules: list[tuple[datetime, str]] = []
+    if ev["retention_class"] == "person_level_24m" and ev["deletion_state"] == "present":
+        at: datetime | None = fetched + timedelta(days=s.person_level_retention_days)
+        rule = "person-level: PERSON_LEVEL_RETENTION_DAYS ceiling"
+        if conn is not None:
+            from pigtail.privacy.snapshot_retention import evidence_due
+
+            at, rule = evidence_due(
+                conn,
+                content_hash=ev["content_hash"],
+                retention_class=ev["retention_class"],
+                after_report_days=s.snapshot_after_report_days,
+                ceiling_days=s.person_level_retention_days,
+            )
+        if at is not None:
+            rules.append((at, rule))
     if ev["source"] == "gharchive":
-        rules.append((s.gharchive_raw_retention_days, "GH Archive: GHARCHIVE_RAW_RETENTION_DAYS"))
-    days, rule = min(rules) if rules else (None, "kept (no raw-retention limit for this class)")
+        rules.append(
+            (
+                fetched + timedelta(days=s.gharchive_raw_retention_days),
+                "GH Archive: GHARCHIVE_RAW_RETENTION_DAYS",
+            )
+        )
+    due, rule = min(rules) if rules else (None, "kept (no raw-retention limit for this class)")
     return {
         "retention_class": ev["retention_class"],
         "deletion_state": ev["deletion_state"],
         "rule": rule,
-        "raw_drop_due_at": fetched + timedelta(days=days) if days is not None else None,
+        "raw_drop_due_at": due,
     }
 
 

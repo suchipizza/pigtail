@@ -6,8 +6,8 @@ without leading zero). The BigQuery path is a later option.
 Each hourly dump is snapshotted whole (it contains person-level data: retention class
 `person_level_24m`). `_parse()` streams the gzip line by line and yields one minimal record per
 event: `{event_id, type, repo_id, repo_name, actor, created_at}`. The bot filter v0 (login-based
-part) runs in `_pre_pseudonymize()` on the raw login; everything downstream only ever sees the
-keyed pseudonym (namespace "github"), or `actor=None` plus `is_bot=True` for bots.
+part) runs in `_pre_code()` on the raw login; everything downstream sees `actor=None` plus the
+coded fields (`automated_account`, `bot_rule_version`, role and bucket; Directive §8.1).
 
 Status since M11 (ADR-047.1, ADR-047.6, ADR-047.8): the global velocity scan that used this
 connector was removed. The connector is kept, unused by any job, for brief-restricted discovery
@@ -43,9 +43,10 @@ class GHArchiveConnector(Connector):
         terms_basis=(
             "TM-01 (docs/compliance/terms-memos.md): GH Archive data has no stated licence; "
             "GitHub ToS and Acceptable Use Policies §7 apply (research use of public "
-            "information; comply with the GitHub Privacy Statement). Conditions: pseudonymize "
-            "actors at ingest, never sell or export personal information, aggregate-only open "
-            "public outputs, cross-check star counts against the GitHub API."
+            "information; comply with the GitHub Privacy Statement). Conditions: discard "
+            "actors at ingest (roles and buckets only), never sell or export personal "
+            "information, aggregate-only open public outputs, cross-check star counts against "
+            "the GitHub API."
         ),
         clearance=Clearance.CLEARED_WITH_CONDITIONS,
         commercial_use=None,  # unknown: open question Q1 in TM-01
@@ -82,10 +83,10 @@ class GHArchiveConnector(Connector):
                     continue  # malformed line: skip (counted by the caller via totals)
                 yield rec
 
-    def _pre_pseudonymize(self, record: Record) -> Record | None:
+    def _pre_code(self, record: Record) -> Record | None:
         login = record.get("actor")
         bot = login is None or is_bot_login(login)
-        record["is_bot"] = bot
+        record["automated_account"] = bot
         if bot:
             record["actor"] = None  # bots are not persons; don't keep or hash their login
         return record

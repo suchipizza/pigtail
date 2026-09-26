@@ -39,10 +39,11 @@ def env(
     password_hash: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[tuple[TestClient, Path, Any]]:
-    monkeypatch.setenv("PIGTAIL_SUBSCRIPTION_WEEKLY_TOKENS", "20000000")
     data = tmp_path / "data"
     ui = UISettings(password_hash=password_hash, dist_dir=tmp_path / "dist")
-    s = Settings.from_env({"PIGTAIL_DATA_DIR": str(data)})
+    s = Settings.from_env(
+        {"PIGTAIL_DATA_DIR": str(data), "PIGTAIL_BRIEFS_DIR": str(data / "briefs")}
+    )
     app = create_app(
         conninfo=pg_url, ui=ui, store=LocalSnapshotStore(tmp_path / "snap"), settings=s
     )
@@ -165,7 +166,10 @@ def test_d7_list_holds_several_briefs_with_status_and_budget(env):
     items = client.get("/api/briefs").json()["items"]
     assert [i["brief_id"] for i in items] == [BID, "second-synthetic"]
     assert items[0]["status"] == "draft" and items[0]["last_run"] is None
-    assert items[0]["budget"]["money_usd"] == 0 and items[0]["budget"]["subscription_share"] == 0.5
+    assert (
+        items[0]["budget"]["money_usd"] == 150 and items[0]["budget"]["subscription_share"] == 0.5
+    )
+    assert "llm_api_usd" not in items[0]["budget"]  # folded into money_usd (ADR-072.4)
 
 
 def test_d7_estimate_and_template(env):
@@ -175,6 +179,10 @@ def test_d7_estimate_and_template(env):
     assert t["brief"]["brief_id"] == BID and "schema_version: brief/v1" in t["yaml"]
     client.post("/api/briefs", json={"brief": example()})
     e = client.get(f"/api/briefs/{BID}/estimate").json()
-    assert e["label"] == "estimate"
-    assert e["money"]["usd"] == 0.0 and e["money"]["requires_approval"] is False
-    assert e["llm"]["subscription"]["allowance"]["basis"] == "configured"
+    assert e["label"] == "estimate" and e["model"] == "estimate-v2"
+    # R15.11: USD per stage (api backend), against the brief's and the monthly cap
+    assert e["money"]["requires_approval"] is True and e["money"]["usd"] > 0
+    assert e["caps"]["brief"]["cap_usd"] == 150.0 and e["caps"]["month"]["cap_usd"] == 200.0
+    assert e["caps"]["brief"]["spent_usd"] == 0.0  # nothing in the cost ledger for this brief
+    assert set(e["llm"]["per_llm_stage"]) == {"relevance", "extraction", "synthesis"}
+    assert e["llm"]["pricing"]["as_of"] == "2026-06-24"

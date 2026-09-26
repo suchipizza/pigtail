@@ -100,7 +100,7 @@ def test_cb23b_unparseable_events_page_dropped_at_once_and_refetched(capture_db,
     assert db.conn.execute(
         "SELECT reason, content_hash FROM deletion_log WHERE action = 'raw_dropped'"
     ).fetchall() == [("retention", row[2])]
-    assert db.conn.execute("SELECT count(*) FROM repo_event_actor").fetchone() == (0,)
+    assert db.conn.execute("SELECT count(*) FROM repo_event_hourly_agg").fetchone() == (0,)
     counts = run.counts
     assert counts["repo_events.parse_failed"] == 1 and counts["repo_events.raw_dropped"] == 1
     assert counts["github_events.parse_failed.JSONDecodeError"] == 1

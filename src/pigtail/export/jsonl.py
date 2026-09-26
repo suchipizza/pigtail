@@ -11,10 +11,11 @@
   per-file SHA-256 and row counts). All tables are read in one `REPEATABLE READ, READ ONLY`
   transaction, so the files are a consistent snapshot.
 - **Classification (fail closed):** every table must be listed in `TABLE_LEVELS`. `project`
-  tables are exported by default; `person` tables (pseudonymous person-level rows, the refusal
-  list) only with `--include-person-level` **and** an output directory outside any git working
-  tree; `never` tables are never exported: `repo_event_actor` (per-repo star/fork actors, read
-  only in aggregate, CB-23), UI sessions and the UI audit log. A table in the database
+  tables are exported by default; `person` tables (the refusal list with its opt-out
+  fingerprints, upstream item links, LLM-derived stage results) only with
+  `--include-person-level` **and** an output directory outside any git working tree; `never`
+  tables are never exported: UI sessions, the UI audit log and the key fingerprint. No table
+  holds handles or pseudonyms since migration 0017 (Directive §8.1). A table in the database
   that is not classified stops the export (a new migration must classify its tables).
 - **Never into the source tree:** an output directory inside the pigtail repository (public) is
   refused, whatever the flags. Files are written with mode 0600 in a 0700 directory, atomically
@@ -55,24 +56,31 @@ TABLE_LEVELS: dict[str, Level] = {
     "launch_mode_window": "project",
     "privacy_requests": "project",  # no handle, no pseudonym (CB-08)
     "repo_event_daily_agg": "project",
+    "repo_event_hourly_agg": "project",  # counts only (0017)
     "repo_event_poll": "project",
     "repo_star_daily": "project",
     "repos": "project",
     "runs": "project",
     "brief_runs": "project",  # M12: ids, versions, content hashes, estimates; no brief content
     "shortlist_decision": "project",  # R4.7 (M13): project-level decisions with reasons
+    "brief_shortlist_entry": "project",  # mention scope (0019): repo names and status
+    "brief_report_final": "project",  # R19.9 anchor (0018): ids, versions, timestamps
+    "brief_evidence": "project",  # R19.9 anchor (0018): brief run -> evidence ids
     # LLM-derived stage results may quote evidence (as the LLM cache does, CB-05)
     "brief_stage_cache": "person",
+    # M21b (0020): batch ids, hashes, statuses, token counts and USD; no prompt, output or evidence
+    "llm_batches": "project",
+    "llm_batch_requests": "project",
+    "llm_cost_ledger": "project",
     "schema_migrations": "project",
     "star_history_fetch": "project",
-    # person-level: pseudonyms (PERSON_TABLES), upstream item links, the refusal list
+    # person-level: coded mentions (roles and buckets, no handle, but tied to individual
+    # posts), upstream item links, the refusal list (opt-out fingerprints, ADR-071.1)
     "hn_mention": "person",
     "upstream_items": "person",
     "evidence_upstream_items": "person",
     "privacy_suppression": "person",
-    # never: per-repo star/fork actors (read only in aggregate, CB-23; a dump would list a repo's
-    # stargazers), operator session hashes and the UI audit trail
-    "repo_event_actor": "never",
+    # never: operator session hashes and the UI audit trail
     "ui_sessions": "never",
     "ui_audit_log": "never",
     # the pseudonym-key fingerprint and its history (CB-25): key-derived, useless outside

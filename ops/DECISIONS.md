@@ -550,3 +550,19 @@ Replaces chat reference: none (new in the directive; ADR-073.3, Directive §11).
    - Spread graphs are roles and buckets (ADR-066.1), so the old LQ-8 condition (account-level graphs) no longer applies.
 3. **Chat references:** ADR-059 to ADR-069 each derive from Owner Directive 001 (CR-003 for §8–§9; CR-002 for §1–§4 and §7; CR-001 for §5; §6, §10 and §11 are new in the directive). The mapping is recorded here and in the directive preamble.
 How to reverse: A new owner directive.
+
+## ADR-074 — M21 implementation choices: privacy model, LLM path, cost, briefs store (2026-09-26)
+**Privacy (M21a, ADR-066/071):**
+1. **Roles and buckets** are coded at ingest (`pigtail.privacy.roles`: maintainer, account, newsletter, community, organization, automated_account; buckets r0–r4). Handle fields are set to None before storage. The `maintainer` role for HN mentions is a heuristic (HN name equals the GitHub owner, `roles-v1`).
+2. **The opt-out fingerprint keeps the old `p_` + 16-hex value**, so existing opt-outs keep matching. `OPTOUT_KEY` is the variable name, with `PSEUDONYM_KEY` accepted as an alias (refused if both are set and differ). The CB-25 key check still applies.
+3. **Migration 0017** removes stored authors and pseudonyms (`hn_mention.author`, `upstream_items.author_pseudonym`) and drops `repo_event_actor`. Per-repo events keep only hourly and daily counts, de-duplicated within a poll (the same account can be counted twice across polls; accepted). Migrated rows get role `account`, bucket r0, `automated_account` unknown.
+4. **Snapshot retention (§8.2):** snapshots are deleted 12 months after the latest final report of the briefs that used them. Snapshots with no brief or a pending report fall back to the 730-day ceiling from fetch. The class name `person_level_24m` is kept for now.
+5. **Collection scope (§8.3):** mention capture refuses any repo that isn't on an in-review or final shortlist, so a tracked launch-mode project must be shortlisted.
+
+**LLM path and cost (M21b, ADR-064):**
+6. **Stages:** relevance → Haiku 4.5; extraction, coding and adjudication → Sonnet 5; patterns, report, plan and asset drafting → Opus 5.5. `brief_expansion` runs on the synthesis model as a standard (non-batch) call because it's interactive. Unknown jobs are refused. Launch mode and interactive jobs never use batches.
+7. **Model inputs are redacted with per-call, keyless aliases** (`user1`, `user2`, …; `llm/redact.py`, provenance `alias-v1`). Nothing keyed reaches the model, the LLM cache or logs. Logs use keyless placeholders only. The local LLM cache was cleared (0 rows).
+8. **Cost:** `BudgetGuard` hard-stops at the brief's `money_usd` (API included, spend across all runs) and at `BUDGET_USD_MONTH` (calendar month UTC, default 200), citing H6. The `money_usd` code default stays 0; the example suggests 150. Estimate model v2 assumes 0.5 cache hits in batches and 0.8 in standard calls, labelled as assumptions. Prices come from the model table dated 2026-06-24 (`PRICES_AS_OF`); check the pricing page before large runs. Actual cost goes to `llm_cost_ledger` per brief run and case (migration 0020, ids, hashes and token counts only). Brief schema v1.2 folds `llm_api_usd` into `money_usd`.
+9. **Anomaly checks** (ADR-070.4): `anomaly-v0` in `analysis-params` v1.1.0; StarScout parameters are retired.
+10. **Briefs store:** default `~/.pigtail/briefs`. The owner's brief was moved there with `migrate-store` (counts only printed). Backups add a second encrypted archive of the briefs directory next to the database backup; merging them into one stream is a follow-up. The `ui` container mounts the briefs directory.
+How to reverse: Per item, through an ADR.

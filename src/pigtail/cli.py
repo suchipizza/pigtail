@@ -30,6 +30,8 @@ class SmokeOutput(BaseModel):
     backend_echo: str
 
 
+# the opt-out key (ADR-071.1); PSEUDONYM_KEY is its earlier name, still read
+KEY_MISSING = "OPTOUT_KEY (or its alias PSEUDONYM_KEY) is not set (>= 16 chars; ADR-071.1)"
 SMOKE_SYSTEM = "You are a test fixture. Reply only through the requested JSON schema."
 SMOKE_TEMPLATE = "Compute 17 + 25 and put it in `answer`. Put the word {input} in `backend_echo`."
 
@@ -56,7 +58,9 @@ def cmd_llm_status(_: argparse.Namespace) -> int:
     out = {
         "llm_backend": s.llm_backend,
         "overrides": s.llm_backend_overrides,
-        "model": s.llm_model,
+        "models": s.llm_models,  # R15.8, per stage (LLM_MODEL_<STAGE>, fallback LLM_MODEL)
+        "batch": s.llm_batch,
+        "budget_usd_month": s.budget_usd_month,
         "usage": store.summary(),
         "paused_until": {
             b: (p.isoformat() if (p := store.paused_until(b)) else None)
@@ -230,7 +234,12 @@ def cmd_capture_hn_ranks(args: argparse.Namespace) -> int:
 def cmd_capture_mentions(args: argparse.Namespace) -> int:
     """M1-T4 / R1.2: search HN (Algolia) for mentions of a repo; snapshot and store them."""
     from pigtail.capture.db import CaptureDB
-    from pigtail.capture.mentions import RepoSuppressed, capture_hn_mentions, split_full_name
+    from pigtail.capture.mentions import (
+        NotShortlisted,
+        RepoSuppressed,
+        capture_hn_mentions,
+        split_full_name,
+    )
     from pigtail.capture.runs import RunRecorder
     from pigtail.capture.snapshots import build_store
     from pigtail.connectors.base import ConnectorError
@@ -245,7 +254,7 @@ def cmd_capture_mentions(args: argparse.Namespace) -> int:
     if rc is not None:
         return rc
     if not s.pseudonym_key:
-        print("PSEUDONYM_KEY is not set (>= 16 chars; PRD §10)", file=sys.stderr)
+        print(KEY_MISSING, file=sys.stderr)
         return 2
     try:
         split_full_name(args.repo)
@@ -288,7 +297,7 @@ def cmd_capture_mentions(args: argparse.Namespace) -> int:
                     loose=args.loose,
                     run=run,
                 )
-            except (ConnectorError, RepoSuppressed) as e:
+            except (ConnectorError, RepoSuppressed, NotShortlisted) as e:
                 print(str(e), file=sys.stderr)
                 return 2
     finally:
@@ -408,7 +417,7 @@ class _Ctx:
         if not s.database_url:
             raise _UsageError("DATABASE_URL is not set")
         if need_key and not s.pseudonym_key:
-            raise _UsageError("PSEUDONYM_KEY is not set (>= 16 chars; PRD §10)")
+            raise _UsageError(KEY_MISSING)
         migrate(s.database_url)
         self.settings = s
         self.db = CaptureDB.connect(s.database_url)
@@ -478,12 +487,14 @@ def _retention_cfg(s: Any) -> Any:
         gharchive_raw_days=s.gharchive_raw_retention_days,
         log_days=s.log_retention_days,
         github_events_days=s.github_events_retention_days,
+        after_report_days=s.snapshot_after_report_days,
     )
 
 
 @_privacy
 def cmd_retention_purge(args: argparse.Namespace, ctx: _Ctx) -> int:
-    """CB-01 (+ CB-04, CB-05, CB-18): purge person-level data past its retention."""
+    """R19.9 / CB-01 (+ CB-04, CB-05, CB-18): purge raw snapshots past report final + 12 months
+    (or the PERSON_LEVEL_RETENTION_DAYS ceiling) and other data past its retention."""
     from pigtail.capture.runs import RunRecorder
     from pigtail.privacy.retention import purge
 
@@ -494,6 +505,7 @@ def cmd_retention_purge(args: argparse.Namespace, ctx: _Ctx) -> int:
         "person_level_days": cfg.person_level_days,
         "gharchive_raw_days": cfg.gharchive_raw_days,
         "github_events_days": cfg.github_events_days,
+        "after_report_days": cfg.after_report_days,
         "log_days": cfg.log_days,
         "llm_cache_days": s.llm_cache_retention_days,
         "snapshot_backend": s.snapshot_backend,
@@ -506,6 +518,45 @@ def cmd_retention_purge(args: argparse.Namespace, ctx: _Ctx) -> int:
     if len(rep.dropped_hashes) > 20:
         out["dropped_hashes"] = [*rep.dropped_hashes[:20], f"... {len(rep.dropped_hashes)} total"]
     print(json.dumps(out, indent=2))
+    return 0
+
+
+@_privacy
+def cmd_retention_report_final(args: argparse.Namespace, ctx: _Ctx) -> int:
+    """R19.9: record when a brief version's report became final (the snapshot retention anchor:
+    snapshots its runs used are purged 12 months later)."""
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.privacy.snapshot_retention import mark_report_final
+
+    at = args.at or datetime.now(UTC)
+    # ids and versions only: brief content never goes into run records (R18.9)
+    config = {"brief_version": args.version, "at": at.isoformat()}
+    with RunRecorder("retention.report_final", config, sink=ctx.db.upsert_run) as run:
+        mark_report_final(
+            ctx.db, args.brief, args.version, at=at, brief_run_id=args.brief_run, run_id=run.id
+        )
+    print(json.dumps({"run_id": run.id, "brief_version": args.version, "at": at.isoformat()}))
+    return 0
+
+
+@_privacy
+def cmd_capture_shortlist_set(args: argparse.Namespace, ctx: _Ctx) -> int:
+    """Directive §8.3: put repos in (or out of) mention scope for one brief version."""
+    from pigtail.capture import scope
+
+    try:
+        n = scope.set_entries(ctx.db, args.brief, args.version, args.repo, args.status)
+    except ValueError as e:
+        raise _UsageError(str(e)) from e
+    print(json.dumps({"entries_written": n, "status": args.status}))
+    return 0
+
+
+@_privacy
+def cmd_capture_shortlist_list(_args: argparse.Namespace, ctx: _Ctx) -> int:
+    from pigtail.capture import scope
+
+    print(json.dumps(scope.entries(ctx.db), indent=2, default=str))
     return 0
 
 
@@ -570,14 +621,15 @@ def _repo_name(args: argparse.Namespace) -> str:
 
 @_privacy
 def cmd_optout_add(args: argparse.Namespace, ctx: _Ctx) -> int:
-    """CB-13: add a person (pseudonymized at once) or a repo to the refusal list, then purge."""
+    """CB-13: add a person (as an opt-out fingerprint, ADR-071.1) or a repo to the refusal list,
+    then purge."""
     from pigtail.capture.runs import RunRecorder
     from pigtail.privacy import requests
 
     assert ctx.pz is not None
     key = _repo_key(ctx, args)
     name = _repo_name(args) if args.repo else None
-    kind = "repo" if key else "repo_name" if name else "pseudonym"
+    kind = "repo" if key else "repo_name" if name else "person"
     # the run config never holds the repo name: it may contain a personal account name
     config = {"platform": args.platform, "kind": kind}
     with RunRecorder("privacy.optout", config, sink=ctx.db.upsert_run) as run:
@@ -635,8 +687,8 @@ def cmd_optout_remove(args: argparse.Namespace, ctx: _Ctx) -> int:
             ok = suppression.remove(ctx.db, "repo_name", nk) or ok
             ok = suppression.remove_legacy_name(ctx.db, _repo_name(args), args.platform) or ok
     else:
-        p = suppression.subject_pseudonym(ctx.pz, args.platform, _read_handle(args.handle))
-        ok = suppression.remove(ctx.db, "pseudonym", p)
+        p = suppression.subject_fingerprint(ctx.pz, args.platform, _read_handle(args.handle))
+        ok = suppression.remove(ctx.db, "person", p)
     print(json.dumps({"removed": ok}))
     return 0
 
@@ -813,8 +865,70 @@ def cmd_backup_create(args: argparse.Namespace) -> int:
             run.incr("snapshot_hashes", res.snapshot_hashes)
     finally:
         db.close()
-    print(json.dumps({"run_id": run.id, **res.to_dict()}, indent=2))
+    out = {"run_id": run.id, **res.to_dict()}
+    rc = _backup_briefs(s, Path(res.path), out)  # R18.9 / ADR-071.3: briefs are backed up too
+    print(json.dumps(out, indent=2))
+    return rc
+
+
+def _backup_briefs(s: Any, db_backup: Any, out: dict[str, Any]) -> int:
+    """ADR-071.3: the encrypted briefs archive beside a database backup (same timestamp)."""
+    import os
+
+    from pigtail.briefs.backup import DB_NAME_RE, create_briefs_archive
+    from pigtail.privacy.backup import RECIPIENT_ENV, BackupError
+
+    m = DB_NAME_RE.match(db_backup.name)
+    try:
+        br = create_briefs_archive(
+            s.briefs_dir,
+            db_backup.parent,
+            recipient=os.environ.get(RECIPIENT_ENV),
+            stamp=m.group(1) if m else None,
+        )
+    except BackupError as e:
+        out["briefs"] = {"error": str(e)}
+        print(f"briefs archive failed (the database backup was written): {e}", file=sys.stderr)
+        return 2
+    out["briefs"] = br.to_dict()
     return 0
+
+
+def _restore_briefs(args: argparse.Namespace, s: Any, backup: Any) -> dict[str, Any] | None:
+    """ADR-071.3: restore the briefs archive taken with `backup` (or `--briefs-in`) into
+    PIGTAIL_BRIEFS_DIR; existing versions are never overwritten."""
+    import os
+    from pathlib import Path
+
+    from pigtail.briefs.backup import companion_of, restore_briefs_archive
+    from pigtail.privacy.backup import IDENTITY_ENV, BackupError
+
+    if args.no_briefs:
+        return None
+    path = Path(args.briefs_in) if args.briefs_in else companion_of(backup)
+    if path is None or not path.is_file():
+        print(
+            "warning: no briefs archive found next to the backup; briefs were not restored"
+            " (pass --briefs-in FILE)",
+            file=sys.stderr,
+        )
+        return {"status": "not_found"}
+    try:
+        res = restore_briefs_archive(
+            path, s.briefs_dir, identity=args.identity or os.environ.get(IDENTITY_ENV)
+        )
+    except BackupError as e:
+        print(f"briefs not restored: {e}", file=sys.stderr)
+        return {"status": "failed", "error": str(e)}
+    d = res.to_dict()
+    d.pop("conflict_paths")
+    if res.conflicts:
+        print(
+            f"warning: {res.conflicts} brief version(s) in the archive differ from the ones in"
+            f" {s.briefs_dir}; the existing files were kept",
+            file=sys.stderr,
+        )
+    return {"status": "restored", "archive": path.name, **d}
 
 
 def cmd_backup_restore(args: argparse.Namespace) -> int:
@@ -837,7 +951,10 @@ def cmd_backup_restore(args: argparse.Namespace) -> int:
         print("DATABASE_URL is not set", file=sys.stderr)
         return 2
     if not s.pseudonym_key:
-        print("PSEUDONYM_KEY is not set: the opt-out list cannot be re-applied", file=sys.stderr)
+        print(
+            "OPTOUT_KEY (or PSEUDONYM_KEY) is not set: the opt-out list cannot be re-applied",
+            file=sys.stderr,
+        )
         return 2
     if not args.yes:
         print(
@@ -890,6 +1007,7 @@ def cmd_backup_restore(args: argparse.Namespace) -> int:
     finally:
         db.close()
     out = {"run_id": run.id, "runs": runs, **res.to_dict()}
+    out["briefs"] = _restore_briefs(args, s, Path(args.input))
     if res.carry_over_source != "live":
         print(
             f"warning: no live database to carry over from ({res.carry_over_source}): deletions"
@@ -1039,12 +1157,15 @@ def cmd_backup_prune(args: argparse.Namespace) -> int:
     if not directory:
         print(f"give --dir or set {BACKUP_DIR_ENV}", file=sys.stderr)
         return 2
+    from pigtail.briefs.backup import prune_briefs_archives
+
     try:
         res = prune(Path(directory), days=args.days, dry_run=args.dry_run)
+        briefs = prune_briefs_archives(Path(directory), days=args.days, dry_run=args.dry_run)
     except BackupError as e:
         print(str(e), file=sys.stderr)
         return 2
-    print(json.dumps(res.to_dict(), indent=2))
+    print(json.dumps({**res.to_dict(), "briefs": briefs.to_dict()}, indent=2))
     return 0
 
 
@@ -1114,6 +1235,22 @@ def build_parser() -> argparse.ArgumentParser:
     men.add_argument("--loose", action="store_true", help="also keep repo-name-only matches")
     men.add_argument("--no-items", action="store_true", help="skip per-item Firebase snapshots")
     men.set_defaults(func=cmd_capture_mentions)
+    sl = cap_sub.add_parser(
+        "shortlist", help="mention scope: shortlisted projects only (Directive §8.3)"
+    )
+    sl_sub = sl.add_subparsers(dest="shortlist_command", required=True)
+    sls = sl_sub.add_parser("set", help="put repos of a brief version's shortlist in scope")
+    sls.add_argument("--brief", required=True, help="brief id")
+    sls.add_argument("--version", type=int, required=True, help="brief version")
+    sls.add_argument(
+        "--status", required=True, choices=["in_review", "final", "removed"],
+        help="in_review and final are in mention scope; removed is not",
+    )  # fmt: skip
+    sls.add_argument("--repo", action="append", required=True, help="owner/name (repeatable)")
+    sls.set_defaults(func=cmd_capture_shortlist_set, _need_key=False)
+    sl_sub.add_parser("list", help="shortlist entries (private terminal output)").set_defaults(
+        func=cmd_capture_shortlist_list, _need_key=False
+    )
     from pigtail.capture.github_cli import add_commands as add_github_commands
 
     add_github_commands(cap_sub)  # `pigtail capture github …` (M1-T24, ADR-032)
@@ -1123,6 +1260,15 @@ def build_parser() -> argparse.ArgumentParser:
     rp = ret_sub.add_parser("purge", help="purge person-level data past its retention")
     rp.add_argument("--dry-run", action="store_true", help="report only; change nothing")
     rp.set_defaults(func=cmd_retention_purge, _need_key=False)
+    rf = ret_sub.add_parser(
+        "report-final",
+        help="record that a brief version's report is final (R19.9 snapshot retention anchor)",
+    )
+    rf.add_argument("--brief", required=True, help="brief id")
+    rf.add_argument("--version", type=int, required=True, help="brief version")
+    rf.add_argument("--at", type=_parse_hour, help="when it became final (UTC; default now)")
+    rf.add_argument("--brief-run", help="the brief run the final report came from")
+    rf.set_defaults(func=cmd_retention_report_final, _need_key=False)
 
     priv = sub.add_parser("privacy", help="opt-outs and data-subject requests (CB-08, CB-13)")
     priv_sub = priv.add_subparsers(dest="privacy_command", required=True)
@@ -1243,6 +1389,10 @@ def build_parser() -> argparse.ArgumentParser:
     br.add_argument("--in", dest="input", required=True, help="backup file (.age or .gpg)")
     br.add_argument("--identity", help="age identity file (default: $BACKUP_IDENTITY)")
     br.add_argument("--yes", action="store_true", help="confirm: the database is replaced")
+    br.add_argument(
+        "--briefs-in", help="briefs archive (default: the one taken with the backup, ADR-071.3)"
+    )
+    br.add_argument("--no-briefs", action="store_true", help="don't restore the briefs archive")
     br.set_defaults(func=cmd_backup_restore)
     bp = bk_sub.add_parser("prune", help="delete backups older than 35 days")
     bp.add_argument("--dir", help="backup directory (default $BACKUP_DIR)")

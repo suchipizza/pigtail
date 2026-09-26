@@ -1,0 +1,80 @@
+{
+  "id": "pigtail-analysis-params",
+  "version": "1.1.0",
+  "created": "2026-09-26",
+  "status": "active",
+  "supersedes": "v1.0.0 (kept unchanged)",
+  "reason": "ADR-070.4 (owner decision): per-account fake-star filtering (StarScout-style) no longer works for repos the operator does not own; it is retired and replaced by aggregate anomaly checks on daily star counts against forks, issues, downloads and external mentions. Star metrics are labelled 'unfiltered, anomaly-checked' (PRD R3.3). The burst block is unchanged. M21b.",
+  "implementation": "src/pigtail/analysis/params.py mirrors this file (a test keeps them equal); src/pigtail/analysis/bursts.py applies the burst block; src/pigtail/analysis/anomaly.py applies the anomaly_check block.",
+  "change_rule": "Any change is a new version of this file and of PARAMS_VERSION, logged in ops/DECISIONS.md; for a brief, the version in force is fixed before its outcome sort (outcome model v2 §5.8).",
+  "star_history_day_tz": "America/Los_Angeles",
+  "burst": {
+    "rule_version": "velocity-v0",
+    "series": "raw star-history daily net counts n(d), endpoint days (ADR-032.3)",
+    "min_net_stars_48h": 100,
+    "sigma": 3.0,
+    "baseline_days": 30,
+    "min_sigma": 1.0,
+    "full_baseline_coverage": 0.9,
+    "min_full_blocks": 3,
+    "onset_sigma": 3.0,
+    "onset_hours_per_day": 24,
+    "end_quiet_days": 3,
+    "merge_gap_days": 7,
+    "min_quiet_days": 7,
+    "shape": {
+      "sudden_peak_max_index": 1,
+      "decay_within_index": 7,
+      "decay_share": 0.5,
+      "gradual_peak_min_index": 8
+    }
+  },
+  "fake_star_filter": {
+    "id": "starscout-v0",
+    "n": 50,
+    "m": 10,
+    "delta_t_days": 30,
+    "rho": 0.5,
+    "level": "campaign",
+    "campaign_rule": {
+      "min_fake_stars_in_month": 50,
+      "min_fake_share_in_month": 0.5,
+      "min_fake_share_all_time": 0.1,
+      "comparators": "strictly greater than"
+    },
+    "status": "retired",
+    "retired_by": "ADR-070.4 (analysis-params v1.1.0): replaced by anomaly_check"
+  },
+  "anomaly_check": {
+    "rule_version": "anomaly-v0",
+    "label": "unfiltered, anomaly-checked",
+    "channels": [
+      "forks",
+      "issues",
+      "downloads",
+      "mentions"
+    ],
+    "baseline_days": 30,
+    "min_baseline_days": 14,
+    "min_spike_stars": 50,
+    "spike_sigma": 3.0,
+    "min_sigma": 1.0,
+    "window_before_days": 1,
+    "window_after_days": 3,
+    "min_activity_lift": 2.0,
+    "min_activity_excess": {
+      "forks": 3.0,
+      "issues": 3.0,
+      "downloads": 100.0,
+      "mentions": 1.0
+    },
+    "ratio_channels": [
+      "forks",
+      "issues"
+    ],
+    "ratio_min_population": 8,
+    "ratio_robust_z": 3.5,
+    "ratio_max_stars_per_activity": 50.0,
+    "ratio_min_stars": 200
+  }
+}

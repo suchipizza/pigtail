@@ -28,7 +28,7 @@ from pigtail.briefs.model import (
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE = ROOT / "docs" / "examples" / "brief-example.yaml"
-SCHEMA = ROOT / "schemas" / "brief" / "v1.1.json"
+SCHEMA = ROOT / "schemas" / "brief" / "v1.2.json"
 SCHEMA_V1 = ROOT / "schemas" / "brief" / "v1.json"
 
 
@@ -46,8 +46,8 @@ def problems(data: dict[str, Any]) -> dict[str, str]:
 def test_r18_1_schema_file_is_valid_2020_12_and_matches_the_model():
     committed = json.loads(SCHEMA.read_text())
     Draft202012Validator.check_schema(committed)
-    assert committed == json_schema(), "schemas/brief/v1.1.json drifted: `pigtail brief schema`"
-    assert committed["$id"].endswith("/schemas/brief/v1.1.json")
+    assert committed == json_schema(), "schemas/brief/v1.2.json drifted: `pigtail brief schema`"
+    assert committed["$id"].endswith("/schemas/brief/v1.2.json")
     assert committed["additionalProperties"] is False
 
 
@@ -210,6 +210,7 @@ def test_adr_054_panel_and_field_widening():
 def test_adr_053_paid_source_with_zero_money_warns():
     d = example()
     d["optional_sources"]["x"] = True
+    d["budget"]["money_usd"] = 0
     assert any("money_usd is 0" in w for w in validate_brief(d).warnings())
 
 

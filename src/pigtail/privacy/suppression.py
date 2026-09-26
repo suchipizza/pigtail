@@ -1,13 +1,17 @@
-"""Opt-out / refusal list (DPIA CB-13; FADP Art. 30(2)(b), GDPR Art. 21).
+"""Opt-out / refusal list (DPIA CB-13; FADP Art. 30(2)(b), GDPR Art. 21; ADR-071.1).
 
-The list (`privacy_suppression`, migration 0003) holds only:
+The list (`privacy_suppression`, migrations 0003, 0009, 0017) holds only:
 
-- **pseudonyms** (`p_<16 hex>`) of people who objected or asked for erasure. The handle given
-  by the requester is pseudonymized immediately with `PSEUDONYM_KEY` in the platform's namespace
-  and never stored; a CHECK constraint rejects anything that is not a pseudonym;
+- **opt-out fingerprints** (kind `person`, `p_<16 hex>`; PRD §7 `optout_fingerprint`) of people
+  who objected or asked for erasure: HMAC-SHA256 with the opt-out key (`OPTOUT_KEY`, alias
+  `PSEUDONYM_KEY`; kept apart from the data) of the handle in the platform's namespace. The
+  handle given by the requester is hashed at once and never stored; a CHECK constraint rejects
+  anything else. This is the only person-derived value pigtail keeps: coded data holds roles and
+  buckets (`pigtail.privacy.roles`). Kind `person` was called `pseudonym` before migration 0017
+  (same values);
 - **repo ids** (`<host>:<host_id>`, as in `repos.id`) of projects whose owner opted out;
 - **repo name keys** (`rk_<32 hex>`, kind `repo_name`; M1-T23, CB-13b): keyed HMAC-SHA256 with
-  `PSEUDONYM_KEY` of the normalized, lowercase `owner/name` in namespace `repo_name`
+  the opt-out key of the normalized, lowercase `owner/name` in namespace `repo_name`
   (`repo_name.<host>` for hosts other than GitHub). They let an opt-out reach data about a repo
   that is not (yet) in `repos`, such as HN stories and mentions, matched by name. The name itself
   is not stored, and without the key the hash cannot be reversed by a dictionary of public repo
@@ -19,17 +23,19 @@ The list (`privacy_suppression`, migration 0003) holds only:
   name is found in local data; re-adding a name (`optout add --repo`) converts it too; `pigtail
   doctor` warns while any are left.
 
-Name matching needs the key: `load()` takes the `Pseudonymizer` (or reads `PSEUDONYM_KEY`) and
-fails closed (`MissingNameKey`) when keyed entries exist but no key is available.
+Name matching needs the key: `load()` takes the `OptoutKey` (or reads `OPTOUT_KEY` /
+`PSEUDONYM_KEY`) and fails closed (`MissingNameKey`) when keyed entries exist but no key is
+available.
 
 Key check (CB-25, ADR-043): when a key is available, `load()` first verifies it against the
 fingerprint stored in the database (recording it on first use) and raises
 `KeyFingerprintMismatch` if the key changed, since every keyed entry would silently stop matching.
-The loaded list carries that fingerprint, and the connector base refuses a pseudonymizer with a
+The loaded list carries that fingerprint, and the connector base refuses an opt-out key with a
 different key (`Suppressions.check_key`).
 
 Connectors load the list once (`load()`) and drop matching records at ingest
-(`pigtail.connectors.base.Connector.records`). Existing data is purged by
+(`pigtail.connectors.base.Connector.records`): the handles of each parsed record are hashed in
+memory and compared with the list, then discarded. Existing data is purged by
 `pigtail.privacy.requests.purge_subject` / `purge_repo` (`pigtail privacy optout add|purge`).
 """
 
@@ -42,22 +48,28 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
-from pigtail.pseudonymize import PLATFORM_NAMESPACES, PSEUDONYM_RE, Pseudonymizer
+from pigtail.pseudonymize import (
+    PERSON_FINGERPRINT_RE,
+    PLATFORM_NAMESPACES,
+    OptoutKey,
+    optout_key_from_env,
+)
 
 if TYPE_CHECKING:
     from pigtail.capture.db import CaptureDB
 
-Kind = Literal["pseudonym", "repo", "repo_name", "repo_name_unkeyed"]
+Kind = Literal["person", "repo", "repo_name", "repo_name_unkeyed"]
 Reason = Literal["objection", "erasure"]
 REPO_KEY_RE = re.compile(r"^[a-z]+:[0-9]+$")
 REPO_NAME_KEY_RE = re.compile(r"^rk_[0-9a-f]{32}$")
 LEGACY_REPO_NAME_KEY_RE = re.compile(r"^rn_[0-9a-f]{32}$")
 NAME_KEY_NAMESPACE = "repo_name"
-KEY_ENV = "PSEUDONYM_KEY"
+KEY_ENV = "OPTOUT_KEY"  # alias: PSEUDONYM_KEY (pigtail.pseudonymize.optout_key_from_env)
+Pseudonymizer = OptoutKey  # earlier name
 
 
 class MissingNameKey(RuntimeError):
-    """Keyed repo-name opt-outs exist but no `PSEUDONYM_KEY` is available to match them."""
+    """Keyed repo-name opt-outs exist but no opt-out key is available to match them."""
 
 
 _FULL_NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38})/[a-z0-9._-]{1,100}$")
@@ -78,9 +90,9 @@ def name_key_namespace(host: str = "github") -> str:
     return NAME_KEY_NAMESPACE if host == "github" else f"{NAME_KEY_NAMESPACE}.{host}"
 
 
-def repo_name_key(full_name: str, pz: Pseudonymizer, host: str = "github") -> str:
+def repo_name_key(full_name: str, pz: OptoutKey, host: str = "github") -> str:
     """Refusal-list key of a repo name (M1-T23, CB-13b): `rk_` + 32 hex of
-    HMAC-SHA256(`PSEUDONYM_KEY`, `repo_name:<owner/name>`), name normalized and lowercase."""
+    HMAC-SHA256(opt-out key, `repo_name:<owner/name>`), name normalized and lowercase."""
     return "rk_" + pz.keyed_hex(normalize_repo_name(full_name), name_key_namespace(host))[:32]
 
 
@@ -98,16 +110,16 @@ NameKeyFn = Callable[[str, str], str]  # (full_name, host) -> rk_ key
 class Suppressions:
     """In-memory snapshot of the refusal list, checked for every parsed record."""
 
-    pseudonyms: frozenset[str] = frozenset()
+    persons: frozenset[str] = frozenset()  # opt-out fingerprints (kind `person`)
     repos: frozenset[str] = frozenset()
     repo_names: frozenset[str] = frozenset()  # repo_name_key() values (keyed, rk_)
     legacy_repo_names: frozenset[str] = frozenset()  # legacy_repo_name_key() values (rn_)
     name_key: NameKeyFn | None = field(default=None, compare=False, repr=False)
     key_fingerprint: str | None = None  # CB-25: fingerprint of the key the list was loaded under
 
-    def check_key(self, pz: Pseudonymizer | None) -> None:
+    def check_key(self, pz: OptoutKey | None) -> None:
         """CB-25: raise `KeyFingerprintMismatch` if `pz` is not the key this list was verified
-        against (a connector must pseudonymize with the same key the refusal list matches)."""
+        against (a connector must hash handles with the same key the refusal list matches)."""
         fp = self.key_fingerprint
         if pz is not None and fp is not None and pz.fingerprint() != fp:
             from pigtail.privacy.key_fingerprint import KeyFingerprintMismatch
@@ -115,7 +127,7 @@ class Suppressions:
             raise KeyFingerprintMismatch()
 
     def __bool__(self) -> bool:
-        return bool(self.pseudonyms or self.repos or self.repo_names or self.legacy_repo_names)
+        return bool(self.persons or self.repos or self.repo_names or self.legacy_repo_names)
 
     def name_suppressed(self, full_name: str | None, host: str = "github") -> bool:
         """True if `owner/name` is on the list by name (M1-T23, CB-13b). Unparseable: False.
@@ -131,7 +143,7 @@ class Suppressions:
             if not self.repo_names:
                 return False
             if self.name_key is None:
-                raise MissingNameKey("repo-name opt-outs need PSEUDONYM_KEY to be matched (CB-13b)")
+                raise MissingNameKey("repo-name opt-outs need OPTOUT_KEY to be matched (CB-13b)")
             return self.name_key(full_name, host) in self.repo_names
         except ValueError:
             return False
@@ -145,35 +157,40 @@ def platform_namespace(platform: str) -> str:
         raise ValueError(f"unknown platform {platform!r}; expected one of {known}") from e
 
 
-def subject_pseudonym(pz: Pseudonymizer, platform: str, handle: str) -> str:
-    """The pseudonym a connector for `platform` stores for `handle` (CB-08, CB-13)."""
+def subject_fingerprint(pz: OptoutKey, platform: str, handle: str) -> str:
+    """The opt-out fingerprint of `handle` on `platform`: what a connector for that platform
+    computes in memory at ingest (CB-08, CB-13; ADR-071.1)."""
     if not handle.strip().lstrip("@"):
         raise ValueError("empty handle")
-    return pz.pseudonym(handle, platform_namespace(platform))
+    return pz.person_fingerprint(handle, platform_namespace(platform))
 
 
-def name_keyer(pz: Pseudonymizer) -> NameKeyFn:
+subject_pseudonym = subject_fingerprint  # earlier name
+
+
+def name_keyer(pz: OptoutKey) -> NameKeyFn:
     """`(full_name, host) -> repo_name_key(...)` bound to `pz`."""
     return lambda full_name, host: repo_name_key(full_name, pz, host)
 
 
-def _pseudonymizer_from_env() -> Pseudonymizer | None:
-    key = os.environ.get(KEY_ENV, "")
+def _key_from_env() -> OptoutKey | None:
+    key = optout_key_from_env(os.environ)
     try:
-        return Pseudonymizer(key) if key else None
+        return OptoutKey(key) if key else None
     except ValueError:
         return None
 
 
-def load(db: CaptureDB, pz: Pseudonymizer | None = None) -> Suppressions:
-    """The refusal list. Repo-name entries are matched with `pz` (default: `PSEUDONYM_KEY` from
-    the environment); keyed entries without any key raise `MissingNameKey` (fail closed).
+def load(db: CaptureDB, pz: OptoutKey | None = None) -> Suppressions:
+    """The refusal list. Repo-name entries are matched with `pz` (default: `OPTOUT_KEY` /
+    `PSEUDONYM_KEY` from the environment); keyed entries without any key raise `MissingNameKey`
+    (fail closed).
 
     With a key, it is first verified against the database's key fingerprint (CB-25; recorded on
     first use); a different key raises `KeyFingerprintMismatch`."""
     from pigtail.privacy import key_fingerprint
 
-    pz = pz or _pseudonymizer_from_env()
+    pz = pz or _key_from_env()
     fp: str | None = None
     if pz is not None and key_fingerprint.verify(db.conn, pz) == "ok":
         fp = pz.fingerprint()
@@ -181,10 +198,10 @@ def load(db: CaptureDB, pz: Pseudonymizer | None = None) -> Suppressions:
     names = frozenset(v for k, v in rows if k == "repo_name")
     if names and pz is None:
         raise MissingNameKey(
-            f"{len(names)} repo-name opt-out(s) need PSEUDONYM_KEY to be matched (CB-13b)"
+            f"{len(names)} repo-name opt-out(s) need OPTOUT_KEY to be matched (CB-13b)"
         )
     return Suppressions(
-        pseudonyms=frozenset(v for k, v in rows if k == "pseudonym"),
+        persons=frozenset(v for k, v in rows if k == "person"),
         repos=frozenset(v for k, v in rows if k == "repo"),
         repo_names=names,
         legacy_repo_names=frozenset(v for k, v in rows if k == "repo_name_unkeyed"),
@@ -194,8 +211,8 @@ def load(db: CaptureDB, pz: Pseudonymizer | None = None) -> Suppressions:
 
 
 def _check(kind: Kind, value: str) -> None:
-    if kind == "pseudonym" and not PSEUDONYM_RE.match(value):
-        raise ValueError("only pseudonyms (p_<16 hex>) may be stored, never raw handles")
+    if kind == "person" and not PERSON_FINGERPRINT_RE.match(value):
+        raise ValueError("only opt-out fingerprints (p_<16 hex>) may be stored, never handles")
     if kind == "repo" and not REPO_KEY_RE.match(value):
         raise ValueError("repo opt-outs are stored as '<host>:<numeric id>'")
     if kind == "repo_name" and not REPO_NAME_KEY_RE.match(value):

@@ -10,8 +10,9 @@ What the model sees, and nothing else: `project.description`, `project.target_us
 `project.business_model`, `field.include` and `field.exclude` (`expansion_input`). The project
 name, context, seed projects, reference cases, audience, budget and notes are never sent. The
 input goes through `LLMClient` (identifier stripping, cache, usage ledger; PRD F15) as job
-`brief_expansion`, after `BudgetGuard` has checked the backend (never switched automatically)
-and the brief's subscription share or API cap (ADR-053.1).
+`brief_expansion` (stage `synthesis`, a standard call: it is interactive; R15.8), after
+`BudgetGuard` has checked the backend (never switched automatically, ADR-053.1) and, on the
+`api` backend, approval and the brief's and the month's money caps (R15.11, ADR-072.4).
 
 Model output is a proposal from a language model, not evidence: competitors and URLs are
 unverified until the user checks them, and every proposal says so.
@@ -27,7 +28,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
-from pigtail.briefs.budget import BudgetGuard, BudgetStop, resolve_allowance
+from pigtail.briefs.budget import BudgetGuard, BudgetStop
 from pigtail.briefs.model import (
     Brief,
     BriefInvalid,
@@ -209,13 +210,27 @@ class ExpansionProposal:
         }
 
 
-def make_guard(client: LLMClient, brief: Brief, *, approved_paid: bool = False) -> BudgetGuard:
-    """A `BudgetGuard` on this install's usage ledger, with the client's explicit overrides."""
+def make_guard(
+    client: LLMClient,
+    brief: Brief,
+    *,
+    approved_paid: bool = False,
+    month_cap_usd: float | None = None,
+    spent_usd: float = 0.0,
+) -> BudgetGuard:
+    """A `BudgetGuard` on this install's usage ledger, with the client's explicit overrides.
+    `spent_usd` is what the brief has already spent (cost ledger); `month_cap_usd` defaults to
+    `BUDGET_USD_MONTH`."""
+    if month_cap_usd is None:
+        from pigtail.config import Settings
+
+        month_cap_usd = Settings.from_env().budget_usd_month
     return BudgetGuard(
         budget=brief.budget,
         usage=client.store,
-        allowance=resolve_allowance(client.store),
+        month_cap_usd=month_cap_usd,
         approved_paid=approved_paid,
+        spent_usd=spent_usd,
         overrides=dict(client.overrides),
     )
 
@@ -230,7 +245,8 @@ def propose_expansion(
     """Ask the model for an expansion proposal (one call, or none on a cache hit).
 
     Raises `BudgetStop` before any call if the backend isn't the brief's (and has no explicit
-    per-job override) or the call would exceed the subscription share or API cap. LLM errors
+    per-job override), or, on `api`, the call isn't approved or would exceed the brief's or the
+    month's money cap. LLM errors
     (`QueuePaused`, `UsageLimitReached`, `BackendError`, `StructuredOutputError`) propagate.
     """
     if brief.version is None:
@@ -238,17 +254,18 @@ def propose_expansion(
     backend = client.backend_for(JOB).name
     guard.check_backend(backend, job=JOB)
     tin, tout = EXPANSION_TOKENS
-    est_usd = 0.0
+    est_usd: float | None = 0.0
     if backend == "api":
-        from pigtail.llm.api import estimate_cost
+        from pigtail.llm.pricing import TokenUsage, cost_usd
 
-        est_usd = estimate_cost(client.model, tin, tout)
-        if est_usd == 0 and not guard.approved_paid:
-            # Unknown list price: still a paid call, so it still needs explicit approval.
+        model = client.model_for(JOB)
+        # None (unknown list price) is still a paid call: it needs explicit approval.
+        est_usd = cost_usd(model, TokenUsage(tin, tout))
+        if est_usd is None and not guard.approved_paid:
             raise BudgetStop(
                 "approval",
                 JOB,
-                f"LLM calls on the api backend cost money (price of {client.model!r} unknown) "
+                f"LLM calls on the api backend cost money (price of {model!r} unknown) "
                 "and need approval",
             )
     guard.check_llm(JOB, est_tokens=tin + tout, backend=backend, est_usd=est_usd)
@@ -256,7 +273,7 @@ def propose_expansion(
         EXPANSION_PROMPT, expansion_input(brief), ExpansionOutput, job=JOB, namespace="brief"
     )
     if backend == "api" and not res.cached:
-        guard.charge_api(JOB, est_usd)
+        guard.charge_api(JOB, est_usd or 0.0)
     fields, notes = normalize_output(res.output)
     draft = Expansion.model_validate({**fields, "generated_by": "llm"})
     prov = ExpansionProvenance(

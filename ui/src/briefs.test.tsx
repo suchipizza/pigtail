@@ -12,7 +12,7 @@ import { matchRoute } from "./router";
 afterEach(cleanup);
 
 const draft: BriefData = {
-  schema_version: "brief/v1",
+  schema_version: "brief/v1.2",
   brief_id: "synthetic-brief",
   project: { name: "Synthetic", description: "A synthetic project for UI tests.", target_users: { primary: "devs" } },
   field: { core_field: "synthetic tools", include: ["a", "b"] },
@@ -100,7 +100,7 @@ describe("D7 briefs", () => {
   it("R18.5: the estimate is labelled an estimate and flags paid steps", () => {
     const e: Estimate = {
       label: "estimate",
-      model: "estimate-v0",
+      model: "estimate-v2",
       github: { requests: { core: 10, graphql: 2, search: 3 }, hours_at_default_caps: 0.1 },
       other_requests: { hn_algolia: 4 },
       counts: { candidates: 10, shortlisted: 5, cases: 40 },
@@ -108,23 +108,69 @@ describe("D7 briefs", () => {
         backend: "subscription",
         calls: 5,
         tokens: 1000,
+        batch: false,
         stages: [],
-        subscription: {
-          share_of_weekly_allowance: 0.2,
-          share_cap: 0.5,
-          used_last_7_days_tokens: 0,
-          weeks: 1,
-          allowance: { weekly_tokens: 5000, basis: "assumed_default", label: "estimate" },
-        },
         api_usd: 0,
+        per_llm_stage: {},
+        pricing: null,
+        subscription_note: "no money cost; budget.subscription_share applies only to the agents building pigtail",
+      },
+      caps: {
+        brief: { cap_usd: 0, spent_usd: 0, remaining_usd: 0, estimate_usd: null, within: null, field: "b" },
+        month: { cap_usd: 200, spent_usd: 0, remaining_usd: 200, estimate_usd: null, within: null, field: "m" },
+        within_caps: null,
+        on_exceed: "stop",
       },
       money: { usd: null, paid_steps: [{ step: "x collection", source: "x", est_usd: null, note: "" }], requires_approval: true },
       reuse: null,
     };
     render(<EstimatePanel e={e} />);
     expect(screen.getByText("estimate")).toBeTruthy();
-    expect(screen.getByText("unknown")).toBeTruthy();
+    expect(screen.getAllByText("unknown").length).toBeGreaterThan(0);
     expect(screen.getByRole("alert").textContent).toMatch(/explicit approval/);
+    expect(screen.getByText(/agents building pigtail/)).toBeTruthy();
+  });
+
+  it("R15.8-R15.11: API estimate shows USD per stage and model, and a cap it exceeds", () => {
+    cleanup();
+    const cap = (c: number, within: boolean) => ({
+      cap_usd: c, spent_usd: 0, remaining_usd: c, estimate_usd: 18.78, within, field: "f",
+    });
+    const e: Estimate = {
+      label: "estimate",
+      model: "estimate-v2",
+      github: { requests: { core: 1, graphql: 1, search: 1 }, hours_at_default_caps: 0.1 },
+      other_requests: {},
+      counts: { candidates: 10, shortlisted: 5, cases: 4 },
+      llm: {
+        backend: "api",
+        calls: 12,
+        tokens: 5000,
+        batch: true,
+        stages: [
+          { stage: "relevance", llm_stage: "relevance", model: "claude-haiku-4-5-20251001", mode: "batch",
+            llm_calls: 10, input_tokens: 100, output_tokens: 10, cache_read_tokens: 0, cache_write_tokens: 0,
+            usd: 1.5, reused: false },
+          { stage: "patterns", llm_stage: "synthesis", model: "claude-opus-5-5", mode: "batch",
+            llm_calls: 2, input_tokens: 100, output_tokens: 10, cache_read_tokens: 0, cache_write_tokens: 0,
+            usd: 17.28, reused: false },
+        ],
+        api_usd: 18.78,
+        per_llm_stage: {},
+        pricing: { as_of: "2026-06-24", source: "s", unit: "USD per million tokens", batch_discount: 0.5 },
+        subscription_note: null,
+      },
+      caps: { brief: cap(150, true), month: cap(10, false), within_caps: false, on_exceed: "stop" },
+      money: { usd: 18.78, paid_steps: [{ step: "LLM calls", source: "anthropic_api", est_usd: 18.78, note: "" }],
+        requires_approval: true },
+      reuse: null,
+    };
+    render(<EstimatePanel e={e} />);
+    expect(screen.getByText("claude-haiku-4-5-20251001")).toBeTruthy();
+    expect(screen.getByText("$17.28")).toBeTruthy();
+    expect(screen.getByText(/Prices as of 2026-06-24/)).toBeTruthy();
+    expect(screen.getByText("exceeds the cap")).toBeTruthy();
+    expect(screen.getAllByRole("alert").some((a) => /H6/.test(a.textContent ?? ""))).toBe(true);
   });
 });
 
@@ -164,7 +210,7 @@ describe("brief schema v1.1 (ADR-057) and expansion fields (R18.7)", () => {
 describe("D7 pages with a mocked API", () => {
   const stored = {
     brief: { ...draft, version: 2 },
-    yaml: "schema_version: brief/v1\nbrief_id: synthetic-brief\n",
+    yaml: "schema_version: brief/v1.2\nbrief_id: synthetic-brief\n",
     version: 2,
     content_hash: "a".repeat(64),
     warnings: [],

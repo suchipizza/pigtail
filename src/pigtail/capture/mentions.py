@@ -1,6 +1,9 @@
-"""Mention capture for one repo on HN (M1-T4; R1.2).
+"""Mention capture for one shortlisted repo on HN (M1-T4; R1.2; Directive §8.1, §8.3).
 
-`capture_hn_mentions()` runs HN Algolia searches for a repo and stores what it finds:
+`capture_hn_mentions()` runs HN Algolia searches for a repo and stores what it finds. It runs
+only for repos on an in-review or final shortlist (`pigtail.capture.scope`, Directive §8.3,
+ADR-066.3): otherwise it raises `NotShortlisted` before any request. It searches for projects,
+never for people, and never collects follower lists.
 
 - queries (`build_queries`): the URL `github.com/owner/name` (story URLs), `owner/name` (titles
   and text), and `name owner` (both words) for stories and comments; with `loose=True` also the
@@ -14,7 +17,11 @@
   because its content sits in the snapshot;
 - with a Firebase connector, each mention's item is also snapshotted on its own (item-level
   evidence, `deleted` / `dead` flags, and the snapshot that deletion sync drops for that item only);
-- mentions go to `hn_mention` (pseudonymized author, no comment text; registered in PERSON_TABLES).
+- mentions go to `hn_mention` with the author **coded, not stored** (Directive §8.1, ADR-066.1,
+  ADR-071.2): `author_role` (`maintainer` when the HN account name equals the repo owner,
+  case-insensitive, rule `roles-v1`; else `account`, or `automated_account` by the bot rule),
+  `author_bucket` (`r0`: HN exposes no follower count), `automated_account` and the rule
+  versions. No handle, no pseudonym and no comment text is stored.
 
 A repo on the refusal list (CB-13) raises `RepoSuppressed` before any request, whether it was
 opted out by id or by name (M1-T23: the name also covers repos not yet in `repos`).
@@ -33,13 +40,18 @@ from typing import Any
 from pigtail.capture.db import CaptureDB
 from pigtail.capture.repos import RepoLink, link_repo
 from pigtail.capture.runs import RunRecorder
+from pigtail.capture.scope import NotShortlisted, require_in_scope
 from pigtail.connectors.base import FetchError, ParseFailed, Record
 from pigtail.connectors.hn import AlgoliaQuery, HNAlgoliaConnector, HNFirebaseConnector
 from pigtail.privacy.deletion import DeletionLog, unparseable_sink
 from pigtail.privacy.deletion_sync import HN_POLICY, track_items
+from pigtail.privacy.roles import BUCKETS, ActorCode, code_actor
 
 FULL_NAME_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")
 KIND_ORDER = ("url", "full_name", "name_and_owner", "name")
+
+
+__all__ = ["NotShortlisted", "RepoSuppressed", "capture_hn_mentions"]
 
 
 class RepoSuppressed(RuntimeError):
@@ -119,6 +131,7 @@ def capture_hn_mentions(
         raise RepoSuppressed(f"{link.repo_id} is on the refusal list (CB-13)")
     if algolia.suppression.name_suppressed(f"{owner}/{name}"):
         raise RepoSuppressed("the repo is on the refusal list by name (CB-13, M1-T23)")
+    require_in_scope(db, f"{owner}/{name}", link.repo_id)  # Directive §8.3: shortlisted only
     dlog = DeletionLog(db, "retention", run_id=run.id if run else None)
     for c in (algolia, firebase):
         if c is not None and c.evidence_sink is None:
@@ -143,7 +156,7 @@ def capture_hn_mentions(
                 db,
                 HN_POLICY,
                 ev.id,
-                [(str(r["item_id"]), r.get("author")) for r in page.records],
+                [str(r["item_id"]) for r in page.records],
                 seen_at=ev.fetched_at,
                 open_case=open_case,
             )
@@ -185,7 +198,7 @@ def _item_snapshot(
         db,
         HN_POLICY,
         f.evidence.id,
-        [(str(item_id), rec.get("by"))],
+        [str(item_id)],
         seen_at=f.evidence.fetched_at,
         open_case=link.case_id is not None,
     )
@@ -202,16 +215,22 @@ def _upsert_mention(
     at: datetime,
 ) -> None:
     typ = rec.get("type") if rec.get("type") in ("story", "comment", "poll", "job") else "other"
+    actor = author_code(rec, link.full_name)
     db.conn.execute(
         """
-        INSERT INTO hn_mention (repo_full_name, item_id, item_type, author, created_at, story_id,
+        INSERT INTO hn_mention (repo_full_name, item_id, item_type, author_role, author_bucket,
+            automated_account, bot_rule_version, role_rule_version, created_at, story_id,
             parent_id, points, num_comments, title, url, match_kind, front_page_tag, show_hn,
             ask_hn, repo_id, case_id, evidence_id, item_evidence_id, first_seen_at, last_seen_at)
-        VALUES (%(repo)s, %(id)s, %(type)s, %(author)s, %(created)s, %(story)s, %(parent)s,
+        VALUES (%(repo)s, %(id)s, %(type)s, %(role)s, %(bucket)s, %(auto)s, %(bot_v)s,
+            %(role_v)s, %(created)s, %(story)s, %(parent)s,
             %(points)s, %(nc)s, %(title)s, %(url)s, %(kind)s, %(fp)s, %(show)s, %(ask)s,
             %(repo_id)s, %(case_id)s, %(ev)s, %(iev)s, %(at)s, %(at)s)
         ON CONFLICT (repo_full_name, item_id) DO UPDATE SET
-            author = EXCLUDED.author, points = EXCLUDED.points,
+            author_role = EXCLUDED.author_role, author_bucket = EXCLUDED.author_bucket,
+            automated_account = EXCLUDED.automated_account,
+            bot_rule_version = EXCLUDED.bot_rule_version,
+            role_rule_version = EXCLUDED.role_rule_version, points = EXCLUDED.points,
             num_comments = EXCLUDED.num_comments, title = EXCLUDED.title, url = EXCLUDED.url,
             match_kind = EXCLUDED.match_kind, front_page_tag = EXCLUDED.front_page_tag,
             repo_id = COALESCE(EXCLUDED.repo_id, hn_mention.repo_id),
@@ -224,7 +243,11 @@ def _upsert_mention(
             "repo": link.full_name,
             "id": rec["item_id"],
             "type": typ,
-            "author": rec.get("author"),
+            "role": actor.role,
+            "bucket": actor.bucket,
+            "auto": actor.automated_account,
+            "bot_v": actor.bot_rule_version,
+            "role_v": actor.role_rule_version,
             "created": rec.get("created_at"),
             "story": _int(rec.get("story_id")),
             "parent": _int(rec.get("parent_id")),
@@ -243,6 +266,18 @@ def _upsert_mention(
             "at": at,
         },
     )
+
+
+def author_code(rec: Record, repo_full_name: str) -> ActorCode:
+    """The coded author of a (coded) mention record for the repo it was captured for: the
+    connector's role and bucket, promoted to `maintainer` when the author owns this repo."""
+    automated = bool(rec.get("automated_account"))
+    maintainer = repo_full_name.lower() in (rec.get("actor_owns") or [])
+    bucket = rec.get("actor_bucket")
+    code = code_actor(automated=automated, maintainer=maintainer)
+    if bucket in BUCKETS and bucket != code.bucket:
+        code = ActorCode(code.role, bucket, code.automated_account)
+    return code
 
 
 def _int(v: Any) -> int | None:

@@ -23,6 +23,11 @@ def test_r15_4_structured_output_validated_and_provenance(prompt):
         "prompt_version",
         "prompt_fingerprint",
         "input_hash",
+        # M21b (Directive §6.3): stage, batch id and trimming version with every output
+        "stage",
+        "batch_id",
+        "trim_version",
+        "redaction_version",  # ADR-066 follow-up: per-call aliases
     }
 
 
@@ -103,7 +108,21 @@ def test_prd10_identifiers_stripped_before_model_call(prompt):
     assert isinstance(fake, FakeBackend)
     sent = fake.calls[0]["prompt"]
     assert "someuser" not in sent and "someone@example.com" not in sent
-    assert "[email]" in sent and "@p_" in sent
+    assert "[email]" in sent and "@user1" in sent
+    assert "@p_" not in sent  # ADR-066 follow-up: no keyed token on the LLM path
+
+
+def test_adr_066_llm_aliases_are_per_call_and_not_keyed(prompt):
+    """The same handle gets the same alias within one input, a new numbering in each call, and
+    no key is involved; provenance names the redaction version."""
+    c = make_client([{"value": 1, "label": "a"}, {"value": 2, "label": "b"}])
+    r = c.complete(prompt, "@alice thanks @bob, cc @Alice", Echo, job="j")
+    c.complete(prompt, "@bob again", Echo, job="j")
+    fake = c.backends["subscription"]
+    assert isinstance(fake, FakeBackend)
+    assert fake.calls[0]["prompt"] == "Input: @user1 thanks @user2, cc @user1"
+    assert fake.calls[1]["prompt"] == "Input: @user1 again"  # not stable across calls
+    assert r.provenance()["redaction_version"] == "alias-v1"
 
 
 def test_r15_5_paused_backend_still_serves_cache(prompt):

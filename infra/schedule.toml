@@ -44,7 +44,9 @@ requires = ["hn_ranks"]
 run_at_start = true
 launch_mode_only = true
 
-# Retention purge (CB-01, CB-04, CB-05, CB-18; CB-33: UI audit rows past LOG_RETENTION_DAYS).
+# Retention purge (R19.9: raw person-level snapshots at report final + 12 months, else the
+# PERSON_LEVEL_RETENTION_DAYS ceiling; CB-01, CB-04, CB-05, CB-18; CB-33: UI audit rows past
+# LOG_RETENTION_DAYS). Writes a run record and deletion_log tombstones.
 [jobs.retention_purge]
 command = ["retention", "purge"]
 every = "1d"
@@ -58,7 +60,8 @@ every = "1d"
 timeout = "2h"
 retry_base = "10m"
 
-# HN mentions for live cases opened within `window` (R1.2). Person-level: skipped (and logged)
+# HN mentions for live cases opened within `window` whose repo is on an in-review or final
+# shortlist (R1.2; Directive §8.3: shortlisted projects only). Person-level: skipped (and logged)
 # unless PIGTAIL_ENABLE_HN=1 and PIGTAIL_ADR022_PERSON_SOURCES_OK=1 (ADR-022, ADR-031.2).
 [jobs.hn_mentions]
 kind = "hn_mentions"

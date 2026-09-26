@@ -13,10 +13,11 @@ Two connectors share one HTTP layer (`GitHubAPI`) and one token:
 - **`github_events`** (`GitHubRepoEventsConnector`): per-repo `GET /repos/{o}/{r}/events` for
   tracked cases (TM-33). Person-level (`actor`), so it is **off by default**
   (`PIGTAIL_ENABLE_GITHUB_EVENTS`) and held by ADR-022 (`PIGTAIL_ADR022_PERSON_SOURCES_OK=1`
-  needed; ADR-036). At parse only `WatchEvent` and `ForkEvent` are kept (CB-23), actors are
-  pseudonymized at ingest (namespace `github`, bots dropped by login first), snapshots use the
+  needed; ADR-036). At parse only `WatchEvent` and `ForkEvent` are kept (CB-23); the actor is
+  coded in memory (automated-account flag by the bot rule, a per-run token for de-duplication
+  within the poll) and its login discarded (Directive §8.1, ADR-071.2); snapshots use the
   `person_level_30d` retention class (CB-22) and the poller drops their raw bytes right after
-  parsing. Nothing in pigtail lists the stargazers of a repo.
+  parsing. Only counts are stored. Nothing in pigtail lists the stargazers of a repo.
 
 What the shared layer does on every request (TM-02 conditions; GitHub REST best practices):
 
@@ -84,7 +85,7 @@ TM02 = (
     "Service §H (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service). "
     "Conditions: the operator's own single token, never pooled, no App-plus-PAT doubling "
     "(ADR-032.4); stay within primary and secondary rate limits; serial requests, ETag, fixed "
-    "schedule; pseudonymise user data."
+    "schedule; no user identities stored (roles and buckets, counts)."
 )
 
 GITHUB_TERMS = TermsMetadata(
@@ -105,9 +106,9 @@ EVENTS_TERMS = TermsMetadata(
     terms_basis=(
         TM02 + " TM-33 (per-repo Events API, actor use pending LQ-29): only repos with an open "
         "case, tracked or above the pre-threshold; no faster than X-Poll-Interval (15-60 min); "
-        "ETag; actor pseudonymised at ingest; identities used only for aggregate bot/lockstep "
-        "flags; never rebuild, store or export a stargazer list; person-level rows kept at "
-        "most 30 days, then aggregates only (CB-22, CB-23; ADR-036)."
+        "ETag; actors used in memory only (bot flag, de-duplication within a poll) and never "
+        "stored; never rebuild, store or export a stargazer list; only aggregate counts are "
+        "kept (CB-22, CB-23; ADR-036; Directive §8.1)."
     ),
     clearance=Clearance.CLEARED_WITH_CONDITIONS,
     commercial_use=None,
@@ -683,6 +684,7 @@ class GitHubRepoEventsConnector(GitHubAPI):
     reliability = "high"
     handle_fields: ClassVar[tuple[str, ...]] = ("actor",)
     handle_namespace: ClassVar[str] = "github"
+    transient_actor_tokens: ClassVar[bool] = True  # de-duplication within one poll only
     repo_fields: ClassVar[tuple[str, ...]] = ("repo_id",)
     repo_host: ClassVar[str] = "github"
     timeout_seconds: ClassVar[float] = 30.0
@@ -719,10 +721,10 @@ class GitHubRepoEventsConnector(GitHubAPI):
             except (KeyError, TypeError, ValueError):
                 continue
 
-    def _pre_pseudonymize(self, record: Record) -> Record | None:
+    def _pre_code(self, record: Record) -> Record | None:
         login = record.get("actor")
         bot = login is None or is_bot_login(login)
-        record["is_bot"] = bot
+        record["automated_account"] = bot  # a missing login counts as automated (bot-filter-v0)
         if bot:
             record["actor"] = None  # bots are not persons: neither kept nor hashed
         return record

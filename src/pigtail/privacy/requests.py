@@ -1,19 +1,26 @@
 """Data-subject requests (DPIA CB-08) and the refusal-list purge paths (CB-13).
 
-The requester gives a platform and a handle. The handle is pseudonymized at once with
-`PSEUDONYM_KEY` in that platform's namespace (the same pseudonym connectors store) and then
-discarded: it is never written to the database, the request log, the deletion log or run records.
+The requester gives a platform and a handle. Coded data holds no handle and no pseudonym (roles
+and buckets, Directive §8.1, ADR-066.1), so a person can only be found in the **temporary evidence
+copies**: the retained raw snapshots. The handle is hashed at once with the opt-out key
+(`OPTOUT_KEY`, alias `PSEUDONYM_KEY`) into the person's opt-out fingerprint in that platform's
+namespace; each snapshot is re-parsed **in memory** through the connector's own path, which
+computes the fingerprint of every handle it meets (`Connector.subject_records`), and matching
+records are selected. The handle is then discarded: it is never written to the database, the
+request log, the deletion log or run records.
 
-- `access()`: exports everything keyed by the pseudonym to a local JSON file (mode 0600): the
-  parsed records in retained raw snapshots of sources on that platform, rows of registered
-  person-level tables, and LLM cache rows that mention the pseudonym.
-- `erasure()` (and `objection()`, used by `privacy optout add`): adds the pseudonym to the
-  refusal list, so the person is dropped at ingest from then on, then purges: raw snapshots that
-  contain their records lose their bytes (whole snapshots: content-addressed blobs cannot be
-  edited; evidence moves to `raw_dropped`, replay re-downloads and drops them at ingest),
-  person-level rows are deleted, and LLM cache rows derived from those snapshots or mentioning
-  the pseudonym are deleted. Project-level aggregates with no pseudonym are kept
-  (retention-policy.md §5).
+- `access()`: exports what was found to a local JSON file (mode 0600): the coded records (roles
+  and buckets, no handles) from retained raw snapshots of sources on that platform, with their
+  evidence metadata, plus LLM cache rows that mention the person's transient LLM token
+  (`@p_…`, CB-06). Registered person-level tables (`PERSON_TABLES`) are empty since
+  migration 0017.
+- `erasure()` (and `objection()`, used by `privacy optout add`): adds the opt-out fingerprint to
+  the refusal list (kind `person`, ADR-071.1), so the person is dropped at ingest from then on,
+  then purges: every raw snapshot containing them is deleted (whole snapshots: content-addressed
+  blobs cannot be edited; evidence moves to `raw_dropped` with hash and coded facts kept, replay
+  re-downloads and drops them at ingest), and LLM cache rows derived from those snapshots or
+  mentioning the person's token are deleted. Coded facts and project-level aggregates hold no
+  person identifier and are kept (retention-policy.md §5).
 - `purge_repo()`: a project owner's opt-out (CB-13, CB-13c). Deletes or clears every row keyed
   to the repo in the tables registered in `deletion.REPO_TABLES` (star history, events, the
   ETag cache, launch-mode windows, HN mentions and links, cases, linked evidence with raw bytes
@@ -35,11 +42,11 @@ Access lists it in the export. Erasure and objection purges drop its raw bytes i
 evidence is person-level, because pigtail cannot prove the person is not in it
 (`snapshots_unparseable_raw_dropped`, tombstone in `deletion_log`); project-level ones are kept.
 
-Key check (CB-25): every entry point verifies `PSEUDONYM_KEY` against the database's key
+Key check (CB-25): every entry point verifies the opt-out key against the database's key
 fingerprint first (`key_fingerprint.verify`) and refuses under a changed key.
 
 Every request writes a `privacy_requests` row (id, type, platform, dates, outcome, counts; no
-handle and no pseudonym) and runs inside a `RunRecorder`. Deletions write tombstones to
+handle and no fingerprint) and runs inside a `RunRecorder`. Deletions write tombstones to
 `deletion_log`.
 """
 
@@ -73,7 +80,9 @@ from pigtail.privacy.deletion import (
     delete_person_rows,
     drop_raw,
 )
-from pigtail.pseudonymize import Pseudonymizer
+from pigtail.pseudonymize import OptoutKey
+
+Pseudonymizer = OptoutKey  # earlier name
 
 if TYPE_CHECKING:
     from pigtail.capture.db import CaptureDB
@@ -132,19 +141,21 @@ class RequestResult:
 def scan_snapshots(
     db: CaptureDB,
     store: SnapshotStore,
-    pz: Pseudonymizer,
+    pz: OptoutKey,
     platform: str,
-    pseudonyms: Iterable[str],
+    fingerprints: Iterable[str],
     *,
     connectors: Mapping[str, type[Connector]] = CONNECTORS,
 ) -> ScanResult:
-    """Find records of `pseudonyms` in retained raw snapshots of `platform`'s sources.
+    """Find records of the people with opt-out `fingerprints` in retained raw snapshots of
+    `platform`'s sources, in memory (CB-08; Directive §8.1).
 
-    Parses through the connector's own path (the same one used at ingest and replay) with an
-    empty refusal list, so already-suppressed subjects are still found.
+    Parses through the connector's own path (the same one used at ingest and replay), ignoring
+    the refusal list so already-suppressed subjects are still found. Returned records are coded
+    (no handles); the fingerprints of other people are never kept.
     """
     ns = suppression.platform_namespace(platform)
-    wanted = set(pseudonyms)
+    wanted = set(fingerprints)
     res = ScanResult()
     for name, cls in sorted(connectors.items()):
         if cls.handle_namespace != ns:
@@ -183,9 +194,9 @@ def scan_snapshots(
                 )
                 try:
                     found = [
-                        r
-                        for r in conn.records(data, meta)
-                        if any(v in wanted for v in conn.handle_values(r))
+                        {k: v for k, v in r.items() if not k.startswith("_")}  # no run tokens
+                        for r, fps in conn.subject_records(data, meta)
+                        if not fps.isdisjoint(wanted)
                     ]
                 except _SCAN_PARSE_ERRORS as e:  # CB-34: skip, count, report
                     kind = type(e).__name__
@@ -264,7 +275,7 @@ def requests_log(db: CaptureDB) -> list[dict[str, Any]]:
 def access(
     db: CaptureDB,
     store: SnapshotStore,
-    pz: Pseudonymizer,
+    pz: OptoutKey,
     *,
     platform: str,
     handle: str,
@@ -275,7 +286,7 @@ def access(
     connectors: Mapping[str, type[Connector]] = CONNECTORS,
 ) -> RequestResult:
     key_fingerprint.verify(db.conn, pz)  # CB-25: refuse under a changed key
-    p = suppression.subject_pseudonym(pz, platform, handle)
+    p = suppression.subject_fingerprint(pz, platform, handle)
     generic = pz.pseudonym(handle, "generic")
     rid = new_request_id()
     _log_request(db, rid, "access", platform, run)
@@ -284,7 +295,7 @@ def access(
         person = _person_rows(db, person_tables, {p})
         cache = llm_store.find_containing([p]) if llm_store else []
         cache_generic = llm_store.find_containing([generic]) if llm_store else []
-        on_list = p in suppression.load(db, pz).pseudonyms
+        on_list = p in suppression.load(db, pz).persons
         counts = {
             "snapshots_scanned": scan.snapshots_scanned,
             "snapshots_with_records": len(scan.hits),
@@ -300,7 +311,6 @@ def access(
             "type": "access",
             "platform": platform,
             "generated_at": datetime.now(UTC).isoformat(),
-            "pseudonym": p,
             "on_refusal_list": on_list,
             "counts": counts,
             "snapshots": [
@@ -326,7 +336,9 @@ def access(
                 "rows": cache_generic,
             },
             "notes": [
-                "Records are shown with pseudonymized handles, as pigtail stores them.",
+                "pigtail stores no handles: people appear in its coded data only as roles and "
+                "buckets. The records below were found by searching the temporary evidence "
+                "copies (retained raw snapshots) for this handle; they are shown as coded.",
                 "Evidence whose raw bytes were dropped (retention or erasure) keeps only a "
                 "hash, URL and fetch time and cannot be searched for a person.",
                 "Snapshots listed under unparseable_snapshots could not be parsed, so pigtail "
@@ -354,7 +366,7 @@ def access(
 def purge_subject(
     db: CaptureDB,
     store: SnapshotStore,
-    pz: Pseudonymizer,
+    pz: OptoutKey,
     *,
     platform: str,
     pseudonyms: Iterable[str],
@@ -364,7 +376,9 @@ def purge_subject(
     person_tables: Sequence[PersonTable] = PERSON_TABLES,
     connectors: Mapping[str, type[Connector]] = CONNECTORS,
 ) -> dict[str, int]:
-    """Purge existing data of `pseudonyms` on `platform` from every store (CB-08, CB-13)."""
+    """Purge existing data of the people with opt-out fingerprints `pseudonyms` on `platform`
+    from every store (CB-08, CB-13): snapshots containing them, registered person tables (none
+    since 0017) and derived LLM cache rows."""
     ps = set(pseudonyms)
     scan = scan_snapshots(db, store, pz, platform, ps, connectors=connectors)
     evidence_ids: list[str] = []
@@ -406,7 +420,7 @@ def purge_subject(
 def erasure(
     db: CaptureDB,
     store: SnapshotStore,
-    pz: Pseudonymizer,
+    pz: OptoutKey,
     *,
     platform: str,
     handle: str,
@@ -419,14 +433,12 @@ def erasure(
 ) -> RequestResult:
     """Refusal-list entry plus purge. `reason="objection"` is `privacy optout add`."""
     key_fingerprint.verify(db.conn, pz)  # CB-25: refuse under a changed key
-    p = suppression.subject_pseudonym(pz, platform, handle)
+    p = suppression.subject_fingerprint(pz, platform, handle)
     generic = pz.pseudonym(handle, "generic")
     rid = new_request_id()
     _log_request(db, rid, reason, platform, run)
     try:
-        added = suppression.add(
-            db, "pseudonym", p, platform=platform, reason=reason, request_id=rid
-        )
+        added = suppression.add(db, "person", p, platform=platform, reason=reason, request_id=rid)
         counts: dict[str, int] = {"suppression_added": int(added)}
         if purge:
             log = DeletionLog(db, reason, run_id=run.id if run else None, request_id=rid)
@@ -699,6 +711,7 @@ def names_for_key(
         """
         SELECT repo_full_name FROM hn_mention
         UNION SELECT repo_full_name FROM hn_story WHERE repo_full_name IS NOT NULL
+        UNION SELECT repo_full_name FROM brief_shortlist_entry
         UNION SELECT lower(full_name) FROM repos WHERE host = %s
         """,
         (host,),
@@ -713,14 +726,14 @@ def names_for_key(
     return sorted(out)
 
 
-def _keyer(name_key: str, pz: Pseudonymizer, host: str) -> Callable[[str], str]:
+def _keyer(name_key: str, pz: OptoutKey, host: str) -> Callable[[str], str]:
     """The key function matching `name_key`'s kind: keyed (`rk_`) or legacy unkeyed (`rn_`)."""
     if suppression.LEGACY_REPO_NAME_KEY_RE.match(name_key):
         return lambda n: suppression.legacy_repo_name_key(n, host)
     return lambda n: suppression.repo_name_key(n, pz, host)
 
 
-def rekey_unkeyed_names(db: CaptureDB, pz: Pseudonymizer) -> dict[str, int]:
+def rekey_unkeyed_names(db: CaptureDB, pz: OptoutKey) -> dict[str, int]:
     """CB-13b: replace legacy unkeyed name entries with keyed ones where the name is known.
 
     A legacy entry's name is recovered only by matching names pigtail already holds (HN, watch
@@ -756,7 +769,7 @@ def purge_repo_name(
     name_key: str,
     log: DeletionLog,
     *,
-    pz: Pseudonymizer,
+    pz: OptoutKey,
     host: str = "github",
     llm_store: LLMStore | None = None,
     tables: Sequence[RepoTable] = REPO_TABLES,
@@ -798,7 +811,7 @@ def optout_repo(
     *,
     platform: str,
     repo_key: str,
-    pz: Pseudonymizer,
+    pz: OptoutKey,
     full_name: str | None = None,
     llm_store: LLMStore | None = None,
     run: RunRecorder | None = None,
@@ -853,7 +866,7 @@ def optout_repo_name(
     *,
     platform: str,
     full_name: str,
-    pz: Pseudonymizer,
+    pz: OptoutKey,
     llm_store: LLMStore | None = None,
     run: RunRecorder | None = None,
     purge: bool = True,
@@ -888,7 +901,7 @@ def optout_repo_name(
 def reapply_refusals(
     db: CaptureDB,
     store: SnapshotStore,
-    pz: Pseudonymizer,
+    pz: OptoutKey,
     *,
     llm_store: LLMStore | None = None,
     run: RunRecorder | None = None,
@@ -902,7 +915,7 @@ def reapply_refusals(
     repos: list[str] = []
     names: list[tuple[str, str]] = []
     for e in suppression.entries(db):
-        if e["kind"] == "pseudonym":
+        if e["kind"] == "person":
             by_platform.setdefault(e["platform"], set()).add(e["value"])
         elif e["kind"] in ("repo_name", "repo_name_unkeyed"):
             names.append((e["value"], e["platform"]))

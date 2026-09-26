@@ -1,14 +1,22 @@
 """DPIA CB-06: identifier redaction before LLM calls (profile URLs, DIDs, per-source namespaces).
 
-All handles here are synthetic.
+Handles become per-call, keyless aliases (`user1`, `user2`, ...; ADR-066.1, ADR-074). The one
+implementation is `pigtail.llm.redact.alias_redact`; `OptoutKey.strip_identifiers` delegates to
+it. All handles here are synthetic.
 """
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
-from pigtail.pseudonymize import Pseudonymizer, scrub_identifiers
+from pigtail.llm.redact import alias_redact as redact
+from pigtail.pseudonymize import scrub_identifiers
 from tests.conftest import Echo, FakeBackend, make_client
+
+# A keyed token: an opt-out fingerprint `p_<16 hex>` or any run of 16+ hex chars (HMAC output).
+_KEYED = re.compile(r"\bp_[0-9a-f]+|[0-9a-f]{16,}", re.IGNORECASE)
 
 
 @pytest.mark.parametrize(
@@ -23,10 +31,10 @@ from tests.conftest import Echo, FakeBackend, make_client
         ("https://api.github.com/users/user0003", "user0003"),
     ],
 )
-def test_cb06_github_profile_urls_redacted(pz, text, login):
-    out = pz.strip_identifiers(text)
+def test_cb06_github_profile_urls_redacted(text, login):
+    out = redact(text)
     assert login not in out
-    assert f"[profile:github:{pz.pseudonym(login, 'github')}]" in out
+    assert "[profile:github:user1]" in out
 
 
 @pytest.mark.parametrize(
@@ -40,55 +48,84 @@ def test_cb06_github_profile_urls_redacted(pz, text, login):
         "https://gitlab.com/user0001",
     ],
 )
-def test_cb06_repo_paths_and_site_pages_kept(pz, text):
-    assert pz.strip_identifiers(text) == text
+def test_cb06_repo_paths_and_site_pages_kept(text):
+    assert redact(text) == text
 
 
-def test_cb06_trailing_punctuation_kept_outside_the_token(pz):
-    out = pz.strip_identifiers("Made by https://github.com/user0001.")
-    assert out == f"Made by [profile:github:{pz.pseudonym('user0001', 'github')}]."
+def test_cb06_trailing_punctuation_kept_outside_the_token():
+    out = redact("Made by https://github.com/user0001.")
+    assert out == "Made by [profile:github:user1]."
 
 
-def test_cb06_bluesky_profile_handle_and_did(pz):
-    out = pz.strip_identifiers("https://bsky.app/profile/tester.example.social/post/3kxyz")
+def test_cb06_bluesky_profile_handle_and_did():
+    out = redact("https://bsky.app/profile/tester.example.social/post/3kxyz")
     assert "tester" not in out
-    p = pz.pseudonym("tester.example.social", "bluesky")
-    assert out == f"[profile:bluesky:{p}]/post/3kxyz"
+    assert out == "[profile:bluesky:user1]/post/3kxyz"
     did = "did:plc:" + "a" * 24
-    out = pz.strip_identifiers(f"bsky.app/profile/{did}, hi")
-    assert did not in out and out.endswith(", hi")
+    out = redact(f"bsky.app/profile/{did}, hi")
+    assert did not in out and out == "[profile:bluesky:user1], hi"
 
 
-def test_cb06_hn_profile_urls(pz):
+def test_cb06_hn_profile_urls():
     for page in ("user", "submitted", "threads", "favorites"):
-        out = pz.strip_identifiers(f"https://news.ycombinator.com/{page}?id=hn_tester9 ok")
+        out = redact(f"https://news.ycombinator.com/{page}?id=hn_tester9 ok")
         assert "hn_tester9" not in out
-        assert out == f"[profile:hn:{pz.pseudonym('hn_tester9', 'hn')}] ok"
+        assert out == "[profile:hn:user1] ok"
     item = "https://news.ycombinator.com/item?id=41234567"
-    assert pz.strip_identifiers(item) == item  # story ids are not people
+    assert redact(item) == item  # story ids are not people
 
 
-def test_cb06_dids_redacted(pz):
+def test_cb06_dids_redacted():
     plc = "did:plc:" + "b2" * 12
-    out = pz.strip_identifiers(f"author {plc} and did:web:tester.example.org.")
+    out = redact(f"author {plc} and did:web:tester.example.org, again {plc}.")
     assert "did:plc" not in out and "tester.example.org" not in out
-    assert f"[did:{pz.pseudonym(plc, 'bluesky')}]" in out
-    assert out.endswith(".")
+    assert out == "author [did:user1] and [did:user2], again [did:user1]."
 
 
-def test_cb06_per_source_namespace_for_mentions(pz):
-    gh = pz.strip_identifiers("thanks @user0001", namespace="github")
-    hn = pz.strip_identifiers("thanks @user0001", namespace="hn")
-    assert gh == f"thanks @{pz.pseudonym('user0001', 'github')}"
-    assert gh != hn
-    # the default stays "generic" (backwards compatible)
-    assert pz.strip_identifiers("@user0001") == "@" + pz.pseudonym("user0001")
+def test_cb06_per_source_namespace_for_mentions():
+    assert redact("thanks @user0001", namespace="github") == "thanks @user1"
+    assert redact("@user0001") == "@user1"  # the default namespace is "generic"
+    # namespaces stay separate: the same handle on a profile URL (platform "github") and as a
+    # mention in the "hn" namespace is two people, so two aliases
+    out = redact("https://github.com/user0001 and @user0001", namespace="hn")
+    assert out == "[profile:github:user1] and @user2"
+    # ... while a mention in the "github" namespace is the same person as the GitHub profile
+    out = redact("https://github.com/user0001 and @User0001", namespace="github")
+    assert out == "[profile:github:user1] and @user1"
 
 
-def test_cb06_profile_url_uses_platform_namespace_whatever_the_caller_says(pz):
-    a = pz.strip_identifiers("https://github.com/user0001", namespace="hn")
-    b = pz.strip_identifiers("https://github.com/user0001", namespace="generic")
-    assert a == b
+def test_cb06_profile_url_uses_platform_namespace_whatever_the_caller_says():
+    a = redact("https://github.com/user0001", namespace="hn")
+    b = redact("https://github.com/user0001", namespace="generic")
+    assert a == b == "[profile:github:user1]"
+
+
+def test_adr074_aliases_are_per_call_not_shared_across_inputs():
+    """Same handle twice in one input -> same alias; two inputs never share an alias mapping."""
+    one = redact("@user0001 and @user0002, then @user0001 again")
+    assert one == "@user1 and @user2, then @user1 again"
+    two = redact("@user0002 only")
+    assert two == "@user1 only"  # user0002 was user2 above: numbering restarts per call
+
+
+def test_adr074_strip_identifiers_delegates_to_the_one_alias_implementation(pz):
+    text = "@user0001 https://github.com/user0002 did:plc:" + "d" * 24 + " @user0001"
+    assert pz.strip_identifiers(text, namespace="github") == redact(text, namespace="github")
+
+
+@pytest.mark.parametrize("namespace", ["generic", "github", "hn", "bluesky"])
+def test_adr074_output_has_no_keyed_token(pz, namespace):
+    """Nothing keyed reaches the model: no `p_` fingerprint and no HMAC-looking hex."""
+    text = (
+        "@user0001 https://github.com/user0002 https://bsky.app/profile/tester.example.social "
+        "https://news.ycombinator.com/user?id=hn_tester9 did:plc:" + "e" * 24 + " @user0001"
+    )
+    for out in (redact(text, namespace), pz.strip_identifiers(text, namespace)):
+        assert "p_" not in out
+        assert not _KEYED.search(out), out
+        for h in ("user0001", "user0002", "tester", "hn_tester9"):
+            assert h not in out
+        assert pz.person_fingerprint("user0001", namespace) not in out
 
 
 @pytest.mark.parametrize(
@@ -100,8 +137,8 @@ def test_cb06_profile_url_uses_platform_namespace_whatever_the_caller_says(pz):
         "npm i @scope/pkg",
     ],
 )
-def test_cb06_dates_counts_dois_untouched(pz, text):
-    assert pz.strip_identifiers(text, namespace="github") == text
+def test_cb06_dates_counts_dois_untouched(text):
+    assert redact(text, namespace="github") == text
 
 
 def test_cb06_keyless_scrub_has_no_pseudonyms():
@@ -124,6 +161,6 @@ def test_cb06_llm_client_redacts_with_namespace(prompt):
     fake = c.backends["subscription"]
     assert isinstance(fake, FakeBackend)
     sent = fake.calls[0]["prompt"]
-    pz = Pseudonymizer("test-key-not-secret-0123456789")
     assert "user0001" not in sent and "tester" not in sent
-    assert "@" + pz.pseudonym("user0001", "github") in sent
+    # ADR-066 follow-up: per-call, non-keyed aliases on the LLM path
+    assert "[profile:bluesky:user1]" in sent and "@user2" in sent and "p_" not in sent

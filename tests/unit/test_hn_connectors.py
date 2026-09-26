@@ -114,7 +114,8 @@ def test_m1_t4_terms_metadata_and_rate_limits(tmp_path, pz):
 
 
 # --- Firebase ------------------------------------------------------------------------------------
-def test_m1_t4_firebase_item_snapshot_then_pseudonymized_record(tmp_path, pz):
+def test_m1_t4_m21a_firebase_item_snapshot_then_coded_record(tmp_path, pz):
+    """Directive §8.1: `by` is coded (role, bucket, bot flag) and dropped at ingest."""
     fake = FakeHN()
     fb = make(HNFirebaseConnector, tmp_path, pz, fake)
     f, rec = fb.fetch_item(9000001)
@@ -122,7 +123,8 @@ def test_m1_t4_firebase_item_snapshot_then_pseudonymized_record(tmp_path, pz):
     assert b"hnuser001" in f.data  # raw stays raw (private store only)
     assert f.evidence.retention_class == "person_level_24m"
     assert rec is not None
-    assert rec["by"] == pz.pseudonym("hnuser001", "hn")
+    assert rec["by"] is None and rec["actor_role"] == "account" and rec["actor_bucket"] == "r0"
+    assert rec["automated_account"] is False and "p_" not in json.dumps(rec)
     assert rec["repo_full_names"] == ["org-a/repo-1"]
     assert rec["evidence_type"] == "community_post" and rec["capture_mode"] == "api_json"
     assert "hnuser" not in json.dumps({k: v for k, v in rec.items() if k != "text"})
@@ -151,7 +153,7 @@ def test_m1_t4_firebase_story_lists(tmp_path, pz):
 
 
 # --- Algolia -------------------------------------------------------------------------------------
-def test_m1_t4_algolia_search_pseudonymizes_and_drops_tags(tmp_path, pz):
+def test_m1_t4_m21a_algolia_search_codes_authors_and_drops_tags(tmp_path, pz):
     fake = FakeHN()
     alg = make(HNAlgoliaConnector, tmp_path, pz, fake)
     q = AlgoliaQuery("full_name", "org-a/repo-1")
@@ -159,7 +161,7 @@ def test_m1_t4_algolia_search_pseudonymizes_and_drops_tags(tmp_path, pz):
     recs = [r for _, r in res.records]
     assert {r["item_id"] for r in recs} == {9000001, 9000011, 9000012, 9000003}
     for r in recs:
-        assert r["author"].startswith("p_")
+        assert r["author"] is None and r["actor_role"] in ("account", "maintainer")
         assert "_tags" not in r and "_highlightResult" not in r
     assert "hnuser" not in json.dumps([{k: v for k, v in r.items() if k != "text"} for r in recs])
     story = next(r for r in recs if r["item_id"] == 9000001)

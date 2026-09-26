@@ -46,7 +46,11 @@ def test_m11_params_python_mirror_equals_versioned_json():
     assert doc["fake_star_filter"] == dataclasses.asdict(params.FAKE_STAR_FILTER)
     # the values moved from the retired thresholds JSON are unchanged
     old = json.loads((ROOT / "schemas" / "outcome-thresholds" / "v0.2.0.json").read_text())
-    assert old["fake_star_filter"] == doc["fake_star_filter"]
+    retired = {
+        k: v for k, v in doc["fake_star_filter"].items() if k not in ("status", "retired_by")
+    }
+    assert old["fake_star_filter"] == retired
+    assert doc["fake_star_filter"]["status"] == "retired"  # ADR-070.4 (v1.1.0)
     ob = old["burst_detection"]
     assert (ob["id"], ob["min_net_stars_48h"], ob["sigma"], ob["baseline_days"]) == (
         BURST.rule_version,

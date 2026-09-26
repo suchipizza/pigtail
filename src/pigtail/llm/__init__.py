@@ -1,8 +1,9 @@
 """Single entry point for every product LLM call (PRD F15)."""
 
-from pigtail.llm.client import LLMClient, build_client
+from pigtail.llm.client import BatchItem, BatchRun, LLMClient, build_client
 from pigtail.llm.errors import (
     BackendError,
+    BatchPending,
     LLMError,
     QueuePaused,
     StructuredOutputError,
@@ -12,6 +13,9 @@ from pigtail.llm.types import LLMResult, PromptSpec
 
 __all__ = [
     "BackendError",
+    "BatchItem",
+    "BatchPending",
+    "BatchRun",
     "LLMClient",
     "LLMError",
     "LLMResult",

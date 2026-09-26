@@ -13,8 +13,9 @@ import httpx
 import psycopg
 import pytest
 
+from pigtail.capture import scope
 from pigtail.capture.hn_ranks import RankPoller
-from pigtail.capture.mentions import RepoSuppressed, capture_hn_mentions
+from pigtail.capture.mentions import NotShortlisted, RepoSuppressed, capture_hn_mentions
 from pigtail.capture.runs import RunRecorder
 from pigtail.capture.snapshots import LocalSnapshotStore
 from pigtail.cli import main
@@ -71,6 +72,8 @@ def add_repo_and_case(db: Any, status: str = "live") -> None:
         " VALUES ('case_00000000000000000001', 'github:1000001', %s, 'manual', %s)",
         (NOW - timedelta(days=1), status),
     )
+    # Directive §8.3: mentions are captured for shortlisted projects only
+    scope.set_entries(db, "brief_synthetic", 1, ["org-a/repo-1"], "in_review")
 
 
 # --- migrations ----------------------------------------------------------------------------------
@@ -89,12 +92,26 @@ def test_m1_t14_m1_t4_migrations_create_tables(capture_db):
         "upstream_items",
         "evidence_upstream_items",
     } <= names
-    # repo_event_actor: GitHub per-repo events (M1-T24, TM-33), 30-day cap (CB-22)
-    assert {t.table for t in PERSON_TABLES} == {"hn_mention", "upstream_items", "repo_event_actor"}
-    with pytest.raises(psycopg.errors.CheckViolation):  # pseudonyms only, never handles
+    # M21a (Directive §8.1, migration 0017): no table holds handles or pseudonyms any more
+    assert PERSON_TABLES == ()
+    cols = {
+        (r[0], r[1])
+        for r in capture_db.conn.execute(
+            "SELECT table_name, column_name FROM information_schema.columns"
+            " WHERE table_name IN ('hn_mention', 'upstream_items')"
+        )
+    }
+    assert ("hn_mention", "author") not in cols and (
+        "upstream_items",
+        "author_pseudonym",
+    ) not in cols
+    assert ("hn_mention", "author_role") in cols and ("hn_mention", "author_bucket") in cols
+    with pytest.raises(psycopg.errors.CheckViolation):  # roles only, never a handle
         capture_db.conn.execute(
-            "INSERT INTO upstream_items (platform, item_id, author_pseudonym, first_seen_at,"
-            " last_seen_at, next_check_at) VALUES ('hn', '1', 'hnuser001', now(), now(), now())"
+            "INSERT INTO hn_mention (repo_full_name, item_id, item_type, author_role,"
+            " author_bucket, bot_rule_version, role_rule_version, match_kind, first_seen_at,"
+            " last_seen_at) VALUES ('o/r', 1, 'story', 'hnuser001', 'r0', 'v', 'v', 'url',"
+            " now(), now())"
         )
     assert "by" not in {
         r[0]
@@ -203,8 +220,9 @@ def test_m1_t4_mentions_stored_with_evidence_linked_to_case(mentions, pz):
     assert res.mentions == {"url": 2, "full_name": 2, "name_and_owner": 1}
     assert res.name_only_skipped == 0  # the bare-name query only runs with --loose
     rows = db.conn.execute(
-        "SELECT item_id, match_kind, item_type, author, case_id, repo_id, evidence_id,"
-        " item_evidence_id, title FROM hn_mention ORDER BY item_id"
+        "SELECT item_id, match_kind, item_type, author_role, case_id, repo_id, evidence_id,"
+        " item_evidence_id, title, author_bucket, automated_account, bot_rule_version,"
+        " role_rule_version FROM hn_mention ORDER BY item_id"
     ).fetchall()
     assert [(r[0], r[1]) for r in rows] == [
         (9000001, "url"),
@@ -214,7 +232,10 @@ def test_m1_t4_mentions_stored_with_evidence_linked_to_case(mentions, pz):
         (9000014, "name_and_owner"),
     ]
     by_id = {r[0]: r for r in rows}
-    assert by_id[9000012][3] == pz.pseudonym("hnuser005", "hn")
+    # Directive §8.1 / ADR-071.2: a role and bucket, the bot flag and rule versions; no handle
+    assert by_id[9000012][3] == "account" and by_id[9000012][9] == "r0"
+    assert all(r[10] is False and r[11] == "bot-filter-v0" and r[12] == "roles-v1" for r in rows)
+    assert pz.pseudonym("hnuser005", "hn") not in dump_all_tables(db)
     assert by_id[9000001][8] == "Show HN: Repo-1, a synthetic tool"
     assert by_id[9000012][8] is None  # comments: no title, no text
     assert all(r[4] == "case_00000000000000000001" and r[5] == "github:1000001" for r in rows)
@@ -243,6 +264,25 @@ def test_m1_t4_loose_mode_and_opted_out_repo(capture_db, tmp_path, pz):
     alg = HNAlgoliaConnector(**{**kw, "suppression": suppression.load(db)})
     with pytest.raises(RepoSuppressed):
         capture_hn_mentions(alg, db, "org-a/repo-1")
+
+
+def test_m21a_directive_8_3_mentions_only_for_shortlisted_repos(capture_db, tmp_path, pz):
+    """Directive §8.3 / ADR-066.3: no request is made for a repo on no in-review or final
+    shortlist; `removed` takes it out of scope again."""
+    db = capture_db
+    store = LocalSnapshotStore(tmp_path / "snap")
+    fake = FakeHN()
+    kw = conn_kw(store, fake, db, pseudonymizer=pz, env=ON)
+    with pytest.raises(NotShortlisted):
+        capture_hn_mentions(HNAlgoliaConnector(**kw), db, "org-a/repo-1")
+    assert fake.requests == []
+    scope.set_entries(db, "brief_synthetic", 1, ["Org-A/Repo-1"], "final")
+    assert scope.in_scope(db, "org-a/repo-1")
+    capture_hn_mentions(HNAlgoliaConnector(**kw), db, "org-a/repo-1")
+    assert fake.requests
+    scope.set_entries(db, "brief_synthetic", 1, ["org-a/repo-1"], "removed")
+    with pytest.raises(NotShortlisted):
+        capture_hn_mentions(HNAlgoliaConnector(**kw), db, "org-a/repo-1")
 
 
 # --- CB-02 deletion sync --------------------------------------------------------------------------
@@ -370,17 +410,24 @@ def test_cb02_overdue_items_are_reported(mentions, pz):
 
 
 # --- CB-08 reaches HN data ------------------------------------------------------------------------
-def test_cb08_erasure_reaches_hn_snapshots_and_tables(mentions, pz):
+def test_cb08_m21a_erasure_searches_snapshots_in_memory_and_adds_fingerprint(mentions, pz):
+    """M21a: coded rows hold no handle, so erasure finds the person in the retained snapshots
+    (in memory), deletes every snapshot containing them and adds the opt-out fingerprint."""
     db, store, _fake, _fb, _res = mentions
-    p = pz.pseudonym("hnuser005", "hn")
+    p = pz.person_fingerprint("hnuser005", "hn")
     res = requests.erasure(db, store, pz, platform="hn", handle="hnuser005")
     assert res.outcome == "completed" and res.counts["snapshots_raw_dropped"] >= 2
-    assert res.counts["person_rows_deleted"] == 2  # hn_mention + upstream_items
-    for t in ("hn_mention", "upstream_items"):
-        col = "author" if t == "hn_mention" else "author_pseudonym"
-        q = f"SELECT count(*) FROM {t} WHERE {col} = %s"
-        assert db.conn.execute(q, (p,)).fetchone() == (0,)
-    assert p in suppression.load(db).pseudonyms
+    assert res.counts["records_found"] >= 1
+    assert res.counts["person_rows_deleted"] == 0  # PERSON_TABLES is empty since 0017
+    assert p in suppression.load(db).persons
+    row = db.conn.execute(
+        "SELECT kind, value FROM privacy_suppression WHERE kind = 'person'"
+    ).fetchone()
+    assert row == ("person", p)
+    for (h,) in db.conn.execute(
+        "SELECT DISTINCT content_hash FROM evidence WHERE deletion_state = 'present'"
+    ).fetchall():
+        assert b"hnuser005" not in store.get(h)
 
 
 # --- CLI ------------------------------------------------------------------------------------------
@@ -400,7 +447,7 @@ def cli_env(capture_db, pg_url, tmp_path, monkeypatch):
     monkeypatch.setenv("PIGTAIL_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("SNAPSHOT_BACKEND", "local")
     monkeypatch.setenv("PSEUDONYM_KEY", "test-key-not-secret-0123456789")
-    for k in ("PIGTAIL_ENABLE_HN", ADR022_ENV):
+    for k in ("PIGTAIL_ENABLE_HN", ADR022_ENV, "OPTOUT_KEY"):
         monkeypatch.delenv(k, raising=False)
     return capture_db, fake
 
@@ -429,6 +476,8 @@ def test_m1_t4_cli_mentions_gated(cli_env, capsys, monkeypatch):
     out = json.loads(capsys.readouterr().out)
     assert out["case_id"] == "case_00000000000000000001" and out["items_snapshotted"] == 5
     assert main(["capture", "mentions", "--repo", "nope"]) == 2
+    assert main(["capture", "mentions", "--repo", "org-b/elsewhere"]) == 2  # not shortlisted
+    assert "shortlisted projects only" in capsys.readouterr().err
 
 
 def test_cb02_cli_deletion_sync(cli_env, capsys, monkeypatch):
