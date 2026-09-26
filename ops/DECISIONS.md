@@ -392,3 +392,19 @@ How to reverse: Codebook or spec version bump + ADR; before the M15 pre-registra
 6. **`repo-events` polls any live case,** not only velocity-triggered ones.
 Incident: docs commit 214986f accidentally included the engineer's staged deletions. That left HEAD broken and CI failed on that commit. It was repaired in the next commit, which completes M11's code part. Lesson: check `git diff --cached` before committing while another agent is working in the same tree.
 How to reverse: `archive/global-collection` has the removed code.
+
+## ADR-052 — Burst rule: no phantom re-firing after a single-day spike (2026-09-26; before any brief data)
+Context: The M11 verifier found that, under codebook v0.3.0 §3.2, a single-day spike is always marked `multi_peak=True`. The burst ends on the next calm day, but that day's 48-hour window still contains the spike, so it fires again, and the merge rule then joins the two into a "multi-peak" burst.
+Decision: A firing whose 48-hour window starts on a day inside the previous burst (d−1 ≤ that burst's end) is ignored. It is neither a new burst nor a merge. Codebook becomes v0.3.1 (a patch: it corrects the rule's intent) and `analysis-params` stays v1.0.0 (no parameter changes). A regression test covers the single-spike case.
+How to reverse: Codebook patch + ADR.
+
+## ADR-053 — Brief budget model and success fallbacks (owner decisions, 2026-09-26)
+1. **Two separate caps in every brief**, both in the brief schema:
+   - `budget.money_usd`: non-LLM paid services (BigQuery, Trendshift, X, any paid API). Default **0**: free tiers only. Before any step that would cost money, pigtail shows a cost estimate and waits for explicit approval (H6). Optional paid sources (Trendshift, X) are off unless the user enables them.
+   - `budget.subscription_share`: the maximum share of the user's weekly Claude subscription allowance that pigtail runs may use. Default **0.5**. Pigtail estimates usage before each run, runs heavy stages (double coding, extraction) in chunks, pauses when a limit is hit and resumes later. **It never switches to the API on its own.** Per-job API overrides (ADR-001, R15.5) apply only when the user sets them explicitly.
+   - Limitation: Claude Code exposes no machine-readable remaining weekly allowance. The share is enforced against pigtail's own usage ledger (sessions, tokens, limit hits), calibrated from observed limit events and the user's plan. Estimates are labelled as estimates.
+2. **Success fallbacks** (brief options, the owner's values as defaults):
+   - `success.fallbacks.no_measurable_adoption`: a comparable that isn't a package (no registry downloads, no dependents) uses community as its primary dimension and is flagged in the report.
+   - `success.fallbacks.too_few_winners`: if fewer than 10 winners qualify, relax the primary threshold from top quartile to top third, then drop the community minimum. Each step is logged, and the sensitivity check is reported.
+3. **Seed-project links** aren't required up front: discovery finds candidate matches, and the user confirms or corrects them in the shortlist review.
+How to reverse: Brief values can be changed per brief; defaults through an ADR.
