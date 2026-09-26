@@ -179,19 +179,23 @@ when paid steps need approval, and with code 4 (approval not recorded) when the 
 cap. When you re-run an edited brief, the estimate and the run record list which stages are reused
 and which are recomputed (R18.4).
 
-**5. Run it.** See "Running a brief (discovery and shortlist)" below. Runs record the brief
+**5. Run it.** See "Running a brief (discovery, shortlist and selection)" below. Runs record the brief
 version and content hash, the data version and the code, prompt, rubric and model versions
 (`brief_runs`, R18.6), and a run that reaches its budget stops with a resumable checkpoint
 (status `paused_budget`). The actual cost of every model call (tokens in and out, prompt-cache
 reads and writes, batch id, USD) goes to the cost ledger with its brief run and case
 (`llm_cost_ledger`), which the pilot report uses for the cost per case.
 
-## Running a brief (discovery and shortlist) (M22; PRD R4.5–R4.7, R4.11, R19.1)
+## Running a brief (discovery, shortlist and selection) (M22; PRD R4.3, R4.5–R4.11, R19.1)
 `pigtail run` runs a brief's stages on your machine, with Postgres (`DATABASE_URL`) holding the
-checkpoints. M22 has three stages; later milestones add the outcome sort and deep forensics.
+checkpoints. M22 has four stages: discovery, relevance, shortlist and, once you have finalized
+the shortlist, selection (outcome sort, winners and matched losers, balance, sensitivity). Later
+milestones add deep forensics.
 ```bash
 uv run pigtail run --brief my-project --dry-run         # estimate and plan; no call, no write
 uv run pigtail run --brief my-project --approve-paid    # run (or resume) discovery → relevance → shortlist
+uv run pigtail run --brief my-project                   # after `shortlist finalize`: the selection
+uv run pigtail brief selection show my-project [--json] # winners, losers, balance, sensitivity
 uv run pigtail run --brief my-project --stage discovery # only some stages (repeatable)
 uv run pigtail run --brief my-project --incremental     # refresh a completed run
 uv run pigtail run --brief my-project --wait-minutes 30 # leave a batch running after 30 min
@@ -259,13 +263,60 @@ in review, proposed and accepted repos are in the mention scope as `in_review`; 
 the final set as `final` and the rest `removed`. An added repo's metadata is filled by the next
 `pigtail run --incremental`.
 
+**4. Selection (R4.8, R4.3, R4.9, R4.10, R4.11; ADR-077).** It runs only on a **final**
+shortlist: after `shortlist finalize`, run `pigtail run --brief my-project` again (or with
+`--stage selection`) and it continues the same run with this stage alone. It makes no model call.
+- **Outcome data.** With `GITHUB_TOKEN` set, it first fetches each shortlisted repo's **star
+  history** (daily net stars, back to 60 days before the brief's window; 1–3 core requests per
+  repo, conditional) and fills missing metadata (creation date, language) for repos you added by
+  URL. Without a token it uses what is already stored. The GitHub budget pauses it like
+  discovery (exit 4; run again to continue). **Only star-based metrics exist so far**:
+  `att.stars@30/@90` (raw net stars over 30 or 90 endpoint days from the anchor, labelled
+  "unfiltered, anomaly-checked") and `att.hn_points` (from the Show HN posts discovery recorded).
+  Registry downloads, dependents, contributor metrics and business signals have no connector
+  yet and are `unknown` (reason `no_connector`); a value is never imputed. A brief whose primary
+  dimension or thresholds use those metrics therefore gets **no winners** until the connectors
+  exist, and the result says how many candidates each dimension left undetermined.
+- **Anchor T** per candidate: its first Show HN launch post, or the first star burst
+  (`velocity-v0`) in the window, by the outcome model's rule (§2.2). A value whose horizon hasn't
+  passed (`T + k + 3 days`) is `pending`. A candidate without an anchor can't be sorted.
+- **Outcome sort** (outcome model §3, §5): percentiles within the final shortlist (field and
+  reference repos with an anchor; at least 20 observed values, else `unknown`). A candidate
+  qualifies when it meets every threshold; `unknown` or `pending` never meets one and makes it
+  *undetermined*, not a loser. Qualifiers are ranked on the primary dimension (or the weights),
+  ties by a hash of the brief id, version and repo. The top `panel.winners` are the **winners**;
+  candidates that fail a threshold on an observed value form the **loser pool**.
+- **Matched losers** (ADR-054.1): winners in rank order take the nearest unused loser with the
+  same `panel.exact_match` values (founder audience bucket, launch half-year; the audience bucket
+  is `unknown` for every repo until its source is cleared, and `unknown` is matched as its own
+  level), within 0.5 SD of launch-signal magnitude; more rounds until `panel.losers` are matched.
+- **Too few winners** (R4.10, ADR-053.2): below 15 winners or matched losers the panel widens
+  one declared widening step at a time; then, below `fallbacks.too_few_winners.min_winners`
+  qualifiers, the brief's fallback steps apply in order. Every step is listed with its counts.
+- **Reference cases** are always in the result (`reference`), whatever their role;
+  **distribution exemplars** get `losers_per_exemplar` losers each, exactly matched on
+  `distribution_exemplars.match_on` and never on field.
+- **Balance**: SMD per covariate before and after matching (target |SMD| < `smd_target`; a miss
+  is labelled `balance_limited`), the exact-match check, and the pairs that differ by more than
+  `headline_exclusion_smd` SD on any covariate (a language mismatch counts as 1), which are
+  excluded from headline patterns (marked `*` in `selection show`).
+- **Sensitivity** (R4.9): the winner set recomputed under each alternative in
+  `success.sensitivity` (primary swap, band shift, weights, and `fake_star_filter`, which now
+  means *exclude anomaly-flagged candidates*), with the Jaccard overlap and the cases flagged
+  `definition_sensitive` or `sensitive_to_star_anomaly`. It never changes the baseline.
+- **Stored** in `brief_selection` (one row per selection: brief version and content hash, run,
+  data version after the fetch, as-of date, selection, outcome-model and analysis-params
+  versions, code commit, inputs and result hashes) and `brief_selection_case` (one row per repo).
+  The same brief version and data give the same result hash. A repo opt-out removes its rows.
+
 **Resuming and exit codes.** A run is resumable after anything: a crash, a budget stop
 (`paused_budget`, exit 4; exit 3 when approval is missing), the GitHub request budget (exit 4), a
 failure (exit 1) or a batch still running (exit 5). Running the same command again resumes the
 same run: completed stages are skipped, discovery skips the queries it did, and the relevance
 filter rebuilds the same requests, so answered ones come from the LLM cache and in-flight batches
 are collected by their stored ids. Only one run per brief at a time (exit 6 otherwise). A version
-whose run is complete is not run again; `--incremental` starts a refresh run that adds repos
+whose run is complete is not run again (except for the selection, which the same run picks up
+once the shortlist is final); `--incremental` starts a refresh run that adds repos
 created since the last discovery, judges only new candidates and keeps your decisions (a final
 shortlist returns to review only when new candidates need a decision). Editing the brief creates
 a new version with its own candidates and review.

@@ -1023,6 +1023,137 @@ def _add_shortlist_commands(bs: argparse._SubParsersAction[argparse.ArgumentPars
     p.set_defaults(func=cmd_shortlist)
 
 
+# --- pigtail brief selection (R4.3, R4.8, R4.9; ADR-077) ---------------------------------------
+
+
+def _fmt(x: Any, nd: int = 2) -> str:
+    return "n/a" if x is None else f"{x:.{nd}f}"
+
+
+def _print_selection(v: dict[str, Any]) -> None:
+    sel = v["selection"]
+    sm, bal, sens = sel["summary"], sel["balance"], sel["sensitivity"]
+    print(
+        f"Selection {sel['id']} of {v['brief_id']} v{v['brief_version']} "
+        f"(as of {sel['as_of']}, data {sel['data_version']}, {sel['selection_version']}, "
+        f"code {sel['code_commit'] or 'unknown'})"
+    )
+    print(f"  result hash {sel['result_hash'][:16]}…, inputs hash {sel['inputs_hash'][:16]}…")
+    c = sm["counts"]
+    print(
+        f"Shortlist {sm['shortlist_n']}; reference population {sm['reference_population_n']}; "
+        f"final distance {sm['final_distance']}; winners {c['winners']}, matched losers "
+        f"{c['matched_losers']}, loser pool {c['loser_pool']}, undetermined {c['undetermined']}"
+    )
+    print("Roles: " + ", ".join(f"{k} {n}" for k, n in sm["roles"].items()))
+    print("Steps (R4.10, ADR-053.2):")
+    for st in sm["steps"]:
+        if st.get("applied") is False:
+            print(f"  {st['step']}: not applied ({st['reason']})")
+            continue
+        print(
+            f"  {st['step']:<28} d{st['distance']} floors {st['floors']} -> qualifiers "
+            f"{st['rankable_qualifiers']}, winners {st['winners']}, matched losers "
+            f"{st['matched_losers']}" + (f"  ({st['reason']})" if st.get("reason") else "")
+        )
+    und = {k: n for k, n in sm["undetermined_by_dimension"].items() if n}
+    if und:
+        print(f"Undetermined by dimension (unknown/pending never meet a threshold): {und}")
+    for w in sm["warnings"]:
+        print(f"warning: {w}")
+    ex = bal["exact_match"]
+    print(
+        f"Balance ({bal['form']}; target |SMD| < {bal['target']}): exact match "
+        f"{'OK' if ex['ok'] else 'VIOLATED ' + str(ex['violations'])} on {ex['keys']}; "
+        f"headline pairs {bal['headline_pairs']}/{bal['pairs']}, excluded "
+        f"{bal['headline_excluded']['by_covariate'] or 0}"
+    )
+    for cov, rec in bal["after_matching"].items():
+        before = bal["before_matching"].get(cov, {}).get("smd")
+        print(
+            f"  {cov:<16} SMD {_fmt(rec['smd'])} (before {_fmt(before)})"
+            + (
+                f", variance ratio {_fmt(rec.get('variance_ratio'))}"
+                if "variance_ratio" in rec
+                else ""
+            )
+            + (" balance_limited" if rec.get("label") else "")
+        )
+    print(
+        f"Sensitivity (R4.9): {sens['ran']} alternatives, Jaccard min {_fmt(sens['min_jaccard'])}"
+        f" mean {_fmt(sens['mean_jaccard'])}; winners stable under all "
+        f"{_fmt(sens['share_winners_stable'])}; definition-sensitive "
+        f"{sens['definition_sensitive']}, sensitive to star anomaly "
+        f"{sens['sensitive_to_star_anomaly']}"
+    )
+    for alt in sens["alternatives"]:
+        if alt.get("ran"):
+            print(
+                f"  {alt['key']:<32} qualifiers {alt['rankable_qualifiers']}, winners "
+                f"{alt['winners']}, Jaccard {_fmt(alt['jaccard'])}"
+            )
+        else:
+            print(f"  {alt['key']:<32} not run: {alt['reason']}")
+    print("Cases (pair, role, rank, repo, anchor, star anomaly, flags):")
+    for r in v["cases"]:
+        d = r["detail"]
+        a = d.get("anchor") or {}
+        pair = (
+            ""
+            if r["pair_id"] is None
+            else f"#{r['pair_id']}{'' if r['headline'] is not False else '*'}"
+        )
+        print(
+            f"  {pair:<5} {r['role']:<24} {r['rank'] or '':>3} {r['repo_full_name']:<40} "
+            f"{a.get('type', '-'):<6} {d['star_anomaly']['flag']:<7} "
+            + ("reference " if r["is_reference"] else "")
+            + " ".join(r["sensitivity_flags"])
+        )
+    print("  (* = excluded from headline patterns; star metrics: unfiltered, anomaly-checked)")
+
+
+def cmd_selection(args: argparse.Namespace) -> int:
+    import psycopg
+
+    from pigtail.briefs.selection_store import view
+
+    s = _settings()
+    if not s.database_url:
+        print("DATABASE_URL is not set", file=sys.stderr)
+        return EXIT_USAGE
+    try:
+        brief = _store().get(args.brief_id, args.version).brief
+    except (BriefNotFound, BriefInvalid) as e:
+        print(str(e), file=sys.stderr)
+        return EXIT_INVALID
+    assert brief.version is not None
+    with psycopg.connect(s.database_url, autocommit=True) as conn:
+        v = view(conn, brief.brief_id, brief.version)
+    if args.json:
+        _json(v)
+        return 0
+    if v["selection"] is None:
+        print(
+            f"no selection for {brief.brief_id} v{brief.version} yet: finalize the shortlist, "
+            f"then pigtail run --brief {brief.brief_id} --stage selection"
+        )
+        return EXIT_INVALID
+    _print_selection(v)
+    return 0
+
+
+def _add_selection_commands(bs: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    sp = bs.add_parser(
+        "selection", help="winners, matched losers, balance, sensitivity (R4.8, R4.3, R4.9)"
+    )
+    ss = sp.add_subparsers(dest="selection_command", required=True)
+    p = ss.add_parser("show", help="the latest stored selection of a brief version")
+    p.add_argument("brief_id")
+    p.add_argument("--version", type=int, help="brief version (default: latest)")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_selection)
+
+
 def add_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     br = sub.add_parser("brief", help="research briefs (PRD F18; private, never in git)")
     bs = br.add_subparsers(dest="brief_command", required=True)
@@ -1098,6 +1229,7 @@ def add_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> No
     p.set_defaults(func=cmd_expand)
 
     _add_shortlist_commands(bs)
+    _add_selection_commands(bs)
 
     bs.add_parser("schema", help="print the brief JSON Schema (v1.2)").set_defaults(func=cmd_schema)
 

@@ -585,15 +585,17 @@ def render_text(e: Estimate, brief: Brief) -> str:
     return "\n".join(lines)
 
 
-# --- the stages of one `pigtail run` (M22: discovery, relevance, shortlist; R19.1) ---------------
-RUN_STAGES = ("discovery", "relevance", "shortlist")
+# --- the stages of one `pigtail run` (M22: discovery, relevance, shortlist, selection; R19.1) ----
+RUN_STAGES = ("discovery", "relevance", "shortlist", "selection")
 
 
 def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any]:
     """The part of the estimate that `pigtail run` will spend with these stages (R18.5): GitHub
     and HN requests of discovery (plus one README per candidate for relevance), and the relevance
     filter's LLM calls and USD, against the brief's remaining cap and the monthly cap. The
-    shortlist stage makes no paid call. Later milestones add their stages here."""
+    shortlist stage makes no paid call; the selection stage (only on a final shortlist) makes no
+    model call and only GitHub requests for star history (ADR-077). Later milestones add their
+    stages here."""
     st = set(stages)
     by = {s.stage: s for s in e.stages}
     rel = by["relevance"]
@@ -617,6 +619,17 @@ def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any
         "github_requests": github,
         "hn_algolia_requests": e.other_requests.get("hn_algolia", 0) if "discovery" in st else 0,
         "llm": llm,
+        "selection": (
+            {
+                "github": "star history: 1-3 core requests per shortlisted repo (ETag, 30 weeks "
+                "per page), plus 1 GraphQL query per 50 repos without metadata",
+                "llm_calls": 0,
+                "api_usd": 0.0,
+                "runs_only_when": "the shortlist is final",
+            }
+            if "selection" in st
+            else None
+        ),
         "api_usd": None if usd is None else round(usd, 4),
         "requires_approval": e.llm_backend == "api" and (usd is None or usd > 0),
         "brief_remaining_usd": round(brief_left, 2),
@@ -640,6 +653,11 @@ def render_scope_text(scope: dict[str, Any]) -> str:
             f"  relevance filter: {llm['llm_calls']:,} requests of ~20 candidates on "
             f"{llm['model']} ({llm['mode']}), {llm['input_tokens'] + llm['output_tokens']:,} "
             f"tokens, {_usd(scope['api_usd'])}"
+        )
+    if scope.get("selection"):
+        lines.append(
+            "  selection (once the shortlist is final): no model call; "
+            + scope["selection"]["github"]
         )
     fits = {True: "fits", False: "EXCEEDS a cap: the run will stop there", None: "unknown"}
     lines.append(

@@ -1,8 +1,12 @@
 """`pigtail run --brief <id>`: the brief's stage runner (PRD R19.1, R18.5, R18.6, R15.11; D7).
 
 M22 stages, in order: **discovery** (R4.5), **relevance** (R4.6), **shortlist** (R4.7, ends
-with the shortlist awaiting the user's review). Later milestones append outcome sort and deep
-forensics.
+with the shortlist awaiting the user's review) and **selection** (R4.3, R4.8, R4.9: the outcome
+sort, winners and matched losers, balance diagnostics and the sensitivity check;
+`pigtail.briefs.selection_store.run_stage`). Selection runs only once the shortlist is final: a
+run that stops at `awaiting_review` is picked up again by the next `pigtail run --brief <id>`
+after `brief shortlist finalize`, on the same `brief_runs` row, which then runs only the
+selection. Later milestones append deep forensics.
 
 **Checkpoints and resume.** A run is one `brief_runs` row (brief version and content hash,
 data version, code commit, prompt, rubric and model versions, estimate, approval, spend, and the
@@ -210,13 +214,41 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
     kind, row = find_run(conn, brief)
     resumed = False
     since: datetime | None = None
+    selection_due = False
+    if (
+        set(opts.stages) == {"selection"}
+        and kind != "complete"
+        and not _shortlist_final(conn, brief)
+    ):
+        return RunOutcome(
+            row["id"] if row else None,
+            row["status"] if row else "not_started",
+            EXIT_USAGE,
+            f"the selection runs once the shortlist of {brief.brief_id} v{brief.version} is final "
+            f"(pigtail brief shortlist finalize {brief.brief_id}); nothing was started",
+            stages=(row or {}).get("stages") or {},
+        )
     if kind == "complete" and not opts.incremental:
         assert row is not None
-        msg = (
-            f"{brief.brief_id} v{brief.version} was already run ({row['id']}, {row['status']}); "
-            "nothing to do. Review the shortlist, or refresh with --incremental."
-        )
-        return RunOutcome(row["id"], row["status"], EXIT_OK, msg, stages=row.get("stages") or {})
+        final = _shortlist_final(conn, brief)
+        done_sel = (row.get("stages") or {}).get("selection", {}).get("status") == "done"
+        if "selection" in opts.stages and final and not done_sel:
+            selection_due = True  # the shortlist was finalized since: run the selection stage
+        else:
+            wanted_sel = "selection" in opts.stages and not done_sel
+            msg = (
+                f"{brief.brief_id} v{brief.version} was already run ({row['id']}, "
+                f"{row['status']}); nothing to do. "
+                + (
+                    "The selection runs once the shortlist is final "
+                    f"(pigtail brief shortlist finalize {brief.brief_id}). "
+                    if wanted_sel and not final
+                    else ""
+                )
+                + "Review the shortlist, or refresh with --incremental."
+            )
+            code = EXIT_USAGE if wanted_sel and opts.stages == ("selection",) else EXIT_OK
+            return RunOutcome(row["id"], row["status"], code, msg, stages=row.get("stages") or {})
     _prompt, rubric_v = prompt_for(brief)
     versions = {
         "prompt_versions": {
@@ -226,7 +258,8 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
         },
         "model_versions": {"relevance": deps.client.model_for(RELEVANCE_JOB)},
     }
-    if kind == "resume" and row is not None and row["status"] != "planned":
+    if (kind == "resume" and row is not None and row["status"] != "planned") or selection_due:
+        assert row is not None
         run = _Run(conn, row)
         run.update(
             status="running", resumes=int(row.get("resumes") or 0) + 1, stop=None, finished_at=None
@@ -305,6 +338,8 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
                 continue
             if run.done(name):
                 continue
+            if name == "selection" and not _shortlist_final(conn, brief):
+                continue  # R4.8: the outcome sort starts only on a final shortlist
             current = name
             run.stage(name, "running", started_at=deps.clock().isoformat())
             if name == "discovery":
@@ -376,7 +411,33 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
                     finished_at=deps.clock().isoformat(),
                     result={"status": st["status"], **view["counts"]},
                 )
-        if "shortlist" in opts.stages or run.done("shortlist"):
+            elif name == "selection":
+                from pigtail.briefs.selection_store import run_stage
+
+                sres = run_stage(
+                    conn,
+                    brief,
+                    brief_run_id=run.id,
+                    github=deps.github,
+                    checkpoint=run.checkpoint.setdefault("selection", {}),
+                    save_checkpoint=lambda _cp: run.save_checkpoint(),
+                    run_date=date.fromisoformat(run.checkpoint["run_date"]),
+                    clock=deps.clock,
+                    recorder=deps.recorder,
+                )
+                _link(db, run.id, sres.evidence_ids)
+                run.stage(name, "done", finished_at=deps.clock().isoformat(), result=sres.to_dict())
+        if run.done("selection"):
+            status = "succeeded"
+            sel_res = run.stages["selection"].get("result") or {}
+            msg = (
+                f"{brief.brief_id} v{brief.version}: selection {sel_res.get('selection_id')}: "
+                f"{sel_res.get('winners', 0)} winners, "
+                f"{sel_res.get('matched_losers', 0)} matched losers"
+                + (f", {sel_res['warnings']} warning(s)" if sel_res.get("warnings") else "")
+                + f"; pigtail brief selection show {brief.brief_id}"
+            )
+        elif "shortlist" in opts.stages or run.done("shortlist"):
             status = "awaiting_review"
             st2 = Shortlist(conn, brief).status()
             if st2 is not None and st2["status"] == "final":
@@ -444,6 +505,11 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
             },
         )
         raise
+
+
+def _shortlist_final(conn: psycopg.Connection[Any], brief: Brief) -> bool:
+    st = Shortlist(conn, brief).status()
+    return st is not None and st["status"] == "final"
 
 
 def _link(db: CaptureDB, run_id: str, evidence_ids: list[str]) -> None:

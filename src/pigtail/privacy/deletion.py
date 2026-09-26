@@ -141,6 +141,15 @@ REPO_TABLES: tuple[RepoTable, ...] = (
     RepoTable("brief_candidate", "repo_id", "id", "delete", "candidate_rows_deleted"),
     RepoTable("brief_candidate", "repo_full_name", "name", "delete", "candidate_rows_deleted"),
     RepoTable("brief_candidate", "repo_host_id", "host_id", "delete", "candidate_rows_deleted"),
+    # M22 selection (0022): the repo's case rows in every stored selection, by id, name and
+    # GitHub id (the selection-level rows hold counts only; pairs are linked by number)
+    RepoTable("brief_selection_case", "repo_id", "id", "delete", "selection_case_rows_deleted"),
+    RepoTable(
+        "brief_selection_case", "repo_full_name", "name", "delete", "selection_case_rows_deleted"
+    ),
+    RepoTable(
+        "brief_selection_case", "repo_host_id", "host_id", "delete", "selection_case_rows_deleted"
+    ),
     # mention scope (Directive §8.3, migration 0019): an opted-out repo leaves every shortlist
     RepoTable("brief_shortlist_entry", "repo_id", "id", "delete", "shortlist_entry_rows_deleted"),
     RepoTable(

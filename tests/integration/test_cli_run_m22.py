@@ -49,13 +49,16 @@ def test_r19_1_r18_5_run_shows_estimate_first_dry_run_and_approval(cli_env, caps
     assert d["dry_run"] == {
         "would": "new",
         "run": None,
-        "stages": ["discovery", "relevance", "shortlist"],
+        "stages": ["discovery", "relevance", "shortlist", "selection"],
         "incremental": False,
         "network_calls": 0,
         "writes": 0,
     }
     assert d["run_scope"]["requires_approval"] is True and d["run_scope"]["api_usd"] > 0
     assert d["run_scope"]["llm"]["mode"] == "batch"
+    # the selection stage (ADR-077) makes no model call and runs only on a final shortlist
+    assert d["run_scope"]["selection"]["llm_calls"] == 0
+    assert d["run_scope"]["selection"]["runs_only_when"] == "the shortlist is final"
     assert n_runs(db) == 0
     # paid steps (api backend) without approval: nothing starts
     assert main(["run", "--brief", BID]) == 3
@@ -177,3 +180,43 @@ def test_r4_7_shortlist_cli(cli_env, capsys):
     assert main(["brief", "shortlist", "accept", BID, "org-s/lint-b", "--reason", "x"]) == 1
     roles = {r[0] for r in db.conn.execute("SELECT DISTINCT reviewer_role FROM shortlist_decision")}
     assert roles == {"owner"}
+
+
+def test_r4_8_selection_show_cli(cli_env, capsys):
+    """`pigtail brief selection show` (ADR-077): nothing before the selection stage ran; then the
+    stored summary, steps, balance and sensitivity. Two synthetic repos without star history:
+    every case is `no_anchor` and the report says there are fewer winners than the minimum."""
+    db = cli_env
+    from pigtail.briefs.selection_store import run_stage
+    from pigtail.config import Settings
+
+    brief = BriefStore.from_settings(Settings.from_env()).get(BID).brief
+    capsys.readouterr()
+    assert main(["brief", "selection", "show", BID]) == 1
+    assert "no selection" in capsys.readouterr().out
+    st = CandidateStore(db.conn, BID, 1)
+    for name in ("org-s/lint-a", "org-s/lint-b"):
+        st.upsert(Candidate(ref=f"gh:{name}", repo_full_name=name), brief_run_id=None, now=NOW)
+    sl = Shortlist(db.conn, brief)
+    sl.ensure(None)
+    sl.decide(["org-s/lint-a", "org-s/lint-b"], "accept", "synthetic", reviewer="owner")
+    sl.finalize(reviewer="owner")
+    run_stage(
+        db.conn,
+        brief,
+        brief_run_id=None,
+        github=None,
+        checkpoint={},
+        save_checkpoint=lambda _c: None,
+        run_date=NOW.date(),
+        clock=lambda: NOW,
+    )
+    capsys.readouterr()
+    assert main(["brief", "selection", "show", BID]) == 0
+    out = capsys.readouterr().out
+    assert "Selection sel_" in out and "no_anchor 2" in out and "baseline" in out
+    assert "fewer winners than the minimum (15)" in out and "Sensitivity (R4.9)" in out
+    assert "org-s/lint-a" in out and "unfiltered, anomaly-checked" in out
+    assert main(["brief", "selection", "show", BID, "--json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["selection"]["summary"]["roles"] == {"no_anchor": 2} and len(d["cases"]) == 2

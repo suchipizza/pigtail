@@ -64,6 +64,10 @@ class World:
 
 @pytest.fixture
 def w(capture_db: Any, tmp_path: Path) -> World:
+    return make_world(capture_db, tmp_path)
+
+
+def make_world(capture_db: Any, tmp_path: Path) -> World:
     capture_db.conn.autocommit = True
     gh, hn = DiscoveryFakeGitHub(), FakeShowHN()
     github = connector(capture_db, gh, tmp_path)

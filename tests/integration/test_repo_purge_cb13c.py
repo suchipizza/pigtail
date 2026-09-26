@@ -124,6 +124,20 @@ def seed(db: Any, store: LocalSnapshotStore, repo: tuple[int, str]) -> dict[str,
         " repo_host_id, repo_id) VALUES ('brief_synthetic', 1, %s, %s, %s, %s)",
         ("gh:" + name.lower(), name.lower(), hid, key),
     )
+    sel = f"sel_{hid:020x}"
+    q(  # M22 selection (0022): a stored selection with the repo as a case
+        "INSERT INTO brief_selection (id, brief_id, brief_version, brief_hash, data_version, as_of,"
+        " selection_version, outcome_model_version, params_version, inputs_hash, result_hash,"
+        " params, summary, balance, sensitivity) VALUES (%s, 'brief_synthetic', 1, 'h', 'dv1-x',"
+        " %s, 'selection-v1', '2.1', '1.1.0', %s, %s, '{}', '{}', '{}', '{}')",
+        (sel, t.date(), "0" * 64, "0" * 64),
+    )
+    q(
+        "INSERT INTO brief_selection_case (selection_id, candidate_ref, repo_full_name,"
+        " repo_host_id, repo_id, panel, role, detail) VALUES (%s, %s, %s, %s, %s, 'field',"
+        " 'winner', '{}')",
+        (sel, "gh:" + name.lower(), name.lower(), hid, key),
+    )
     q(
         "INSERT INTO repo_event_poll (repo_host_id, polled_at, status, pages)"
         " VALUES (%s, %s, 200, 1)",
