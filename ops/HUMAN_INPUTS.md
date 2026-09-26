@@ -6,7 +6,7 @@ Fill in H1 **before kickoff** if you can; everything else can wait.
 ## H1 — Credentials, infrastructure, budget  [OPEN — raised 2026-09-25, deadline 2026-10-09]
 **Blocks:** deploying the capture layer to a host (M1 acceptance needs 7 days of unattended scans), BigQuery-based GH Archive and PyPI queries, Reddit, and the M5–M6 scale runs.
 **Default if unanswered by 2026-10-09:** keep building and testing locally; use GH Archive hourly dumps (no BigQuery) and keyless public APIs (HN, Bluesky, Wayback, registries); record the other sources as gaps; spending ceiling USD 300/month.
-**Most urgent:** the host VM and the GitHub token. Evidence is lost for every day capture isn't running (WO M1).
+**Update 2026-09-26:** GitHub token and FileVault done. The host VM is optional (ADR-048: batch runs on the Mac).
 Agent notes (2026-09-25): on the agent machine, Claude Code is logged in with a Claude plan and `ANTHROPIC_API_KEY` is not set (checked with `claude auth status`). The `gh` CLI has push access to the repo. Everything else below is still needed from you.
 
 Claude (subscription is the default backend for both the agents and the product):
@@ -17,10 +17,11 @@ Claude (subscription is the default backend for both the agents and the product)
 - [ ] Optional: Anthropic API key for `LLM_BACKEND=api` / `AGENT_BACKEND=api`, and for the backend parity check
 
 Infrastructure and data sources:
+- [x] FileVault on (required by ADR-048) — verified 2026-09-26 with `fdesetup status`
 - [x] Push access to github.com/suchipizza/pigtail for the agent machine (`gh` logged in, verified 2026-09-25)
 - [ ] Host VM (EU/CH region), SSH access for deploys
 - [ ] Private S3-compatible bucket for snapshots, and a private backup location for the database
-- [ ] GitHub token (fine-grained, read-only public data) for collectors
+- [x] GitHub token (fine-grained, read-only public data) for collectors — set in the local .env, verified 2026-09-26 (full rate limit)
 - [ ] GCP project with BigQuery billing (GH Archive, PyPI downloads)
 - [ ] Reddit API app, plus data-access approval if it is required for your use
 - [ ] Optional: X API, YouTube Data API, Product Hunt API
