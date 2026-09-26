@@ -2,8 +2,8 @@
 v2 plan (ADR-047/048/049). Format: `- [ ] [ID] title — depends on — acceptance`. The v1 backlog below is kept as history; its open items are superseded unless listed here.
 
 ## Now (Owner Directive 001, ADR-069/072; M13–M19 retired, see WORK_ORDER §4.5)
-- [~] [M20] Documents per the directive — verifier consistency check
-- [ ] [M21] Cleanup and privacy: roles/buckets model + migrate + purge handles and pseudonyms (keep opt-out HMAC only); bot flag on coded records; snapshot purge (report final + 12 months); LLM_BACKEND=api wiring, per-stage models, Batch API, prompt caching; cost estimator vs caps; brief schema v1.2 (money_usd); briefs dir ~/.pigtail/briefs + backup; M12 follow-ups; anomaly checks (ADR-070)
+- [x] [M20] Documents per the directive — accepted 2026-09-26 (verifier round 3)
+- [~] [M21] Cleanup and privacy (two engineers: privacy model / LLM + cost): roles/buckets model + migrate + purge handles and pseudonyms (keep opt-out HMAC only); bot flag on coded records; snapshot purge (report final + 12 months); LLM_BACKEND=api wiring, per-stage models, Batch API, prompt caching; cost estimator vs caps; brief schema v1.2 (money_usd); briefs dir ~/.pigtail/briefs + backup; M12 follow-ups; anomaly checks (ADR-070)
 - [ ] [M22] Discovery, relevance filter (Haiku, batched), shortlist review UI, `pigtail run --brief` with checkpoints
 - [x] [M11] Re-scope cleanup (verifier PASS round 2, 2026-09-26) — — none — tag on origin ✓ (archive/global-collection); remove the watch list, all-GitHub search sweeps, global breakout detection, holdout split/guard and settle-lag code + their scheduler jobs and CLI; forward-only migration dropping their tables; HN poller repurposed (ADR-049.1); withdrawal amendments pushed (ADR-049.5); operator/developer guides, codebook, .claude/agents updated to v2 scope; CI green; verifier sign-off
 - [x] [M12] Research brief v1 (D7) — accepted 2026-09-26 (verifier PASS round 2) — — M11 — create/edit briefs (form + YAML), validation, versions + diff, multiple briefs, cost estimate, hard stop at budget (tested), cache reuse, brief files private (scan blocks them); example brief in docs
@@ -71,7 +71,7 @@ Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (di
 - [ ] [M1-T17] Early no-history connectors: Docker Hub pulls + Homebrew analytics daily snapshots — R2.2 — M1-T2
 - [!] [M1-T13] Reddit connector — GAP per source matrix (commercial use needs a written agreement; no sharing with LLM providers). Revisit only after H2 (Q2)
 
-## Compliance controls (docs/compliance/dpia.md; ADR-022 holds)
+## Compliance controls (docs/compliance/dpia.md; ADR-022 holds, as amended by ADR-073.2)
 Before production capture on the host:
 - [x] [CB-25] **Key fingerprint** (ADR-045) —: store a fingerprint of PSEUDONYM_KEY; doctor + collectors refuse on mismatch (ADR-043)
 - [x] [CB-29] ui service explicit env; secrets masked (ADR-045) —; mask `Settings.pseudonym_key` in repr (ADR-043)
