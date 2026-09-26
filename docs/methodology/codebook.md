@@ -1,18 +1,20 @@
 # pigtail codebook
 
-**Version:** 0.2.0 (semver; see §13 and the CHANGELOG at the end) · **Status:** draft for the M4 pilot. Nothing here has been checked against coded data yet. v0.1.0 was never used for coding, unitizing or any derived event.
-**Task:** M4-T1 (v0.1.0); M4-T1d and M4-T2c (v0.2.0) · **Requirements:** PRD F5 (R5.1–R5.5), F6 (R6.1–R6.3), F7 (R7.1–R7.4), F9 (R9.1–R9.3), §9.2, §9.3; compliance control CB-11 (docs/compliance/dpia.md §9).
-**ADRs this depends on:** ADR-010 (source clearances), ADR-014 (tags and status, nothing imputed), ADR-015 (time anchor T), ADR-017 (provisional categories), ADR-019 (outcome thresholds), ADR-022 (interim privacy holds), ADR-027 (√μ baseline floor), ADR-032 (star series from the star-history endpoint; supersedes ADR-012), ADR-035 (classes on the `raw` star-history series).
-**Machine-readable enums:** `schemas/codebook/v0.2.0.json` (`codebook v0.2.0`). `schemas/codebook/v0.1.0.json` is superseded and kept unchanged as a record. If this document and the JSON disagree, that is a bug. Until it is fixed, the JSON wins for validators and this document wins for meaning.
-**Author role:** `analyst`, working with researcher discipline. `LR [n]` means reference n in `docs/research/literature.md` §8. `SM` means `docs/research/source-matrix.md`. `OM` means `docs/specs/outcome-model.md`.
+**Version:** 0.3.0 (semver; see §13 and the CHANGELOG at the end) · **Status:** draft for per-brief neighbourhood analysis (PRD v2.0, ADR-047). Nothing here has been checked against coded data yet. No version (0.1.0, 0.2.0 or 0.3.0) has been used for coding, unitizing or any derived event.
+**Task:** M4-T1 (v0.1.0); M4-T1d and M4-T2c (v0.2.0); M11 (v0.3.0, re-scope) · **Requirements:** PRD F5 (R5.1–R5.5), F6 (R6.1–R6.3), F7 (R7.1–R7.5), F20 (R20.1–R20.3), R4.9, §5.1–5.2, §9.2; compliance control CB-11 (docs/compliance/dpia.md §9).
+**ADRs this depends on:** ADR-010 (source clearances), ADR-014 (tags and status, nothing imputed), ADR-015 (time anchor T), ADR-017 (provisional categories), ADR-022 (interim privacy holds), ADR-027 (√μ baseline floor), ADR-032 (star series from the star-history endpoint; supersedes ADR-012), ADR-035 (`raw` star-history series), ADR-047 (brief-driven neighbourhood analysis; items 3, 7, 8), ADR-049 (items 1, 6, 7, 8, 12).
+**Machine-readable enums:** `schemas/codebook/v0.3.0.json` (`codebook v0.3.0`). `schemas/codebook/v0.1.0.json` and `v0.2.0.json` are superseded and kept unchanged as records. If this document and the JSON disagree, that is a bug. Until it is fixed, the JSON wins for validators and this document wins for meaning. The v0.2.0 text of this document is in git history (`git show archive/global-collection:docs/methodology/codebook.md`).
+**Author role:** `analyst`, working with researcher discipline. `LR [n]` means reference n in `docs/research/literature.md` §8. `SM` means `docs/research/source-matrix.md`. `OM` means `docs/specs/outcome-model.md` (v2).
 **Data version:** none. The codebook comes before any data. No case has been coded and no outcome has been looked at.
-**Code commit:** `e4988ec`, read on 2026-09-25 (v0.1.0); `535ddd0` for v0.2.0. The v0.2.0 burst derivation matches `outcome-model.md` §2.1 and the day baseline in `src/pigtail/capture/detection_v1.py` (`daily_baseline`) as of that commit.
+**Code commit:** `e4988ec`, read on 2026-09-25 (v0.1.0); `535ddd0` for v0.2.0; `0330bd4` for v0.3.0. The burst derivation matches `outcome-model.md` §2.1 and the day baseline in `src/pigtail/capture/detection_v1.py` (`daily_baseline`) as of `535ddd0`; M11 deletes global breakout detection, and the per-repo burst code that survives (ADR-047.6, PRD R19.5) must keep this derivation.
+
+**Scope of this version.** Codebook 0.3.0 serves one brief at a time. A brief's deep forensics (its 15–25 winners and 15–25 matched losers, PRD R4.8) are coded with it, double-coded with adjudication (R7.2), and its agreement is reported per field in that brief's report (R7.5). There is no global case store to code, no gate G1, no global mechanism library and no promotion rule (ADR-047.3, ADR-047.7, WORK_ORDER v2.0 §4.3). Patterns are per brief (§7, PRD F20).
 
 ---
 
 ## 0. How to read this codebook
 
-1. **Definitional choices are not findings.** Every threshold, window and band in this codebook (burst gaps, trigger windows, reach bands, confidence criteria) is a v0 design choice. None of them is an empirical result. The pilot (M4-T3) calibrates them once, and after that they change only through an ADR and a held-out re-run (ADR-019's policy, applied to the codebook in §13).
+1. **Definitional choices are not findings.** Every threshold, window and band in this codebook (burst gaps, trigger windows, reach bands, trigger-confidence criteria, the pattern-reporting minimums of §7.3) is a v0 design choice. None of them is an empirical result. A change goes through a codebook version bump with a changelog entry (§13). A brief pins the codebook version before its outcome sort; a change made for a brief after its outcome sort is labelled **exploratory** in that brief's report (WORK_ORDER §6, analyst rule).
 2. **Two kinds of fields.** *Derived* fields are computed by code from evidence: for example source, timestamps, the burst and quiet segmentation, and reach bands. They are tested, not double-coded. *Coded* fields are assigned by an LLM or a human coder. Only coded fields enter Krippendorff's α (§10).
 3. **Every coded value follows the rules in §11.** It must carry evidence_ids and verbatim quoted spans, or it is dropped. `unknown` is a legitimate answer. Absence of evidence is never coded as `false` or `absent`, unless the rule for that field says so explicitly.
 4. **Privacy rules (§12) bind every section.** Where a section's definition would conflict with §12, §12 wins.
@@ -30,9 +32,9 @@
 | `node`, `edge` | Spread-graph elements (§4) | `node_…`, `edge_…` | Candidate pairs: derived. Type and level: coded |
 | `asset` | One instance of a spreadable asset (§5) | `ast_…` | Instances: parser, where possible. Category: coded |
 | `trigger_candidate` | A candidate trigger for one burst (§6) | `trg_…` | Candidates: derived by the window rule. Type and confidence: coded |
-| `mechanism_support` | (case, mechanism) link (§7) | `ms_…` | Coded |
+| `pattern_support` | (case, pattern) link within one brief (§7.4). Replaces `mechanism_support` (0.2.0). | `ps_…` | Presence: coded. Role-based reading (supporting case or counterexample): derived from the case's role in the brief |
 
-**Unitizing rule.** Wherever it is possible, units are cut out *deterministically* by code before any coding happens: items, burst segments, candidate edge pairs, trigger candidates, and asset instances that a parser can extract (images, GIFs, links, headings, titles). Both coders then code the same units, so α is computed on identical units. Units that only an LLM can cut out (phrases, benchmark claims, stated reasons) are not core fields in v0.1.0 (§10.3).
+**Unitizing rule.** Wherever it is possible, units are cut out *deterministically* by code before any coding happens: items, burst segments, candidate edge pairs, trigger candidates, and asset instances that a parser can extract (images, GIFs, links, headings, titles). Both coders then code the same units, so α is computed on identical units. Units that only an LLM can cut out (phrases, benchmark claims, stated reasons) are not core fields (§10.3).
 
 ---
 
@@ -42,8 +44,8 @@
 
 | Value | Definition | Typical sources (clearance per ADR-010) |
 |---|---|---|
-| `platform_metric` | A machine-generated count or series about a project, published by the platform that hosts it | GitHub star-history daily counts (TM-33 under TM-02; ADR-032.3), hourly watch-list star-count snapshots (GraphQL `stargazerCount`, TM-02; ADR-032.1), registry downloads (TM-07 to TM-11), deps.dev dependents (TM-12), HN points and comment counts (TM-03/04), HN rank polls (TM-04) |
-| `platform_event` | A machine-generated event record | GH Archive event (TM-01), GitHub release, tag or commit record (TM-02) |
+| `platform_metric` | A machine-generated count or series about a project, published by the platform that hosts it | GitHub star-history daily counts (TM-33 under TM-02; ADR-032.3), hourly star-count snapshots (GraphQL `stargazerCount`, TM-02) where they exist (the pre-re-scope watch-list cache, ADR-032.1; the watch list itself is deleted, ADR-047.6), registry downloads (TM-07 to TM-11), deps.dev dependents (TM-12), HN points and comment counts (TM-03/04), HN rank polls (TM-04) |
+| `platform_event` | A machine-generated event record | GitHub release, tag or commit record (TM-02); GH Archive event (TM-01), used for discovery signals only and never for stars, forks, issues or PRs (ADR-047.8) |
 | `project_artifact` | Content the project published on its own channels: the repo, its site, its docs, and accounts or blogs linked *from* the repo or site | README at a commit, release notes, changelog, docs page, project blog post, pricing page (TM-02, TM-29) |
 | `community_post` | A post or comment on a community platform | HN story or comment (TM-03/04), Bluesky post (TM-06, held by ADR-022), V2EX topic or reply (TM-19, off by default) |
 | `editorial` | Content from a publication with its own name (masthead): a newsletter issue, a third-party blog, a press article, a curated list | Direct fetch under TM-29, press entered by the operator (TM-31) |
@@ -87,7 +89,7 @@ Decision rules:
 
 ### 3.1 Two layers
 Events sit in two layers that may overlap in time:
-- **Attention layer: `burst | quiet`.** Derived by code from the `raw` star-history series (daily net counts from GitHub's star-history endpoint, on endpoint days; ADR-032.3, ADR-035, OM §1.2), the same series the outcome classes use. Hourly watch-list snapshots refine burst onsets only (§3.2). The two values split the case window with no gaps, except days without series coverage (§3.3). Not double-coded.
+- **Attention layer: `burst | quiet`.** Derived by code from the `raw` star-history series (daily net counts from GitHub's star-history endpoint, on endpoint days; ADR-032.3, ADR-035, OM §1.2), the same series the brief's attention dimension uses (OM §1.2, §5). Hourly count snapshots, where they exist, refine burst onsets only (§3.2). The two values split the case window with no gaps, except days without series coverage (§3.3). Not double-coded.
 - **Action layer: `prep | launch | relaunch | pivot`.** Coded from evidence. These are things the project did.
 
 The case window is [T − 90 d, T + 365 d] (T per ADR-015). Anything outside the window is recorded only if a rule below needs it (for example a prior launch for `relaunch`).
@@ -96,20 +98,21 @@ Every event records: `id`, `type`, `start`, `end` (null for point events), `time
 
 ### 3.2 `burst` (derived)
 - **Definition.** A period in which star velocity is abnormally high against the repo's own baseline.
-- **Series (v0.2.0).** `raw` star-history daily net counts `n(d)` (ADR-032.3), for every case. Filtered series are not used to cut units: they are `unknown` for most windows (ADR-032.3, ADR-035). Hourly watch-list snapshots (ADR-032.1) are used **only** to refine the onset hour (below), never for detection, end, merging or `quiet`, so that every case is segmented on one series at one resolution (the reason OM §1.2 gives for classes).
+- **Series (from v0.2.0; unchanged in v0.3.0).** `raw` star-history daily net counts `n(d)` (ADR-032.3), fetched **per repo** for every case (ADR-047.8, PRD R19.5). Filtered series are not used to cut units: they are `unknown` for most windows (ADR-032.3, ADR-035). Hourly star-count snapshots of the repo, where any exist (the pre-re-scope watch-list cache, ADR-032.1), are used **only** to refine the onset hour (below), never for detection, end, merging or `quiet`, so that every case is segmented on one series at one resolution (OM §1.2). Launch-mode runs (every 3 h on launch day, PRD R19.4) don't give hourly coverage and don't refine onsets.
 - **Days.** `d` is an endpoint day in `star_history_day_tz` (OM §1.2). The case window's days are the 90 endpoint days before the window's first day plus the 365 endpoint days starting at it, where the first day is the one OM §1.2 maps T to (hour-precision T: the day containing T; day-precision T: the day with T's UTC date). A day is used only after it has ended (OM §1.2). Each burst and quiet event records `day_boundary = {tz, tz_status, first_day, last_day}`.
 - **Detection.** `velocity-v0` on endpoint days, as OM §2.1 applies it where only daily data exists: day `d` fires when `n(d−1) + n(d) ≥ 100` and `z ≥ 3`, with the baseline taken from the 30 endpoint days before `d−1`, converted to 48-hour sums, and σ floored at √(baseline mean) (ADR-027 item 3; thresholds JSON `burst_detection`; `daily_baseline` in `src/pigtail/capture/detection_v1.py`). A burst starts at the first firing day that is not already inside a burst. Detection runs over the whole case window, not only for the first burst.
 - **Onset (OM §2.1, exactly).** The 48-hour detection window is endpoint days `d−1` and `d`.
   - Where hourly count snapshots cover that window: the onset hour is the earliest hour in the window whose net star gain exceeds `μ_h + 3·√μ_h`, where `μ_h` is the baseline mean stars per hour (`μ_h + 1` when `μ_h = 0`). The baseline is daily, so **`μ_h = μ_d / 24`**, with `μ_d` the mean stars per endpoint day over the 30-day detection baseline (orchestrator decision, 2026-09-25; OM §2.1 leaves the conversion implicit, and a follow-up asks OM to state it). DST-switch days of 23 or 25 hours are not corrected (OM §1.2). If no single hour qualifies (a diffuse rise), the onset is the start of the window. Precision `hour`.
   - Otherwise: the same rule on endpoint days with `μ_d` (baseline mean stars per endpoint day, over the same 30 days). The onset is the start of the first qualifying day among `d−1`, `d`; if neither qualifies, the start of `d−1`. Precision `day`.
   - **Agreement with T.** The burst whose detection window contains the case's recorded `T_burst` onset (OM §2.1) takes that recorded onset and its precision, so C9/C10 units and the case anchor never disagree.
-  - Onsets computed from GH Archive are kept for audit only (OM §2.1).
+  - GH Archive is never used for onsets (ADR-047.8). Onsets computed from it before the re-scope are not used.
 - **End (v0 choice).** The start of the first run of 3 consecutive endpoint days after the onset day on each of which `n(d) ≤ μ_d + 3·√μ_d`. `μ_d` is the mean stars per endpoint day over the burst's detection baseline; when `μ_d = 0`, use `μ_d + 1`. The end has precision `day`.
 - **Merging (v0 choice).** Two bursts separated by fewer than 7 endpoint days are one burst with `multi_peak = true`.
-- **Required evidence.** The star-history snapshot(s) covering the segment and its baseline, with a JSON pointer to each day's count (§11.2). Where the onset was refined, the hourly snapshot records used, with pointers to their counts. Also recorded: `series_variant = raw`, the star-history `metric_version`, `onset_precision`, `day_boundary`, and the series completeness check result (pilot amendment 1, A2). The v0.1.0 attribute `gharchive_coverage_ratio` is dropped: it measured GH Archive against a series that no longer exists, and neither is the burst series now.
+- **Required evidence.** The star-history snapshot(s) covering the segment and its baseline, with a JSON pointer to each day's count (§11.2). Where the onset was refined, the hourly snapshot records used, with pointers to their counts. Also recorded: `series_variant = raw`, the star-history `metric_version`, `onset_precision`, `day_boundary`, and the series completeness check result (below).
+- **Series completeness check.** The star-history series of a case is **incomplete** when the connector reports an error or a missing page for any week the case window needs, or when the all-time sum of the returned days differs from the repo's `stargazers_count` fetched in the same run by more than 1 % (a v0 design choice that allows for stars added between the two requests; it was pilot amendment 1, A2, restated here because that amendment is withdrawn). Days of an incomplete week are coverage gaps (§3.3). The v0.1.0 attribute `gharchive_coverage_ratio` is dropped: it measured GH Archive against a series that no longer exists, and neither is the burst series now.
 - **Descriptive attribute `burst_shape`:** `sudden_fast_decay | gradual_build | mixed | unknown`. It follows the exogenous and endogenous relaxation classes of Crane & Sornette (LR [35]). The v0 rule: `sudden_fast_decay` when the peak day falls within 48 h of onset and velocity is below 50% of peak within 7 days; `gradual_build` when the peak is more than 7 days after onset; `mixed` otherwise. On endpoint days this reads: peak day index 0 or 1 counted from the onset day; some day with index ≤ 7 below 50% of the peak count; `gradual_build` when the peak day index is > 7. This attribute is descriptive only. LR §3.4 warns that fits will be noisy on sparse star series, and H-L3 tests this rather than assuming it.
 - **Boundary cases.**
-  - A burst caused by a fake-star campaign is still a `burst`. The case carries `manipulation_flag` when `campaign_flag = true` (§2.4). Where a filtered variant is class-eligible for the whole case window (OM §1.2), the segmentation may be recomputed on it and the difference reported as exploratory; it never defines units.
+  - A burst caused by a fake-star campaign is still a `burst`. The case carries `manipulation_flag` when `campaign_flag = true` (§2.4). Where a filtered variant is eligible for the whole case window (OM §1.2, §4), the segmentation may be recomputed on it and the difference reported as exploratory; it never defines units.
   - A download spike without a star spike is not a `burst`. It is recorded as an exploratory observation.
   - Star-history counts only **current** stargazers (net, survivor-biased, OM §1.2). A burst whose stars were later un-starred or deleted can shrink below the detection thresholds and then isn't a `burst`. This is a property of the series, recorded as a limitation, not corrected.
 
@@ -119,7 +122,7 @@ Every event records: `id`, `type`, `start`, `end` (null for point events), `time
 - **Required evidence.** The same series as `burst`.
 - **Boundary cases.**
   - An interval shorter than 7 days between bursts has already been merged into the burst (§3.2).
-  - Days without series coverage are `unknown`, not `quiet`, and split the quiet interval. Examples: a star-history week the connector couldn't retrieve (pilot amendment 1, A2), or a day that hasn't ended yet. Days before the repo's creation have no series and are neither `burst` nor `quiet`.
+  - Days without series coverage are `unknown`, not `quiet`, and split the quiet interval. Examples: a star-history week the connector couldn't retrieve (§3.2 completeness check), or a day that hasn't ended yet. Days before the repo's creation have no series and are neither `burst` nor `quiet`.
 
 ### 3.4 `launch` (coded, point event)
 - **Definition.** The **first** public announcement that is (a) first-party and (b) deliberate, and that presents the project to an audience with the aim of getting attention or users.
@@ -182,9 +185,9 @@ Every event records: `id`, `type`, `start`, `end` (null for point events), `time
 
 ## 4. Spread graph (R5.3)
 
-### 4.1 Status in v0.1.0 and v0.2.0: community and publication level only
+### 4.1 Status in v0.1.0 to v0.3.0: community and publication level only
 - ADR-022 holds all account-level spread graphs until LQ-8 is answered. LQ-8's default is "community- and publication-level graphs only".
-- So in v0.1.0 and v0.2.0 the `account` node type is **defined but disabled**. The JSON has `"account_nodes_enabled": false`.
+- So in v0.1.0 to v0.3.0 the `account` node type is **defined but disabled**. The JSON has `"account_nodes_enabled": false`.
 - An item written by an account is attached to the **venue** it appeared in:
   - the community node (for example "Hacker News" or a V2EX node); or
   - for platforms without communities, a platform-level community node (for example "Bluesky, platform-wide").
@@ -224,7 +227,7 @@ Edges point in the direction information flowed: from the node whose item came f
 3. the source item's timestamp comes before the target item's, taking timestamp precision into account;
 4. no §12 hold applies to either endpoint.
 
-Otherwise the edge is `unsupported`. It is stored for review and excluded from structural virality (LR [29]), from breadth counts (H-L4, LR [31]) and from mechanism evidence.
+Otherwise the edge is `unsupported`. It is stored for review and excluded from structural virality (LR [29]), from breadth counts (H-L4, LR [31]) and from pattern evidence (§7).
 
 ### 4.5 Reach bands (CB-10)
 - Reach is stored **only as a band, never as an exact count**, for every node that has followers or subscribers.
@@ -238,14 +241,14 @@ Otherwise the edge is `unsupported`. It is stored for review and excluded from s
 - Community nodes carry item-level engagement (HN points and comments) as project-level metrics (OM §1), not as reach bands.
 - A reach band is never used to rank or score an account (§12 P2).
 
-### 4.6 Public-figure exception (conservative; **inactive for natural persons in v0.1.0 and v0.2.0**)
+### 4.6 Public-figure exception (conservative; **inactive for natural persons in v0.1.0 to v0.3.0**)
 - LQ-7 is open. Its default is: "Only organisations and publications are named, and only in the private UI. No natural person is named in any output."
-- v0.1.0 (and v0.2.0) therefore defines the criteria below but does not apply them to natural persons. Applying them needs the LQ-7 answer plus an ADR.
+- v0.1.0 (and v0.2.0, v0.3.0) therefore defines the criteria below but does not apply them to natural persons. Applying them needs the LQ-7 answer plus an ADR.
 - **Proposed criteria for a natural person.** All of the following must hold:
   1. The person speaks in a **professional public-communication role** about software. Examples: a journalist or editor for a publication with a masthead, or an official spokesperson or DevRel speaking *for an organisation*.
   2. The coded activity is part of that public role (FADP Art. 31(2)(f): "public activities").
   3. The role is documented in a snapshot from a cleared source. The person's own professional page, or the publication's masthead, counts.
-  4. The person is not a maintainer of a matched loser, and does not own a repo on a personal account in the panel (LQ-7 context).
+  4. The person is not a maintainer of a matched loser in any brief, and does not own a repo on a personal account among any brief's cases (LQ-7 context).
   5. The operator has approved the person onto the allowlist (CB-14). The approval is recorded with the evidence_id.
 - **Explicitly not sufficient:** a high reach band, a verification badge, or being "well known".
 - **Even when eligible:** the person is named only in the private UI, and never in public outputs (CB-14, CB-20).
@@ -299,7 +302,7 @@ Boundary rules:
 MC-09 (novelty positioning) needs a novelty claim on every case. In v0.1.0 the field existed only as an `ai_hype` extra field (§8), so presence outside that module was always `unknown`. From v0.2.0 it is a **case-level field** coded on every case in the coded sample. For `ai_hype` cases, the module's `novelty_claim` is this same value; it is not coded twice.
 
 - **What it codes.** Whether the project, **in its own words at T**, claims to be novel: new in kind, a new approach, or a new combination. It codes the *claim*, not whether the project is in fact novel. Fang et al. link novelty to stars and to lower long-run participation (LR [13], H-L6); whether their novelty measure and a quoted positioning claim are the same construct is **unknown** (candidates.md MC-09).
-- **Inputs (frozen at T, like the category inputs of OM §3.1, so no post-T information leaks in):**
+- **Inputs (frozen at T, like the category inputs of §9, so no post-T information leaks in):**
   1. the repo description at T;
   2. the README at the last commit before T;
   3. if the anchor type is `launch`, the evidence record that fixed `T_launch` (OM §2.1).
@@ -319,7 +322,7 @@ MC-09 (novelty positioning) needs a novelty claim on every case. In v0.1.0 the f
   - generic marketing adjectives ("modern", "next-generation", "powerful", "simple", "blazing fast");
   - anything a third party says about the project (first-party only; `claim_basis = first_party_statement`, §2.2).
 - **Reliability** follows §2.3. A README fetched at a pinned commit and cited for "the README said X at c" is `high`.
-- **Status.** Not a core field (§10.3). Agreement is reported but doesn't gate G1, and the field can't feed promotion (so MC-09 can't be promoted on it) until a later minor version makes it core and it passes the α gate (§10.4).
+- **Status.** Not a core field (§10.3): a brief codes it when one of its pattern hypotheses needs it (for example MC-09). When it is coded it is double-coded, its α is reported per field like every coded field, and a pattern resting on it carries its reliability label (§10.4).
 
 ---
 
@@ -338,7 +341,7 @@ For each burst with onset `t0` (§3.2; hour or day precision):
 | Value | Definition |
 |---|---|
 | `hn_front_page` | An HN story about the repo that reached the front page. Shown by an own rank poll (rank ≤ 30, a config assumption and **unverified**, OM O7) or by the Algolia `front_page` tag (semantics undocumented, OM §1) |
-| `hn_post` | An HN story with no front-page evidence (`unknown` when polling coverage is missing, never "not on the front page") |
+| `hn_post` | An HN story with no front-page evidence (`unknown` when polling coverage is missing, never "not on the front page"). The rank poller runs only during scheduled runs and while a brief or tracked project is in launch mode (ADR-049.1), so rank history outside those windows is a coverage gap; for retrospective cases the Algolia `front_page` tag is the only front-page evidence, labelled as such. |
 | `community_post` | A post in another cleared community (V2EX; others are gaps) |
 | `social_post` | A post on a social platform (Bluesky; X is a gap) |
 | `publication_feature` | A newsletter, press article, third-party blog or podcast page |
@@ -368,6 +371,8 @@ Each candidate records:
 
 The rank-1 candidate's `trigger_type` is the burst's coded trigger (core field C9).
 
+`trigger_confidence` (C10, below) grades one burst's attribution. It is **not** the retired low/medium/high confidence of mechanism cards (ADR-025, retired by ADR-049.7); patterns carry no confidence level (§7).
+
 **Attribution confidence (`trigger_confidence`, ordinal):**
 - `high`: the burst onset has precision `hour`, and the rank-1 candidate meets all of:
   - it is in the proximal window, with `t0 − 24 h ≤ time ≤ t0 + 2 h` at hour precision;
@@ -384,84 +389,81 @@ The rank-1 candidate's `trigger_type` is the burst's coded trigger (core field C
   - the only evidence is `inferred`;
   - the trigger is `none_observed` or `unknown`.
 
-**Attribution is association, not causation.** Causal effects of trigger types come only from R8.1 event studies with robust estimators (LR [50][51][53]) and matched comparisons (LR [11]). Neither a card nor a report may call a coded trigger "the cause" on the strength of §6 alone.
+**Attribution is association, not causation.** Causal effects of trigger types come only from R8.1 event studies with robust estimators (LR [50][51][53]) and matched comparisons (LR [11]). Neither a pattern nor a report may call a coded trigger "the cause" on the strength of §6 alone.
 
 ### 6.4 Unobservable channels
 Every attribution record carries `unobservable_channels`: the gap sources that could hold a trigger under current terms (ADR-010: Reddit, X, YouTube, Product Hunt, Lobste.rs, dev.to, Juejin, Zhihu, Bilibili; plus sources held by ADR-022 at coding time). This follows SM §5 item 8: missing data is not a null effect.
 
 ---
 
-## 7. Mechanism cards (R9.1–R9.3, PRD §9.3)
+## 7. Neighbourhood patterns (PRD F20; replaces the mechanism cards of 0.1.0–0.2.0)
 
-### 7.1 Card schema (every field is required; unknown values are written `unknown`)
+A **pattern** is something a brief's cases did (a sequence, an asset, a channel, a positioning) whose presence is coded on every winner and every matched loser of that brief, and reported with its loser contrast and counterexamples (PRD §5.2, R20.1). Patterns belong to **one brief version** (R20.3). There is no global library, no `candidate`/`promoted` status, no promotion rule and no low/medium/high confidence scale (ADR-047.3, ADR-049.7, PRD R20.2). Patterns are described in descriptive language and never called validated mechanisms.
+
+Where patterns come from:
+- **Seed hypotheses.** `docs/methodology/mechanisms/candidates.md` (and `schemas/mechanisms/candidates-v0.json`) is a starter list of pattern hypotheses with presence tests written in codebook fields. A brief chooses which ones to check **before its outcome sort** and records the choice in the brief version (pre-registered for the pilot).
+- **Brief-specific hypotheses.** The user or the analyst may add hypotheses for a brief, written in the same form (§7.2), also before the outcome sort.
+- **Exploratory patterns.** A pattern first noticed after the outcome sort (for example while reading coded cases) is reported only under **exploratory**, with the same fields.
+
+### 7.1 Pattern record (every field is required; unknown values are written `unknown`)
 | Field | Content |
 |---|---|
-| `id`, `name`, `version`, `status` | `status` is `candidate` or `promoted` (§7.3) |
-| `description` | What the mechanism is, in operational terms |
-| `participation_motive` | Why people took part and shared. It is summarised **only** from item-level `stated_reason` codes (the enum is in the JSON; the reasons refer to attributes of the *project*, never of the person) and cites them. It is never inferred about individuals. |
-| `preconditions` | A list. Each item has a statement **and** a test written against codebook fields. Example: "`cli_devtools` module active AND an `install_one_liner` asset exists at T". Preconditions that can't be tested block promotion. |
+| `id`, `name`, `brief_id`, `brief_version`, `codebook_version` | `id` is unique within the brief. A pattern from the seed list keeps the seed id (for example `MC-01`) in `seed_id`. |
+| `origin` | `seed` \| `brief_hypothesis` \| `exploratory` (exploratory = defined after the outcome sort) |
+| `description` | What the cases did, in operational terms |
+| `participation_motive` | Why people took part and shared. Summarised **only** from item-level `stated_reason` codes (enum in the JSON; reasons refer to attributes of the *project*, never of the person), with citations. Never inferred about individuals. |
+| `preconditions` | A list. Each item has a statement **and** a test written against codebook fields. Example: "`cli_devtools` module active AND an `install_one_liner` asset exists at T". A precondition that can't be tested is listed as `untestable`, and the pattern is then reported as descriptive only (it can't feed an adaptation note, PRD R10.3). |
 | `required_assets` | Asset categories from §5 |
-| `sequence_timing` | An ordered list of action-layer event types and trigger types, with typical offsets relative to T (median and range over supporting cases) |
-| `outcome_dimensions` | Any of `attention | adoption | community | business` (PRD §5.3; no composite) |
-| `supporting_cases` | `case_id`s, each with its `mechanism_support` record (§7.4) and outcome class |
-| `contradicting_cases` | `case_id`s, each with a required written explanation |
-| `loser_contrast` | Prevalence among winners and among their matched losers (with n), the difference and its CI, the estimator, the pre-registration reference, and `exploratory` if it was not pre-registered |
-| `effect_estimate` | Estimator (not plain TWFE with staggered triggers, LR §4.2), estimate, 90% CI, data version, report path |
-| `confidence` | `low | medium | high` (§7.2) |
-| `applicable_strata` | The strata cells with n and coverage. "insufficient evidence" where n is too small (R10.2) |
-| `saturation_trend` | `rising | stable | declining | insufficient_evidence`, from R8.4 / R16.2 (a hazard or effect trend across cohorts) |
-| `unobservable_channels` | As in §6.4. Loser contrasts must use the same channels on both sides (SM §5 item 8). |
-| `deciding_field_alpha` | α, with CI, for each promotion-deciding field that the card relies on (§10.4) |
-| `sensitivity_flags` | For example `sensitive_to_fake_star_filter` (ADR-020), `sensitive_to_threshold_version` |
-| `modules` | The adaptive modules the card is scoped to (§8) |
-| `history` | Append-only list of {date, version, change, case_id, direction (`supports | contradicts`), codebook_version} (R9.3) |
+| `sequence_timing` | An ordered list of action-layer event types and trigger types, with offsets relative to T (median and range over the winners that show the pattern, with n) |
+| `outcome_dimensions` | Any of `attention \| adoption \| community \| business`; results are always shown per dimension (PRD §5.3) |
+| `presence_test` | The rule that turns codebook fields into `present \| absent \| unknown` (§7.4) |
+| `counts` | For winners and for matched losers separately: n present, n absent, n unknown, and n total (§7.3) |
+| `loser_contrast` | Prevalence among winners and among matched losers (present ÷ (present + absent)), each with n and a Wilson 95 % interval; the difference; the matched-pair table (pairs where only the winner shows it, only the loser, both, neither, and pairs with an unknown side); the `unknown` share on each side, flagged when the two sides differ by more than 20 percentage points. Descriptive: no p-values. |
+| `supporting_cases` | Winners with `presence = present`, by `case_id` |
+| `counterexamples` | (a) matched losers with `presence = present`; (b) winners with `presence = absent`. Each by `case_id`. An empty list is written "none found", never left out. |
+| `field_reliability` | For every coded field the presence test rests on: α (with the bootstrap 95 % CI, n pairable, and the unknown rate per coder) from this brief's double coding, and its label (§10.4) |
+| `reliability_label` | `low reliability` if any field in `field_reliability` is labelled `low reliability` or `reliability not assessed`; otherwise none. Always also `LLM-coded, not human-validated` unless a human sample validated those fields (R7.5). |
+| `sensitivity_flags` | The flags of the cases involved: `definition_sensitive` (the case's role changes under a sensitivity alternative, R4.9, OM §8), `sensitive_to_fake_star_filter` (OM §4), and `balance_limited` (the loser contrast rests on a matching covariate that misses the balance target, PRD §9.2) |
+| `event_study` | Optional. Estimator (not plain TWFE with staggered triggers, LR §4.2), estimate and 90 % CI, data version and script path, for R8.1 event studies. Pre-registered or labelled `exploratory`. `none` when not run. |
+| `evidence_label` | `insufficient evidence in this neighbourhood` when §7.3's minimums aren't met; otherwise none |
+| `unobservable_channels` | As in §6.4. The contrast uses the same channels on both sides (SM §5 item 8). |
+| `modules` | The adaptive modules the pattern is scoped to (§8), if any |
+| `changes` | Per re-run of the brief (R20.3): the brief version and data version compared, the cases added and removed, and how `counts` and `loser_contrast` changed |
+| `recommendable` | `false` for anti-patterns (seed MC-12, MC-13) and for anything PRD §4 rules out; such patterns are detected and contrasted, never recommended (F10, R12.4). Otherwise `true`. |
 
-### 7.2 Confidence levels (PRD §9.3 says they are defined here)
-Confidence is ordinal and is tied to the promotion status:
-- **`low`:** every `candidate` card. A promoted card also drops to `low` while any sensitivity flag in `sensitivity_flags` is open and unresolved.
-- **`medium`:** a `promoted` card (all four §9.3 conditions hold) that does not meet every `high` condition.
-- **`high`:** a `promoted` card that also meets **all** of these conditions:
-  1. ≥ 10 supporting winner cases from ≥ 3 strata;
-  2. **both** routes of §9.3's second condition hold: the winner-versus-loser prevalence difference *and* an event-study effect whose 90% CI excludes zero;
-  3. every promotion-deciding field it relies on has α ≥ 0.80 with the CI lower bound ≥ 0.70 (LR [71]: ≥ 0.800 is the conventional level for firm conclusions; primary source unverified);
-  4. no sensitivity flag is raised;
-  5. every contradicting case has an explanation that is itself coded from evidence, not asserted.
+Patterns refer to cases by `case_id` only (§12 P6).
 
-These are v0 definitional choices (ADR needed, see the return notes). They make confidence stricter; they never loosen §9.3.
+### 7.2 Writing a hypothesis
+A hypothesis checked in a brief has, before the outcome sort: `name`, `description`, `preconditions` (with tests), `required_assets`, the expected `sequence_timing` order, `outcome_dimensions`, `modules`, a `presence_test`, and a **contrast reading**: what winner-versus-loser prevalence would be consistent with it, and what would count against it. Thresholds inside a presence test (for example "≥ 3 distinct days") are fixed in the brief version; changing one after the outcome sort makes the pattern exploratory.
 
-### 7.3 Promotion rule (PRD §9.3, restated verbatim; this codebook does not relax it)
-> A mechanism becomes `promoted` only if all of the following hold:
-> - ≥ 5 supporting winner cases from ≥ 2 strata.
-> - A higher prevalence among winners than among their matched losers, or an event-study effect whose 90% CI excludes zero.
-> - Contradicting cases are listed and explained.
-> - Its preconditions are stated in a testable form.
->
-> Otherwise it stays `candidate`.
+### 7.3 Reporting rule (PRD R20.2)
+- Every pattern is shown with its `counts`, `loser_contrast` and `counterexamples`, whatever they show. Null and negative contrasts are reported with the same prominence as positive ones (analyst rule).
+- **"Insufficient evidence in this neighbourhood"** (v0 design choice): the pattern is labelled so when fewer than **10** winners or fewer than **10** matched losers have a known value (`present` or `absent`), or when fewer than **3** cases in total are `present`. It is still shown with its n. A brief may set stricter minimums in its version (never looser after the outcome sort).
+- A pattern whose presence test rests on a field labelled `low reliability` or `reliability not assessed` carries that label wherever it appears (report, D1, D3 plans, D4 assets); it is not dropped (ADR-047.7).
+- Overlapping patterns (for example seed MC-01, MC-02 and MC-03) are reported together, so that the same cases aren't read as independent support.
+- A trigger coded under §6 is association, not cause; causal language needs an R8.1 event study (§6.3).
 
-How the codebook applies it (these rules add conditions, never remove them):
-1. "Supporting winner case" means a case with outcome class `winner` (OM, ADR-019) and a `mechanism_support` record with `presence = present` and `direction = supports`.
-2. "Strata" are PRD R4.2 cells. The category counts as a stratum only at the level of §8's taxonomy version.
-3. Prevalence is computed from `mechanism_support.presence` (core field C11a). `unknown` counts in neither the numerator nor the denominator. The share of `unknown` is reported on each side, and if the two sides differ by more than 20 percentage points the contrast is flagged.
-4. **Reliability gate:** a field that fails the α gate (§10.4) cannot feed promotion.
-5. A card that is promoted and later fails a condition goes back to `candidate`. The history records why.
-
-### 7.4 `mechanism_support` (coded per case × card)
-- **`presence`** (C11a, nominal): `present | absent | unknown`.
-  - `present` needs every precondition test and at least one sequence element from the card, supported by evidence.
+### 7.4 `pattern_support` (per case × pattern, within one brief)
+- **`presence`** (C11a, coded, nominal): `present | absent | unknown`.
+  - `present` needs every precondition test and at least one sequence element of the pattern, supported by evidence.
   - `absent` needs positive evidence that the element was missing *in an observable channel*. Example: the README at T is captured and has no install one-liner.
-  - Otherwise the value is `unknown`.
-- **`direction`** (C11b, nominal): `supports | contradicts | neutral`.
-  - `supports`: present, and the outcome dimension moved as the card predicts.
-  - `contradicts`: present, but the predicted outcome did not follow. Example: a matched loser that ran the mechanism.
-  - `neutral`: absent or unknown. **A winner without the mechanism is not a contradiction.** Cards do not claim necessity.
-- **`strength`:** `strong` if every precondition and sequence element is supported by `supported`-level evidence (edges §4.4; reliability ≥ medium). Otherwise `weak`.
+  - Otherwise `unknown`.
+  - Some presence values are set by the pipeline, not by coders (for example seed MC-12 from the StarScout campaign flag). Such units are marked `derived` and excluded from α (§10.2).
+- **Role-based reading** (derived, not coded; replaces the coded `direction`, C11b, of 0.1.0–0.2.0): from `presence` and the case's role in the brief.
+  | Role | `present` | `absent` | `unknown` |
+  |---|---|---|---|
+  | winner | supporting case | counterexample (winner without it) | not counted |
+  | matched loser | counterexample (loser with it) | consistent | not counted |
+
+  A winner without the pattern is a counterexample in F20's sense, not a refutation: patterns don't claim necessity. Deriving this from the role, instead of coding it, means coders never need the outcome or the role (§11.6).
+- **`strength`** (derived): `strong` if every precondition and sequence element is supported by `supported`-level evidence (edges §4.4; reliability ≥ medium). Otherwise `weak`.
 
 ---
 
 ## 8. Adaptive modules (R6.2)
 
 **How activation works:**
-- Activation is decided on inputs frozen at T, the same inputs as for the category (OM §3.1). The exception is `relaunch_pivot`, which uses the timeline.
+- Activation is decided on inputs frozen at T, the same inputs as for the category (§9). The exception is `relaunch_pivot`, which uses the timeline.
 - Modules can co-activate.
 - Each case records `modules_active` with a reason and evidence for each module. Per-module activation is core field C5.
 - A module's extra fields are coded only when that module is active. Otherwise they are `not_applicable`.
@@ -473,24 +475,40 @@ How the codebook applies it (these rules add conditions, never remove them):
 | `chinese_ecosystem` | The README at T is mainly Chinese, or has a Chinese README variant; **or** the project has a V2EX mention in the case window. The location of a person is **never** used (§12 P1). | `bilingual_readme` (bool); `zh_channel_mentions` (**V2EX only**, and only once H2 Q8 clears it: ADR-010, SM §2.19); `unobservable_channels_zh` (always lists Juejin, Zhihu and Bilibili as GAP, SM §2.20–2.22; Gitee is not audited, so `unknown`); `gitee_mirror` (`unknown` unless a first-party artifact states it). **The module reports "insufficient evidence" for channel attribution by default** (SM §5 item 6). No V2EX member is profiled (TM-19 conditions; PIPL note in SM §2.19). |
 | `cli_devtools` | Primary category is `devtools`, **or** the repo at T ships a command-line entry point (an install one-liner, a Homebrew formula, a `bin` entry in npm, a console script in Python, a Cargo binary) | `install_channels` (multi: `brew | cargo | npm | pip | go | docker | curl_sh | binary_release | other`); `terminal_demo_asset` (bool, §5); `alternative_to_positioning` (a quoted "X alternative" or "replaces X" span, or `none`); `shell_integration` (bool); `homebrew_series_available` (coverage, OM) |
 | `corporate_backed` | The repo owner is a GitHub organisation that a first-party artifact identifies as a company or foundation; **or** the README at T states the project is maintained or sponsored by an organisation | `backing_type` (`large_company | startup | foundation | unknown`); `org_channel_use` (the organisation's own blog or accounts carried the launch: bool, with evidence); `pre_T_org_member_commit_share` (an aggregate share of `author_association ∈ {OWNER, MEMBER}`, with no individuals); `org_audience_band` (a reach band of the organisation's official channel, §4.5) |
-| `relaunch_pivot` | The timeline has a `relaunch` or `pivot` event; **or** the repo was more than 365 days old at T and has evidence of an earlier launch; **or** `rename = true` | `prior_launch_ref` (event or evidence id); `gap_days` (days since the prior launch); `change_kinds` (multi: `major_version | rewrite | rename | positioning | license | category`); `prior_case_outcome_class` (if scored); `prior_case_id` |
+| `relaunch_pivot` | The timeline has a `relaunch` or `pivot` event; **or** the repo was more than 365 days old at T and has evidence of an earlier launch; **or** `rename = true` | `prior_launch_ref` (event or evidence id); `gap_days` (days since the prior launch); `change_kinds` (multi: `major_version | rewrite | rename | positioning | license | category`); `prior_case_role` (the earlier case's role in the same brief: `winner | matched_loser | shortlisted | not_in_brief`; replaces `prior_case_outcome_class`, whose global classes are retired, ADR-049.12); `prior_case_id` |
 
 ---
 
 ## 9. Category taxonomy (reconciled with ADR-017)
 
-**Decision: adopt the 15 provisional categories of OM §3.1 unchanged**, as `category-taxonomy v0.1.0` inside codebook v0.1.0 (unchanged in codebook v0.2.0).
-- **No ids are added, removed, merged or split, and no definition changes.** The diff against ADR-017 is empty, so nothing has to be re-normalized (ADR-017's "if it does, every case is normalized again" isn't triggered).
+**Decision: adopt the 15 provisional categories of ADR-017 unchanged**, as `category-taxonomy v0.1.0` (inside codebook v0.1.0; unchanged in v0.2.0 and v0.3.0).
+- **No ids are added, removed, merged or split, and no definition changes.** The diff against ADR-017 is empty.
 - **What this codebook adds is only decision rules for the boundaries.** They make the existing definitions easier to apply; they don't redefine them.
-- **Why not revise now:**
-  - A 6-case pilot can't justify merges or splits.
-  - G1 requires that fewer than 10% of categories change in the last revision round, so churn has a cost.
-  - OM §9 item 8 already schedules the merge and split review for the pilot on real coverage data.
+- **What the category is for since 0.3.0.** It is a case descriptor: it activates modules (§8), helps describe a brief's neighbourhood, and can appear in a brief's field boundaries (PRD R18.1). It **no longer defines normalization cells or strata**: outcome percentiles are computed within the brief's final shortlist (ADR-049.8, OM v2 §3), and there are no global strata (PRD R4.2 retired). A change to the taxonomy is a codebook version bump (§13); there is no category-change quota (ADR-049.6).
+- The coverage of each category, and the assignment method, were in OM v1 §3.1; since OM v2 they are here (the table below and the assignment rules after the boundary rules).
 
-Categories (ids and coverage exactly as in OM §3.1): `ai-apps-agents`, `ml-infra`, `devtools`, `web-frontend`, `backend-libs`, `data-db`, `infra-ops`, `security`, `self-hosted-apps`, `mobile-desktop`, `lang-runtime`, `crypto-web3`, `lists-learning`, `media-games-science`, `other`.
+Categories (ids and coverage as in ADR-017 and OM v1 §3.1):
+
+| id | Covers |
+|---|---|
+| `ai-apps-agents` | LLM apps, agents, AI assistants, prompt tooling |
+| `ml-infra` | ML/DL frameworks, training/inference engines, model serving, vector search |
+| `devtools` | CLIs, editors and plugins, build tools, testing, linters, dev productivity |
+| `web-frontend` | UI frameworks, component libraries, CSS, static-site tools |
+| `backend-libs` | general-purpose libraries, web/API frameworks, SDKs |
+| `data-db` | databases, data engineering, analytics, BI |
+| `infra-ops` | containers, orchestration, IaC, CI/CD, observability, networking |
+| `security` | security tools, auth, secrets, scanners |
+| `self-hosted-apps` | end-user apps, self-hosted alternatives to SaaS |
+| `mobile-desktop` | mobile, desktop and cross-platform app frameworks and apps |
+| `lang-runtime` | programming languages, compilers, runtimes, package managers |
+| `crypto-web3` | blockchain, crypto, web3 |
+| `lists-learning` | awesome-lists, tutorials, books, courses, interview prep, prompt collections |
+| `media-games-science` | games, graphics, audio/video, scientific and hardware/embedded |
+| `other` | anything else |
 
 Boundary rules, applied in this order:
-1. **`lists-learning` first.** Apply the rule pre-pass (OM §3.1 step 2): names starting with `awesome-`, or READMEs that are mostly link lists. Prompt collections go here as well, even when the subject is AI.
+1. **`lists-learning` first.** Apply the rule pre-pass (assignment step 2 below): names starting with `awesome-`, or READMEs that are mostly link lists. Prompt collections go here as well, even when the subject is AI.
 2. **`crypto-web3` next.** It applies if the core function depends on a blockchain, whatever the tooling type.
 3. **AI split.**
    - If the product's core function *is* a model-driven application or agent, the category is `ai-apps-agents`. This holds even when the product is a CLI or devtool; the secondary category then records `devtools`.
@@ -503,59 +521,69 @@ Boundary rules, applied in this order:
    - A tool developers run is `devtools`.
    - Package managers and compilers are `lang-runtime`.
 6. **Primary purpose for security.** A scanner, auth server or secrets tool is `security`, even when it is infra-shaped.
-7. **`other` needs a free-text note.** If `other` exceeds 10% of pilot cases, that triggers a taxonomy review.
+7. **`other` needs a free-text note.** If `other` exceeds 10% of a brief's cases, that triggers a taxonomy review (a codebook version bump if anything changes).
 
 - Secondary category: optional, from the same list.
-- Assignment inputs, method, confidence threshold (< 0.6 goes to review) and double-coding: as in OM §3.1. The primary category is core field C4.
+- **Assignment** (from OM v1 §3.1, unchanged):
+  1. Inputs frozen **as of T**: repo description, GitHub topics, primary language, and the first 4,000 characters of the README at the last commit before T. No post-T information.
+  2. Rule pre-pass: names starting with `awesome-`, or READMEs that are mostly link lists → `lists-learning`.
+  3. Otherwise an LLM classification through `LLMClient` (F15) returns one primary category, an optional secondary one, and a confidence. Confidence < 0.6 goes to the review queue (R7.3).
+  4. Stored with `taxonomy_version`, `prompt_version`, model id and codebook version. The category never changes after the outcome is known, except by a taxonomy version bump applied to all of the brief's cases.
+- For a brief's deep forensics the primary category is core field C4 and is double-coded like every core field (§10); the 10 % double-coded sample of OM v1 no longer applies.
 
 ---
 
-## 10. Reliability: core fields for Krippendorff's α (G1, PRD §9.2, R7.2)
+## 10. Reliability: per-brief, per-field agreement (R7.2, R7.5, PRD §9.2)
 
-### 10.1 Gate
-- G1 requires α ≥ 0.70 on **every** core field listed in §10.3, between independent coders (two LLM passes with different prompts or models, per R7.2).
-- If a human calibration sample exists (H3), the LLM–human α on it must also be ≥ 0.70.
-- 0.70 falls in Krippendorff's "tentative" band (LR [71], H-L9). The pilot reports α with bootstrap 95% CIs (Hayes & Krippendorff, LR [68]; the computation follows LR [70]).
-- The minimum number of pairable units per field is set in the pilot pre-registration (M4-T2). A field with too few units counts as **not assessed**, and a field that is not assessed fails G1.
+### 10.1 Rule (replaces gate G1; ADR-047.7, ADR-049.6)
+- Each brief's deep forensics are coded by two independent passes (different prompts or models, R7.2), with an adjudicator on disagreements (§11.5).
+- **Krippendorff's α is computed per field, per brief**, on the values of passes A and B after citation validation and before adjudication (§11.5), and shown in the brief's report for **every** coded field, core or not.
+- **Label, don't drop.** A field with α < 0.70 is labelled **`low reliability`**. Every finding that rests on it (a pattern whose presence test uses it, a contrast, an asset or trigger table) carries the label wherever it appears. Nothing is dropped because of α, and no brief is blocked by it.
+- **`LLM-coded, not human-validated`** is added to every finding whose fields were coded only by LLM passes. If a human calibration sample exists (WORK_ORDER H3, optional), the LLM–human α is reported per field the same way, and a field with LLM–human α < 0.70 is labelled `low reliability` too.
+- **Why 0.70.** It sits in Krippendorff's "tentative" band (LR [71], H-L9). The report also shows the bootstrap 95 % CI (§10.5) and the band (≥ 0.800 firm, 0.667–0.800 tentative; LR [71], secondary source). The 0.70 cut is the PRD's (§9.2); it is never lowered after data (pre-registration README rule 6).
+- **There is no category-change quota, no attempt limit and no codebook freeze tied to α.** Revising the codebook between briefs is an ordinary version bump (§13).
 
-### 10.2 α variant and handling of `unknown`
+### 10.2 α variant and handling of `unknown` (unchanged from 0.2.0, plus the unit exclusions formerly in the pilot pre-registration)
 - **Nominal fields:** α with the nominal difference function (δ = 0 if the values are equal, 1 otherwise). `unknown` counts as a **value**, so one coder's `unknown` against another's substantive code is a disagreement. This keeps `unknown` from inflating α.
-- **Ordinal fields:** α with the ordinal difference function (LR [70]). `unknown` cannot be ordered, so it is treated as **missing** in ordinal α. Each ordinal field also has a companion nominal α on the binary `known | unknown`, and **both** must pass the gate.
+- **Ordinal fields:** α with the ordinal difference function (LR [70]). `unknown` cannot be ordered, so it is treated as **missing** in ordinal α. Each ordinal field also has a companion nominal α on the binary `known | unknown`. The field's label is `low reliability` if **either** statistic is below 0.70.
 - **Multi-valued fields** (for example module activation, manipulation flags) are split into one binary nominal field per value.
-- **Report the `unknown` rate per field and per coder**, next to α.
+- **Units excluded from α.** A unit whose value the pipeline sets before any coder sees it is not a coder judgment: `unknown` with reason `held`, `coverage_gap` from derived source-coverage metadata, `not_applicable` from an inactive module, and `derived` presence values (§7.4). These are excluded from α, and their count per field is reported.
+- **Report the `unknown` rate per field and per coder**, and the `citation_failed` rate per field and pass, next to α.
 
-### 10.3 Core fields (v0.1.0; unchanged in v0.2.0)
-| Id | Field | Unit | Level | α variant | Promotion-deciding (flag for M4-T0) |
-|---|---|---|---|---|---|
-| C1 | `reliability` (effective, per coded item; §2.3) | coded item | ordinal (high > medium > low) | ordinal α, plus nominal α on known/unknown | no |
-| C2 | `first_party` (`yes | no | unknown`) | item | nominal | nominal α | no (it feeds C3) |
-| C3 | `event_type_supported` (`prep | launch | relaunch | pivot | none`) | item | nominal | nominal α | **yes**: launch and relaunch sequences in cards |
-| C4 | `category_primary` (§9) | case | nominal | nominal α | **yes**: strata for §9.3's "≥ 2 strata" |
-| C5 | `module_active.<module>` (six binary fields) | case | nominal (binary) | nominal α per module | no |
-| C6 | `edge_type` for a candidate pair (`published | redistributed | cited | replied | none`) | candidate pair | nominal | nominal α | no |
-| C7 | `edge_evidence_level` (§4.4) | candidate pair | ordinal (explicit > attributed > inferred > none) | ordinal α | no |
-| C8 | `asset_category` (§5) | parser-extracted asset instance | nominal | nominal α | no |
-| C9 | `trigger_type` of the rank-1 candidate (§6.2) | burst | nominal | nominal α | **yes**: it defines the treatment for §9.3's event-study route (R8.1) |
-| C10 | `trigger_confidence` (§6.3) | burst | ordinal | ordinal α, plus nominal α on known/unknown | no |
-| C11a | `mechanism_support.presence` | case × candidate card | nominal | nominal α | **yes**: the prevalence contrast in §9.3 |
-| C11b | `mechanism_support.direction` | case × candidate card | nominal | nominal α | **yes**: supporting and contradicting cases in §9.3 |
+### 10.3 Core fields (C1–C11a; C11b retired in 0.3.0)
+Core fields are coded and double-coded in **every** brief's deep forensics. Non-core fields are coded when a brief needs them (a module is active, or a pattern hypothesis uses them) and are then double-coded and reported the same way.
 
-**Not core in v0.1.0 or v0.2.0.** Agreement is still reported for each of these, but none of them gates G1:
-- `phrase` and `benchmark_claim` unitizing;
-- `stated_reason`;
-- `prep_kind`;
-- `pivot_dimension`;
-- `burst_shape` (derived);
-- module extra fields;
-- `novelty_claim` and `novelty_kind` (§5.1, added in 0.2.0).
+| Id | Field | Unit | Level | α variant |
+|---|---|---|---|---|
+| C1 | `reliability` (effective, per coded item; §2.3) | coded item | ordinal (high > medium > low) | ordinal α, plus nominal α on known/unknown |
+| C2 | `first_party` (`yes`, `no`, `unknown`) | item | nominal | nominal α |
+| C3 | `event_type_supported` (`prep`, `launch`, `relaunch`, `pivot`, `none`) | item | nominal | nominal α |
+| C4 | `category_primary` (§9) | case | nominal | nominal α |
+| C5 | `module_active.<module>` (six binary fields) | case | nominal (binary) | nominal α per module |
+| C6 | `edge_type` for a candidate pair (`published`, `redistributed`, `cited`, `replied`, `none`) | candidate pair | nominal | nominal α |
+| C7 | `edge_evidence_level` (§4.4) | candidate pair | ordinal (explicit > attributed > inferred > none) | ordinal α, plus nominal α on known/unknown |
+| C8 | `asset_category` (§5) | parser-extracted asset instance | nominal | nominal α |
+| C9 | `trigger_type` of the rank-1 candidate (§6.2) | burst | nominal | nominal α |
+| C10 | `trigger_confidence` (§6.3) | burst | ordinal | ordinal α, plus nominal α on known/unknown |
+| C11a | `pattern_support.presence` (§7.4) | case × pattern checked in the brief | nominal | nominal α, pooled over patterns, and per pattern where §10.4's minimum is met |
 
-Consequence: none of these fields may feed promotion until it is promoted to core in a later minor version and passes the gate.
+- **C11b retired.** `mechanism_support.direction` (0.1.0–0.2.0) is no longer coded: the supporting-case and counterexample reading is derived from `presence` and the case's role (§7.4). The id C11b is not reused.
+- **"Promotion-deciding" fields are retired** with the promotion rule (ADR-047.3, ADR-049.7). What a pattern rests on is listed per pattern in `field_reliability` (§7.1).
+- **Not core.** Agreement is reported for each of these whenever they are coded: `phrase` and `benchmark_claim` unitizing; `stated_reason`; `prep_kind`; `pivot_dimension`; module extra fields; `novelty_claim` and `novelty_kind` (§5.1). `burst_shape` is derived, so it has no α.
 
-### 10.4 Promotion-deciding fields
-- The promotion-deciding fields are C3, C4, C9, C11a and C11b.
-- Backlog M4-T0 is considering a stricter α ≥ 0.80 for exactly these fields (LR H-L9). This codebook **flags** them and does not decide the question.
-- Until M4-T0 decides, the gate for these fields is the G1 gate (α ≥ 0.70). The `high` confidence level (§7.2) already requires α ≥ 0.80 on them.
-- **In every case, a field that fails its gate cannot feed promotion** (LR H-L9 decision rule).
+### 10.4 Minimum units and labels
+- A statistic is **assessed** only if all of these hold (restated from the withdrawn pilot pre-registration §6.3, unchanged):
+  1. **n_pairable ≥ 30**: units with a value from both coders after missing values are removed (ordinal α and the known/unknown companion count units separately);
+  2. **expected disagreement D_e > 0**: at least two distinct values occur;
+  3. **for binary statistics** (C5 modules, known/unknown companions, per-value splits), the rarer value occurs at least 5 times in the pooled 2·n values.
+- **Why 30:** for a balanced binary field one disagreement among n units moves α by about 2/n; at n = 30 that is about 0.07, at n = 10 about 0.2. This is a design choice, not a published rule.
+- A statistic that isn't assessed is labelled **`reliability not assessed`** (with the reason and n), and findings resting on it carry that label, exactly as for `low reliability`.
+- **Companion with no unknowns.** If neither coder used `unknown` or `not_applicable` on any unit, the companion is reported as "1.0 (degenerate: no unknowns)".
+- **Small briefs.** Case-level fields (C4, C5, `novelty_claim`) have one unit per case, so a brief with 15 + 15 cases has 30 units at most, and per-pattern C11a has one unit per case. Such fields will often be `reliability not assessed`; the report says so rather than coding extra cases. A brief may code extra shortlist candidates purely to measure α (the former "reliability supplement"), if it says so in its version before the outcome sort; those codes never enter a contrast.
+
+### 10.5 Confidence intervals
+- Nonparametric bootstrap over **units** (rows of the reliability matrix), B = 10,000 resamples, percentile 95 % CI, fixed seed recorded in the report. Resamples with D_e = 0 are dropped and counted; if more than 5 % are dropped the CI is labelled "unstable".
+- The α implementation must reproduce the worked examples in LR [70] before use, and the version is pinned in the report.
 
 ---
 
@@ -614,11 +642,14 @@ Values with `coder_confidence = low` go to the review queue (R7.3).
   - every `coder_confidence = low`;
   - a random audit sample, with a fixed seed, drawn from agreed items.
 - **α is computed on passes A and B before adjudication.**
-- **Prompt stability.** Before a prompt version is frozen for scale runs, the pipeline runs a prompt-stability check (LR [78]). Downstream mechanism tests use an LLM-label error correction, as recommended in LR [79]; the exact method goes in the M4-T2 pre-registration.
+- **Prompt stability.** Before a prompt version is frozen for a brief's coding, the pipeline runs a prompt-stability check (LR [78]) on development cases that are not among the brief's winners or losers. It is reported as exploratory.
+- **LLM-label error.** Contrasts computed from LLM codes can be biased by coding error (LR [79]). Whether a brief applies an error correction, and with which estimator and human-labelled subsample, is fixed in its version before the outcome sort (pre-registered for the pilot). Without one, contrasts carry the `LLM-coded, not human-validated` label (§10.1).
 
-### 11.6 No tuning after outcomes
-- Coders never see outcome classes while coding case, event, trigger or asset fields. Outcome classes are masked in prompts and in the review UI.
-- The exception is `mechanism_support.direction`, which needs the outcome. It is coded in a separate, later pass, after `presence` is locked.
+### 11.6 Blinding and no tuning after outcomes
+- Coders never see a case's role in the brief (winner, matched loser), its pair membership, its outcome values or percentiles, or the brief's success definition while coding any field. These are masked in prompts and in the review UI, and case ids are replaced by random coding ids with winners and losers interleaved.
+- There is no longer an exception: the supporting-case and counterexample reading is derived from `presence` and the role after coding (§7.4), so no field needs the outcome.
+- Unavoidable leakage (case-window evidence shows bursts and mention volume) is recorded as a limitation, not treated as a breach.
+- The codebook version, prompts, pattern hypotheses and their presence-test thresholds are fixed in the brief version before the outcome sort. A change after it is labelled exploratory for that brief (§0 item 1).
 
 ---
 
@@ -634,9 +665,9 @@ Values with `coder_confidence = low` go to the review queue (R7.3).
 - **P3 — No cross-platform identity resolution.** Accounts on different platforms are never linked or merged, whether by name, handle similarity, avatars or writing style. First-party status comes only from the project's own channels, or from the item's own self-identification (§3.4).
 - **P4 — Account-level graphs are held** (ADR-022, until LQ-8 is answered): §4.1.
 - **P5 — Public-figure rule:** §4.6. It is inactive for natural persons until LQ-7 is answered and an ADR exists.
-- **P6 — Nothing names individuals in outputs.** No private individual, matched loser, or repo owned by a personal account is named in any output (ADR-022; CB-14, CB-20). Mechanism cards refer to cases by `case_id`.
+- **P6 — Nothing names individuals in outputs.** No private individual, matched loser, or repo owned by a personal account is named in any output (ADR-022; CB-14, CB-20). Patterns refer to cases by `case_id`. Seed pattern hypotheses name no repo.
 - **P7 — Retention.** Coded values derived from person-level evidence inherit `retention_class = person_level_24m` (docs/compliance/retention-policy.md). When the raw data is dropped, coded facts that carry no person identifier are kept.
-- **P8 — Public repo.** No coded value, quoted span, snapshot or pseudonym is ever committed. The examples in this codebook are generic and invented. They are labelled as illustrations, not data.
+- **P8 — Public repo.** No coded value, quoted span, snapshot, pseudonym or user's brief is ever committed (PRD R18.9). The examples in this codebook are generic and invented. They are labelled as illustrations, not data.
 
 ---
 
@@ -646,14 +677,11 @@ Values with `coder_confidence = low` go to the review queue (R7.3).
   - **Patch:** wording, examples, clarifications that change no code value.
   - **Minor:** a new enum value, field, module or core field. Existing codes stay valid.
   - **Major:** an enum value is removed, renamed, or redefined so that existing codes may change; or a threshold or window used by derived fields changes.
-- **Every coded value records `codebook_version`.** A minor or major bump states in the changelog which fields must be re-coded, and on which cases.
-- **Counting G1's "< 10% of codebook categories changed".**
-  - The denominator is the total number of enum values across the coded enums in `schemas/codebook/<version>.json`: evidence types, event types, edge types, edge evidence levels, the reliability scale, asset categories, trigger types, modules and categories.
-  - The numerator is the number of values added, removed or redefined in the last revision round.
-  - The verifier computes it with a JSON diff.
-- **Before 1.0.0.** 1.0.0 is reserved for the pilot freeze (next bullet). Before it, a change that would otherwise be major (for example a changed input to a derived field) bumps the **minor** version. It still needs a changelog entry and a dated amendment to the pilot pre-registration that states what data had been seen. This mirrors the outcome-thresholds rule (OM §5.4, ADR-035).
-- **Changes before pilot attempt 1 are not a G1 revision round.** G1's count (above) compares the version going into a revision round with the one coming out of it, and the first round is the revision after attempt 1 (pilot pre-registration §6.7, §7.1). A version adopted before attempt 1 is simply the starting version.
-- **After the pilot, the codebook freezes as v1.0.0.** A later change to a definition that affects promotion needs an ADR and a re-run on held-out cases (the same policy as ADR-019).
+- **Every coded value records `codebook_version`,** and every brief report records the version it used (PRD R18.6). A minor or major bump states in the changelog which fields must be re-coded, and on which cases. A re-run of a brief under a new version re-codes the affected fields and reports what changed (R18.4, R20.3).
+- **Before 1.0.0.** A change that would otherwise be major bumps the **minor** version (as for 0.2.0 and 0.3.0). It still needs a changelog entry. If a brief's pre-registration pins the old version, the change needs a dated amendment to that pre-registration stating what data had been seen.
+- **When 1.0.0 comes.** Until 0.2.0, 1.0.0 was reserved for the M4 pilot's G1 freeze, which is withdrawn (ADR-049.5, ADR-049.6). 1.0.0 is now **not tied to any gate**. Proposed (open issue): tag 1.0.0 after the M15 pilot report is verified, from the version it used plus any fixes it found, before the M18 release.
+- **Pinning per brief.** A brief pins the codebook version before its outcome sort. Changing a definition for a brief after its outcome sort makes the affected findings exploratory for that brief (§0 item 1). There is no held-out re-run route: ADR-019 is superseded (ADR-049.5).
+- **Retired in 0.3.0:** the G1 "< 10 % of codebook categories changed" count and its denominator (ADR-024.7, superseded by ADR-049.6), and the rule that pre-attempt changes aren't a G1 revision round.
 
 ---
 
@@ -678,3 +706,12 @@ Values with `coder_confidence = low` go to the review queue (R7.3).
   - **Why this is a minor bump (0.2.0) and not a patch (0.1.1).** Adding a field is minor under §13. Change (a) is not wording-only either: it changes the input series and day basis of a derived field. Strictly, that is the "threshold or window used by derived fields" kind of change §13 calls major, but 1.0.0 is reserved for the pilot freeze, so before 1.0.0 it bumps the minor version (§13, new bullet, as for outcome-thresholds under ADR-035). Doing (a) as 0.1.1 and (b) as 0.2.0 would pin two versions in a row with no coding between them, so both ship together as 0.2.0.
   - **G1 count.** No enum value in `g1_category_change_denominator` was added, removed or renamed. The denominator stays 79, and the verifier's JSON diff of those nine enums is empty. The new enums are non-core and outside the denominator. The `burst` and `quiet` values keep their definitions ("abnormally high star velocity against the repo's own baseline"; "≥ 7 days not in a burst"); only the series they are derived from changed. G1's "< 10% changed" is measured between revision rounds of the pilot. The pilot hasn't started, so this change isn't a round; v0.2.0 is the version going into attempt 1 (pilot amendment 2).
   - **Pilot pin:** `docs/preregistration/2026-09-25-pilot-amendment-2.md`.
+- **0.3.0 (2026-09-26), M11 (re-scope to per-brief neighbourhood analysis; ADR-047, ADR-049).** Written before any coding, unitizing, derived event or outcome data; no version has ever been used for coding, so there is nothing to re-code. `schemas/codebook/v0.1.0.json` and `v0.2.0.json` stay unchanged as records; the new file is `schemas/codebook/v0.3.0.json`. The v0.2.0 pin in `docs/preregistration/2026-09-25-pilot-amendment-2.md` lapses with the withdrawal of that chain (`2026-09-26-pilot-amendment-3.md`).
+  - **(a) G1 removed (ADR-047.7, ADR-049.6).** §10 rewritten: α per field, per brief, shown for every coded field; findings on a field with α < 0.70 are labelled `low reliability`, not dropped; a statistic below the minimum units is labelled `reliability not assessed`; `LLM-coded, not human-validated` label. Dropped: the "fails G1" wording, "not assessed = fail", the "< 10 % categories changed" rule and its 79-value denominator (`g1_category_change_denominator`, ADR-024.7), the pre-attempt revision-round rule, the promotion-deciding flag and the M4-T0 α ≥ 0.80 question. The minimum-units rule, prevalence floor and bootstrap (formerly in the withdrawn pilot pre-registration §6.3, §6.5) and the unit exclusions (formerly §4.5) move into §10.2, §10.4 and §10.5 unchanged.
+  - **(b) Mechanism cards → neighbourhood patterns (PRD F20, ADR-047.3).** §7 rewritten: pattern record with n among winners and matched losers, loser contrast (shares with Wilson intervals, matched-pair table, unknown-share flag), counterexamples ("none found" stated), per-field reliability and labels, case sensitivity flags, optional event study, per-brief-version change record. Removed: `status` (`candidate`/`promoted`), the promotion rule (§9.3), `effect_estimate` as a promotion route, `applicable_strata`, `saturation_trend` (R16.2 retired), `deciding_field_alpha`, global `history`. New reporting minimums for "insufficient evidence in this neighbourhood" (≥ 10 known per side, ≥ 3 present; v0 design choice).
+  - **(c) Confidence levels retired (ADR-049.7, retires ADR-025).** The low/medium/high card confidence and its rules are removed. `trigger_confidence` (C10) stays: it grades one burst's attribution, not a pattern.
+  - **(d) `mechanism_support` → `pattern_support`; C11b retired.** C11a is now `pattern_support.presence` (unit: case × pattern checked in the brief). The coded `direction` (C11b) is replaced by a reading derived from presence and the case's role (§7.4), so coders no longer need outcomes and the outcome-aware coding pass is gone (§11.6). The id C11b is not reused.
+  - **(e) No global cells or strata (ADR-049.8, ADR-049.12).** §9: the category is a case descriptor, not a normalization cell or stratum; the category table and assignment method, formerly in OM v1 §3.1, now live here. `relaunch_pivot.prior_case_outcome_class` → `prior_case_role`. Blinding (§11.6) masks role, pair membership, outcome values and the success definition instead of outcome classes.
+  - **(f) Burst derivation unchanged, per repo.** §3.2 still derives `burst | quiet` from `raw` star-history endpoint days, now stated as fetched per repo (ADR-047.8, PRD R19.5). Hourly snapshots refine onsets only where they exist (pre-re-scope cache; the watch list is deleted, ADR-047.6). GH Archive is never used for onsets. The series completeness check (formerly pilot amendment 1, A2) is restated in §3.2 unchanged. No number, window or rule of the derivation changed.
+  - **(g) Other wording.** Header, scope note, §0 item 1 (no pilot calibration or held-out re-run; changes after a brief's outcome sort are exploratory), §2.1 (GH Archive discovery-only), §4.6 criterion 4 (per brief), §5.1 status, §6.2 (`hn_post`: poller runs only during runs and launch mode, ADR-049.1), §11.5 (prompt stability and LLM-label error per brief), §12 P6 and P8 (patterns; no briefs in git), §13 (1.0.0 no longer tied to a gate). Privacy rules P1–P8 are otherwise unchanged.
+  - **Why a minor bump (0.3.0).** Removing enum values (`status`, `confidence`, `direction`) and renaming a field are major changes under §13; before 1.0.0 they bump the minor version (§13).

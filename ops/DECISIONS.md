@@ -369,3 +369,16 @@ Context: The v2.0 rewrite of PRD, DELIVERABLES and WORK_ORDER listed 12 conflict
 11. **Interpretations accepted:** brief window 12–18 months, chosen per brief; R1.3 retired (launch mode covers declared launches); D6 "under an hour" = the first run is *started* after its cost estimate; D5 keeps first capture within 1 h, then weekly; D5 validation uses pilot cases.
 12. **Global outcome classes and thresholds v0.2.0** are retired as a selection method; the files stay in git as history. Brief-level success definitions (ADR-047.2) replace them.
 How to reverse: Per item, through an ADR.
+
+## ADR-050 — Codebook v0.3.0 and outcome-model v2: per-brief method details (2026-09-26; before any outcome data)
+1. **Coders never see outcomes.** C11b's `pattern_support.direction` is replaced by a reading derived from presence and the case's role.
+2. **Outcome percentiles** are computed within the brief's final shortlist, with a minimum population of 20. Adoption is compared within the same package ecosystem.
+3. **A pattern is labelled "insufficient evidence in this neighbourhood"** below 10 known cases per side or 3 cases where it's present in total.
+4. **Candidates that miss a threshold only because a value is unknown** are "undetermined", not losers.
+5. **Business** is scored as a count of verified signals; `if_not_applicable: skip` is allowed.
+6. **Sensitivity check:** four alternatives (swap the primary dimension, stricter/looser thresholds, weights, fake-star filter). Cases whose role changes are flagged. The threshold steps and the default matching calipers are those in outcome-model v2.
+7. `settle_lag` is fixed at 3 days.
+8. **Codebook 1.0.0** is frozen after the M15 report.
+9. **Pilot pre-registration and publishing:** the brief's success definition is the owner's brief content. The public pre-registration commits its SHA-256 hash, and the text becomes public only if the owner approves (H4).
+10. **Old pre-registrations** are withdrawn by dated amendments (pilot amendment 3, forecasting amendment 5, calibration amendment 1). The seed hypotheses MC-01…13 stay as a starter list a brief picks from before its outcome sort.
+How to reverse: Codebook or spec version bump + ADR; before the M15 pre-registration is pushed.

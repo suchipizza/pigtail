@@ -1,28 +1,46 @@
 {
   "schema_version": "v0",
-  "id": "mechanism-candidates",
-  "version": "0.2.0",
+  "id": "seed-pattern-hypotheses",
+  "id_before_0_3_0": "mechanism-candidates",
+  "kind": "seed_pattern_hypotheses",
+  "version": "0.3.0",
   "created": "2026-09-25",
+  "updated": "2026-09-26",
   "spec": "docs/methodology/mechanisms/candidates.md",
-  "codebook_version": "0.2.0",
+  "codebook_version": "0.3.0",
   "requirements": [
-    "R9.1",
-    "R9.2",
-    "R9.3",
-    "PRD §9.3"
+    "R20.1",
+    "R20.2",
+    "R20.3",
+    "PRD §5.2",
+    "PRD F9 (retired; seed cards carried as seed codes for patterns)"
   ],
   "citation_source": "docs/research/literature.md §8",
-  "note": "All cards are candidates with no tested evidence. literature_basis lists reference numbers only; see the .md for what each source reports. Numbers from sources are never effect estimates.",
+  "note": "A starter list of pattern hypotheses a brief can check (codebook §7). Not global cards and not findings: no status, confidence, supporting cases, counterexamples or history here; results live only in each brief's report as neighbourhood patterns. A brief selects hypotheses and may change [design] thresholds before its outcome sort. literature_basis lists reference numbers only; see the .md for what each source reports. Numbers from sources are never effect estimates.",
+  "file_name_note": "file name kept (candidates-v0.json) because frozen pre-registrations cite it; the v0.2.0 content is at git show archive/global-collection:schemas/mechanisms/candidates-v0.json",
+  "pattern_fields_filled_per_brief": [
+    "participation_motive",
+    "counts",
+    "loser_contrast",
+    "supporting_cases",
+    "counterexamples",
+    "field_reliability",
+    "reliability_label",
+    "sensitivity_flags",
+    "event_study",
+    "evidence_label",
+    "changes"
+  ],
   "changelog": [
     "2026-09-25 — 0.1.0: seed set of 13 candidate cards (M4-T1b).",
-    "2026-09-25 — 0.2.0: MC-09 presence test moved to the case-level novelty_claim field of codebook 0.2.0 (§5.1); MC-09 modules [ai_hype] -> []; file codebook_version 0.1.0 -> 0.2.0 (no other card's fields changed; codebook 0.2.0 keeps every field they use). Pilot amendment 2, B4. No card has been coded against."
+    "2026-09-25 — 0.2.0: MC-09 presence test moved to the case-level novelty_claim field of codebook 0.2.0 (§5.1); MC-09 modules [ai_hype] -> []; file codebook_version 0.1.0 -> 0.2.0 (no other card's fields changed; codebook 0.2.0 keeps every field they use). Pilot amendment 2, B4. No card has been coded against.",
+    "2026-09-26 — 0.3.0 (M11; ADR-047.3, ADR-049.7; PRD F20): reframed as seed pattern hypotheses. Removed per entry: status, confidence, supporting_cases, contradicting_cases, effect_estimate, applicable_strata, saturation_trend, deciding_field_alpha, sensitivity_flags, history. loser_contrast {result, would_support, would_contradict} -> contrast_reading {consistent, against}; strata and §9.3 wording removed; MC-08 forecasting reference removed; MC-09 and MC-11 readings no longer use CM90, AD90, attention_only or coded direction; MC-12 alpha note cites codebook §10.2; unobservable_channels -> unobservable_channels_default. Presence tests, preconditions, assets, sequences and literature bases unchanged. Entry versions -> 0.3.0. No coding or outcome data."
   ],
   "cards": [
     {
       "id": "MC-01",
       "name": "First-party launch post on Hacker News (Show HN / Launch HN)",
-      "version": "0.1.0",
-      "status": "candidate",
+      "version": "0.3.0",
       "recommendable": true,
       "description": "Maker announces the project on HN in a first-party post; an attention burst follows.",
       "literature_basis": [
@@ -32,7 +50,6 @@
         "[40]",
         "[65]"
       ],
-      "participation_motive": "unknown — no stated_reason codes yet",
       "preconditions": [
         {
           "statement": "Something people can try exists at posting",
@@ -57,7 +74,7 @@
           "trigger:hn_post|hn_front_page",
           "burst"
         ],
-        "offsets": "unknown — needs supporting cases"
+        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)"
       },
       "presence_test": {
         "present": "launch evidence includes a community_post on the HN node with first_party=yes AND all preconditions hold",
@@ -67,18 +84,11 @@
       "outcome_dimensions": [
         "attention"
       ],
-      "supporting_cases": [],
-      "contradicting_cases": [],
-      "loser_contrast": {
-        "result": "unknown — not yet tested",
-        "would_support": "prevalence among winners > matched losers within strata (unknown-share gap <= 20 pp)",
-        "would_contradict": "prevalence among matched losers >= winners (H-L7 survivorship pattern)"
+      "contrast_reading": {
+        "consistent": "prevalence among the brief's winners > matched losers (unknown-share gap <= 20 pp)",
+        "against": "prevalence among matched losers >= winners (H-L7 survivorship pattern)"
       },
-      "effect_estimate": "unknown — not yet tested",
-      "confidence": "low",
-      "applicable_strata": "insufficient evidence (no coded cases)",
-      "saturation_trend": "insufficient_evidence",
-      "unobservable_channels": {
+      "unobservable_channels_default": {
         "gap_adr_010": [
           "reddit",
           "x",
@@ -95,31 +105,20 @@
           "bluesky",
           "v2ex",
           "discord"
-        ]
+        ],
+        "as_of": "2026-09-26",
+        "note": "a brief recomputes these for its own sources; contrasts use the same channels on both sides (codebook §6.4)"
       },
-      "deciding_field_alpha": "not yet measured (M4-T3 pilot)",
-      "sensitivity_flags": [],
       "modules": [],
       "related_hypotheses": [
         "H-L2",
         "H-L7"
-      ],
-      "history": [
-        {
-          "date": "2026-09-25",
-          "version": "0.1.0",
-          "change": "created; seeded from literature review",
-          "case_id": null,
-          "direction": null,
-          "codebook_version": "0.1.0"
-        }
       ]
     },
     {
       "id": "MC-02",
       "name": "HN front-page exposure",
-      "version": "0.1.0",
-      "status": "candidate",
+      "version": "0.3.0",
       "recommendable": true,
       "description": "An HN story about the repo (any poster) reaches the front page; the exposure produces a short-run star jump.",
       "literature_basis": [
@@ -128,7 +127,6 @@
         "[42]",
         "[66]"
       ],
-      "participation_motive": "unknown — no stated_reason codes yet",
       "preconditions": [
         {
           "statement": "Story links the repo or site",
@@ -150,7 +148,7 @@
           "trigger:hn_front_page (rank-1)",
           "burst (onset in proximal window)"
         ],
-        "offsets": "unknown — needs supporting cases"
+        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)"
       },
       "presence_test": {
         "present": "C9=hn_front_page for any burst AND preconditions hold",
@@ -160,18 +158,11 @@
       "outcome_dimensions": [
         "attention"
       ],
-      "supporting_cases": [],
-      "contradicting_cases": [],
-      "loser_contrast": {
-        "result": "unknown — not yet tested",
-        "would_support": "H-L2 robust event study vs matched off-front-page HN stories with similar early votes: 90% CI of 48 h star effect excludes 0",
-        "would_contradict": "CI includes 0, or no winner/loser prevalence difference"
+      "contrast_reading": {
+        "consistent": "H-L2 robust event study vs matched off-front-page HN stories with similar early votes: 90% CI of 48 h star effect excludes 0",
+        "against": "CI includes 0, or no winner/loser prevalence difference"
       },
-      "effect_estimate": "unknown — not yet tested",
-      "confidence": "low",
-      "applicable_strata": "insufficient evidence (no coded cases)",
-      "saturation_trend": "insufficient_evidence",
-      "unobservable_channels": {
+      "unobservable_channels_default": {
         "gap_adr_010": [
           "reddit",
           "x",
@@ -188,37 +179,25 @@
           "bluesky",
           "v2ex",
           "discord"
-        ]
+        ],
+        "as_of": "2026-09-26",
+        "note": "a brief recomputes these for its own sources; contrasts use the same channels on both sides (codebook §6.4)"
       },
-      "deciding_field_alpha": "not yet measured (M4-T3 pilot)",
-      "sensitivity_flags": [],
       "modules": [],
       "related_hypotheses": [
         "H-L2",
         "H-L3"
-      ],
-      "history": [
-        {
-          "date": "2026-09-25",
-          "version": "0.1.0",
-          "change": "created; seeded from literature review",
-          "case_id": null,
-          "direction": null,
-          "codebook_version": "0.1.0"
-        }
       ]
     },
     {
       "id": "MC-03",
       "name": "HN posting in the 12-17 UTC window",
-      "version": "0.1.0",
-      "status": "candidate",
+      "version": "0.3.0",
       "recommendable": true,
       "description": "The first HN story about the repo is posted 12:00-17:00 UTC and gets more early stars than comparable posts at other times.",
       "literature_basis": [
         "[40]"
       ],
-      "participation_motive": "unknown — no stated_reason codes yet",
       "preconditions": [
         {
           "statement": "An HN story with hour-precision created_at exists",
@@ -234,7 +213,7 @@
           "launch|hn_post with created_at hour in [12,17) UTC",
           "burst"
         ],
-        "offsets": "unknown — needs supporting cases"
+        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)"
       },
       "presence_test": {
         "present": "earliest HN story hour in [12,17) UTC",
@@ -244,18 +223,11 @@
       "outcome_dimensions": [
         "attention"
       ],
-      "supporting_cases": [],
-      "contradicting_cases": [],
-      "loser_contrast": {
-        "result": "unknown — not yet tested",
-        "would_support": "among cases with an HN story, in-window share higher among winners than matched losers",
-        "would_contradict": "equal shares, or event-study CI includes 0"
+      "contrast_reading": {
+        "consistent": "among cases with an HN story, in-window share higher among winners than matched losers",
+        "against": "equal shares, or event-study CI includes 0"
       },
-      "effect_estimate": "unknown — not yet tested",
-      "confidence": "low",
-      "applicable_strata": "insufficient evidence (no coded cases)",
-      "saturation_trend": "insufficient_evidence",
-      "unobservable_channels": {
+      "unobservable_channels_default": {
         "gap_adr_010": [
           "reddit",
           "x",
@@ -272,28 +244,17 @@
           "bluesky",
           "v2ex",
           "discord"
-        ]
+        ],
+        "as_of": "2026-09-26",
+        "note": "a brief recomputes these for its own sources; contrasts use the same channels on both sides (codebook §6.4)"
       },
-      "deciding_field_alpha": "not yet measured (M4-T3 pilot)",
-      "sensitivity_flags": [],
       "modules": [],
-      "related_hypotheses": [],
-      "history": [
-        {
-          "date": "2026-09-25",
-          "version": "0.1.0",
-          "change": "created; seeded from literature review",
-          "case_id": null,
-          "direction": null,
-          "codebook_version": "0.1.0"
-        }
-      ]
+      "related_hypotheses": []
     },
     {
       "id": "MC-04",
       "name": "Social-media posts linking the repo",
-      "version": "0.1.0",
-      "status": "candidate",
+      "version": "0.3.0",
       "recommendable": true,
       "description": "Posts on social platforms linking the repo raise stars, with a smaller effect on contributors.",
       "literature_basis": [
@@ -303,7 +264,6 @@
         "[12]",
         "[81]"
       ],
-      "participation_motive": "unknown — no stated_reason codes yet",
       "preconditions": [
         {
           "statement": "At least one social-platform item links the repo in the case window",
@@ -320,7 +280,7 @@
           "trigger:social_post (any rank)",
           "burst"
         ],
-        "offsets": "unknown — needs supporting cases"
+        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)"
       },
       "presence_test": {
         "present": "precondition holds AND item in proximal or distal window of a burst",
@@ -331,18 +291,11 @@
         "attention",
         "community"
       ],
-      "supporting_cases": [],
-      "contradicting_cases": [],
-      "loser_contrast": {
-        "result": "unknown — not yet tested",
-        "would_support": "winner prevalence > matched losers; event-study star effect > 0 and contributor effect smaller",
-        "would_contradict": "equal prevalence or null star effect; H-L5 falsified if star/contributor effect ratio not > 2"
+      "contrast_reading": {
+        "consistent": "winner prevalence > matched losers; event-study star effect > 0 and contributor effect smaller",
+        "against": "equal prevalence or null star effect; H-L5 falsified if star/contributor effect ratio not > 2"
       },
-      "effect_estimate": "unknown — not yet tested",
-      "confidence": "low",
-      "applicable_strata": "insufficient evidence (no coded cases)",
-      "saturation_trend": "insufficient_evidence",
-      "unobservable_channels": {
+      "unobservable_channels_default": {
         "gap_adr_010": [
           "reddit",
           "x",
@@ -359,37 +312,25 @@
           "bluesky",
           "v2ex",
           "discord"
-        ]
+        ],
+        "as_of": "2026-09-26",
+        "note": "a brief recomputes these for its own sources; contrasts use the same channels on both sides (codebook §6.4)"
       },
-      "deciding_field_alpha": "not yet measured (M4-T3 pilot)",
-      "sensitivity_flags": [],
       "modules": [],
       "related_hypotheses": [
         "H-L5"
-      ],
-      "history": [
-        {
-          "date": "2026-09-25",
-          "version": "0.1.0",
-          "change": "created; seeded from literature review",
-          "case_id": null,
-          "direction": null,
-          "codebook_version": "0.1.0"
-        }
       ]
     },
     {
       "id": "MC-05",
       "name": "Launch week (multi-day announcement campaign)",
-      "version": "0.1.0",
-      "status": "candidate",
+      "version": "0.3.0",
       "recommendable": true,
       "description": "One major feature announced per day over consecutive days, with a planned channel schedule and community amplification.",
       "literature_basis": [
         "[63]",
         "[67]"
       ],
-      "participation_motive": "unknown — no stated_reason codes yet",
       "preconditions": [
         {
           "statement": "Several announceable features shipped together",
@@ -397,7 +338,7 @@
           "origin": "design"
         },
         {
-          "statement": "Organisation behind the project (scope assumption, tested as a stratum)",
+          "statement": "Organisation behind the project (scope assumption: the brief reports the pattern for its org-backed cases)",
           "test": "corporate_backed or b2b_oss_saas module active",
           "origin": "design"
         }
@@ -413,7 +354,7 @@
           "launch|relaunch(campaign=true, sub-items on >= 3 distinct UTC days within 7 d)",
           "burst(s)"
         ],
-        "offsets": "unknown — needs supporting cases"
+        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)"
       },
       "presence_test": {
         "present": "launch or relaunch with campaign=true, sub-items on >= 3 distinct UTC days within 7 d, precondition 1 holds; b2b_oss_saas.launch_week must agree when the module is active",
@@ -423,18 +364,11 @@
         "attention",
         "adoption"
       ],
-      "supporting_cases": [],
-      "contradicting_cases": [],
-      "loser_contrast": {
-        "result": "unknown — not yet tested",
-        "would_support": "prevalence among winners > matched losers within org-backed strata",
-        "would_contradict": "matched losers ran launch weeks at similar rates (H-L7)"
+      "contrast_reading": {
+        "consistent": "prevalence among winners > matched losers among the brief's org-backed cases",
+        "against": "matched losers ran launch weeks at similar rates (H-L7)"
       },
-      "effect_estimate": "unknown — not yet tested",
-      "confidence": "low",
-      "applicable_strata": "insufficient evidence (no coded cases)",
-      "saturation_trend": "insufficient_evidence",
-      "unobservable_channels": {
+      "unobservable_channels_default": {
         "gap_adr_010": [
           "reddit",
           "x",
@@ -451,39 +385,27 @@
           "bluesky",
           "v2ex",
           "discord"
-        ]
+        ],
+        "as_of": "2026-09-26",
+        "note": "a brief recomputes these for its own sources; contrasts use the same channels on both sides (codebook §6.4)"
       },
-      "deciding_field_alpha": "not yet measured (M4-T3 pilot)",
-      "sensitivity_flags": [],
       "modules": [
         "b2b_oss_saas",
         "corporate_backed"
       ],
       "related_hypotheses": [
         "H-L7"
-      ],
-      "history": [
-        {
-          "date": "2026-09-25",
-          "version": "0.1.0",
-          "change": "created; seeded from literature review",
-          "case_id": null,
-          "direction": null,
-          "codebook_version": "0.1.0"
-        }
       ]
     },
     {
       "id": "MC-06",
       "name": "Disclosed paid social promotion alongside a launch",
-      "version": "0.1.0",
-      "status": "candidate",
+      "version": "0.3.0",
       "recommendable": true,
       "description": "Disclosed paid promotion on a social platform runs alongside a community launch; together they push the repo onto GitHub's trending page.",
       "literature_basis": [
         "[64]"
       ],
-      "participation_motive": "unknown — no stated_reason codes yet",
       "preconditions": [
         {
           "statement": "A first-party launch exists",
@@ -505,7 +427,7 @@
           "trigger:paid_promotion within +/-7 d of launch",
           "burst"
         ],
-        "offsets": "unknown — needs supporting cases"
+        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)"
       },
       "presence_test": {
         "present": "both preconditions AND timing",
@@ -514,18 +436,11 @@
       "outcome_dimensions": [
         "attention"
       ],
-      "supporting_cases": [],
-      "contradicting_cases": [],
-      "loser_contrast": {
-        "result": "unknown — not yet tested",
-        "would_support": "winner prevalence > matched losers, holding MC-01 constant",
-        "would_contradict": "equal prevalence; primary use is as a confounder flag for MC-01/MC-02 estimates"
+      "contrast_reading": {
+        "consistent": "winner prevalence > matched losers, holding MC-01 constant",
+        "against": "equal prevalence; primary use is as a confounder flag for MC-01/MC-02 estimates"
       },
-      "effect_estimate": "unknown — not yet tested",
-      "confidence": "low",
-      "applicable_strata": "insufficient evidence (no coded cases)",
-      "saturation_trend": "insufficient_evidence",
-      "unobservable_channels": {
+      "unobservable_channels_default": {
         "gap_adr_010": [
           "reddit",
           "x",
@@ -542,35 +457,23 @@
           "bluesky",
           "v2ex",
           "discord"
-        ]
+        ],
+        "as_of": "2026-09-26",
+        "note": "a brief recomputes these for its own sources; contrasts use the same channels on both sides (codebook §6.4)"
       },
-      "deciding_field_alpha": "not yet measured (M4-T3 pilot)",
-      "sensitivity_flags": [],
       "modules": [],
-      "related_hypotheses": [],
-      "history": [
-        {
-          "date": "2026-09-25",
-          "version": "0.1.0",
-          "change": "created; seeded from literature review",
-          "case_id": null,
-          "direction": null,
-          "codebook_version": "0.1.0"
-        }
-      ]
+      "related_hypotheses": []
     },
     {
       "id": "MC-07",
       "name": "Active multi-channel first-party promotion",
-      "version": "0.1.0",
-      "status": "candidate",
+      "version": "0.3.0",
       "recommendable": true,
       "description": "The maker actively promotes on several own and community channels around launch rather than relying on one post.",
       "literature_basis": [
         "[3]",
         "[7]"
       ],
-      "participation_motive": "unknown — no stated_reason codes yet",
       "preconditions": [
         {
           "statement": "Project has an own official channel",
@@ -587,7 +490,7 @@
           "first_party=yes items on >= 2 distinct nodes within [T-7 d, T+30 d]",
           "burst(s)"
         ],
-        "offsets": "unknown — needs supporting cases"
+        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)"
       },
       "presence_test": {
         "present": "sequence condition holds with supported-level evidence",
@@ -597,18 +500,11 @@
       "outcome_dimensions": [
         "attention"
       ],
-      "supporting_cases": [],
-      "contradicting_cases": [],
-      "loser_contrast": {
-        "result": "unknown — not yet tested",
-        "would_support": "winners use more distinct first-party venues than matched losers (ordinal, within strata)",
-        "would_contradict": "no difference"
+      "contrast_reading": {
+        "consistent": "winners use more distinct first-party venues than matched losers (ordinal, across the brief's matched pairs)",
+        "against": "no difference"
       },
-      "effect_estimate": "unknown — not yet tested",
-      "confidence": "low",
-      "applicable_strata": "insufficient evidence (no coded cases)",
-      "saturation_trend": "insufficient_evidence",
-      "unobservable_channels": {
+      "unobservable_channels_default": {
         "gap_adr_010": [
           "reddit",
           "x",
@@ -625,35 +521,23 @@
           "bluesky",
           "v2ex",
           "discord"
-        ]
+        ],
+        "as_of": "2026-09-26",
+        "note": "a brief recomputes these for its own sources; contrasts use the same channels on both sides (codebook §6.4)"
       },
-      "deciding_field_alpha": "not yet measured (M4-T3 pilot)",
-      "sensitivity_flags": [],
       "modules": [],
-      "related_hypotheses": [],
-      "history": [
-        {
-          "date": "2026-09-25",
-          "version": "0.1.0",
-          "change": "created; seeded from literature review",
-          "case_id": null,
-          "direction": null,
-          "codebook_version": "0.1.0"
-        }
-      ]
+      "related_hypotheses": []
     },
     {
       "id": "MC-08",
       "name": "Early cross-community breadth",
-      "version": "0.1.0",
-      "status": "candidate",
+      "version": "0.3.0",
       "recommendable": true,
       "description": "Within days of the first burst, several distinct communities or publications pick up the repo independently (breadth rather than one broadcast). Currently a spread pattern; no actionable precondition known.",
       "literature_basis": [
         "[29]",
         "[31]"
       ],
-      "participation_motive": "unknown — no stated_reason codes yet",
       "preconditions": [],
       "required_assets": [],
       "sequence_timing": {
@@ -661,7 +545,7 @@
           "burst onset",
           "published|cited edges (supported) into >= 3 distinct community|publication nodes within [onset-48 h, onset+72 h]"
         ],
-        "offsets": "unknown — needs supporting cases"
+        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)"
       },
       "presence_test": {
         "present": "sequence condition holds",
@@ -671,18 +555,11 @@
       "outcome_dimensions": [
         "attention"
       ],
-      "supporting_cases": [],
-      "contradicting_cases": [],
-      "loser_contrast": {
-        "result": "unknown — not yet tested",
-        "would_support": "breadth more prevalent among winners than matched losers with similar launch-signal magnitude; see forecasting pre-registration F15 / H-L4",
-        "would_contradict": "no difference; cannot be promoted without a testable precondition (PRD §9.3)"
+      "contrast_reading": {
+        "consistent": "breadth more prevalent among winners than matched losers with similar launch-signal magnitude (H-L4)",
+        "against": "no difference; without a testable precondition the pattern is descriptive only (codebook §7.1)"
       },
-      "effect_estimate": "unknown — not yet tested",
-      "confidence": "low",
-      "applicable_strata": "insufficient evidence (no coded cases)",
-      "saturation_trend": "insufficient_evidence",
-      "unobservable_channels": {
+      "unobservable_channels_default": {
         "gap_adr_010": [
           "reddit",
           "x",
@@ -699,40 +576,28 @@
           "bluesky",
           "v2ex",
           "discord"
-        ]
+        ],
+        "as_of": "2026-09-26",
+        "note": "a brief recomputes these for its own sources; contrasts use the same channels on both sides (codebook §6.4)"
       },
-      "deciding_field_alpha": "not yet measured (M4-T3 pilot)",
-      "sensitivity_flags": [],
       "modules": [],
       "related_hypotheses": [
         "H-L4"
-      ],
-      "history": [
-        {
-          "date": "2026-09-25",
-          "version": "0.1.0",
-          "change": "created; seeded from literature review",
-          "case_id": null,
-          "direction": null,
-          "codebook_version": "0.1.0"
-        }
       ]
     },
     {
       "id": "MC-09",
       "name": "Novelty positioning",
-      "version": "0.2.0",
-      "status": "candidate",
+      "version": "0.3.0",
       "recommendable": true,
       "description": "The project positions itself as novel; this attracts attention but comes with lower long-run participation.",
       "literature_basis": [
         "[13]"
       ],
-      "participation_motive": "unknown — no stated_reason codes yet",
       "preconditions": [
         {
           "statement": "First-party novelty claim",
-          "test": "case-level novelty_claim (codebook 0.2.0 §5.1) is present, with its quoted span",
+          "test": "case-level novelty_claim (codebook §5.1, from 0.2.0) is present, with its quoted span",
           "origin": "design"
         }
       ],
@@ -744,7 +609,7 @@
           "claim at T",
           "burst"
         ],
-        "offsets": "unknown — needs supporting cases"
+        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)"
       },
       "presence_test": {
         "present": "novelty_claim = present",
@@ -755,18 +620,11 @@
         "attention",
         "community"
       ],
-      "supporting_cases": [],
-      "contradicting_cases": [],
-      "loser_contrast": {
-        "result": "unknown — not yet tested",
-        "would_support": "among attention winners, novelty cases have lower CM90 than matched non-novel winners (H-L6), and novelty more prevalent among attention winners than matched losers",
-        "would_contradict": "null community difference (H-L6 falsified)"
+      "contrast_reading": {
+        "consistent": "novelty claims more prevalent among the brief's winners than matched losers; among winners, those with a claim have fewer returning external contributors at T+90 (comm.returning_external_contributors@90, OM §1.4) than those without (H-L6; within-winner, descriptive, meaningful when the primary dimension is attention)",
+        "against": "null community difference (H-L6 falsified)"
       },
-      "effect_estimate": "unknown — not yet tested",
-      "confidence": "low",
-      "applicable_strata": "insufficient evidence (no coded cases)",
-      "saturation_trend": "insufficient_evidence",
-      "unobservable_channels": {
+      "unobservable_channels_default": {
         "gap_adr_010": [
           "reddit",
           "x",
@@ -783,44 +641,24 @@
           "bluesky",
           "v2ex",
           "discord"
-        ]
+        ],
+        "as_of": "2026-09-26",
+        "note": "a brief recomputes these for its own sources; contrasts use the same channels on both sides (codebook §6.4)"
       },
-      "deciding_field_alpha": "not yet measured (M4-T3 pilot)",
-      "sensitivity_flags": [],
       "modules": [],
       "related_hypotheses": [
         "H-L6"
-      ],
-      "history": [
-        {
-          "date": "2026-09-25",
-          "version": "0.1.0",
-          "change": "created; seeded from literature review",
-          "case_id": null,
-          "direction": null,
-          "codebook_version": "0.1.0"
-        },
-        {
-          "date": "2026-09-25",
-          "version": "0.2.0",
-          "change": "presence test uses the case-level novelty_claim of codebook 0.2.0 (§5.1) instead of ai_hype.novelty_claim; no longer limited to ai_hype (modules: none). Pilot amendment 2, B4. Made before any C11a unit was cut or any case coded.",
-          "case_id": null,
-          "direction": null,
-          "codebook_version": "0.2.0"
-        }
       ]
     },
     {
       "id": "MC-10",
       "name": "Release-driven attention",
-      "version": "0.1.0",
-      "status": "candidate",
+      "version": "0.3.0",
       "recommendable": true,
       "description": "New releases produce attention bursts.",
       "literature_basis": [
         "[4]"
       ],
-      "participation_motive": "unknown — no stated_reason codes yet",
       "preconditions": [
         {
           "statement": "Project publishes tagged releases",
@@ -834,7 +672,7 @@
           "release (platform_event)",
           "burst (release as proximal trigger candidate)"
         ],
-        "offsets": "unknown — needs supporting cases"
+        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)"
       },
       "presence_test": {
         "present": "C9=release for any burst AND precondition holds",
@@ -844,18 +682,11 @@
       "outcome_dimensions": [
         "attention"
       ],
-      "supporting_cases": [],
-      "contradicting_cases": [],
-      "loser_contrast": {
-        "result": "unknown — not yet tested",
-        "would_support": "release-triggered bursts more prevalent among winners, OR R8.1 event study around release dates with 90% CI excluding 0",
-        "would_contradict": "equal prevalence and null event-study effect"
+      "contrast_reading": {
+        "consistent": "release-triggered bursts more prevalent among winners, OR R8.1 event study around release dates with 90% CI excluding 0",
+        "against": "equal prevalence and null event-study effect"
       },
-      "effect_estimate": "unknown — not yet tested",
-      "confidence": "low",
-      "applicable_strata": "insufficient evidence (no coded cases)",
-      "saturation_trend": "insufficient_evidence",
-      "unobservable_channels": {
+      "unobservable_channels_default": {
         "gap_adr_010": [
           "reddit",
           "x",
@@ -872,34 +703,22 @@
           "bluesky",
           "v2ex",
           "discord"
-        ]
+        ],
+        "as_of": "2026-09-26",
+        "note": "a brief recomputes these for its own sources; contrasts use the same channels on both sides (codebook §6.4)"
       },
-      "deciding_field_alpha": "not yet measured (M4-T3 pilot)",
-      "sensitivity_flags": [],
       "modules": [],
-      "related_hypotheses": [],
-      "history": [
-        {
-          "date": "2026-09-25",
-          "version": "0.1.0",
-          "change": "created; seeded from literature review",
-          "case_id": null,
-          "direction": null,
-          "codebook_version": "0.1.0"
-        }
-      ]
+      "related_hypotheses": []
     },
     {
       "id": "MC-11",
       "name": "'Try it now' asset at launch",
-      "version": "0.1.0",
-      "status": "candidate",
+      "version": "0.3.0",
       "recommendable": true,
       "description": "At launch the project offers a zero-friction trial (hosted demo or one-command install), which turns attention into adoption. Basis is a platform rule only.",
       "literature_basis": [
         "[65]"
       ],
-      "participation_motive": "unknown — no stated_reason codes yet",
       "preconditions": [
         {
           "statement": "A launch exists",
@@ -916,7 +735,7 @@
           "launch",
           "burst"
         ],
-        "offsets": "unknown — needs supporting cases"
+        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)"
       },
       "presence_test": {
         "present": "launch exists AND live_demo or install_one_liner asset with first_seen <= launch",
@@ -927,18 +746,11 @@
         "attention",
         "adoption"
       ],
-      "supporting_cases": [],
-      "contradicting_cases": [],
-      "loser_contrast": {
-        "result": "unknown — not yet tested",
-        "would_support": "winner prevalence > matched losers; among winners, higher AD90 than matched attention-only cases",
-        "would_contradict": "no prevalence difference"
+      "contrast_reading": {
+        "consistent": "winner prevalence > matched losers; among the brief's winners, higher primary-ecosystem downloads at T+90 (OM §1.3) where the asset was present (descriptive)",
+        "against": "no prevalence difference"
       },
-      "effect_estimate": "unknown — not yet tested",
-      "confidence": "low",
-      "applicable_strata": "insufficient evidence (no coded cases)",
-      "saturation_trend": "insufficient_evidence",
-      "unobservable_channels": {
+      "unobservable_channels_default": {
         "gap_adr_010": [
           "reddit",
           "x",
@@ -955,28 +767,17 @@
           "bluesky",
           "v2ex",
           "discord"
-        ]
+        ],
+        "as_of": "2026-09-26",
+        "note": "a brief recomputes these for its own sources; contrasts use the same channels on both sides (codebook §6.4)"
       },
-      "deciding_field_alpha": "not yet measured (M4-T3 pilot)",
-      "sensitivity_flags": [],
       "modules": [],
-      "related_hypotheses": [],
-      "history": [
-        {
-          "date": "2026-09-25",
-          "version": "0.1.0",
-          "change": "created; seeded from literature review",
-          "case_id": null,
-          "direction": null,
-          "codebook_version": "0.1.0"
-        }
-      ]
+      "related_hypotheses": []
     },
     {
       "id": "MC-12",
       "name": "Fake-star campaign (anti-pattern; detection and contrast only)",
-      "version": "0.1.0",
-      "status": "candidate",
+      "version": "0.3.0",
       "recommendable": false,
       "description": "Purchased or coordinated fake stars inflate star counts. Ruled out by PRD §4; never recommended (F10, R12.4).",
       "literature_basis": [
@@ -985,7 +786,6 @@
         "[22]",
         "[26]"
       ],
-      "participation_motive": "unknown — no stated_reason codes yet",
       "preconditions": [],
       "required_assets": [],
       "sequence_timing": {
@@ -994,31 +794,24 @@
           "burst",
           "decay"
         ],
-        "offsets": "unknown — needs supporting cases"
+        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)"
       },
       "presence_test": {
         "derived": true,
         "present": "manipulation_flag=fake_star_campaign_suspected (StarScout campaign flag)",
         "absent": "StarScout ran for the window with no flag",
         "else": "unknown (StarScout not run)",
-        "alpha": "excluded from C11a alpha (pipeline-forced; pilot pre-registration §4.5)"
+        "alpha": "C11a units marked derived and excluded from alpha (pipeline-set; codebook §10.2)"
       },
       "outcome_dimensions": [
         "attention",
         "adoption"
       ],
-      "supporting_cases": [],
-      "contradicting_cases": [],
-      "loser_contrast": {
-        "result": "unknown — not yet tested",
-        "would_support": "H-L8: flagged repos show < 2 months real-star uplift and lower T+365 adoption than matched unflagged repos",
-        "would_contradict": "adoption difference null or positive"
+      "contrast_reading": {
+        "consistent": "H-L8: flagged repos show < 2 months real-star uplift and lower T+365 adoption than matched unflagged repos",
+        "against": "adoption difference null or positive"
       },
-      "effect_estimate": "unknown — not yet tested",
-      "confidence": "low",
-      "applicable_strata": "insufficient evidence (no coded cases)",
-      "saturation_trend": "insufficient_evidence",
-      "unobservable_channels": {
+      "unobservable_channels_default": {
         "gap_adr_010": [
           "reddit",
           "x",
@@ -1035,37 +828,25 @@
           "bluesky",
           "v2ex",
           "discord"
-        ]
+        ],
+        "as_of": "2026-09-26",
+        "note": "a brief recomputes these for its own sources; contrasts use the same channels on both sides (codebook §6.4)"
       },
-      "deciding_field_alpha": "not yet measured (M4-T3 pilot)",
-      "sensitivity_flags": [],
       "modules": [],
       "related_hypotheses": [
         "H-L1",
         "H-L8"
-      ],
-      "history": [
-        {
-          "date": "2026-09-25",
-          "version": "0.1.0",
-          "change": "created; seeded from literature review",
-          "case_id": null,
-          "direction": null,
-          "codebook_version": "0.1.0"
-        }
       ]
     },
     {
       "id": "MC-13",
       "name": "Vote solicitation on HN (anti-pattern; detection and contrast only)",
-      "version": "0.1.0",
-      "status": "candidate",
+      "version": "0.3.0",
       "recommendable": false,
       "description": "The maker asks people to upvote or comment on an HN launch, which HN guidelines prohibit. Never recommended.",
       "literature_basis": [
         "[65]"
       ],
-      "participation_motive": "unknown — no stated_reason codes yet",
       "preconditions": [],
       "required_assets": [],
       "sequence_timing": {
@@ -1074,7 +855,7 @@
           "trigger:hn_post|hn_front_page",
           "burst"
         ],
-        "offsets": "unknown — needs supporting cases"
+        "offsets": "filled per brief from its winners that show the pattern (median and range, with n)"
       },
       "presence_test": {
         "present": "any captured item carries vote_solicitation and references an HN story about the repo",
@@ -1084,18 +865,11 @@
       "outcome_dimensions": [
         "attention"
       ],
-      "supporting_cases": [],
-      "contradicting_cases": [],
-      "loser_contrast": {
-        "result": "unknown — not yet tested",
-        "would_support": "not validly testable by prevalence (absent never observable); used to flag and exclude cases from MC-01/MC-02 estimates in sensitivity analyses",
-        "would_contradict": "undefined"
+      "contrast_reading": {
+        "consistent": "not validly testable by prevalence (absent never observable); reported as the count of present cases per side, and used to flag and exclude cases from MC-01/MC-02 contrasts in sensitivity analyses",
+        "against": "undefined"
       },
-      "effect_estimate": "unknown — not yet tested",
-      "confidence": "low",
-      "applicable_strata": "insufficient evidence (no coded cases)",
-      "saturation_trend": "insufficient_evidence",
-      "unobservable_channels": {
+      "unobservable_channels_default": {
         "gap_adr_010": [
           "reddit",
           "x",
@@ -1112,22 +886,12 @@
           "bluesky",
           "v2ex",
           "discord"
-        ]
+        ],
+        "as_of": "2026-09-26",
+        "note": "a brief recomputes these for its own sources; contrasts use the same channels on both sides (codebook §6.4)"
       },
-      "deciding_field_alpha": "not yet measured (M4-T3 pilot)",
-      "sensitivity_flags": [],
       "modules": [],
-      "related_hypotheses": [],
-      "history": [
-        {
-          "date": "2026-09-25",
-          "version": "0.1.0",
-          "change": "created; seeded from literature review",
-          "case_id": null,
-          "direction": null,
-          "codebook_version": "0.1.0"
-        }
-      ]
+      "related_hypotheses": []
     }
   ]
 }

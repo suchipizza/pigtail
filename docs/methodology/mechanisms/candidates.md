@@ -1,55 +1,53 @@
-# Candidate mechanism cards (seed set v0)
+# Seed pattern hypotheses (starter list, v0.3.0)
 
-**Task:** M4-T1b · **Written:** 2026-09-25 · **Author role:** `analyst`, working with researcher discipline
-**Version:** 0.2.0 (MC-09 changed; see the changelog at the end) · **Requirements:** PRD F9 (R9.1–R9.3), §9.3; codebook `0.2.0` §7 (card schema) and §10 (C11a/C11b).
-**Machine-readable copy:** `schemas/mechanisms/candidates-v0.json`. If this file and the JSON disagree, that is a bug. Until it is fixed, the JSON wins for coding tools and this file wins for meaning (the same rule as the codebook).
-**Data version:** none. No case has been coded against these cards. **Code commit when written:** `4f55e73`.
+**Task:** M4-T1b (v0.1.0, as "candidate mechanism cards"); M11 (v0.3.0, reframed) · **Written:** 2026-09-25; reframed 2026-09-26 · **Author role:** `analyst`, working with researcher discipline
+**Version:** 0.3.0 (see the changelog at the end) · **Requirements:** PRD F20 (R20.1–R20.3), §5.2; PRD F9 retired ("the seed candidate cards … remain useful as seed codes for patterns"); WORK_ORDER v2.0 §4.2 (M4 carried: "the seed candidate cards (as seed pattern codes)"); codebook `0.3.0` §7 (patterns) and §10 (C11a).
+**Machine-readable copy:** `schemas/mechanisms/candidates-v0.json` (file version 0.3.0; the file name is kept because frozen pre-registrations cite it). If this file and the JSON disagree, that is a bug. Until it is fixed, the JSON wins for coding tools and this file wins for meaning (the same rule as the codebook). The v0.2.0 text ("candidate mechanism cards") is in git history: `git show archive/global-collection:docs/methodology/mechanisms/candidates.md`.
+**Data version:** none. No case has been coded against any of these hypotheses. **Code commit:** `4f55e73` (v0.1.0); `0330bd4` (v0.3.0).
 **Citations:** `[n]` means reference n in `docs/research/literature.md` §8. Every number quoted here is copied from that review, and the review is the source. Nothing here adds a number the review doesn't state.
 
 ---
 
-## 0. What these cards are, and what they aren't
+## 0. What this list is, and what it isn't
 
-- **They are hypotheses, not findings.** All 13 cards are `status: candidate`, `confidence: low` (codebook §7.2). None has a supporting case, a contradicting case, a loser contrast or an effect estimate. Those fields say **"unknown — not yet tested"**.
-- **The sources are practitioner writing and observational research.** Practitioner sources ([63][64][66][67]) are anecdotal and survivor-biased: they have no control group (LR §5). The academic sources are mostly observational without matched controls ([8][39][40]). The one matched design is Fang et al. [11]. Every number below describes **what the source reported**. None of them is an effect estimate for the card, and none may be copied into `effect_estimate`.
-- **Why they exist now.** The M4 pilot needs cards to code `mechanism_support.presence` (C11a) and `direction` (C11b) against (pilot pre-registration §4.5). Each card therefore has a **presence test** written in codebook fields.
-- **Promotion is out of scope here.** A card leaves `candidate` only under PRD §9.3 in M6. Pilot cases are exploratory and never enter a card's `history` (pilot pre-registration §1).
-- **Anti-pattern cards.** MC-12 and MC-13 describe behaviour that PRD §4 rules out (fake stars, vote solicitation). They exist so that manipulation can be **detected and contrasted**. They can never be recommended: F10 and R12.4 exclude them whatever their status.
+- **A starter list of pattern hypotheses a brief can check.** Each entry (MC-01 to MC-13; the `MC` ids are kept for traceability) describes something a project might do around its launch, with a **presence test** written in codebook fields. A brief picks the entries that fit its neighbourhood, may adapt their `[design]` thresholds, and may add its own, **before its outcome sort** (codebook §7.2; pre-registered for the pilot). The brief's report then shows each checked hypothesis as a **neighbourhood pattern**: n among its winners and among its matched losers, the loser contrast, the counterexamples and the per-field reliability labels (codebook §7.1, PRD R20.1).
+- **Not global cards, and not findings.** There is no global mechanism library, no `candidate`/`promoted` status, no confidence level and no global history (ADR-047.3, ADR-049.7, PRD R20.2). Results live only in each brief's report and are never written back to this file. None of these entries has a supporting case, a counterexample or a contrast here.
+- **Why reframe rather than retire.** PRD v2.0 (F9) and WORK_ORDER v2.0 (§4.2) carry these entries forward as seed codes for patterns. Their literature basis and their presence tests don't depend on the global scope; what did (status, confidence, promotion, strata, global history) is removed. Marking the list historical would force every brief to rewrite the same tests from the literature review.
+- **The sources are practitioner writing and observational research.** Practitioner sources ([63][64][66][67]) are anecdotal and survivor-biased: they have no control group (LR §5). The academic sources are mostly observational without matched controls ([8][39][40]). The one matched design is Fang et al. [11]. Every number below describes **what the source reported**. None of them is an effect estimate for a pattern, and none may be copied into a pattern's `event_study`.
+- **Anti-patterns.** MC-12 and MC-13 describe behaviour that PRD §4 rules out (fake stars, vote solicitation). They exist so that manipulation can be **detected and contrasted**. They are `recommendable: false`: F10 and R12.4 exclude them from plans and assets.
 - **How preconditions are labelled.** Each precondition carries its origin:
   - `[LR n]`: the literature review states it;
-  - `[design]`: a v0 choice made here so the card can be tested, **not** taken from the literature. The pilot may revise these.
+  - `[design]`: a v0 choice made here so the hypothesis can be tested, **not** taken from the literature. A brief may change it before its outcome sort.
 
-## 1. Fields that are the same on every card in v0
+## 1. What every hypothesis carries
 
-These values apply to **each** card below. The JSON repeats them on every card, as codebook §7.1 requires.
-
-| Field | Value on every v0 card |
+| Field | Meaning |
 |---|---|
-| `version` | `0.1.0` |
-| `status` | `candidate` |
-| `confidence` | `low` (codebook §7.2: every candidate) |
-| `participation_motive` | unknown — no `stated_reason` codes exist yet. It may only be summarised from item-level `stated_reason` codes (codebook §7.1) |
-| `supporting_cases` | none (empty) |
-| `contradicting_cases` | none (empty) |
-| `loser_contrast` | unknown — not yet tested |
-| `effect_estimate` | unknown — not yet tested |
-| `applicable_strata` | insufficient evidence (no coded cases) |
-| `saturation_trend` | `insufficient_evidence` |
-| `deciding_field_alpha` | not yet measured (M4-T3 pilot, fields C3, C4, C9, C11a, C11b) |
-| `sensitivity_flags` | none raised (nothing has been tested) |
-| `unobservable_channels` | Reddit, X, YouTube, Product Hunt, Lobste.rs, dev.to, Juejin, Zhihu, Bilibili (GAP, ADR-010). **Also held under ADR-022 until its controls exist:** HN, Bluesky, V2EX, Discord. Loser contrasts must use the same channels on both sides (codebook §7.1). |
-| `sequence_timing` offsets | unknown — the median and range need supporting cases. Each card gives only the hypothesised **order** of events. |
-| `history` | `[{date: 2026-09-25, version: 0.1.0, change: "created; seeded from literature review", case_id: null, direction: null, codebook_version: 0.1.0}]` |
+| `id`, `name`, `version` | Seed id (kept by any brief pattern built from it as `seed_id`), name, entry version |
+| `description` | What the projects did |
+| `literature_basis` | Reference numbers; the text says what each source reports |
+| `preconditions` | Statement, test in codebook fields, origin (`[LR n]` or `[design]`) |
+| `required_assets` | Asset categories from codebook §5 |
+| `sequence_timing` | The hypothesised **order** of events. Offsets (median and range) come only from a brief's winners that show the pattern. |
+| `presence_test` | `present` / `absent` / `unknown` rule for `pattern_support.presence` (C11a, codebook §7.4) |
+| `outcome_dimensions` | The dimensions the sources associate with it; a brief's report shows results per dimension |
+| `modules` | Adaptive modules it is scoped to, if any |
+| `contrast_reading` | What winner-versus-matched-loser prevalence would be consistent with the hypothesis, and what would count against it |
+| `recommendable` | `false` for MC-12 and MC-13 |
+| `related_hypotheses` | H-L ids in the literature review |
+| `unobservable_channels_default` | The GAP channels (ADR-010) and the channels held by ADR-022 as of 2026-09-26. A brief recomputes them for its own sources; the contrast uses the same channels on both sides (codebook §6.4). |
 
-**Presence and direction.** These follow codebook §7.4:
+**Presence and the role reading.** These follow codebook §7.4:
 - `present` requires every precondition test **and** at least one sequence element, each supported by evidence.
 - `absent` requires positive evidence of absence in an observable channel.
 - Anything else is `unknown`.
-- A winner without the mechanism is `neutral`, never `contradicts`.
+- Supporting cases and counterexamples are derived from presence and the case's role in the brief (a winner with it supports; a matched loser with it, or a winner without it, is a counterexample). Coders never see the role.
+
+**Contrast readings are descriptive.** "Consistent" and "against" describe what the brief's counts would look like; with 15–25 pairs they are not tests. Where a hypothesis names an event study (R8.1), that study is pre-registered for the brief or labelled exploratory.
 
 ---
 
-## 2. Cards
+## 2. Hypotheses
 
 ### MC-01 — First-party launch post on Hacker News (Show HN / Launch HN)
 - **Description:** the maker announces the project on HN with a first-party post. A burst of attention follows.
@@ -67,9 +65,9 @@ These values apply to **each** card below. The JSON repeats them on every card, 
 - **Presence test (C11a):** `present` if a `launch` event's evidence includes a `community_post` on the HN node with `first_party = yes`, **and** both precondition tests hold. `absent` needs HN coverage for the case window (HN capture enabled, with no coverage gap) and no first-party HN item.
 - **Outcome dimensions:** attention (hypothesised). Adoption and community are unknown.
 - **Modules:** none (general).
-- **Loser contrast:**
-  - *Supports* (§9.3 prevalence route): first-party HN launches are more prevalent among winners than among their matched losers within strata, with `unknown` shares on the two sides within 20 pp.
-  - *Contradicts:* prevalence among matched losers is equal to or higher than among winners. That is the survivorship pattern H-L7 predicts for frequently recommended practices. [40]'s null result for the Show HN tag makes this plausible.
+- **Contrast reading:**
+  - *Consistent:* first-party HN launches are more prevalent among the brief's winners than among their matched losers, with `unknown` shares on the two sides within 20 pp.
+  - *Against:* prevalence among matched losers is equal to or higher than among winners. That is the survivorship pattern H-L7 predicts for frequently recommended practices. [40]'s null result for the Show HN tag makes this plausible.
 - **Related hypotheses:** H-L2, H-L7.
 
 ### MC-02 — HN front-page exposure
@@ -86,13 +84,13 @@ These values apply to **each** card below. The JSON repeats them on every card, 
 - **Required assets:** `title`, `link` (`link_kind = repo` or `landing_page`).
 - **Sequence:** trigger `hn_front_page` (the rank-1 candidate, codebook §6.3) → `burst`, with onset inside the proximal window.
 - **Presence test:** `present` if C9 = `hn_front_page` for any burst **and** both preconditions hold.
-  - Front-page status can only be observed from pigtail's own rank polling, which starts with live capture, or from the Algolia `front_page` tag, whose semantics are undocumented (OM §1.2).
+  - Front-page status can only be observed from pigtail's own rank polling, which runs only during scheduled runs and launch mode (ADR-049.1), or from the Algolia `front_page` tag, whose semantics are undocumented (OM §1.2).
   - So retrospective cases without the tag are `unknown` (reason `coverage_gap`), never `absent`.
 - **Outcome dimensions:** attention.
 - **Modules:** none.
-- **Loser contrast:**
-  - *Supports:* the H-L2 event study (R8.1, robust estimator). Matched HN stories that stayed off the front page with similar early votes serve as controls, and the 90% CI of the 48 h star effect excludes 0.
-  - *Contradicts:* that CI includes 0, or front-page prevalence doesn't differ between winners and matched losers.
+- **Contrast reading:**
+  - *Consistent:* the H-L2 event study (R8.1, robust estimator). Matched HN stories that stayed off the front page with similar early votes serve as controls, and the 90% CI of the 48 h star effect excludes 0.
+  - *Against:* that CI includes 0, or front-page prevalence doesn't differ between winners and matched losers.
   - H-L2 also predicts the effect is **smaller** than naive pre/post figures such as [8] and [40].
 - **Related hypotheses:** H-L2, H-L3 (fast post-burst decay after exogenous triggers [35]).
 
@@ -105,10 +103,10 @@ These values apply to **each** card below. The JSON repeats them on every card, 
 - **Sequence:** `launch` or `hn_post` with `created_at` hour ∈ [12, 17) UTC → `burst`.
 - **Presence test:** `present` if the earliest HN story about the repo has a `created_at` hour in [12, 17) UTC. `absent` if its hour is outside that window. `unknown` if there is no HN story, or HN coverage is missing.
 - **Outcome dimensions:** attention.
-- **Modules:** none. [40]'s sample is AI/LLM only, so any `ai_hype` stratum result is closest to the source.
-- **Loser contrast:**
-  - *Supports:* among cases whose earliest story is on HN, the in-window share is higher among winners than among matched losers. Sequence matters here: the contrast is conditional on both sides having an HN story.
-  - *Contradicts:* the shares are equal, or the event-study effect of the posting window has a CI including 0.
+- **Modules:** none. [40]'s sample is AI/LLM only, so a brief whose neighbourhood is AI/LLM is closest to the source.
+- **Contrast reading:**
+  - *Consistent:* among cases whose earliest story is on HN, the in-window share is higher among winners than among matched losers. Sequence matters here: the contrast is conditional on both sides having an HN story.
+  - *Against:* the shares are equal, or the event-study effect of the posting window has a CI including 0.
 - **Note:** this is a timing variant of MC-01 and MC-02. If MC-01 and MC-02 aren't supported, MC-03 is uninterpretable.
 
 ### MC-04 — Social-media posts linking the repo
@@ -123,12 +121,12 @@ These values apply to **each** card below. The JSON repeats them on every card, 
 - **Sequence:** `social_post` trigger candidate(s) → `burst`. The social post doesn't need to be the rank-1 trigger.
 - **Presence test:** `present` if the precondition holds and at least one such item falls in the proximal or distal window of a burst (codebook §6.1).
   - X is a GAP (ADR-010) and Bluesky is held (ADR-022).
-  - Until Bluesky is cleared, this card is **`unknown` (reason `unobservable_channel` or `held`) for every case**, never `absent`.
+  - Until Bluesky is cleared, this hypothesis is **`unknown` (reason `unobservable_channel` or `held`) for every case**, never `absent`.
 - **Outcome dimensions:** attention and community, with community expected to be the smaller effect (H-L5).
 - **Modules:** none.
-- **Loser contrast:**
-  - *Supports:* higher prevalence among winners than matched losers. In an event study, the star effect is positive and the contributor effect is smaller.
-  - *Contradicts:* equal prevalence, or no star effect. H-L5 is falsified if the ratio of star effect to contributor effect is not greater than 2.
+- **Contrast reading:**
+  - *Consistent:* higher prevalence among winners than matched losers. In an event study, the star effect is positive and the contributor effect is smaller.
+  - *Against:* equal prevalence, or no star effect. H-L5 is falsified if the ratio of star effect to contributor effect is not greater than 2.
 - **Caveat:** pigtail can only replicate this on Bluesky, which isn't X. Whether X-era results carry over is unknown.
 
 ### MC-05 — Launch week (multi-day announcement campaign)
@@ -144,15 +142,15 @@ These values apply to **each** card below. The JSON repeats them on every card, 
   - [67] cites coordinated launch events as one reason stars have inflated. It is a practitioner source.
 - **Preconditions:**
   1. The project can ship several announceable features at once [design]. *Test:* ≥ 3 first-party announcement items in the campaign, each with a distinct quoted feature claim.
-  2. There is an organisation behind the project [design; [63] is a company]. *Test:* `corporate_backed` or `b2b_oss_saas` module active. This is a scope assumption and is tested as a stratum, not assumed to be necessary.
+  2. There is an organisation behind the project [design; [63] is a company]. *Test:* `corporate_backed` or `b2b_oss_saas` module active. This is a scope assumption: the brief reports the pattern for its org-backed cases, and doesn't assume it is necessary.
 - **Required assets:** `launch_post` (≥ 3), `title`, `link`.
 - **Sequence:** `prep` → `launch` with `campaign = true` and sub-announcements on ≥ 3 distinct UTC days within 7 days [design threshold] → one or more bursts during the campaign. It may repeat as `relaunch` events at ≥ 30 days (codebook §3.6).
 - **Presence test:** `present` if a `launch` or `relaunch` has `campaign = true`, with sub-items on ≥ 3 distinct UTC days within 7 days, and precondition 1 holds. When the `b2b_oss_saas` module is active, its `launch_week` field must agree.
 - **Outcome dimensions:** attention; adoption (hypothesised, from [63]'s self-reported growth claim).
 - **Modules:** `b2b_oss_saas`, `corporate_backed`.
-- **Loser contrast:**
-  - *Supports:* higher prevalence among winners than among matched losers **within** the org-backed strata.
-  - *Contradicts:* matched losers ran launch weeks at a similar rate. This is H-L7's survivorship prediction for [63].
+- **Contrast reading:**
+  - *Consistent:* higher prevalence among winners than among matched losers **among the brief's org-backed cases**.
+  - *Against:* matched losers ran launch weeks at a similar rate. This is H-L7's survivorship prediction for [63].
 - **Related hypotheses:** H-L7.
 
 ### MC-06 — Disclosed paid social promotion alongside a launch
@@ -167,12 +165,12 @@ These values apply to **each** card below. The JSON repeats them on every card, 
 - **Sequence:** trigger candidate `paid_promotion` within ±7 days of the `launch` [design window] → `burst`.
 - **Presence test:** `present` if both preconditions hold and the timing matches.
   - Disclosed paid posts on X are unobservable (GAP), and Bluesky is held.
-  - So this card is expected to be `unknown` for almost every case. That is recorded, and not read as absence.
+  - So this hypothesis is expected to be `unknown` for almost every case. That is recorded, and not read as absence.
 - **Outcome dimensions:** attention.
 - **Modules:** none.
-- **Loser contrast:**
-  - *Supports:* higher prevalence among winners than matched losers, with MC-01 held equal.
-  - *Contradicts:* equal prevalence.
+- **Contrast reading:**
+  - *Consistent:* higher prevalence among winners than matched losers, with MC-01 held equal.
+  - *Against:* equal prevalence.
 - **Main use:** in practice, a **confounder flag** for MC-01 and MC-02 effect estimates. Cases with MC-06 present are reported separately in those event studies.
 - **Not a non-goal:** disclosed paid promotion is advertising, not fake engagement (PRD §4).
 
@@ -188,9 +186,9 @@ These values apply to **each** card below. The JSON repeats them on every card, 
 - **Presence test:** `present` if the sequence condition holds with `supported`-level evidence. `absent` requires coverage of at least two observable venues showing only one first-party venue. Because many channels are unobservable (§1), expect a high `unknown` rate.
 - **Outcome dimensions:** attention.
 - **Modules:** none.
-- **Loser contrast:**
-  - *Supports:* winners use more distinct first-party venues than matched losers. The count is ordinal and is compared within strata.
-  - *Contradicts:* no difference.
+- **Contrast reading:**
+  - *Consistent:* winners use more distinct first-party venues than matched losers. The count is ordinal and is compared across the brief's matched pairs.
+  - *Against:* no difference.
 - **Caveats:** user meetings [7] can't be observed at all. The survey attribution [3] comes from winners only (survivorship).
 
 ### MC-08 — Early cross-community breadth
@@ -199,34 +197,33 @@ These values apply to **each** card below. The JSON repeats them on every card, 
   - On Facebook photo reshares, early **breadth** predicted large cascade size better than depth [31].
   - Structural virality ranges from broadcast to viral spread, and popular items grow through every mix of the two [29].
   - Both sources are about social platforms other than GitHub.
-- **Preconditions:** none known from the literature. As a mechanism, it would only be actionable if a precondition could be found. Until then it is a **spread pattern** used for forecasting (H-L4).
+- **Preconditions:** none known from the literature. As a pattern it is only actionable if a precondition can be found. Until then it is a descriptive **spread pattern** (H-L4) and can't feed an adaptation note (PRD R10.3).
 - **Required assets:** unknown.
 - **Sequence:** `burst` onset → edges of type `published` or `cited`, with `supported` status (codebook §4.4), into ≥ 3 distinct `community` or `publication` nodes within [onset − 48 h, onset + 72 h] [design thresholds].
 - **Presence test:** `present` if the sequence condition holds. `absent` if the observable venues are covered and fewer than 3 nodes appear. `unknown` otherwise.
 - **Outcome dimensions:** attention. Carry-over to adoption and community is unknown.
 - **Modules:** none.
-- **Loser contrast:**
-  - *Supports:* breadth is more prevalent among winners than matched losers with a similar launch-signal magnitude.
-  - *Contradicts:* no difference.
-  - H-L4 is also tested as a forecasting feature: forecasting pre-registration, feature F15, §5.3.
-- **Caveat:** this card risks being tautological, because breadth is partly the outcome itself. It can't be promoted without a testable precondition (PRD §9.3, fourth condition).
+- **Contrast reading:**
+  - *Consistent:* breadth is more prevalent among winners than matched losers with a similar launch-signal magnitude.
+  - *Against:* no difference.
+- **Caveat:** this hypothesis risks being tautological, because breadth is partly the outcome itself. Without a testable precondition it is reported as descriptive only (codebook §7.1, `preconditions`).
 
-### MC-09 — Novelty positioning (card version 0.2.0)
+### MC-09 — Novelty positioning (entry version 0.3.0)
 - **Description:** the project presents itself as novel, for example new in kind or a new combination. That positioning draws attention, but also comes with lower long-run participation.
 - **What the literature says:** in the Python ecosystem, more novel projects get more stars. The same projects have smaller teams and a higher long-run risk of abandonment [13].
 - **Preconditions:**
-  1. There is a first-party novelty claim [design]. *Test:* the case-level `novelty_claim` (codebook 0.2.0 §5.1) is `present`, with its quoted span.
-  - `novelty_claim` is non-core in codebook 0.2.0 (§10.3), so it can't feed promotion until a later minor version makes it core and it passes the α gate.
+  1. There is a first-party novelty claim [design]. *Test:* the case-level `novelty_claim` (codebook §5.1, from 0.2.0) is `present`, with its quoted span.
+  - `novelty_claim` is non-core (codebook 0.3.0 §10.3): a brief that checks MC-09 codes it, double-codes it, and the pattern carries its per-field reliability label.
   - The review doesn't describe how [13] measured novelty. Whether a quoted positioning claim is the same construct is **unknown**.
 - **Required assets:** `tagline` or `title` carrying the claim.
 - **Sequence:** the claim is present at T → `burst`.
 - **Presence test:** `present` if `novelty_claim = present`; `absent` if `novelty_claim = absent`; `unknown` otherwise.
 - **Outcome dimensions:** attention (expected +), community (expected −, T+90 returning external contributors).
 - **Modules:** none (not limited to `ai_hype`).
-- **Loser contrast:**
-  - *Supports:* among attention winners, novelty-claim cases have lower `CM90` than matched non-novel winners (H-L6), and novelty is more prevalent among attention winners than among matched losers.
-  - *Contradicts:* the community difference is null (H-L6 falsified).
-- **`direction` on this card:** a case counts as `supports` only when both dimensions move as predicted.
+- **Contrast reading:**
+  - *Consistent:* novelty claims are more prevalent among the brief's winners than among their matched losers, and, among the winners, those with a claim have fewer returning external contributors at T+90 (`comm.returning_external_contributors@90`, OM §1.4) than those without (H-L6; a within-winner comparison, descriptive, meaningful only when the brief's primary dimension is attention).
+  - *Against:* the community difference is null (H-L6 falsified).
+- **Role reading:** as for every pattern (codebook §7.4). The v0.2.0 rule that a case `supports` only when both dimensions move as predicted is retired with the coded `direction`; the community part of H-L6 is reported as the within-winner comparison above.
 
 ### MC-10 — Release-driven attention
 - **Description:** new releases produce bursts of attention.
@@ -238,13 +235,13 @@ These values apply to **each** card below. The JSON repeats them on every card, 
 - **Presence test:** `present` if C9 = `release` for any burst and precondition 1 holds. `absent` if every burst has a rank-1 trigger other than `release` and release records are covered. `unknown` otherwise.
 - **Outcome dimensions:** attention.
 - **Modules:** none. `relaunch_pivot` is related (`change_kinds = major_version`).
-- **Loser contrast:**
-  - *Supports:* release-triggered bursts are more prevalent among winners, **or** an R8.1 event study around release dates (named explicitly in R8.1) gives a 90% CI excluding 0.
-  - *Contradicts:* equal prevalence and a null event-study effect.
+- **Contrast reading:**
+  - *Consistent:* release-triggered bursts are more prevalent among winners, **or** an R8.1 event study around release dates (named explicitly in R8.1) gives a 90% CI excluding 0.
+  - *Against:* equal prevalence and a null event-study effect.
 
 ### MC-11 — "Try it now" asset at launch
 - **Description:** at launch, the project offers a zero-friction way to try it: a hosted demo or a one-command install. Attention then turns into adoption.
-- **What the literature says:** only the Show HN rule that a submission must be something people can try [65]. That is a platform rule, **not** evidence of any effect. This card rests on the thinnest basis in the set.
+- **What the literature says:** only the Show HN rule that a submission must be something people can try [65]. That is a platform rule, **not** evidence of any effect. This hypothesis rests on the thinnest basis in the set.
 - **Preconditions:**
   1. A launch exists [design]. *Test:* a `launch` event (any venue).
 - **Required assets:** `live_demo` or `install_one_liner`.
@@ -252,29 +249,29 @@ These values apply to **each** card below. The JSON repeats them on every card, 
 - **Presence test:** `present` if a `launch` exists and a `live_demo` or `install_one_liner` asset has `first_seen` ≤ the launch timestamp. `absent` if the README and site at launch were captured and neither asset appears. `unknown` otherwise.
 - **Outcome dimensions:** attention, adoption (hypothesised).
 - **Modules:** none. The `cli_devtools` module records `install_channels`.
-- **Loser contrast:**
-  - *Supports:* higher prevalence among winners than matched losers, and among winners a higher `AD90` than matched attention-only cases.
-  - *Contradicts:* no prevalence difference.
-- **Overlap:** MC-01's precondition 1 is this card's asset condition. They are coded separately, so MC-11 can be tested across all launch venues.
+- **Contrast reading:**
+  - *Consistent:* higher prevalence among winners than matched losers, and, among the brief's winners, higher adoption (primary-ecosystem downloads at T+90, OM §1.3) where the asset was present (descriptive).
+  - *Against:* no prevalence difference.
+- **Overlap:** MC-01's precondition 1 is this hypothesis's asset condition. They are coded separately, so MC-11 can be tested across all launch venues.
 
 ### MC-12 — Fake-star campaign (anti-pattern: detection and contrast only)
-- **Description:** purchased or coordinated fake stars inflate star counts. PRD §4 rules this out. The card exists so that the effect can be measured and cases flagged. **It is never recommended** (F10, R12.4).
+- **Description:** purchased or coordinated fake stars inflate star counts. PRD §4 rules this out. This entry exists so that the effect can be measured and cases flagged. **It is never recommended** (F10, R12.4).
 - **What the literature says:**
   - StarScout found 18,617 repos with fake-star campaigns (3.81 M fake stars after post-processing). Activity surged in 2024.
   - Most fake stars promote short-lived phishing or malware repos. The rest go mostly to AI/LLM, blockchain, tool and tutorial repos [17][20].
   - Promotion effect: a 1% rise in fake stars in month t goes with +0.07% real stars in t+1 and +0.03% in t+2. Cumulative fake stars have a negative coefficient from about t+2 onward, which the authors read as "a liability in the long term" [20].
   - Ground truth for the Stargazers Ghost Network: [22]. An industry experiment in which the authors bought stars themselves: [26].
-- **Preconditions:** none. The card is detected, not chosen.
+- **Preconditions:** none. It is detected, not chosen.
 - **Required assets:** none.
 - **Sequence:** a StarScout campaign month → `burst` (codebook §3.2: still a burst) → decay.
 - **Presence test:** **derived, not coded.** `present` if `manipulation_flag = fake_star_campaign_suspected` (the StarScout campaign flag, OM §4). `absent` if StarScout ran for the window without a flag. `unknown` if it didn't run.
-  - Because the value comes from the pipeline, its C11a units are excluded from α (pilot pre-registration §4.5).
+  - Because the value comes from the pipeline, its C11a units are marked `derived` and excluded from α (codebook §10.2).
   - The flag is a suspicion, never proof, and no repo is named publicly (LR §2.3).
 - **Outcome dimensions:** attention (short-lived +), adoption (expected −, H-L8).
-- **Modules:** none. Category concentration (H-L1) is tested per stratum.
-- **Loser contrast:**
-  - *Supports H-L8:* flagged repos show a real-star uplift lasting < 2 months and lower T+365 adoption than matched unflagged repos.
-  - *Contradicts:* the adoption difference is null or positive.
+- **Modules:** none. Category concentration (H-L1) shows only across briefs; within one brief the pattern is reported with its counts.
+- **Contrast reading:**
+  - *Consistent (H-L8):* flagged repos show a real-star uplift lasting < 2 months and lower T+365 adoption than matched unflagged repos.
+  - *Against:* the adoption difference is null or positive.
 - **Sensitivity flag to set when tested:** `sensitive_to_fake_star_filter` (ADR-020).
 
 ### MC-13 — Vote solicitation on HN (anti-pattern: detection and contrast only)
@@ -286,18 +283,20 @@ These values apply to **each** card below. The JSON repeats them on every card, 
 - **Presence test:** `present` if any captured item carries `vote_solicitation` and references an HN story about the repo. `absent` is never coded, because solicitation happens mostly in unobservable channels (DMs, X, chat). So the value is `present` or `unknown`.
 - **Outcome dimensions:** attention.
 - **Modules:** none.
-- **Loser contrast:** prevalence can't be compared validly, because `absent` is never observable and the §9.3 prevalence route excludes `unknown`.
-  - The card is **expected to stay `candidate` permanently**, and is used only to flag cases and exclude them from MC-01 and MC-02 estimates in sensitivity analyses.
-  - *Contradicts* has no defined meaning for this card.
+- **Contrast reading:** prevalence can't be compared validly, because `absent` is never observable and prevalence excludes `unknown` (codebook §7.1).
+  - It is reported only as the count of `present` cases on each side, and is used to flag cases and to exclude them from MC-01 and MC-02 contrasts in sensitivity analyses.
+  - *Against* has no defined meaning for this hypothesis.
 
 ---
 
 ## 3. Open issues
-1. **Codebook gap (MC-09): closed in codebook 0.2.0**, which adds the case-level `novelty_claim` field (§5.1). The field is still non-core, so MC-09 can't be promoted on it until the field becomes core and passes α (codebook §10.3).
-2. **Held and GAP channels.** MC-01, MC-02, MC-03 and MC-13 depend on HN, and MC-04 and MC-06 on social platforms (held or GAP). Until ADR-022's controls exist, those cards are `unknown` on almost every case. The pilot's C11a units for them are then pipeline-forced and excluded from α (pilot pre-registration §4.5).
-3. **`[design]` thresholds need calibration.** Examples: ≥ 3 days (MC-05), ≥ 2 venues (MC-07), ≥ 3 nodes within 72 h (MC-08), ±7 days (MC-06). They are v0 choices, calibrated in the pilot's revision round. After v1.0.0 they change only under the ADR-019 policy.
-4. **Overlapping cards.** MC-01/MC-02/MC-03 and MC-01/MC-11 overlap. Promotion analyses must report them jointly, so that the same cases aren't counted as independent support.
+1. **Codebook gap (MC-09): closed in codebook 0.2.0**, which added the case-level `novelty_claim` field (§5.1). It stays non-core in 0.3.0: a brief checking MC-09 codes it and reports its α.
+2. **Held and GAP channels.** MC-01, MC-02, MC-03 and MC-13 depend on HN, and MC-04 and MC-06 on social platforms (held or GAP). Until ADR-022's controls exist (ADR-049.2), those hypotheses are `unknown` on almost every case; their C11a units are then pipeline-forced and excluded from α (codebook §10.2), and the pattern shows "insufficient evidence in this neighbourhood".
+3. **`[design]` thresholds are fixed per brief.** Examples: ≥ 3 days (MC-05), ≥ 2 venues (MC-07), ≥ 3 nodes within 72 h (MC-08), ±7 days (MC-06). A brief keeps them or sets its own in its version **before its outcome sort** (pre-registered for the pilot). A change after the outcome sort makes the pattern exploratory for that brief. There is no pilot calibration round (withdrawn, `docs/preregistration/2026-09-26-pilot-amendment-3.md`).
+4. **Overlapping hypotheses.** MC-01/MC-02/MC-03 and MC-01/MC-11 overlap. Reports show them together, so that the same cases aren't read as independent support (codebook §7.3).
+5. **Neighbourhood fit.** Most sources are about HN-launched, English-language, often AI/LLM projects. A brief whose neighbourhood differs (for example the `chinese_ecosystem` module, or B2B projects launched through sales channels) should add brief-specific hypotheses rather than rely on this list alone.
 
 ## Changelog
 - 2026-09-25 — 0.1.0: seed set of 13 candidate cards (M4-T1b).
 - 2026-09-25 — 0.2.0: MC-09's precondition test, presence test and modules now use the case-level `novelty_claim` of codebook 0.2.0 (§5.1) instead of the `ai_hype` extra field, and the card is no longer limited to `ai_hype`. The same text is in `schemas/mechanisms/candidates-v0.json` (MC-09 version 0.2.0, file version 0.2.0). Pilot amendment 2, B4. Made before any C11a unit was cut or any case coded. No other card changed.
+- 2026-09-26 — 0.3.0 (M11; ADR-047.3, ADR-049.7; PRD F20): reframed from global candidate mechanism cards to a starter list of pattern hypotheses a brief can check. Removed from every entry: `status`, `confidence`, `supporting_cases`, `contradicting_cases`, `effect_estimate`, `applicable_strata`, `saturation_trend`, `deciding_field_alpha`, `sensitivity_flags`, `history` (results live only in each brief's report). "Loser contrast" (supports/contradicts) became "contrast reading" (consistent/against), with strata replaced by the brief's own cases and §9.3 references removed. MC-02's rank-polling note follows ADR-049.1. MC-08 loses the forecasting-feature reference (forecasting test withdrawn); MC-09's contrast no longer uses `CM90` or the coded `direction`; MC-11's no longer uses `AD90` or the `attention_only` class; MC-12 cites codebook §10.2 for derived units; MC-13 no longer says "stays candidate". Presence tests, preconditions, required assets, sequences and all literature statements are unchanged; ids MC-01 to MC-13 are kept. Written before any coding or outcome data.
