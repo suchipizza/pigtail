@@ -768,8 +768,9 @@ def purge_repo_name(
     refusal list by id and purged with `purge_repo`. Then the rows matched by name alone are
     removed: HN mention rows and the snapshots they came from (unless another repo's mention
     still uses the same snapshot), rank-poller story titles, urls and repo links (the rank history
-    keeps the item id only, as at ingest), Show HN screen links, watch-list entries, GH Archive
-    hourly rows, per-repo GitHub API pages and their ETag cache rows.
+    keeps the item id only, as at ingest), per-repo GitHub API pages (evidence matched by URL) and
+    their ETag cache rows, and the repo row itself (`REPO_TABLES` rows with `match="name"` or
+    `"url"`).
     """
     counts = _zero_counts(tables, "names_matched")
     for name in names_for_key(db, name_key, _keyer(name_key, pz, host), host):

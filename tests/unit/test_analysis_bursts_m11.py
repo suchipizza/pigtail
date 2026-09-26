@@ -190,3 +190,31 @@ def test_m11_baseline_none_uses_absolute_threshold_only(n: int):
     assert f is not None and f.stars_48h == 110
     assert f.baseline.quality == ("none" if n == 0 else "partial")
     assert math.isfinite(f.z)
+
+
+# --- ADR-052: no phantom re-firing after a single-day spike -------------------------------------
+def test_adr052_single_day_spike_is_one_burst_not_multi_peak():
+    """A single-day spike: day 61's 48-hour window (days 60-61) starts on the burst's last day, so
+    its firing is ignored (neither a new burst nor a merge)."""
+    vals = [2] * 90
+    vals[60] = 300
+    s = days(D0, vals)
+    seg = segment(s, D0 + timedelta(days=31), D0 + timedelta(days=89))
+    (b,) = seg.bursts
+    assert b.onset.day == D0 + timedelta(days=60)
+    assert b.end == D0 + timedelta(days=61) and b.last_day == D0 + timedelta(days=60)
+    assert not b.multi_peak
+    assert evaluate_day(s, D0 + timedelta(days=61)) is not None  # it does fire; it is ignored
+
+
+def test_adr052_genuine_second_peak_still_merges_as_multi_peak():
+    """Two separate spikes 4 days apart: the second one's window starts after the first burst's
+    last day, so it is a new firing and merges (gap < 7 days) with multi_peak True."""
+    vals = [2] * 90
+    vals[60] = 300
+    vals[65] = 300
+    s = days(D0, vals)
+    seg = segment(s, D0 + timedelta(days=31), D0 + timedelta(days=89))
+    (b,) = seg.bursts
+    assert b.multi_peak and b.onset.day == D0 + timedelta(days=60)
+    assert b.last_day == D0 + timedelta(days=65) and b.end == D0 + timedelta(days=66)

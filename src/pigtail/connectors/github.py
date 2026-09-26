@@ -2,8 +2,10 @@
 
 Two connectors share one HTTP layer (`GitHubAPI`) and one token:
 
-- **`github`** (`GitHubConnector`): project-level data only. GraphQL batched repo counts
-  (`stargazerCount`, `forkCount`, `pushedAt`), `search/repositories` sweeps, and the
+- **`github`** (`GitHubConnector`): project-level data only. Generic GraphQL queries
+  (`graphql()`), `search/repositories` pages for one caller-supplied query
+  (`search_repositories()`, paged by `pigtail.capture.github_search.search_repos` for
+  brief-scoped discovery; the all-GitHub sweeps were removed in M11, ADR-047.6), and the
   star-history endpoint `GET /repos/{o}/{r}/stargazers/history` (weekly and daily net counts, no
   identities). On by default, but it **refuses every live call without `GITHUB_TOKEN`**
   (`MissingToken`); the scheduler skips its jobs with the logged reason
@@ -599,7 +601,7 @@ class GitHubConnector(GitHubAPI):
     ) -> tuple[Fetched, SearchPage]:
         """`fetch_search_page()` + `parse_search_page()`. A parse failure goes to
         `parse_failed()` (CB-23b) and raises `ParseFailed`. The caller still owns dropping the
-        raw bytes of a parsed page (`SearchSweeper` does, CB-24)."""
+        raw bytes of a parsed page (`pigtail.capture.github_search.search_repos` does, CB-24)."""
         f = self.fetch_search_page(q, page=page, per_page=per_page, sort=sort)
         try:
             return f, parse_search_page(f.data)

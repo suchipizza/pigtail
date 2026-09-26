@@ -19,7 +19,7 @@ PENDING_STAGES = {
     "analyze": "M5",
     "plan": "M8",
 }
-# `pigtail report` has its first subcommand (hn-frontpage, M1-T22); the rest is still M5.
+# `pigtail report` subcommands: hn-frontpage (M1-T22), inventory (M11); the rest is still M5.
 REPORT_MILESTONE = "M5"
 
 
@@ -294,6 +294,32 @@ def cmd_capture_mentions(args: argparse.Namespace) -> int:
     finally:
         db.close()
     print(json.dumps({"run_id": run.id, **res.to_dict()}, indent=2))
+    return 0
+
+
+def cmd_report_inventory(args: argparse.Namespace) -> int:
+    """M11 (WORK_ORDER §4.4, ADR-047.6): data-cache inventory, counts only (read-only)."""
+    import psycopg
+
+    from pigtail.capture.inventory import inventory, render_text
+    from pigtail.capture.runs import git_commit
+
+    s, rc = _capture_env()
+    if rc is not None:
+        return rc
+    try:  # read-only at the server: no migration, no run record
+        with psycopg.connect(
+            s.database_url, autocommit=True, options="-c default_transaction_read_only=on"
+        ) as conn:
+            inv = inventory(conn)
+    except psycopg.Error as e:
+        print(f"database unreachable: {type(e).__name__}", file=sys.stderr)
+        return 2
+    commit = git_commit()
+    if args.json:
+        print(json.dumps({"code_commit": commit, **inv.to_dict()}, indent=2))
+    else:
+        print(render_text(inv, commit))
     return 0
 
 
@@ -1232,7 +1258,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_ui_parser(sub)  # `pigtail ui hash-password|serve` (M1-T12, D1 preview)
 
-    rep = sub.add_parser("report", help="reports (hn-frontpage: M1-T22; the rest: M5)")
+    rep = sub.add_parser("report", help="reports (hn-frontpage: M1-T22; inventory: M11)")
     rep.set_defaults(func=lambda _a: _pending("report", REPORT_MILESTONE))
     rep_sub = rep.add_subparsers(dest="report_command")
     hfp = rep_sub.add_parser(
@@ -1245,6 +1271,11 @@ def build_parser() -> argparse.ArgumentParser:
     hfp.add_argument("--max-rank", type=int, default=30, help="front page = ranks 1..N")
     hfp.add_argument("--gap-factor", type=float, default=2.0, help="gap > factor x interval")
     hfp.set_defaults(func=cmd_report_hn_frontpage)
+    inv = rep_sub.add_parser(
+        "inventory", help="data-cache inventory: counts per kept table, no names (read-only)"
+    )
+    inv.add_argument("--json", action="store_true", help="JSON instead of a Markdown table")
+    inv.set_defaults(func=cmd_report_inventory)
 
     for stage, milestone in PENDING_STAGES.items():
         sp = sub.add_parser(stage, help=f"(not yet implemented; {milestone})")

@@ -1,4 +1,4 @@
-"""Per-repo burst and quiet segmentation on star-history days (M11; codebook v0.3.0 §3.2-3.3,
+"""Per-repo burst and quiet segmentation on star-history days (M11; codebook v0.3.1 §3.2-3.3,
 outcome model v2 §2.1; parameters `pigtail.analysis.params.BURST`, version `PARAMS_VERSION`).
 
 Pure functions over one repo's daily series: no database, no network, no global scan and no
@@ -31,7 +31,10 @@ is never used (ADR-047.8).
 **End, merging, quiet.** A burst ends at the start of the first run of `end_quiet_days` (3)
 consecutive known days after the onset day with `n(d) <= mu_d + 3*sqrt(mu_d)` (`1` when
 `mu_d = 0`); with no such run inside the window it is open (`end = None`). A new burst starts at
-the first firing day not inside a burst. Bursts separated by fewer than `merge_gap_days` (7) days
+the first firing day not inside a burst. A firing whose 48-hour window starts on a day inside the
+previous burst (`d-1 <= last_day`, i.e. `d <= end`) is ignored: neither a new burst nor a merge
+(ADR-052; otherwise a single-day spike re-fires on the first calm day and is merged into a
+phantom `multi_peak` burst). Bursts separated by fewer than `merge_gap_days` (7) days
 merge into one with `multi_peak = True`. Quiet intervals are maximal runs of at least
 `min_quiet_days` (7) known days inside the window that are not in a burst; unknown days and days
 before creation split them.
@@ -275,10 +278,12 @@ def segment(
 ) -> Segmentation:
     """Bursts and quiet intervals of one repo in the case window `[first_day, last_day]`."""
     raw: list[tuple[Onset, Firing, date | None]] = []
-    busy_until: date | None = None  # days before this are inside the current burst
+    # ADR-052: days up to and including this one are skipped. Day `end` itself is skipped because
+    # its 48-hour window starts on `end - 1`, the previous burst's last day.
+    busy_until: date | None = None
     open_burst = False
     for d in _days(first_day, last_day):
-        if open_burst or (busy_until is not None and d < busy_until):
+        if open_burst or (busy_until is not None and d <= busy_until):
             continue
         if created is not None and d - DAY < created:
             continue

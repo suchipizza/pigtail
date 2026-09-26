@@ -25,13 +25,13 @@
 **Milestones:** M0 accepted · M2 accepted (except the fake-star reproduction M2-T3, which needs star data) · M3 accepted, and the ADR-032–038 updates verified · M1 capture built but **not running** (no host, no GitHub token) · M4 pilot designed and pre-registered, not started.
 
 **What changed today that you should know**
-- **GitHub Archive is no longer a usable source of star data** (≈ 1–2% of stars captured), and **GitHub closed stargazer lists** on 2026-06-30. Detection was rebuilt on GitHub's new daily star counts plus an hourly watch list (ADR-032). It is built and tested, but only against a fake GitHub API until a token exists.
+- **GitHub Archive is no longer a usable source of star data** (≈ 1–2% of stars captured), and **GitHub closed stargazer lists** on 2026-06-30. Star data now comes from GitHub's daily star counts, fetched per repo for each brief's candidates (ADR-032, ADR-047.8). The hourly watch list and global detection were removed on 2026-09-26 (ADR-051); migration 0014 deleted their tables and kept only row counts in the deletion log. The per-repo collectors are tested only against a fake GitHub API until a token exists.
 - **Outcome classes use raw daily star counts** (thresholds v0.2.0, ADR-035); fake-star filtering becomes a sensitivity check where data allows.
 - **Privacy controls built:** retention purge, opt-out list, access and erasure requests, LLM redaction and cache expiry, HN deletion sync, 16-day limit on per-repo event data (ADR-038).
 - **D1 preview app** (password-protected case browser) and the **unattended scheduler** are ready to deploy.
 
 **Blocked on you (see `ops/HUMAN_INPUTS.md`, defaults apply 2026-10-09)**
-1. **Host VM + `GITHUB_TOKEN`:** nothing collects until these exist. HN front-page rank history, which can't be backfilled, is lost every day until then.
+1. **`GITHUB_TOKEN`:** nothing collects until it exists. (Superseded 2026-09-26: no host VM needed, runs are batches on your Mac per ADR-048; HN rank history is collected during scheduled runs and launch mode only, ADR-049.1.)
 2. **Confirm model training is off** in your Claude account (or provide an API key): needed for the pilot.
 3. **Name and contact for the privacy notice** (CB-12): needed before HN mentions, Bluesky or per-repo events can be switched on.
 4. **Lawyer (H2):** 29 questions; LQ-1/2 (Consumer Terms: no commercial use of your subscription) matter most.

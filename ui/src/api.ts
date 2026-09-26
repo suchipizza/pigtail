@@ -55,6 +55,24 @@ export interface CaseSummary {
   evidence_linked: number;
 }
 
+/** A launch-mode window active now (D1 "Launch mode" strip; ADR-048.2, ADR-049.1). */
+export interface LaunchModeWindow {
+  id: number;
+  scope: "brief" | "tracked_project";
+  brief_id: string | null;
+  repo_id: string | null;
+  repo_full_name: string | null;
+  case_ids: string[];
+  starts_at: string;
+  ends_at: string;
+  source: "declared" | "detected" | "manual";
+}
+
+export interface LaunchMode {
+  as_of: string;
+  items: LaunchModeWindow[];
+}
+
 export interface Page<T> {
   items: T[];
   total: number;
@@ -239,6 +257,7 @@ export const api = {
   login: (password: string) => request<{ authenticated: boolean }>("/api/auth/login", json({ password })),
   logout: () => request<{ authenticated: boolean }>("/api/auth/logout", json({})),
   cases: (q: Query) => request<Page<CaseSummary>>(withQuery("/api/cases", q)),
+  launchMode: () => request<LaunchMode>("/api/launch-mode"),
   case: (id: string) => request<CaseDetail>(`/api/cases/${encodeURIComponent(id)}`),
   timeline: (id: string, q: Query) =>
     request<Timeline>(withQuery(`/api/cases/${encodeURIComponent(id)}/timeline`, q)),

@@ -2,7 +2,7 @@
 the citable, versioned copy (a test keeps the two equal); the Python copy is what runs, so the
 app image does not need `schemas/`.
 
-- `BURST`: the per-repo burst rule `velocity-v0` on star-history endpoint days (codebook v0.3.0
+- `BURST`: the per-repo burst rule `velocity-v0` on star-history endpoint days (codebook v0.3.1
   §3.2-3.3; outcome model v2 §2.1): fire when `n(d-1) + n(d) >= 100` net stars and `z >= 3`
   against the 30 endpoint days before `d-1` (48-hour sums, sigma floored at the square root of
   the baseline mean, ADR-027 item 3); onset at `mu + 3*sqrt(mu)` with `mu_h = mu_d / 24`

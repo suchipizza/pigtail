@@ -58,8 +58,15 @@ def test_m1_t24_cb23_repo_event_actor_only_in_poller_and_registry():
         for p in SRC.rglob("*.py")
         if "repo_event_actor" in p.read_text(encoding="utf-8")
     }
-    # export/jsonl.py only names it to classify it as never exported (M1-T20)
-    assert users == {"capture/repo_events.py", "privacy/deletion.py", "export/jsonl.py"}
+    # export/jsonl.py only names it to classify it as never exported (M1-T20); the M11 data-cache
+    # inventory only counts its rows, repos and days (never the actor column)
+    assert users == {
+        "capture/repo_events.py",
+        "privacy/deletion.py",
+        "export/jsonl.py",
+        "capture/inventory.py",
+    }
+    assert "actor_pseudonym" not in (SRC / "capture" / "inventory.py").read_text()
     from pigtail.export.jsonl import TABLE_LEVELS
 
     assert TABLE_LEVELS["repo_event_actor"] == "never"

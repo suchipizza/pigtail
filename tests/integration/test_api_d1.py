@@ -314,6 +314,7 @@ def audit_rows(db: Any) -> list[tuple[Any, ...]]:
 API_GETS = [
     "/api/auth/me",
     "/api/cases",
+    "/api/launch-mode",
     f"/api/cases/{CASE1}",
     f"/api/cases/{CASE1}/timeline",
     f"/api/cases/{CASE1}/evidence",
@@ -452,6 +453,42 @@ def test_r14_2_cases_list_filters_and_sort(env):
     assert [c["id"] for c in ranged["items"]] == [CASE1]
     assert client.get("/api/cases?status=bogus").status_code == 422
     assert client.get("/api/cases?sort=bogus").status_code == 422
+
+
+def test_d1_adr049_1_launch_mode_strip_lists_active_windows_only(env):
+    """D1 "Launch mode" strip (ADR-048.2, ADR-049.1): only windows active now, with the tracked
+    project's name and open cases; expired and future windows are left out. Read-only."""
+    client, _, db = env
+    now = datetime.now(UTC)
+    x = db.conn.execute
+    x(
+        "INSERT INTO launch_mode_window (scope, brief_id, repo_id, starts_at, ends_at, source)"
+        " VALUES ('tracked_project', NULL, 'github:1000001', %(a)s, %(b)s, 'detected'),"
+        "        ('brief', 'brief_demo', NULL, %(a)s, %(b)s, 'declared'),"
+        "        ('tracked_project', NULL, 'github:1000002', %(old0)s, %(old1)s, 'declared'),"
+        "        ('tracked_project', NULL, 'github:1000002', %(b)s, %(c)s, 'declared')",
+        {
+            "a": now - timedelta(days=1),
+            "b": now + timedelta(days=13),
+            "c": now + timedelta(days=20),
+            "old0": now - timedelta(days=30),
+            "old1": now - timedelta(days=16),
+        },
+    )
+    login(client)
+    body = client.get("/api/launch-mode").json()
+    items = body["items"]
+    assert [(i["scope"], i["repo_id"], i["brief_id"]) for i in items] == [
+        ("tracked_project", "github:1000001", None),
+        ("brief", None, "brief_demo"),
+    ]  # same start: by id
+    tracked = next(i for i in items if i["scope"] == "tracked_project")
+    assert tracked["repo_full_name"] == "org-a/repo-1" and tracked["case_ids"] == [CASE1]
+    assert tracked["source"] == "detected"
+    brief = next(i for i in items if i["scope"] == "brief")
+    assert brief["repo_full_name"] is None and brief["case_ids"] == []
+    assert HANDLE_MARKER not in json.dumps(body)
+    assert client.post("/api/launch-mode", json={}).status_code in (401, 403, 404, 405)
 
 
 def test_r13_2_case_detection_numbers_trace_to_evidence(env):

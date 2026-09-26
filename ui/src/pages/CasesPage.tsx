@@ -1,43 +1,11 @@
 import { useState } from "react";
 import { api, type CaseStatus, type CaseSummary } from "../api";
+import { LaunchModeStrip } from "../components/LaunchModeStrip";
 import { fmtNum, fmtTime, fromInputValue } from "../format";
 import { Link } from "../router";
 import { useAsync } from "../useAsync";
 
 type Sort = "recency" | "velocity";
-
-function LiveNow() {
-  const live = useAsync(() => api.cases({ status: "live", sort: "velocity", limit: 8 }), "live");
-  if (live.status !== "ok") return null;
-  return (
-    <section className="live-strip" aria-label="Live now">
-      <h2>
-        Live now <span className="muted">open cases by 48 h velocity</span>
-      </h2>
-      {live.data.items.length === 0 ? (
-        <p className="muted">No live cases.</p>
-      ) : (
-        <ul>
-          {live.data.items.map((c) => (
-            <li key={c.id}>
-              <Link href={`/cases/${c.id}`} className="live-card">
-                <span className="live-name">{c.repo_full_name}</span>
-                <span className="live-metric">
-                  {c.stars_48h === null ? "velocity unknown" : `${fmtNum(c.stars_48h)} stars / 48 h`}
-                </span>
-                <span className="muted">
-                  trigger: {c.trigger}
-                  {c.z_score !== null ? ` · z ${fmtNum(c.z_score, 1)}` : ""}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-      <p className="muted small">Placeholder for D1 full: detected triggers appear here after coding (M5).</p>
-    </section>
-  );
-}
 
 function CaseRow({ c }: { c: CaseSummary }) {
   return (
@@ -78,7 +46,7 @@ export function CasesPage() {
 
   return (
     <>
-      <LiveNow />
+      <LaunchModeStrip />
       <section>
         <h1>Cases</h1>
         <div className="filters" role="group" aria-label="Filters">
@@ -121,7 +89,6 @@ export function CasesPage() {
               <option value="velocity">velocity (48 h stars)</option>
             </select>
           </label>
-          <span className="muted small">Category, stratum and outcome filters arrive with coding (M5).</span>
         </div>
         {cases.status === "error" && <p className="error">{cases.error.message}</p>}
         {cases.data && (

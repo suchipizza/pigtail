@@ -205,6 +205,41 @@ def get_case(conn: Conn, case_id: str) -> dict[str, Any] | None:
     }
 
 
+# --- launch mode (D1 strip; ADR-048.2, ADR-049.1, ADR-051.4) ------------------------------------
+def launch_mode(conn: Conn, now: datetime) -> dict[str, Any]:
+    """Launch-mode windows active at `now` (`starts_at <= now < ends_at`), for the D1 "Launch
+    mode" strip. Project-level only: a tracked project's repo name and its open cases, or a
+    brief id; no velocity or triggers yet (M14 fills windows and detects launches)."""
+    rows = _rows(
+        conn,
+        """
+        SELECT w.id, w.scope, w.brief_id, w.repo_id, r.full_name AS repo_full_name,
+               w.starts_at, w.ends_at, w.source,
+               COALESCE((SELECT array_agg(c.id ORDER BY c.opened_at DESC, c.id) FROM cases c
+                          WHERE c.repo_id = w.repo_id AND c.status <> 'closed'), '{}') AS case_ids
+        FROM launch_mode_window w LEFT JOIN repos r ON r.id = w.repo_id
+        WHERE w.starts_at <= %(now)s AND w.ends_at > %(now)s
+        ORDER BY w.starts_at DESC, w.id
+        """,
+        {"now": now},
+    )
+    items = [
+        {
+            "id": r["id"],
+            "scope": r["scope"],
+            "brief_id": r["brief_id"],
+            "repo_id": r["repo_id"],
+            "repo_full_name": guard_text(r["repo_full_name"]),
+            "case_ids": list(r["case_ids"]),
+            "starts_at": r["starts_at"],
+            "ends_at": r["ends_at"],
+            "source": r["source"],
+        }
+        for r in rows
+    ]
+    return {"as_of": now, "items": items}
+
+
 # --- evidence belonging to a case ----------------------------------------------------------------
 def _case_refs_sql(tail: str | sql.Composed) -> sql.Composed:
     """`refs(evidence_id, role)`: every evidence record behind case `%(cid)s`."""

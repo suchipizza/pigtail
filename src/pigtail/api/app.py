@@ -3,6 +3,7 @@
 Routes (all `/api/*` except login require an operator session):
     POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me
     GET  /api/cases                       filters: status, from, to; sort: recency|velocity
+    GET  /api/launch-mode                 launch-mode windows active now (D1 strip; read-only)
     GET  /api/cases/{id}                  case, repo, detection metrics + the 48 h behind them
     GET  /api/cases/{id}/timeline         GitHub + HN lanes and evidence events (from/to/bucket)
     GET  /api/cases/{id}/evidence         evidence inventory (sortable, filterable, paged)
@@ -16,7 +17,7 @@ Anything else is served from the built UI (`ui/dist`, single-page app fallback).
 import re
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -256,6 +257,12 @@ def create_app(
         )
         out["caveats"] = [q.COVERAGE_CAVEAT, q.UNCODED_NOTE]
         return out
+
+    @api.get("/launch-mode")
+    def launch_mode(conn: Conn) -> dict[str, Any]:
+        """D1 "Launch mode" strip (ADR-048.2, ADR-049.1): tracked projects and briefs whose
+        launch-mode window is active now. Read-only; windows are declared or detected in M14."""
+        return q.launch_mode(conn, datetime.now(UTC))
 
     @api.get("/cases/{case_id}")
     def case(case_id: str, conn: Conn) -> dict[str, Any]:

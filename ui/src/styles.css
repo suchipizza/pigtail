@@ -147,8 +147,8 @@ table.data caption { text-align: left; color: var(--text-secondary); padding: 8p
 .pill-closed { background: var(--pill-closed); }
 .pill-pre_launch { background: var(--pill-pre); }
 
-.live-strip ul { list-style: none; padding: 0; margin: 0; display: flex; gap: 10px; overflow-x: auto; }
-.live-card {
+.launch-strip ul { list-style: none; padding: 0; margin: 0; display: flex; gap: 10px; overflow-x: auto; }
+.launch-card {
   display: grid;
   gap: 2px;
   min-width: 200px;
@@ -156,11 +156,9 @@ table.data caption { text-align: left; color: var(--text-secondary); padding: 8p
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-1);
-  text-decoration: none;
   color: var(--text-primary);
 }
-.live-name { font-weight: 600; }
-.live-metric { font-variant-numeric: tabular-nums; }
+.launch-name { font-weight: 600; }
 
 .caveat {
   border-left: 3px solid var(--banner-border);

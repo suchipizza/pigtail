@@ -395,7 +395,7 @@ How to reverse: `archive/global-collection` has the removed code.
 
 ## ADR-052 — Burst rule: no phantom re-firing after a single-day spike (2026-09-26; before any brief data)
 Context: The M11 verifier found that, under codebook v0.3.0 §3.2, a single-day spike is always marked `multi_peak=True`. The burst ends on the next calm day, but that day's 48-hour window still contains the spike, so it fires again, and the merge rule then joins the two into a "multi-peak" burst.
-Decision: A firing whose 48-hour window starts on a day inside the previous burst (d−1 ≤ that burst's end) is ignored. It is neither a new burst nor a merge. Codebook becomes v0.3.1 (a patch: it corrects the rule's intent) and `analysis-params` stays v1.0.0 (no parameter changes). A regression test covers the single-spike case.
+Decision: A firing whose 48-hour window starts on or before the previous burst's **last day** (d−1 ≤ last burst day; a burst's "end" is the first calm day after it) is ignored. It is neither a new burst nor a merge. Codebook becomes v0.3.1 (a patch: it corrects the rule's intent) and `analysis-params` stays v1.0.0 (no parameter changes). A regression test covers the single-spike case.
 How to reverse: Codebook patch + ADR.
 
 ## ADR-053 — Brief budget model and success fallbacks (owner decisions, 2026-09-26)

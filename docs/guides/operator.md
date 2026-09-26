@@ -10,6 +10,13 @@
 > `purpose_limitation`). Data kept in the remaining tables (repos, cases, evidence, per-repo star
 > history, per-repo events, HN tables) stays as a cache briefs can reuse. Briefs arrive in M12,
 > brief-scoped discovery in M13, the launchd schedule and launch mode in M14.
+>
+> To see what that cache holds, run `uv run pigtail report inventory` (a Markdown table) or
+> `uv run pigtail report inventory --json`: per kept table, the row count, the number of distinct
+> repos and the date range (UTC days), plus the data version (latest migration) and the code
+> commit. It prints counts only (no names, handles, URLs or ids), writes nothing and records no
+> run. After your first brief's shortlist is final, data no brief references is deleted
+> (purpose limitation, ADR-047.6).
 
 ## Your duties as controller (CB-21)
 If you run pigtail, you are the controller of the personal data it collects on your host, not the
@@ -295,8 +302,10 @@ Read the log with SQL, e.g. `SELECT at, event, evidence_id FROM ui_audit_log ORD
 
 **What the pages show.**
 - `/cases`: filters (status, opened date range), sort by recency or by the 48 h stars recorded
-  when the case was opened (older cases, opened by the detection removed in M11), and a "Live
-  now" strip of open cases.
+  when the case was opened (older cases, opened by the detection removed in M11), and a
+  "Launch mode" strip listing the tracked projects and briefs whose launch-mode window is active
+  now (`launch_mode_window`, read through `GET /api/launch-mode`; each links to the project's
+  open case, if any). Windows are declared or detected from M14; until then the strip is empty.
 - `/cases/:id`: the detection metrics recorded for older cases (shown as recorded: the hourly
   data behind them was dropped in M11), the **coverage caveat** (stars come from the
   star-history endpoint, net of un-stars, endpoint day labels; days never fetched are unknown,
