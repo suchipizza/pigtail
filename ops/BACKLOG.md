@@ -1,4 +1,22 @@
 # Backlog
+v2 plan (ADR-047/048/049). Format: `- [ ] [ID] title — depends on — acceptance`. The v1 backlog below is kept as history; its open items are superseded unless listed here.
+
+## Now
+- [ ] [M11] Re-scope cleanup — none — tag on origin ✓ (archive/global-collection); remove the watch list, all-GitHub search sweeps, global breakout detection, holdout split/guard and settle-lag code + their scheduler jobs and CLI; forward-only migration dropping their tables; HN poller repurposed (ADR-049.1); withdrawal amendments pushed (ADR-049.5); operator/developer guides, codebook, .claude/agents updated to v2 scope; CI green; verifier sign-off
+- [ ] [M12] Research brief v1 (D7) — M11 — create/edit briefs (form + YAML), validation, versions + diff, multiple briefs, cost estimate, hard stop at budget (tested), cache reuse, brief files private (scan blocks them); example brief in docs
+- [ ] [OWNER] Owner's brief `data/briefs/owner-brief.v1.yaml` (private): open questions — GitHub links for the seed projects, minimums default, budget
+
+## Next
+- [ ] [M13] Discovery, relevance filter, shortlist — M12, GITHUB_TOKEN — Trendshift terms audit; logged candidates, verdicts, reasons; precision; deterministic selection; balance diagnostics; sensitivity check
+- [ ] [M14] Batch runs, launch mode, ops (launchd, Docker only during runs, FileVault check in doctor) — M12, M13, H1
+- [ ] [M15] Pilot: first end-to-end neighbourhood report on the owner's brief — M13, M14, H1, H3, H5, CB-12 (ADR-049.2)
+- [ ] [M16] Plan generator (D3) — M15
+- [ ] [M17] Project analyzer and tracker (D5) — M14, M15
+- [ ] [M18] Install for any user + v1 release (compliance template with safe defaults, ADR-047.9) — M15–M17, H2, H4
+- [ ] [M19] v2 execution engine (D4) — M18, H5
+- [ ] [DEC-10] Owner decision: matched-set balance (SMD < 0.25) as a gate vs a reported target with labels (ADR-049 item 10)
+
+## v1 backlog (history)
 Seeded by the orchestrator in M0 from docs/WORK_ORDER.md §4. Format: `- [ ] [ID] title — req IDs — depends on — acceptance`.
 Priority order: top = next. `[x]` done · `[~]` in progress · `[!]` blocked (diagnosis inline).
 

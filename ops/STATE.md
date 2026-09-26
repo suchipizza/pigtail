@@ -2,20 +2,19 @@ status: ACTIVE
 # ACTIVE | BLOCKED (every remaining task waits on a human gate) | DONE
 
 milestone_focus: re-plan per ADR-047/048 → first end-to-end neighbourhood report on the owner's project
-updated: 2026-09-25
+updated: 2026-09-26
 resumed: 2026-09-26 after CR-001/CR-002 (ADR-047/048); work locally, no server
 
-| Track | Milestone | Status | Blocker |
-|---|---|---|---|
-| A capture | M1 | built: GH Archive scan (control), HN rank poller, HN connectors (held), detection v1 on GitHub API (ADR-032/037), privacy controls, scheduler, D1 preview. Not live: no host, no GITHUB_TOKEN | H1 (host, GITHUB_TOKEN); ADR-022 holds; CB-12 notice details |
-| B research | M2 | literature review + source matrix **verified (PASS)**; M2-T3 fake-star reproduction pending | M1 GH Archive pipeline |
-| C methodology | M3 | **accepted** (verifier PASS round 4, 2026-09-25) | — |
-| C methodology | M4 | method set verified (codebook v0.2.0, pilot + amendments 1–2, forecasting + amendments 1–4, threshold calibration; PASS 2026-09-25); pilot not started | ADR-022 controls (CB-12) + HN person-level sources; case pool needs live detection (GITHUB_TOKEN); H1 training-off or API key; DST check 2026-11-01 |
-| D engine | M0 | **accepted** (verifier PASS 2026-09-25) | — |
-| D engine | M5, M8 | not started | G1 / G2 |
-| E analysis | M6, M7 | not started | M5 |
-| D engine (v2) | M10 | not started | M9 |
+| Milestone | Status | Blocker |
+|---|---|---|
+| M0, M2, M3 | accepted (v1) | — |
+| M11 Re-scope cleanup | next | — |
+| M12 Research brief v1 | next | M11 |
+| M13 Discovery + shortlist | not started | M12, GITHUB_TOKEN |
+| M14 Batch runs + launch mode | not started | M12, M13, H1 (FileVault) |
+| M15 Pilot = owner's neighbourhood report | not started | M13, M14, CB-12, H3, H5 |
+| M16–M19 | not started | M15+ |
 
-Gates: G1 pending · G2 pending
+Gates: G1/G2 retired (ADR-047); per-report quality rules instead
 Human gates: H1 OPEN, H2 OPEN (both raised 2026-09-25, default action on 2026-10-09)
 Interim holds: ADR-022 (no production capture until the CB controls exist)
