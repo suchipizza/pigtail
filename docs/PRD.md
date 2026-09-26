@@ -1,183 +1,245 @@
 # pigtail — Product Requirements Document
 
-Version 1.0 · Owner: Noémie · Builders: autonomous Claude Code agents (see `WORK_ORDER.md`)
+Version 2.0 · Owner: Noémie (also pigtail's first user) · Builders: autonomous Claude Code agents (see `WORK_ORDER.md`)
 Repository: https://github.com/suchipizza/pigtail (public, MIT)
-Source plan: `docs/PLAN.md`. Where this PRD and the plan disagree, this PRD wins. The plan explains the rationale, and this PRD defines what gets built.
-User-facing deliverables (the pages and their acceptance criteria): `docs/DELIVERABLES.md`. The requirements below exist to deliver D1–D6.
+Source plan: `docs/PLAN.md` (background only). Where this PRD and the plan disagree, this PRD wins. Where this PRD and an ADR in `ops/DECISIONS.md` disagree, the later-dated ADR wins until this PRD is updated.
+User-facing deliverables (the pages and their acceptance criteria): `docs/DELIVERABLES.md`. The requirements below exist to deliver D1–D7.
+
+## Change history
+
+| Version | Date | Change |
+|---|---|---|
+| 2.0 | 2026-09-26 | Re-scoped to brief-driven neighbourhood analysis (ADR-047, owner change request CR-002) and to batch runs with launch mode instead of continuous capture (ADR-048, CR-001). New: the research brief (F18), batch runs and launch mode (F19), neighbourhood patterns (F20). Cut: Tier 1 at scale, the global 24-month backfill, global breakout detection, the global mechanism library and its promotion rule, the §9.1 system tests, and the causal toolkit beyond event studies and winner/loser contrasts. §5.3 amended (ADR-047.2). Retired requirement IDs are listed where they stood and are never reused. |
+| 1.0 | 2026-09-25 | Global collection and mechanism-library scope. The full text is in git history (for example `git show archive/global-collection:docs/PRD.md`); the tag `archive/global-collection` marks the code state before the re-scope. |
 
 ---
 
 ## 1. Summary
 
-pigtail is an open-source, self-hostable system that reconstructs **how and why** open-source projects grow. It joins GitHub event timelines to external evidence (Hacker News, Reddit, Bluesky, X, YouTube, blogs, package registries and Chinese platforms), stores a snapshot for every claim, and turns the cases into a library of **growth mechanisms tested against matched losers**. On top of the library, a **launch planner** and **growth engine** recommend and support a launch strategy for any open-source project profile.
+pigtail is an open-source, self-hostable **method** for learning how recent, relevant open-source launches grew, and why. A user describes their own project in a **research brief**. pigtail finds the projects in that neighbourhood, lets the user check the shortlist, sorts the candidates by the user's own success definition, and picks 15–25 winners and 15–25 matched losers. It then reconstructs each case from GitHub timelines and external evidence (Hacker News, Bluesky, blogs, package registries and other cleared sources), stores a snapshot for every claim, and produces a **neighbourhood report**: the patterns that separate winners from their matched losers, each with n, the loser contrast and the counterexamples, plus what has been trending in the last 3–6 months. A **plan generator** turns the report into a launch plan, and **launch mode** follows a launch closely while it happens.
+
+**pigtail ships a method, not data.** Each user runs their own instance, with their own credentials, on their own machine. Nothing is shared or collected centrally. The owner is the first user; nothing in the code, defaults or fixtures is specific to her or her project.
 
 ## 2. Problem
 
-Advice on growing open-source projects is mostly anecdotal and suffers from survivorship bias: it is written by winners, ignores the losers who did the same things, and rarely cites evidence. Existing tools (GH Archive, OSS Insight, star-history, Trendshift) show *who* grew and *when*, but not *why*, and not whether the same move fails for others.
+Advice on growing open-source projects is mostly anecdotal and suffers from survivorship bias: it is written by winners, ignores the losers who did the same things, and rarely cites evidence. Existing tools (GH Archive, OSS Insight, star-history, Trendshift) show *who* grew and *when*, but not *why*, and not whether the same move failed for comparable projects. Generic advice also ignores the neighbourhood: what worked for a JavaScript UI kit says little about a Rust database driver.
 
 ## 3. Users
 
-The system is general-purpose. No user's situation is privileged in the design, defaults or evaluation.
+Any user can run pigtail on their own project's neighbourhood. No user's situation is privileged in the design, defaults or evaluation.
 
 | User | Job to be done |
 |---|---|
-| OSS maintainer or founder (any audience size, from zero to large) | "Given my project, which launch mechanisms are likely to work, what do I need to prepare, and in what order?" |
-| DevRel / GTM team at an open-source company | "Why did competitor X break out? What should our next launch look like? Is our momentum decaying?" |
-| Researcher | "Give me a reproducible dataset and codebook for studying OSS diffusion." |
-| Operator (self-hoster) | "Run the whole stack on my own infrastructure, with my own credentials, and keep it compliant." |
+| OSS maintainer or founder (any audience size, from zero to large) | "Given my project and my definition of success, which recent projects like mine did well, which comparable ones didn't, what separated them, and what should I prepare, in what order?" |
+| DevRel / GTM team at an open-source company | "Why did competitor X break out, and did the same moves fail for others in our space? What should our next launch look like? Is our momentum decaying?" |
+| Researcher | "Give me a reproducible method, codebook and schemas I can run on a neighbourhood I choose." |
+| Operator (every user is one) | "Run it on my own machine, with my own credentials and budget, and keep it compliant as the controller of my own instance." |
 
-The owner's own launches (currently 2 planned) are **cases like any other**. They are valuable only because the intervention is controlled and pre-registered, not because the tool is tuned for them.
+The owner is the first user. Her project's neighbourhood is the pilot (§9), and her launches are cases like any other: valuable because the intervention is declared and predictions are locked in advance, not because the tool is tuned for them.
 
 ## 4. Goals and non-goals
 
-**Goals**
-- G1: An evidence-backed mechanism library, where every mechanism is tested against matched losers and every claim is linked to a snapshot.
-- G2: Automated profiles for ≥ 5,000 repos, semi-automated evidence for ≥ 300, and deep forensics for ≥ 30 matched winner/loser pairs.
-- G3: Continuous live detection that opens a case within 24 h of a breakout and starts capture within 48 h.
-- G4: A launch planner that produces a ranked, conditional plan for **any** project profile, with confidence levels and the evidence behind each recommendation.
-- G5: A fully open-source release: code, codebook, schemas, UI and docs, with optional aggregate findings.
+**Goals.** Goal IDs are not reused; retired goals are listed so that references in older documents stay resolvable.
+- ~~G1: A global evidence-backed mechanism library.~~ **Retired** (ADR-047.3). Replaced by G6.
+- ~~G2: Automated profiles for ≥ 5,000 repos, semi-automated evidence for ≥ 300, deep forensics for ≥ 30 matched pairs.~~ **Retired** (ADR-047.3: Tier 1 at scale and the global backfill are cut).
+- ~~G3: Continuous live detection within 24 h of any breakout on GitHub.~~ **Retired** (ADR-047.6, ADR-048). Launch mode (R19.4) replaces it for tracked projects.
+- G4 (amended): A plan generator that produces a ranked, conditional plan for **any user's brief**, with the evidence behind each recommendation, built from that brief's neighbourhood report.
+- G5 (amended): A fully open-source release of the method: code, codebook, schemas, UI, docs, an example brief and a compliance template. No data is shipped.
+- G6 (new): For any research brief, a neighbourhood report in which every pattern shows n, its loser contrast and its counterexamples, and every claim links to a snapshot.
+- G7 (new): A new user installs pigtail and starts a first brief in under an hour, with a cost estimate before anything is spent.
 
 **Non-goals**
-- No fake engagement, star-buying, astroturfing, sockpuppets, vote manipulation or automated mass posting. The growth engine never posts on a platform without explicit per-post human approval.
+- No fake engagement, star-buying, astroturfing, sockpuppets, vote manipulation or automated mass posting. The execution engine (D4) never posts on a platform without explicit per-post human approval.
 - No public release of person-level data, raw snapshots or spread graphs that identify individuals.
-- Not a general social-listening SaaS, and not a hosted multi-tenant service in v1.
+- No central service: pigtail doesn't collect, pool or receive any user's briefs, data, credentials or usage. Not a hosted multi-tenant service.
+- No global collection: no watch list of all GitHub, no all-GitHub search sweeps, no global breakout detection, no global mechanism library (ADR-047.3, ADR-047.6).
 - No circumvention of rate limits, paywalls, logins or platform terms.
 
 ## 5. Principles (binding)
 
 1. **Snapshot or drop.** Every claim references an evidence record with a content hash. A claim without one is rejected by the pipeline, not flagged.
-2. **Losers count.** A mechanism is promoted only if it is observed less often among matched losers, or its effect is visible against them (§9.3).
-3. **Multiple outcomes, no composite score.** Attention, adoption, community and business are scored separately, and each value carries a verification tag.
-4. **Reuse the plumbing, build the analysis.** Use existing data sources wherever their terms allow; build only what fills a gap.
-5. **Replayable.** Any finding can be regenerated from the stored evidence plus versioned code, codebook and prompts.
-6. **Generality.** Every stratum (category, audience size, geography, business model, backing, launch type, outcome) is covered, and results are reported per stratum.
+2. **Losers count.** No pattern is reported from winners alone. Every neighbourhood pattern shows how often it occurred among the brief's matched losers, with n on both sides, and lists its counterexamples (F20).
+3. **Multiple outcomes; results always per dimension** (amended by ADR-047.2). Attention, adoption, community and business are scored separately, and each value carries a verification tag. A brief's success definition is one primary dimension plus minimum thresholds on the others. A composite (weights, an advanced option only) may be used to **rank candidates within a brief**, but results are always shown per dimension, and every report includes a sensitivity check of its winner set (R4.9).
+4. **Reuse the plumbing, build the analysis.** Use existing data sources wherever their terms allow; build only what fills a gap. Data already collected is a cache that briefs reuse.
+5. **Replayable.** Any finding can be regenerated from the stored evidence plus versioned code, codebook, prompts **and brief version**. Every report records the brief version, the shortlist decisions and the data version (R18.6).
+6. **Works for any user's neighbourhood** (replaces "Generality"). Nothing in the code, defaults, prompts, fixtures or evaluation is specific to the owner or her project. Field-specific knowledge enters only through a brief. The example brief shipped in the repo is synthetic.
+7. **A method, not data; your instance, your credentials** (new; ADR-047). Each user runs their own instance with their own credentials and is the controller of their own data. Briefs, collected data and reports stay in that instance's private storage and are never pushed to the public repo or sent to any central service.
 
 ## 6. Functional requirements
 
-Requirement IDs are referenced by the work order and by tests.
+Requirement IDs are referenced by the work order, by tests and by the backlog. Where a requirement survives, its ID is kept (marked "amended" if its text changed). Retired IDs are listed with their reason and are never reused. New requirements get new IDs.
 
-### F1 Capture layer (runs continuously from the first week)
-- R1.1 Scan GH Archive hourly or daily for star and fork velocity, and open a `case` when a repo crosses a configurable threshold (default: ≥ 3σ above its own 30-day baseline **and** ≥ 100 net stars within 48 h, after bot filtering).
-- R1.2 For open cases, search every enabled source for mentions of the repo (URL, name, owner) and capture a snapshot within 48 h: raw API JSON where available, rendered HTML or screenshot otherwise, plus a Wayback Machine save request where that is permitted.
-- R1.3 Maintain a watchlist of **announced launches** (Product Hunt upcoming, "launching on…" posts, launch-week announcements) and capture their preparation phase before launch day.
+### F1 Capture layer (runs inside batch runs; see F19)
+- ~~R1.1 Global GH Archive velocity scan and case opening.~~ **Retired** (ADR-047.6: global breakout detection is deleted; ADR-047.8: GH Archive is discovery-only). Burst detection for tracked projects is R19.5.
+- R1.2 (amended) For every case in a brief's winner/loser set and every tracked project, search each enabled source for mentions of the repo (URL, name, owner) at every run, and snapshot what is found at the run that first sees it: raw API JSON where available, rendered HTML or screenshot otherwise, plus a Wayback Machine save request where that is permitted. The evidence-decay study (R19.8) measures how much this cadence loses.
+- ~~R1.3 Global watchlist of announced launches.~~ **Retired**. Its purpose was the prospective test (§9.1 v1, cut by ADR-047.3). A user declares their own launch through launch mode (R19.4), and launch-mode cases remain the prospective set for any later evaluation (ADR-048.4).
 - R1.4 Snapshot storage is content-addressed (SHA-256), and each snapshot is stored with source, URL, fetch time, collector version and terms basis.
-- R1.5 Deletion sync: re-check sources that impose deletion obligations on a schedule; when content has been removed upstream, drop the raw copy and keep the hash plus coded facts (§10).
+- R1.5 Deletion sync: re-check sources that impose deletion obligations at every scheduled run (and at least as often as the source's obligation requires); when content has been removed upstream, drop the raw copy and keep the hash plus coded facts (§10).
 
 ### F2 Source connectors
 - R2.1 A connector interface with rate limiting, retries, terms metadata, a per-source enable flag and cost accounting.
-- R2.2 Connectors are built in the priority order set by the Phase 1 source matrix. The minimum set for v1 is GH Archive / BigQuery, GitHub REST/GraphQL, HN (Algolia + Firebase), Reddit (if terms permit), Bluesky, package registries (PyPI BigQuery, npm, crates.io, Homebrew, Docker Hub), deps.dev and the Wayback Machine. Stretch goals: YouTube, X (if affordable), Product Hunt, Lobste.rs, dev.to, V2EX, Juejin, Zhihu and Bilibili.
+- R2.2 (amended; ADR-047.8, ADR-010) Minimum set for v2:
+  - **GitHub REST/GraphQL** for repo metadata, search, topics, releases, issues, PRs and contributors. Stars come from the **star-history endpoint's daily net counts** (ADR-032.3). Per-user star timestamps are not available: GitHub restricted stargazer lists to admins and collaborators on 2026-06-30.
+  - **GH Archive / BigQuery**, restricted to the brief's topics and used for **discovery signals only**. It has been close to push-events-only since mid-2025 and is never a source for stars, forks, issues or PRs.
+  - **Hacker News**: the front-page rank poller (project-level), Show HN discovery, and mention search subject to ADR-022's person-level holds.
+  - **Awesome-lists** (read through the GitHub API) for discovery.
+  - Bluesky (subject to ADR-022), package registries (PyPI BigQuery, npm, crates.io, Homebrew, Docker Hub), deps.dev, and the Wayback Machine (off until H2 answers).
+  - **Trendshift** as an optional, per-user discovery source (ADR-047.1), enabled only once its terms are cleared in the source matrix (ADR-010).
+  - Sources recorded as gaps in the source matrix (Reddit, YouTube, X, Product Hunt and others) stay gaps until their clearance changes (R2.3).
 - R2.3 A source that can't be used under its terms is recorded as a documented gap, never scraped around.
+- R2.4 (new) Every connector uses **the operator's own credentials**, read from their own environment or secrets manager. pigtail ships no credentials, no shared keys and no proxy, and connectors send nothing to any pigtail-operated endpoint.
 
 ### F3 Outcome scoring
-- R3.1 Score each repo at T+7, T+30, T+90 and T+365, where T is the first burst or the declared launch date.
-- R3.2 Metrics per dimension: see §8. Each value carries `verified | self_reported | estimated` plus its source.
-- R3.3 Fake-star filtering reproduces a published method (StarScout or its successor, to be confirmed in the literature review). Both the raw and the filtered series are stored.
-- R3.4 Normalize by category and quarterly cohort.
-- R3.5 Assign outcome classes (§8.2) with versioned thresholds.
+- R3.1 Score each repo at T+7, T+30, T+90 and T+365, where T follows ADR-015 (declared launch or burst onset). A horizon that hasn't been reached at run time is `pending`, never imputed.
+- R3.2 Metrics per dimension: see §8.1. Each value carries `verified | self_reported | estimated | unknown` (ADR-014) plus its source.
+- R3.3 (amended) Fake-star filtering reproduces a published method (StarScout) **where the data allows it**. The filtered series needs stargazer identities, which exist only from per-repo event polling onwards (ADR-032.3, ADR-036); elsewhere it is `unknown`. Raw and filtered series are both stored wherever they can be computed, and every window reports which series it used.
+- R3.4 (amended) Percentiles used in a success definition are computed **within the brief's reference population** (its final shortlist), and the report states that population's n. The global normalization cells of ADR-018 don't apply inside a brief.
+- ~~R3.5 Global outcome classes with versioned thresholds.~~ **Retired as the way winners and losers are chosen** (ADR-047.1–2): a brief's success definition (R18.8, §8.2) does this instead.
 
-### F4 Candidate universe and panel
-- R4.1 Build the universe from repos that crossed the velocity threshold in the trailing 24 months, plus repos with launch signals (Show HN, Product Hunt, a first burst) that did not win.
-- R4.2 Stratify by category, business model, founder audience size, geography/language, launch type, repo age at launch, backing and outcome class. Report how many cases fall in each cell.
-- R4.3 Matched-loser selection: nearest-neighbour matching on launch-signal magnitude, category, launch quarter, repo age, founder audience bucket and language. Report balance diagnostics for every match.
-- R4.4 Assign tiers: Tier 1 ≥ 5,000; Tier 2 ≥ 300; Tier 3 ≥ 30 matched pairs.
+### F4 Candidate discovery, shortlist and matched sets (per brief)
+- ~~R4.1 Global universe of repos crossing the velocity threshold in the trailing 24 months.~~ **Retired** (ADR-047.3).
+- ~~R4.2 Global stratification with case counts per cell.~~ **Retired** (ADR-047.3). A brief's field boundaries (R18.1) define its population.
+- R4.3 (amended) Matched-loser selection within the brief's shortlist: nearest-neighbour matching on launch-signal magnitude, launch quarter, repo age at launch, founder audience bucket and language. Report balance diagnostics for every match (§9.2).
+- ~~R4.4 Tier assignment (Tier 1 ≥ 5,000; Tier 2 ≥ 300; Tier 3 ≥ 30 pairs).~~ **Retired** (ADR-047.3).
+- R4.5 (new) **Candidate discovery** from the brief's expanded description (R18.7) and time window: GitHub search and topics, Show HN, awesome-lists, Trendshift (optional, per user, once cleared), and GH Archive restricted to the brief's topics (discovery signals only). Each candidate records which source found it.
+- R4.6 (new) **LLM relevance filter.** Every candidate is judged against a written rubric derived from the brief (field boundaries, target users, problem). The verdict and the reason are logged per candidate, with the rubric version, prompt version and model.
+- R4.7 (new) **Shortlist review.** The user accepts, rejects or adds candidates. Every decision is logged with the brief version and a reason. Relevance-filter **precision** (the share of filter-accepted candidates the reviewer keeps) is logged per brief version; the target is **≥ 80%**. For the pilot, the owner or the verifier skims the shortlist once (WORK_ORDER H3). A precision below target is reported, never hidden.
+- R4.8 (new) **Outcome sort and selection.** The final shortlist is sorted by the brief's success definition (§8.2). pigtail selects the brief's number of winners (default 20, range 15–25) and the same number of matched losers (default 20, range 15–25; R4.3). The selection is deterministic for a given brief version and data version.
+- R4.9 (new) **Sensitivity check of the winner set.** The winner set is recomputed under reasonable alternative success definitions (for example, each other dimension as primary, and thresholds one band looser and tighter). The report states how much the set changes and flags every case whose winner or loser role depends on the definition.
 
-### F5 Case forensics (Tier 2 and Tier 3)
+### F5 Case forensics (the brief's winners and losers, and tracked projects)
 - R5.1 Evidence inventory: every evidence item with its source, date, reliability score and snapshot.
-- R5.2 Timeline: events classified as `prep | launch | burst | quiet | pivot | relaunch`, each with supporting evidence.
-- R5.3 Spread graph: nodes are accounts, publications or communities (pseudonymized); edges are `published | redistributed | cited | replied` with an evidence level. An edge is `supported` only above the codebook's evidence threshold.
+- R5.2 Timeline: events classified as `prep | launch | burst | quiet | pivot | relaunch`, each with supporting evidence (codebook v0.2.0 two-layer rule, ADR-024.1, ADR-039).
+- R5.3 Spread graph: nodes are publications or communities; account nodes are pseudonymized and stay disabled until LQ-8 is answered (ADR-022, ADR-024.8). Edges are `published | redistributed | cited | replied` with an evidence level. An edge is `supported` only above the codebook's evidence threshold.
 - R5.4 Asset gallery: the images, GIFs, demos, benchmark claims, titles, phrases and links that spread, each classified with the codebook's asset taxonomy.
 - R5.5 Burst-to-trigger attribution: for each burst, rank candidate triggers by timing and reach, with a confidence level.
 
 ### F6 Codebook and adaptive modules
-- R6.1 The core codebook defines evidence types, the reliability scale, event taxonomy, edge evidence thresholds, asset categories and the mechanism card schema.
+- R6.1 (amended) The core codebook defines evidence types, the reliability scale, event taxonomy, edge evidence thresholds, asset categories and the **neighbourhood pattern** schema (F20; formerly the mechanism card schema).
 - R6.2 Modules switch on by project profile: AI/hype-cycle, B2B open-source SaaS, the Chinese ecosystem, CLI/devtools, corporate-backed, relaunch/pivot.
 - R6.3 The codebook is versioned (semver) with a changelog. Every coded item records the codebook version used.
 
 ### F7 Extraction pipeline
 - R7.1 LLM extraction produces structured records that must cite `evidence_id`s. The validator rejects any claim whose citation doesn't exist or whose quoted span isn't found in the snapshot.
-- R7.2 Double coding: two independent extraction runs (different prompts or models), with a third adjudicator run on disagreements. Log agreement statistics (Krippendorff's α per field).
-- R7.3 Review queue: low-confidence items, disagreements and a random audit sample go to a queue. The queue can be worked by a human, by a separate verifier agent, or both (see work order §5).
+- R7.2 Double coding of **each brief's deep forensics**: two independent extraction runs (different prompts or models), with a third adjudicator run on disagreements. Log agreement statistics (Krippendorff's α per field).
+- R7.3 Review queue: low-confidence items, disagreements and a random audit sample go to a queue. The queue can be worked by the user, by a separate verifier agent, or both.
 - R7.4 Prompts, model IDs and parameters are versioned and stored with every output.
+- R7.5 (new; ADR-047.7) Agreement is shown **per field** in every report. Findings that rest on a field with α < 0.70 are labelled **"low reliability"**, not dropped. Findings coded only by LLMs are labelled "LLM-coded, not human-validated".
 
-### F8 Causal analysis toolkit
+### F8 Analysis toolkit (event studies and winner/loser contrasts only)
 - R8.1 Event studies of star and download velocity around trigger events (front page, influencer post, newsletter, release).
-- R8.2 Matched winner/loser comparisons with pre-registered tests.
-- R8.3 Difference-in-differences where a natural comparison group exists.
-- R8.4 Survival analysis of momentum decay, used to detect saturation.
-- R8.5 Every analysis is a reproducible notebook or script that writes to `reports/`, with its data version pinned.
+- R8.2 (amended) Winner/loser contrasts within a brief, with the tests fixed in the method version before the brief's outcome sort. For the pilot they are pre-registered (WORK_ORDER §6).
+- ~~R8.3 Difference-in-differences.~~ **Retired** (ADR-047.3).
+- ~~R8.4 Survival analysis of momentum decay.~~ **Retired** (ADR-047.3). D5's descriptive burst/decay/stable status (R17.2) doesn't depend on it.
+- R8.5 Every analysis is a reproducible script that writes to the instance's report store, with the brief version and data version pinned.
 
-### F9 Mechanism library
-- R9.1 Each mechanism card records: name, description, why people took part and shared, preconditions, required assets, typical sequence and timing, outcome dimensions affected, supporting cases, contradicting cases, loser contrast result, effect estimate with uncertainty, confidence (`low | medium | high`), applicable strata, saturation trend, and the version history.
-- R9.2 Promotion rule: §9.3. Cards that don't qualify stay as `candidate`.
-- R9.3 Each new case either adds support to a card or contradicts it, and the card's history records which.
+### F9 Mechanism library — **retired** (ADR-047.3)
+- ~~R9.1 Mechanism card fields.~~ ~~R9.2 Promotion rule (§9.3 v1).~~ ~~R9.3 Global card history across cases.~~ All three are retired. Their successor is F20 (neighbourhood patterns). The seed candidate cards in `docs/methodology/mechanisms/` remain useful as seed codes for patterns.
 
-### F10 Launch planner and adaptation briefs (deliverable D3)
-- R10.1 Input: a project profile (category, audience size, business model, geography, stage, available assets, constraints such as time budget and channels to avoid). The profile can be auto-filled from a GitHub URL through F17.
-- R10.2 Output: ranked applicable mechanisms, unmet preconditions, required assets, a proposed sequence and timing, expected effects with uncertainty, and the evidence behind each item. Show "insufficient evidence for this profile" rather than extrapolating.
-- R10.3 Adaptation brief per mechanism: how to test it on the given product, and what result would falsify it.
-- R10.4 Show similar projects (nearest winners **and** their matched losers) together with why they are similar.
-- R10.5 Show trending opportunities from F16 in a separate section labelled experimental. They never appear among the validated recommendations.
+### F10 Plan generator and adaptation notes (deliverable D3)
+- R10.1 (amended) Input: a brief and a version of its neighbourhood report. The project profile (category, audience per channel, business model, geography, stage, available assets, constraints such as time budget and channels to avoid) comes from the brief and can be auto-filled from a GitHub URL through F17.
+- R10.2 (amended) Output: the report's patterns ranked by relevance to the brief's success definition, unmet preconditions, required assets, a proposed sequence and timing, and the evidence behind each item, with each pattern's n, loser contrast, counterexamples and reliability labels. Show "insufficient evidence in this neighbourhood" rather than extrapolating.
+- R10.3 (amended) **Adaptation note** per pattern (renamed from "adaptation brief" to avoid confusion with the research brief): how to test it on the user's project, and what result would falsify it.
+- R10.4 (amended) Show similar projects: the brief's nearest winners **and** their matched losers, with why they are similar.
+- R10.5 (amended) Show the report's trending section (F16) separately, labelled experimental. Trends never appear among the pattern-based recommendations.
 
 ### F11 Experiment registry
-- R11.1 Pre-register predictions for any tracked launch (owner launches, other users' launches, and announced third-party launches from R1.3): mechanism → expected effect → window → probability.
+- R11.1 (amended) Pre-register predictions for any launch in launch mode (R19.4), the user's own included: pattern → expected effect → window → probability.
 - R11.2 Predictions are locked (hashed and timestamped) before launch, and scored afterwards (Brier score, calibration).
 
-### F12 Growth engine (execution support; deliverable D4, phase v2)
-- R12.1 Asset generation drafts (titles, READMEs, launch posts, demo scripts, comparison tables), generated from mechanism cards.
+### F12 Execution support (deliverable D4, phase v2)
+- R12.1 (amended) Asset generation drafts (titles, READMEs, launch posts, demo scripts, comparison tables), generated from the plan's patterns.
 - R12.2 A channel schedule with reminders. Posting always requires human approval of each post; there is no auto-posting.
-- R12.3 Post-launch monitoring, with alerts to amplify, hold, relaunch or pivot based on decay models.
-- R12.4 Only mechanisms that passed §9.3 are used.
+- R12.3 (amended) Post-launch monitoring through launch mode (R19.4), with alerts to amplify, hold, relaunch or pivot.
+- R12.4 (amended) Only patterns from a neighbourhood report are used, and each generated asset shows the pattern's n, loser contrast and reliability labels.
 
 ### F13 UI
-- R13.1 The pages and acceptance criteria are defined in `docs/DELIVERABLES.md`:
+- R13.1 (amended) The pages and acceptance criteria are defined in `docs/DELIVERABLES.md`:
+  - `/briefs` (D7, new): create, edit, version and run briefs; review shortlists.
   - `/cases` and `/cases/:id` (D1)
-  - `/insights` (D2)
+  - `/insights` (D2): the neighbourhood report, one per brief
   - `/plan` (D3)
   - `/execute` (D4, v2)
   - `/analyze` (D5)
   - `/admin` and `/settings` (D6)
 - R13.2 Every displayed claim can be traced to its evidence, and the snapshot opens with one click.
-- R13.3 The app is private by default, behind operator authentication. An optional public mode serves only aggregate, anonymized D2 content.
+- R13.3 The app is private by default, behind operator authentication. An optional public mode serves only aggregate, anonymized content from a neighbourhood report, and only after the user has done their own legal check (for the owner's instance: H2 and H4).
 
 ### F14 CLI and API
-- R14.1 A CLI for every pipeline stage (`pigtail capture|score|panel|extract|analyze|plan|report`).
+- R14.1 (amended) A CLI for every pipeline stage: `pigtail brief|run|capture|score|extract|analyze|plan|report` (plus the existing `privacy`, `retention`, `doctor`, `health`, `alerts` and `llm` commands).
 - R14.2 A read-only HTTP API behind the UI.
 
 ### F15 LLM backend switch
-- R15.1 All LLM calls — the pipeline, extraction, planner and asset drafting — go through a single `LLMClient` interface with two backends, selected by `LLM_BACKEND=subscription|api` (default: `subscription`). It is also shown in `/settings`.
+- R15.1 All LLM calls — discovery expansion, relevance filter, extraction, plan generation and asset drafting — go through a single `LLMClient` interface with two backends, selected by `LLM_BACKEND=subscription|api` (default: `subscription`). It is also shown in `/settings`.
 - R15.2 The `subscription` backend calls the operator's locally installed, **official** Claude Code CLI in headless mode (`claude -p`, JSON output). It authenticates through Anthropic's own login flow or through a `CLAUDE_CODE_OAUTH_TOKEN` that the operator generated with `claude setup-token` and placed in their own environment.
   - pigtail never implements its own OAuth, and never collects, stores, proxies or transmits Claude credentials.
   - `ANTHROPIC_API_KEY` is removed from the subprocess environment, because it would override the subscription.
   - Bare mode is not used, because it ignores the OAuth token.
-- R15.3 The `api` backend uses the Anthropic SDK with `ANTHROPIC_API_KEY`. It is the recommended backend for shared or hosted deployments, and for high-volume runs.
+- R15.3 The `api` backend uses the Anthropic SDK with the operator's own `ANTHROPIC_API_KEY`. It is recommended for high-volume runs.
 - R15.4 Both backends expose the same interface:
   - Structured-output validation.
   - A prompt/model version record.
-  - A cache keyed on (prompt version, input hash).
-  - A cost/usage ledger: tokens in `api` mode; session counts and limit hits in `subscription` mode.
-- R15.5 Usage-limit handling in `subscription` mode: detect limit-reached responses, pause the job queue until the reset time, resume, and log the pause. Jobs are resumable, so nothing is lost. Optional per-job overrides allow a heavy job (for example Tier 2 extraction) to run on `api` while everything else stays on `subscription`.
-- R15.6 Documentation states the scope of the subscription backend: it is for an operator running pigtail for themselves on their own Claude plan, within Anthropic's terms for Claude Code. Deployments that serve other users must use `api`. The operator guide links to Anthropic's current legal and compliance page for Claude Code.
+  - A cache keyed per ADR-006 (prompt id and version, redacted-input hash, output-schema hash, model, backend). Re-running an edited brief reuses every cached call whose key is unchanged (R18.4).
+  - A cost/usage ledger: tokens and cost in `api` mode; session counts and limit hits in `subscription` mode.
+- R15.5 Usage-limit handling in `subscription` mode: detect limit-reached responses, pause the run until the reset time, resume, and log the pause. Runs are resumable, so nothing is lost. Optional per-job overrides allow a heavy job to run on `api`.
+- R15.6 (amended) Documentation states the scope of the subscription backend: each user runs pigtail for themselves, on their own Claude plan, within Anthropic's terms for Claude Code (ADR-008, ADR-023). pigtail never pays for, resells or intermediates anyone's Claude usage. Any deployment that serves other people must use `api`. The install guide links to Anthropic's current legal and compliance page for Claude Code.
 - R15.7 Output parity check: a fixed evaluation set is run on both backends, and extraction agreement must be α ≥ 0.70 between them before a backend switch is accepted for coded data.
 
-### F16 Trends (deliverable D2, "What's trending")
-- R16.1 Compute rising channels, communities, asset formats and message patterns over 30- and 90-day windows against a trailing 12-month baseline, with n and the window shown on every claim.
-- R16.2 Detect saturation: mechanisms whose effect is declining over time (see R8.4).
-- R16.3 Trends are labelled descriptive ("emerging signal") and are kept separate from promoted mechanisms everywhere.
+### F16 Trends (part of the neighbourhood report, D2)
+- R16.1 (amended) Within the brief's neighbourhood, compute rising channels, communities, asset formats and message patterns over the **last 3–6 months** against the rest of the brief's window, with n and the window shown on every claim.
+- ~~R16.2 Saturation detection (depended on R8.4).~~ **Retired** (ADR-047.3).
+- R16.3 Trends are labelled descriptive ("emerging signal") and are kept separate from patterns everywhere.
 
-### F17 On-demand analyzer and tracking (deliverable D5)
+### F17 On-demand analyzer and tracking (deliverable D5; unchanged except where ADR-047/048 require)
 - R17.1 Given any GitHub URL, open a case and run a staged analysis:
-  - Stage 1: GitHub history, outcomes and a benchmark, in ≤ 10 min.
-  - Stage 2: an external evidence backfill (HN, Reddit, Bluesky, registries, Wayback), in ≤ 6 h.
-  - Stage 3: coding and mechanism matching.
+  - Stage 1: GitHub history (star-history daily net counts, releases, issues, PRs, contributors), outcomes and a benchmark, in ≤ 10 min.
+  - Stage 2: an external evidence backfill (HN, Bluesky, registries, Wayback, as cleared and enabled), in ≤ 6 h.
+  - Stage 3: coding and matching against the patterns of any brief the project falls in.
 - R17.2 Current-state summary: momentum versus the repo's own baseline, burst/decay/stable status, and mentions from the last 7 days.
 - R17.3 Coverage score per source, showing each source's coverage window and stating that ephemeral evidence from before tracking started may be missing.
-- R17.4 "Track this project" moves the case into live capture (F1) within 1 h. The operator can stop tracking at any time.
-- R17.5 Validation: on ≥ 5 Tier 3 cases, the reconstruction recovers ≥ 80% of human-verified key events.
+- R17.4 (amended; ADR-048.2) "Track this project" runs a first capture within 1 h, then enrols the project in the batch schedule (weekly by default) and in launch mode (R19.4). The operator can stop tracking at any time.
+- R17.5 (amended) Validation: on ≥ 5 deep-forensics cases from the pilot brief, the D5 reconstruction recovers ≥ 80% of the key events verified in the pilot (formerly "Tier 3 cases", which no longer exist).
+
+### F18 Research brief (new core object; ADR-047.1–2)
+- R18.1 A **brief** is a versioned YAML document with these fields:
+  - `project`: a description of the user's project and its **target users**.
+  - `field`: boundaries as `include` and `exclude` lists (problem, technology, category, audience).
+  - `window`: the time window for discovery and backfill, **default 12–18 months** (ADR-047.1).
+  - `success`: one **primary dimension** (attention, adoption, community or business) plus **minimum thresholds** on the others (for example, "top quartile on adoption and at least the median on attention"). Weights are available only as an advanced option (§5.3).
+  - `audience`: the user's own audience size **per channel**.
+  - `channels`: the channels the user can or wants to use, and those to avoid.
+  - `geographies`: the geographies and languages in scope.
+  - `selection`: the number of winners and losers (default 20/20, range 15–25 each).
+  - `budget`: an LLM budget and a BigQuery budget.
+  - Metadata: brief id, version, created and edited times, schema version.
+- R18.2 A guided form at `/briefs` creates and edits briefs, with YAML import and export. Form and YAML are equivalent.
+- R18.3 An install holds **several briefs**. Each is run, reported and versioned independently.
+- R18.4 **Editing and re-running.** Every edit creates a new brief version; old versions are kept. A re-run reuses cached evidence, scores and LLM calls wherever their inputs are unchanged, and the report shows what was recomputed.
+- R18.5 **Cost estimate and hard stop.** Before every run, pigtail estimates the LLM and BigQuery cost (and, in `subscription` mode, the expected number of model calls) and shows it against the brief's budget. The run starts only after the user confirms (or within a pre-confirmed ceiling for scheduled runs). During the run, spending is metered, and the run **hard-stops** at the budget, leaving a resumable checkpoint.
+- R18.6 **Provenance.** Every report records the brief version, the shortlist decisions (R4.7), the data version, and the code, codebook, prompt and model versions.
+- R18.7 **LLM expansion.** From the project description, pigtail proposes the problem statement, users, keywords, topics and competitors. The user edits them, and the edited expansion is part of the brief version.
+- R18.8 **Success definition semantics.** A candidate qualifies when it meets every minimum threshold; qualifying candidates are ranked on the primary dimension (or on the weighted composite when the advanced option is used). Percentiles use the brief's reference population (R3.4). A value tagged `unknown` never counts as meeting a threshold, and the report says how many candidates that affected.
+- R18.9 **Where briefs live.** Briefs, their expansions and their shortlists are stored in the instance's private data directory, never in the public repo. The repo ships one synthetic example brief.
+
+### F19 Batch runs, launch mode and operations (new; ADR-048)
+- R19.1 `pigtail run --incremental` runs one brief's pipeline. Runs are idempotent and resume from checkpoints after an interruption.
+- R19.2 A brief's **initial run** is its own backfill over its window (12–18 months). ADR-047 replaces CR-001's global 24-month backfill with this.
+- R19.3 **Refresh cadence:** every 7 days by default, configurable from 1 to 8 weeks, with a hard ceiling between runs derived from each source's history window in the source matrix (never more than 60 days).
+- R19.4 **Tracked projects and launch mode.** Tracked projects (D5) refresh weekly by default. **Launch mode** refreshes daily for 14 days around a declared or detected launch, and every 3 h on launch day. It starts automatically when a tracked project bursts (R19.5).
+- R19.5 Burst detection for tracked projects uses the star-history series and the project's own baseline (the per-repo parts of ADR-032/037 that survive ADR-047.6).
+- R19.6 **Run report and alerts.** Every run writes a run report (what ran, what changed, costs, gaps, errors). Alerts are written locally; a sanitized summary may be exported to the instance's ops log (for the owner's development instance, `ops/ALERTS.md`, ADR-033.4); e-mail is sent if configured.
+- R19.7 **Scheduling and hosting.** The reference setup is a macOS machine with a launchd schedule; Docker runs only during runs. A server setup is optional, documented, and tested through backup and restore (ADR-048.6).
+- R19.8 **Evidence-decay study** (run in the pilot): the share of key evidence still retrievable 1, 7 and 30 days after first capture. If more than 10% is lost at 7 days, the cadence for new breakouts is shortened (through an ADR) and the finding goes in the pilot report.
+
+### F20 Neighbourhood patterns (new; replaces F9)
+- R20.1 A **pattern** records: name, description, why people took part and shared, preconditions, required assets, typical sequence and timing, outcome dimensions affected, **n among the brief's winners and n among its matched losers** (the loser contrast), the supporting cases, the **counterexamples** (losers that showed it; winners that didn't), the reliability label of every coded field it rests on (R7.5), and the sensitivity flags of the cases involved (R4.9).
+- R20.2 There is no promotion rule and no `promoted` status. A pattern is always shown with its n and loser contrast, in descriptive language; it is not called a validated mechanism. Where n is too small for the contrast to say anything, the report says "insufficient evidence in this neighbourhood".
+- R20.3 Patterns belong to a brief version. A re-run records, per pattern, which cases were added or removed and how the contrast changed.
 
 ## 7. Data model (versioned JSON Schemas in `schemas/`)
 
-Core entities: `repo`, `case`, `evidence` (id, source, url, fetched_at, content_hash, snapshot_ref, reliability, terms_basis, retention_class, deletion_state), `event`, `actor` (pseudonymized), `edge`, `asset`, `outcome_observation`, `mechanism`, `mechanism_support` (case ↔ mechanism, direction, strength), `prediction`, `codebook_version`, `run` (code/prompt/model versions).
-Requirements: every record carries `schema_version`; records are stored in a mergeable, diffable format (JSONL export alongside the database); every run is recorded so that it can be replayed.
+Core entities: `brief` (id, version, fields per R18.1, expansion), `candidate` (brief version, discovery source, relevance verdict, reason, rubric version), `shortlist_decision` (brief version, candidate, decision, reason, reviewer role), `repo`, `case` (with its role in each brief: winner, loser or tracked), `evidence` (id, source, url, fetched_at, content_hash, snapshot_ref, reliability, terms_basis, retention_class, deletion_state), `event`, `actor` (pseudonymized), `edge`, `asset`, `outcome_observation`, `pattern` (replaces `mechanism`), `pattern_support` (case ↔ pattern, direction, strength), `report` (brief version, data version, run ids), `prediction`, `codebook_version`, `run` (code, prompt, model and brief versions; checkpoint state; cost).
+Requirements: every record carries `schema_version`; records are stored in a mergeable, diffable format (JSONL export alongside the database; ADR-042.4); every run is recorded so that it can be replayed.
 
 ## 8. Outcome model
 
@@ -185,81 +247,82 @@ Requirements: every record carries `schema_version`; records are stored in a mer
 
 | Dimension | Metric | Primary source | Default tag |
 |---|---|---|---|
-| Attention | Star velocity (raw and filtered) | GH Archive | verified |
-| | HN points, comments, front-page minutes | HN Algolia + own rank polling | verified |
-| | Reddit and Bluesky reach | Platform APIs | verified |
+| Attention | Star velocity (daily net; filtered where available, R3.3) | GitHub star-history endpoint (ADR-032) | verified |
+| | HN points, comments, front-page minutes | HN Algolia + own rank polling (ADR-040.2, ADR-041) | verified |
+| | Bluesky reach | Bluesky API (ADR-022 holds) | verified |
 | Adoption | Registry downloads | PyPI BigQuery, npm, crates.io, Homebrew, Docker Hub | verified (noisy) |
 | | Dependents | deps.dev, GitHub dependency graph | verified |
-| Community | Returning external contributors (≥ 2 merged PRs across ≥ 2 months) | GH Archive | verified |
-| | External issue/PR activity | GH Archive | verified |
+| Community | Returning external contributors (ADR-016) | GitHub API (ADR-013) | verified |
+| | External issue/PR activity | GitHub API (ADR-013) | verified |
 | | Discord/Slack size | Invite APIs | estimated |
-| Business | MRR | Stripe-verified dashboards (e.g. TrustMRR) | verified |
-| | Funding | Crunchbase, YC directory, press | self_reported |
-| | Paid offering or pricing page exists | Wayback snapshots | verified |
+| Business | MRR | Operator-entered with a citation (ADR-021) | self_reported |
+| | Funding | Press, public announcements | self_reported |
+| | Paid offering or pricing page exists | Wayback snapshots (when cleared) | verified |
 | | Hiring | Careers pages, HN Who's Hiring | verified |
 
-### 8.2 Outcome classes (v0 thresholds; calibrated in the pilot and versioned)
-- `winner`: top decile of its cohort on attention at T+30 **and** top quartile on adoption or community at T+90.
-- `attention_only`: a burst without adoption or community follow-through.
-- `short_lived`: crossed the threshold, but T+90 velocity is < 10% of the T+30 peak and adoption is flat.
-- `plateau` (matched loser): had a comparable launch signal but never reached the winner threshold.
-- `slow_riser`: no burst, but winner-level adoption by T+365.
+Reddit reach is a documented gap (ADR-010). GH Archive is not a metric source (ADR-047.8).
 
-## 9. Evaluation and success criteria
+### 8.2 Success definition (per brief; replaces the v1 global outcome classes)
+- The v1 global classes (`winner`, `attention_only`, `short_lived`, `plateau`, `slow_riser`) and their calibration are retired as the way winners and losers are chosen (ADR-047.1–2, ADR-047.7).
+- A brief's **winners** are the top-ranked candidates under its success definition (R18.8). Its **losers** are candidates from the same shortlist that had a comparable launch signal but didn't qualify, matched to the winners per R4.3.
+- The **sensitivity check** (R4.9) is part of every report.
 
-### 9.1 System tests (all must pass for v1)
-1. **Forecasting test.** Using live-detected cases, predict the 30-day outcome class from data available 7 days after detection. The model must beat a baseline (star velocity + category base rate) on Brier score over ≥ 200 cases, with a 95% bootstrap CI that excludes zero improvement.
-2. **Loser-value test.** On held-out Tier 3 pairs, a mechanism ranking built with loser matching must identify the winner's actual mechanisms better than a naive ranking by frequency among winners. If it fails, the report says so explicitly.
-3. **Generality test.** Planner recommendations are evaluated per stratum on held-out cases. The planner must return "insufficient evidence" for strata with too few cases instead of extrapolating. Coverage is reported for every stratum.
-4. **Prospective test.** Pre-registered predictions for ≥ 20 announced launches (third-party and owner) are scored with Brier score and calibration curves, and compared with the naive baseline.
+## 9. Evaluation and quality
 
-### 9.2 Data-quality gates
-- 100% of published claims resolve to an evidence record with a valid hash.
-- Extraction agreement: Krippendorff's α ≥ 0.70 on core fields between independent coders. If a human calibration sample exists, LLM–human α ≥ 0.70 on it.
-- Matched-pair balance: standardized mean difference < 0.25 on every matching covariate.
+### 9.1 System tests — **retired** (ADR-047.3, ADR-048.4)
+The v1 forecasting, loser-value, generality and prospective tests are cut, and their pre-registrations are withdrawn by dated amendment (ADR-047.7). Launch-mode cases remain the prospective set for any later evaluation.
 
-### 9.3 Mechanism promotion rule
-A mechanism becomes `promoted` only if all of the following hold:
-- ≥ 5 supporting winner cases from ≥ 2 strata.
-- A higher prevalence among winners than among their matched losers, or an event-study effect whose 90% CI excludes zero.
-- Contradicting cases are listed and explained.
-- Its preconditions are stated in a testable form.
+### 9.2 Quality rules for every neighbourhood report (amended)
+- 100% of claims resolve to an evidence record with a valid hash.
+- Extraction agreement is reported per field (Krippendorff's α). Findings resting on a field with α < 0.70 are labelled "low reliability", not dropped (ADR-047.7). If a human calibration sample exists, LLM–human α is reported the same way.
+- Relevance-filter precision is logged per brief version; target ≥ 80% (R4.7).
+- Matched-set balance: the target is a standardized mean difference < 0.25 on every matching covariate. Where the shortlist can't reach it, the report says so per covariate and labels every loser contrast that depends on it.
+- The sensitivity check of the winner set is present, and affected cases are flagged (R4.9).
 
-Otherwise it stays `candidate`. Confidence levels (`low | medium | high`) are defined in the codebook.
+### 9.3 Mechanism promotion rule — **retired** (ADR-047.3)
+Replaced by the pattern reporting rule in R20.2.
+
+### 9.4 The pilot (new; ADR-047.10)
+The first end-to-end neighbourhood report on the owner's project is the pilot. It exercises the full flow (F18, F4, F5, F7, F8, F16, F20), reports per-field agreement with the "low reliability" label, the relevance-filter precision from the one-time shortlist skim, the sensitivity check and the evidence-decay study (R19.8). Its analyses are pre-registered before the outcome sort (WORK_ORDER §6).
 
 ## 10. Non-functional requirements
 
-- **Self-hosting:** `docker compose up` brings up the full stack. It runs on a single mid-size VM, with object storage (S3-compatible) for snapshots. Default hosting region: EU or Switzerland.
-- **Reproducibility:** pinned dependencies, versioned data releases, and a fixed seed for any sampling.
-- **Cost control:** per-source and per-LLM budgets with hard stops; a running cost ledger.
+- **Self-hosting, per user:** each user runs their own instance. The reference setup is a macOS machine with Docker (started only for runs) and a launchd schedule; `docker compose up` brings up the stack. A server setup (single VM, S3-compatible object storage) is optional and documented. The owner's instance uses EU or Swiss hosting for any remote storage.
+- **Disk encryption:** FileVault (or, on the server path, volume encryption) is **required** on any machine that holds an instance's data (ADR-048.5). `pigtail doctor` reports it.
+- **Reproducibility:** pinned dependencies, versioned briefs, data versions and reports, and a fixed seed for any sampling.
+- **Cost control:** a cost estimate before every run, per-brief LLM and BigQuery budgets with hard stops (R18.5), per-source rate budgets, and a running cost ledger.
 - **Privacy and compliance** (GDPR and Swiss FADP):
-  - Pseudonymize handles at ingest with a keyed hash, and store the key separately.
-  - Raw person-level data is retained for 24 months, then aggregated or deleted. Project-level data has no time limit.
-  - Deletion sync (R1.5).
-  - A public privacy notice.
-  - A legitimate-interest assessment and a light DPIA, kept in `docs/compliance/`.
+  - Each user is the controller of their own instance. The compliance pack in `docs/compliance/` is a **template** each user adopts; the owner's filled-in pack is the first copy (ADR-047.9).
+  - Privacy-protective defaults ship on: pseudonymize handles at ingest with a keyed hash (key stored separately), identifier redaction before every model call (ADR-006), and retention limits on.
+  - Raw person-level data is retained for at most 24 months, then aggregated or deleted. Project-level data has no time limit.
+  - **Purpose limitation:** collection is scoped to briefs and tracked projects. Data collected before the re-scope is a cache that briefs may reuse; once the first brief's shortlist is final, anything no brief references is deleted (ADR-047.6).
+  - Deletion sync (R1.5), opt-outs, data-subject requests and the interim holds of ADR-022 (as amended) stay in force.
   - LLM processing:
     - `api` mode: use zero-retention settings or a data processing agreement where available.
-    - `subscription` mode: pseudonymize handles and strip direct identifiers **before** any snapshot content is sent to the model, and the operator must turn off model-training on their Claude account (an H1 item).
-- **Terms:** each connector documents the terms it relies on. Commercial-use terms are assumed.
-- **Security:** secrets are kept only in environment variables or a secrets manager, never in the repo. Private data is never pushed to the public repository; a CI check scans for this.
-- **Observability:** collector health, backlog, error rates and costs are visible in the UI.
-- **Public repository from day one:** https://github.com/suchipizza/pigtail.
-  - Git contains only code, docs, schemas, the codebook, pre-registrations and ops logs.
-  - A CI private-data scan blocks any snapshot, raw record, handle or secret.
+    - `subscription` mode: pseudonymize handles and strip direct identifiers **before** any content is sent to the model, and the operator must turn off model training on their Claude account (an H1 item for the owner; an install-guide step for every user).
+- **Terms:** each connector documents the terms it relies on.
+- **Security:** secrets are kept only in environment variables or a secrets manager, never in the repo. Private data is never pushed to the public repository; a CI check scans for this. Backups are encrypted and go to external or private storage (ADR-044, ADR-048.5).
+- **Observability:** run reports, collector health, gaps, error rates and costs are visible in the UI (`/admin`) and in each run report.
+- **Public repository:** https://github.com/suchipizza/pigtail.
+  - Git contains only code, docs, schemas, the codebook, the synthetic example brief, pre-registrations and ops logs.
+  - A CI private-data scan blocks any snapshot, raw record, handle, secret or user brief.
   - Ops logs must never contain personal data or secrets.
 - **Licensing:** MIT for code (already in the repo). The codebook and methodology are MIT too, unless the owner chooses CC BY 4.0.
 
 ## 11. Release criteria (v1)
-- All of §9.1 and §9.2 pass, or failures are documented in the final report and the owner accepts them.
-- The mechanism library contains ≥ 10 promoted mechanisms, each with its loser contrast.
-- Documentation is complete: install guide, operator guide, methodology paper, codebook, schema reference, data card and limitations.
-- Legal review is completed and its findings applied.
-- The owner approves publishing aggregate findings and tagging the v1 release (a human gate). The code is public from the start.
-- pigtail's own launch is registered as a case, with predictions locked before launch.
+- The pilot report is complete and verified (§9.4), including relevance precision, per-field agreement, the sensitivity check and the evidence-decay study.
+- D1, D2, D3, D5, D6 and D7 pass their acceptance criteria in `docs/DELIVERABLES.md`.
+- A new user can install pigtail and start a first brief in under an hour following the install guide, with credentials setup, cost expectations and the example brief (D6).
+- Documentation is complete: install guide, operator guide (Mac and optional server), brief guide, methodology paper, codebook, schema reference, limitations, and the compliance template.
+- Three consecutive scheduled runs succeed with alerts working (ADR-048.4).
+- Legal review (H2) is completed and its findings applied to the owner's instance and to the template.
+- The owner approves publishing any aggregate findings and tagging the v1 release (H4). The code is public from the start.
+- pigtail's own launch is tracked in launch mode, with predictions locked before launch.
 
 ## 12. Defaults assumed (agents may revise them with an ADR)
-- LLM backend: `subscription` (owner's Claude plan via the Claude Code CLI); `api` is available and can be switched per job or globally.
+- LLM backend: `subscription` (the operator's own Claude plan via the Claude Code CLI); `api` is available per job or globally.
 - Stack: Python 3.12 + uv, Postgres, S3-compatible object storage, DuckDB for analytics, FastAPI, TypeScript/React UI, Cytoscape.js for graphs.
-- No composite outcome score.
-- The capture layer is exempt from the "pilot first" gate; the analysis layer is not.
+- Brief defaults: window 12–18 months; 20 winners and 20 losers (range 15–25 each); success definition = one primary dimension plus minimum thresholds (weights only as an advanced option).
+- Refresh every 7 days; tracked projects weekly; launch mode daily for 14 days and every 3 h on launch day.
+- Results per dimension; a composite only to rank candidates within a brief (ADR-047.2, amending ADR-000's "no composite outcome score").
+- The v1 default "the capture layer is exempt from the pilot gate" no longer applies: there is no continuous capture and no pilot gate (ADR-047, ADR-048).
