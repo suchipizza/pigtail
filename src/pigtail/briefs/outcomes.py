@@ -1,9 +1,17 @@
 """Outcome inputs of a final shortlist for the selection stage (PRD R3.1–R3.4, R4.3, R4.8,
-R18.8; outcome-model v2.1 §1–§4, §5.6, §7; ADR-032.3, ADR-070, ADR-077).
+R18.8; outcome-model v2.1 §1–§4, §5.6, §7; ADR-032.3, ADR-070, ADR-077, ADR-081).
 
-Two steps, both project-level (repo names and ids, daily star counts; no identities):
+Two steps, both project-level (repo names and ids, daily star counts, HN item ids, times and
+points; no identities):
 
-1. **`fetch_outcome_data`** (network, GitHub only): for every repo on the final shortlist, fill
+1. **`fetch_outcome_data`** (network: HN Algolia, then GitHub). First the **launch lookup**
+   (`lookup_launches`, ADR-081): for every shortlisted repo, three HN Algolia searches inside the
+   brief's window (Show HN by the repo URL and by the repo name, Launch HN by name) find its
+   declared launches whether discovery found them or not; a hit is kept when its URL is the
+   repo's `github.com/owner/name` (case-insensitive) or, linking no other GitHub repo, its title
+   names the repo as a whole word (`match_launch_post`); only item id, time, points, kind and
+   match are stored (as candidate signals), the raw page is dropped at parse (CB-24), and the
+   step is checkpointed per repo. Then, for every repo on the final shortlist, fill
    missing project metadata (GitHub id, creation date, language; one GraphQL query per 50 repos,
    for repos added by URL in the review) and fetch its **star history**
    (`pigtail.capture.star_history`, ETag-conditional, 30 weeks per page, back to 60 days before
@@ -15,16 +23,19 @@ Two steps, both project-level (repo names and ids, daily star counts; no identit
    metadata is not stored and its star history is never fetched (M22 verifier round 2).
 
 2. **`load_inputs`** (database only): one `selection.CaseInput` per shortlisted repo.
-   - **Anchor T** (§2.2): the first Show HN launch post the discovery stage recorded (hour
-     precision, project-level signal) and the first `velocity-v0` burst on the star-history days
-     inside the brief's window: a launch in `[T_burst − 30 d, T_burst]` wins; a launch with no
-     burst in the 90 days after it (and before the first burst) wins; else the burst; else the
-     launch; else no anchor. Without any star history the burst rule can't be checked and a
-     launch is used with that note.
+   - **Anchor T** (§2.2, `choose_anchor`, rule `anchor-v2`): the declared launches (Show HN and
+     Launch HN posts from discovery and the lookup, one per item id; hour precision) and the
+     first `velocity-v0` burst on the star-history days inside the brief's window: a launch in
+     `[T_burst − 30 d, T_burst]` wins; a launch with no burst in the 90 days after it (and before
+     the first burst) wins; else the burst; else the launch; else no anchor. Against a
+     day-precision onset the comparison is on endpoint days, so a launch on the onset day
+     precedes the burst (ADR-081). Title matches that two shortlisted repos share, or that
+     another repo's post links by URL, are dropped. Without any star history the burst rule
+     can't be checked and a launch is used with that note.
    - **Values** (§1, §7): `att.stars@30/@90` = raw net stars over the `k` endpoint days from the
      first day (§1.2 day mapping), `pending` until `T + k + settle_lag (3 d)` has passed,
      `unknown` when a day is missing, labelled "unfiltered, anomaly-checked";
-     `att.hn_points` = the highest points of a recorded Show HN post from `T − 7 d` on (as of
+     `att.hn_points` = the highest points of a declared launch post from `T − 7 d` on (as of
      fetch). **Every other metric is `unknown` with reason `no_connector`**: registry downloads,
      dependents, PR-based community metrics and the business signals have no connector yet
      (outcome-model §7), and nothing is imputed (R18.8).
@@ -43,6 +54,7 @@ Two steps, both project-level (repo names and ids, daily star counts; no identit
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
@@ -52,7 +64,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 
 from pigtail.analysis.anomaly import check_population
-from pigtail.analysis.bursts import segment
+from pigtail.analysis.bursts import Onset, segment
 from pigtail.analysis.params import ANOMALY, STAR_HISTORY_DAY_TZ
 from pigtail.briefs.candidates import Candidate, CandidateStore
 from pigtail.briefs.model import METRICS, Brief
@@ -105,6 +117,7 @@ class FetchResult:
     metadata_filled: int = 0
     failed: dict[str, int] = field(default_factory=dict)  # reason -> count (no names)
     pages: int = 0
+    launch_lookup: dict[str, Any] | None = None
     evidence_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -132,8 +145,11 @@ def fetch_outcome_data(
     brief_run_id: str | None,
     now: datetime,
     recorder: Any = None,
+    hn: Any = None,
+    window: tuple[datetime, datetime] | None = None,
 ) -> FetchResult:
-    """Step 1 (module docstring). `BudgetExhausted` propagates: the stage pauses, resumable."""
+    """Step 1 (module docstring). `BudgetExhausted` propagates: the stage pauses, resumable.
+    With `hn` and `window`, the launch lookup (step 1b) runs first, checkpointed per repo."""
     from pigtail.briefs.discovery import _meta_from_graphql
     from pigtail.capture.db import CaptureDB
     from pigtail.capture.star_history import fetch_star_history
@@ -154,6 +170,19 @@ def fetch_outcome_data(
     res = FetchResult(repos=len(cands))
     if refused:
         res.failed["refused"] = len(refused)
+    if window is not None:
+        lk = lookup_launches(
+            conn,
+            brief,
+            hn,
+            cands,
+            window=window,
+            checkpoint=checkpoint,
+            save=save,
+            recorder=recorder,
+        )
+        res.launch_lookup = lk.to_dict()
+        res.evidence_ids.extend(lk.evidence_ids)
     if github is None or not getattr(github, "enabled", True):
         res.failed["no_github_connector"] = len(cands)
         return res
@@ -233,6 +262,156 @@ def fetch_outcome_data(
     return res
 
 
+# --- 1b. launch lookup (outcome-model §2.1, ADR-081) ------------------------------------------
+LAUNCH_LOOKUP_SOURCE = "hn_launch_lookup"
+LAUNCH_LOOKUP_REQUESTS = 3  # HN Algolia requests per shortlisted repo (estimate, ADR-081)
+LAUNCH_LOOKUP_HITS = 50
+TITLE_MIN_CHARS = 4  # shorter repo names are matched by URL only
+_LAUNCH_HN_TITLE = re.compile(r"^\s*launch hn\b", re.IGNORECASE)
+
+
+def lookup_queries(full_name: str) -> list[tuple[str, str, str]]:
+    """(label, query, tags) of the launch lookup for one repo: the repo URL and the repo name
+    among Show HN stories, and the name among all stories for Launch HN (Algolia has no
+    Launch HN tag). The queries hold nothing but the repo's own name."""
+    owner, name = full_name.split("/", 1)
+    return [
+        ("url", f"github.com/{owner}/{name}", "show_hn"),
+        ("name", name, "show_hn"),
+        ("launch_hn", f"Launch HN {name}", "story"),
+    ]
+
+
+def title_names_repo(title: str | None, full_name: str) -> bool:
+    """The title names the repo's name as a whole word, case-insensitively (ADR-081): the name
+    is neither preceded nor followed by a letter, digit, `_` or `-`, nor followed by `.` and a
+    letter or digit (so `KubeForge.` at a sentence end matches, `kubeforge.io` and
+    `kubeforge-ui` don't). Names shorter than `TITLE_MIN_CHARS` never match by title."""
+    name = full_name.split("/", 1)[-1]
+    if not title or len(name) < TITLE_MIN_CHARS:
+        return False
+    pat = r"(?<![A-Za-z0-9_.-])" + re.escape(name) + r"(?![A-Za-z0-9_-]|\.[A-Za-z0-9])"
+    return re.search(pat, title, re.IGNORECASE) is not None
+
+
+def match_launch_post(story: Any, full_name: str, kind: str) -> str | None:
+    """`url`, `title` or None for one lookup hit (ADR-081). URL: the story links the repo's
+    `github.com/owner/name` (normalised, so case, `www.`, `.git` and deeper paths don't matter;
+    the A2 rule). Title: the story links no other GitHub repo and `title_names_repo`. A Launch HN
+    hit must have a title starting "Launch HN"."""
+    if kind == "launch_hn" and not _LAUNCH_HN_TITLE.match(story.title or ""):
+        return None
+    linked = story.repo_full_name
+    if linked is not None and linked == full_name.lower():
+        return "url"
+    if linked is not None:
+        return None
+    return "title" if title_names_repo(story.title, full_name) else None
+
+
+@dataclass
+class LookupResult:
+    repos: int = 0
+    looked_up: int = 0
+    already_done: int = 0
+    requests: int = 0
+    posts: int = 0
+    by_match: dict[str, int] = field(default_factory=dict)
+    failed: dict[str, int] = field(default_factory=dict)
+    skipped: str | None = None
+    evidence_ids: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        d = dict(self.__dict__)
+        d.pop("evidence_ids")
+        return d
+
+
+def lookup_launches(
+    conn: psycopg.Connection[Any],
+    brief: Brief,
+    hn: Any,
+    cands: Sequence[Candidate],
+    *,
+    window: tuple[datetime, datetime],
+    checkpoint: dict[str, Any],
+    save: Callable[[dict[str, Any]], None],
+    recorder: Any = None,
+) -> LookupResult:
+    """Step 1b (ADR-081): find each shortlisted repo's Show HN / Launch HN posts in the window,
+    whether discovery found them or not. Project-level fields only (item id, time, points, kind,
+    match): `parse_show_hn_page` never reads the author, and the raw page is dropped right after
+    parsing (CB-24). The evidence record names the repo, not the query. The connector's rate
+    limiter paces the requests. Checkpointed per repo (`launch_lookup_done`); a failed request
+    propagates and the stage resumes from the next repo not done."""
+    from pigtail.capture.db import CaptureDB
+    from pigtail.connectors.hn import launch_lookup_evidence_url, parse_show_hn_page
+    from pigtail.privacy.deletion import PARSE_ERRORS, DeletionLog, drop_after_parse
+
+    assert brief.version is not None
+    todo = sorted((c for c in cands if c.repo_full_name), key=lambda c: c.ref)
+    res = LookupResult(repos=len(todo))
+    if hn is None or not getattr(hn, "enabled", True):
+        res.skipped = "hn connector disabled or not configured"
+        return res
+    db = CaptureDB(conn)
+    store = CandidateStore(conn, brief.brief_id, brief.version)
+    dlog = DeletionLog(db, "retention", run_id=getattr(recorder, "id", None))
+    done: set[str] = set(checkpoint.get("launch_lookup_done") or [])
+    start, end = window
+    for c in todo:
+        if c.ref in done:
+            res.already_done += 1
+            continue
+        full = str(c.repo_full_name)
+        found: dict[int, dict[str, Any]] = {}
+        for label, query, tags in lookup_queries(full):
+            f = hn.search_show_hn(
+                query,
+                since=start,
+                until=end,
+                hits=LAUNCH_LOOKUP_HITS,
+                tags=tags,
+                evidence_url=launch_lookup_evidence_url(full, label, tags),
+            )
+            res.requests += 1
+            res.evidence_ids.append(f.evidence.id)
+            try:
+                stories, _ = parse_show_hn_page(f.data)
+            except PARSE_ERRORS:
+                stories = []
+                res.failed["parse_failed"] = res.failed.get("parse_failed", 0) + 1
+            drop_after_parse(db, hn.store, f.evidence.id, f.content_hash, dlog)
+            kind = "launch_hn" if label == "launch_hn" else "show_hn"
+            for st in stories:
+                if st.created_at is None or not start <= st.created_at <= end:
+                    continue
+                how = match_launch_post(st, full, kind)
+                if how is None:
+                    continue
+                prev = found.get(st.item_id)
+                if prev is not None and (prev["match"] == "url" or how == "title"):
+                    continue
+                found[st.item_id] = {
+                    "source": LAUNCH_LOOKUP_SOURCE,
+                    "hn_item_id": st.item_id,
+                    "time": st.created_at.isoformat(),
+                    "points": st.points,
+                    "kind": kind,
+                    "match": how,
+                }
+        if found:
+            store.add_sources(c.ref, [found[k] for k in sorted(found)])
+            for rec in found.values():
+                res.by_match[rec["match"]] = res.by_match.get(rec["match"], 0) + 1
+            res.posts += len(found)
+        res.looked_up += 1
+        done.add(c.ref)
+        checkpoint["launch_lookup_done"] = sorted(done)
+        save(checkpoint)
+    return res
+
+
 # --- 2. load -----------------------------------------------------------------------------------
 def endpoint_day(t: datetime, tz: str = STAR_HISTORY_DAY_TZ) -> date:
     """D(t): the star-history endpoint day containing the instant t (outcome-model §1.2)."""
@@ -265,37 +444,123 @@ def fork_series(conn: psycopg.Connection[Any], host_id: int) -> dict[date, int]:
     return {r[0]: int(r[1]) for r in rows}
 
 
-def _launches(c: Candidate, start: datetime, end: datetime) -> list[tuple[datetime, int, int]]:
-    """(time, hn item id, points) of the Show HN posts discovery recorded, inside the window."""
-    out: list[tuple[datetime, int, int]] = []
+@dataclass(frozen=True)
+class Launch:
+    """One declared launch (outcome-model §2.1) of a candidate: a Show HN or Launch HN post."""
+
+    at: datetime
+    item_id: int
+    points: int | None
+    source: str  # show_hn | launch_hn
+    via: str  # discovery | lookup:url | lookup:title
+
+
+def _t(raw: Any) -> datetime:
+    t = datetime.fromisoformat(str(raw))
+    return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
+
+
+def ambiguous_title_matches(cands: Sequence[Candidate]) -> set[tuple[str, int]]:
+    """(candidate ref, item id) of lookup title matches to drop (ADR-081): an item matched by
+    title to more than one shortlisted repo, or linked by URL to another one."""
+    title: dict[int, set[str]] = {}
+    url: dict[int, set[str]] = {}
+    for c in cands:
+        for s in c.sources:
+            if s.get("source") == "show_hn" and s.get("hn_item_id"):
+                url.setdefault(int(s["hn_item_id"]), set()).add(c.ref)
+            elif s.get("source") == LAUNCH_LOOKUP_SOURCE and s.get("hn_item_id"):
+                d = title if s.get("match") == "title" else url
+                d.setdefault(int(s["hn_item_id"]), set()).add(c.ref)
+    out: set[tuple[str, int]] = set()
+    for item, refs in title.items():
+        if len(refs) > 1 or url.get(item, set()) - refs:
+            out |= {(r, item) for r in refs}
+    return out
+
+
+def _launches(
+    c: Candidate,
+    start: datetime,
+    end: datetime,
+    drop: set[tuple[str, int]] | frozenset[tuple[str, int]] = frozenset(),
+) -> list[Launch]:
+    """The candidate's declared launches inside the window (outcome-model §2.1, ADR-081): the
+    Show HN posts discovery recorded (linked by URL) merged with the launch lookup's posts, one
+    per HN item id (the lookup's record wins: fresher points, and it says how it matched). In
+    time order, then item id (§2.2 rule 5)."""
+    by_item: dict[int, Launch] = {}
     for s in c.sources:
-        if s.get("source") != "show_hn" or not s.get("time"):
+        src = s.get("source")
+        if src not in ("show_hn", LAUNCH_LOOKUP_SOURCE) or not s.get("time"):
             continue
-        t = datetime.fromisoformat(str(s["time"]))
-        if t.tzinfo is None:
-            t = t.replace(tzinfo=UTC)
-        if start <= t <= end:
-            out.append((t, int(s.get("hn_item_id") or 0), int(s.get("points") or 0)))
-    return sorted(out)
+        item = int(s.get("hn_item_id") or 0)
+        if src == LAUNCH_LOOKUP_SOURCE and (c.ref, item) in drop:
+            continue
+        t = _t(s["time"])
+        if not start <= t <= end:
+            continue
+        pts = s.get("points")
+        rec = Launch(
+            at=t,
+            item_id=item,
+            points=int(pts) if isinstance(pts, int) else None,
+            source="launch_hn" if s.get("kind") == "launch_hn" else "show_hn",
+            via=f"lookup:{s.get('match')}" if src == LAUNCH_LOOKUP_SOURCE else "discovery",
+        )
+        prev = by_item.get(item)
+        if prev is None or (prev.via == "discovery" and rec.via != "discovery"):
+            by_item[item] = rec
+    return sorted(by_item.values(), key=lambda x: (x.at, x.item_id))
+
+
+def _precedes(t: datetime, b: Onset) -> bool:
+    """The launch instant `t` is at or before the burst onset (§2.2 rules 1 and 5). A
+    day-precision onset is compared at day precision: a launch on the onset's endpoint day
+    (§1.2 day mapping) counts as preceding it (ADR-081)."""
+    if b.precision == "day":
+        return endpoint_day(t) <= b.day
+    return t <= b.at
+
+
+def _within_30d_before(t: datetime, b: Onset) -> bool:
+    if b.precision == "day":
+        return endpoint_day(t) >= b.day - timedelta(days=30)
+    return t >= b.at - timedelta(days=30)
+
+
+def _burst_within_90d_after(t: datetime, b: Onset) -> bool:
+    if b.precision == "day":
+        return endpoint_day(t) <= b.day < endpoint_day(t) + timedelta(days=90)
+    return t <= b.at < t + timedelta(days=90)
 
 
 def choose_anchor(
-    launches: Sequence[datetime], bursts: Sequence[tuple[datetime, date]], has_series: bool
+    launches: Sequence[Launch], bursts: Sequence[Onset], has_series: bool
 ) -> tuple[Anchor | None, str | None]:
-    """outcome-model §2.2 (module docstring). `bursts`: (onset instant, onset day), in order."""
-    tb = bursts[0][0] if bursts else None
-    if tb is not None:
-        near = [t for t in launches if tb - timedelta(days=30) <= t <= tb]
+    """outcome-model §2.2 as read by ADR-077.3, amended by ADR-081 (`ANCHOR_RULE_VERSION`):
+    1. a launch in `[T_burst - 30 d, T_burst]` (the earliest) -> launch; 2./3. else the first
+    launch when it precedes the first burst and no burst follows within 90 days -> launch; else
+    the burst; else the launch; else no anchor. Against a day-precision onset every comparison is
+    on endpoint days, so a same-day launch precedes the burst (rule 5). `launches` in time order,
+    `bursts` in onset order."""
+
+    def anchor(x: Launch) -> Anchor:
+        return Anchor("launch", x.at, "hour", x.source, x.via)
+
+    b0 = bursts[0] if bursts else None
+    if b0 is not None:
+        near = [x for x in launches if _within_30d_before(x.at, b0) and _precedes(x.at, b0)]
         if near:
-            return Anchor("launch", near[0], "hour", "show_hn"), None
+            return anchor(near[0]), None
     if launches:
-        tl = launches[0]
-        later = any(tl <= b < tl + timedelta(days=90) for b, _ in bursts)
-        if tb is None or (tl < tb and not later):
+        first = launches[0]
+        later = any(_burst_within_90d_after(first.at, b) for b in bursts)
+        if b0 is None or (_precedes(first.at, b0) and not later):
             note = None if has_series else "no_star_history: burst rule not checked"
-            return Anchor("launch", tl, "hour", "show_hn"), note
-    if tb is not None:
-        return Anchor("burst", tb, "day", "velocity-v0"), None
+            return anchor(first), note
+    if b0 is not None:
+        return Anchor("burst", b0.at, b0.precision, "velocity-v0"), None
     return None, "no_anchor" if has_series else "no_anchor: no launch post and no star history"
 
 
@@ -348,18 +613,19 @@ def load_inputs(
     k_max = _star_horizon_max(definition)
     start, end = window
     prepared: list[dict[str, Any]] = []
+    drop = ambiguous_title_matches(cands)
     for c in sorted(cands, key=lambda x: x.ref):
         series = star_series(conn, c.repo_host_id, as_of) if c.repo_host_id is not None else {}
         created = _created(c)
-        launches = _launches(c, start, end)
-        bursts: list[tuple[datetime, date]] = []
+        launches = _launches(c, start, end, drop)
+        bursts: list[Onset] = []
         if series:
             lo = max(start.date(), min(series))
             hi = min(end.date(), as_of)
             if lo <= hi:
                 seg = segment(series, lo, hi, created=created)
-                bursts = [(b.onset.at, b.onset.day) for b in seg.bursts]
-        anchor, reason = choose_anchor([t for t, _, _ in launches], bursts, bool(series))
+                bursts = [b.onset for b in seg.bursts]
+        anchor, reason = choose_anchor(launches, bursts, bool(series))
         prepared.append(
             {
                 "c": c,
@@ -408,7 +674,11 @@ def load_inputs(
             values[BUSINESS_COUNT] = NO_CONNECTOR
             for k in (30, 90):
                 values[f"att.stars@{k}"] = star_value(series, f, k, as_of)
-            pts = [pt for t, _, pt in p["launches"] if t >= a.at - timedelta(days=7)]
+            pts = [
+                x.points
+                for x in p["launches"]
+                if x.points is not None and x.at >= a.at - timedelta(days=7)
+            ]
             values["att.hn_points"] = (
                 Value("observed", float(max(pts)), "verified", "as of fetch")
                 if pts
@@ -427,7 +697,7 @@ def load_inputs(
                 age_log10=age,
                 audience_band="unknown",
                 language=c.metadata.get("language"),
-                launch_type="show_hn" if a.type == "launch" else "burst",
+                launch_type=a.source if a.type == "launch" else "burst",
             )
             rep = reports.get(c.ref)
             if rep is not None:

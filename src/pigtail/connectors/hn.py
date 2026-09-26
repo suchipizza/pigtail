@@ -458,6 +458,14 @@ def parse_algolia_hit(hit: dict[str, Any]) -> Record | None:
 
 # --- Show HN discovery (M22, PRD R4.5): project-level story metadata only --------------------
 SHOW_HN_FIELDS = ("title", "url", "points", "created_at_i")
+# Evidence URL of the selection's launch lookup (ADR-081): it names the repo (project-level,
+# already stored) and the search, never the time window or anything else; an opt-out finds it
+# by this prefix (`pigtail.privacy.requests`, CB-13c).
+LAUNCH_LOOKUP_EVIDENCE = f"{ALGOLIA_BASE}/search?launch_lookup_repo="
+
+
+def launch_lookup_evidence_url(full_name: str, label: str, tags: str) -> str:
+    return f"{LAUNCH_LOOKUP_EVIDENCE}{full_name.lower()}&search={label}&tags={tags}"
 
 
 @dataclass(frozen=True)
@@ -535,16 +543,21 @@ class HNShowDiscoveryConnector(Connector):
         until: datetime | None,
         hits: int = 50,
         evidence_url: str | None = None,
+        tags: str = "show_hn",
     ) -> Fetched:
         """One relevance-ranked page of Show HN stories for `query` (not parsed here).
-        `evidence_url` keeps the query out of the evidence record (ADR-076.6)."""
+        `evidence_url` keeps the query out of the evidence record (ADR-076.6). `tags="story"`
+        searches every story: Algolia has no Launch HN tag, so the selection's launch lookup
+        (ADR-081) finds Launch HN posts that way and keeps only titles starting "Launch HN"."""
+        if tags not in ("show_hn", "story"):
+            raise ValueError(f"unsupported tags {tags!r}: project-level story searches only")
         lo = int(since.timestamp()) if since else HN_EPOCH
         hi = int((until or self.clock()).timestamp()) + 1
         return self.fetch(
             f"{ALGOLIA_BASE}/search",
             params={
                 "query": query,
-                "tags": "show_hn",
+                "tags": tags,
                 "numericFilters": f"created_at_i>={lo},created_at_i<{hi}",
                 "hitsPerPage": max(1, min(hits, HITS_PER_PAGE)),
                 "attributesToRetrieve": ",".join(SHOW_HN_FIELDS),

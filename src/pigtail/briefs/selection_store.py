@@ -151,6 +151,7 @@ def run_stage(
     run_date: date,
     clock: Callable[[], datetime],
     recorder: Any = None,
+    hn: Any = None,
 ) -> StageResult:
     """The selection stage (module docstring). Raises `PreregistrationMissing` before anything
     is fetched or computed when the brief version has no recorded pre-registration (R8.2,
@@ -182,10 +183,20 @@ def run_stage(
         brief_run_id=brief_run_id,
         now=clock(),
         recorder=recorder,
+        hn=hn,
+        window=window,
     )
-    cands = shortlisted(conn, brief)  # metadata may have been filled in
+    cands = shortlisted(conn, brief)  # metadata and looked-up launches may have been added
     inputs = load_inputs(conn, brief, cands, window=window, as_of=as_of)
-    sel = select(inputs, Context.from_brief(brief), Definition.from_brief(brief))
+    notes = []
+    lk = fetch.launch_lookup or {}
+    if lk.get("skipped"):
+        notes.append(
+            f"launch lookup not run ({lk['skipped']}): declared launches come only from "
+            "discovery's Show HN posts, so launched repos with little traction may have no "
+            "anchor (ADR-081)"
+        )
+    sel = select(inputs, Context.from_brief(brief), Definition.from_brief(brief), notes=notes)
     # R4.8 determinism is keyed on (brief version, data version); `as_of` decides `pending`, so
     # it is folded into the selection's data version (M22 verifier round 2): same data, another
     # day -> another data version.

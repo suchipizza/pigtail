@@ -62,7 +62,8 @@ from typing import Any, Literal
 from pigtail.analysis.params import PARAMS_VERSION
 from pigtail.briefs.model import DIMENSIONS, RANKABLE, THRESHOLD_PERCENTILE, Brief, sha256_json
 
-SELECTION_VERSION = "selection-v2"  # v2: headline-first matching, missing language (ADR-078)
+# v2: headline-first matching, missing language (ADR-078); v3: anchor rule anchor-v2 (ADR-081)
+SELECTION_VERSION = "selection-v3"
 OUTCOME_MODEL_VERSION = "2.1"
 MIN_POPULATION = 20  # outcome-model §3 (v0 design choice; the brief schema has no field yet, O17)
 WINNERS_MIN = 15  # R4.8 range floor: below it the report says "fewer winners than the minimum"
@@ -79,6 +80,25 @@ MATCHING_RULE = (
     "round 1: each winner in rank order takes an eligible loser (exact match, calipers), "
     "headline-passing first, then nearest; later rounds: headline-passing losers first, then any "
     "eligible loser (ADR-078)"
+)
+# The anchor rule (outcome-model §2.2; `pigtail.briefs.outcomes.choose_anchor` and the launch
+# lookup) is part of the pre-registered selection parameters (ADR-081): bump the version whenever
+# either changes, so an existing pre-registration no longer passes the gate.
+ANCHOR_RULE_VERSION = "anchor-v2"
+ANCHOR_RULE = (
+    "outcome-model §2.2 rules 1-6 as read by ADR-077.3; declared launches = Show HN or Launch HN "
+    "posts from discovery and the per-repo launch lookup, merged by item id; a launch is compared "
+    "with a day-precision burst onset on the onset's endpoint day (US Pacific, §1.2), so a launch "
+    "on the onset day precedes the burst (ADR-081)"
+)
+LAUNCH_LOOKUP = (
+    "HN Algolia per shortlisted repo, inside the brief's window: show_hn search for "
+    "'github.com/<owner>/<name>' and for '<name>', story search for 'Launch HN <name>' (titles "
+    "starting 'Launch HN' only); a hit is accepted when its URL is the repo's "
+    "github.com/owner/name (case-insensitive) or, when it links no other GitHub repo, its title "
+    "names the repo name (>= 4 characters) as a whole word; a title match claimed by two "
+    "shortlisted repos, or linked by URL to another, is dropped; stored: item id, time, points, "
+    "kind, match (ADR-081)"
 )
 ROUND = 6
 
@@ -137,7 +157,8 @@ class Anchor:
     type: Literal["launch", "burst"]
     at: datetime
     precision: Literal["hour", "day"]
-    source: str  # show_hn | velocity-v0
+    source: str  # show_hn | launch_hn | velocity-v0
+    via: str | None = None  # launches: discovery | lookup:url | lookup:title (ADR-081)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -145,6 +166,7 @@ class Anchor:
             "at": self.at.isoformat(),
             "precision": self.precision,
             "source": self.source,
+            "via": self.via,
         }
 
 
@@ -158,7 +180,7 @@ class Covariates:
     age_log10: float | None = None  # log10(days from repo creation to T)
     audience_band: str = "unknown"  # CB-10 reach band; "unknown" is its own level (O14)
     language: str | None = None
-    launch_type: str | None = None  # show_hn | burst (ADR-057.1 exemplar matching)
+    launch_type: str | None = None  # show_hn | launch_hn | burst (ADR-057.1 exemplar matching)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -302,6 +324,9 @@ class Context:
             "headline_exclusion_smd": self.headline_exclusion_smd,
             "calipers": {"lsm_sd": LSM_CALIPER_SD, "quarter": QUARTER_CALIPER},
             "matching": MATCHING_RULE,
+            "anchor_rule_version": ANCHOR_RULE_VERSION,
+            "anchor_rule": ANCHOR_RULE,
+            "launch_lookup": LAUNCH_LOOKUP,
             "max_distance": self.max_distance,
             "too_few_winners": {
                 "min_winners": self.min_winners,
@@ -1158,8 +1183,20 @@ def _step_entry(step: str, lvl: Level, **extra: Any) -> dict[str, Any]:
     }
 
 
-def select(cases_in: Iterable[CaseInput], ctx: Context, base: Definition) -> Selection:
-    """Outcome sort, winners, matched losers, exemplar losers, balance and sensitivity."""
+def _anchor_type(c: CaseInput) -> str | None:
+    return None if c.anchor is None else c.anchor.type
+
+
+def select(
+    cases_in: Iterable[CaseInput],
+    ctx: Context,
+    base: Definition,
+    *,
+    notes: Sequence[str] = (),
+) -> Selection:
+    """Outcome sort, winners, matched losers, exemplar losers, balance and sensitivity.
+    `notes` are warnings from the input stage (for example a launch lookup that could not run),
+    reported with the selection's own."""
     cases = sorted(cases_in, key=lambda c: c.ref)
     refs = [c.ref for c in cases]
     if len(set(refs)) != len(refs):
@@ -1230,8 +1267,11 @@ def select(cases_in: Iterable[CaseInput], ctx: Context, base: Definition) -> Sel
     unrankable = {c.ref for c in lvl.unrankable}
     # one matched set per winner (or exemplar): the winner row names the set and its size, each
     # loser row carries its own distance and standardized differences to that winner
+    # Each side's anchor type is stored so that the report can restrict H1-type contrasts
+    # (MC-01) to launch-anchored pairs (ADR-081): losers need a declared launch, winners don't.
     pair_of: dict[str, dict[str, Any]] = {}
     for p in [*lvl.pairs, *ex_pairs]:
+        wt, lt = _anchor_type(by_ref[p.winner]), _anchor_type(by_ref[p.loser])
         head = pair_of.setdefault(
             p.winner,
             {
@@ -1239,6 +1279,7 @@ def select(cases_in: Iterable[CaseInput], ctx: Context, base: Definition) -> Sel
                 "panel": p.panel,
                 "side": "winner" if p.panel == "field" else "exemplar",
                 "losers": 0,
+                "anchor_type": wt,
             },
         )
         head["losers"] += 1
@@ -1246,6 +1287,9 @@ def select(cases_in: Iterable[CaseInput], ctx: Context, base: Definition) -> Sel
             "pair_id": p.pair_id,
             "panel": p.panel,
             "side": "loser",
+            "anchor_type": lt,
+            "anchor_types": {"winner": wt, "loser": lt},
+            "launch_anchored": wt == "launch" and lt == "launch",
             "round": p.round,
             "distance": _r(p.distance),
             "diffs": {k: _r(v) for k, v in sorted(p.diffs.items())},
@@ -1303,7 +1347,28 @@ def select(cases_in: Iterable[CaseInput], ctx: Context, base: Definition) -> Sel
             }
         )
 
-    warnings: list[str] = []
+    warnings: list[str] = list(notes)
+    field_cases = [c for c in cases if c.panel != "exemplar"]
+    no_anchor = sum(1 for c in field_cases if c.anchor is None)
+    if no_anchor:
+        warnings.append(f"no anchor: {no_anchor} of {len(field_cases)} shortlisted")
+    ev = lvl.evaluation
+    dims_used = [
+        d for d in RANKABLE if d in lvl.definition.floors or d in (lvl.definition.weights or {})
+    ]
+    if lvl.definition.primary in RANKABLE and lvl.definition.primary not in dims_used:
+        dims_used.append(lvl.definition.primary)
+    for dim in dims_used:
+        info = ev.populations.get(lvl.definition.metrics[dim])
+        if info is None:
+            continue
+        ns = dict(info["n_by_group"]) or {"all": 0}
+        for g, n in sorted(ns.items()):
+            if n < MIN_POPULATION:
+                label = dim if g == "all" else f"{dim} ({g})"
+                warnings.append(
+                    f"{label} population {n} < {MIN_POPULATION} (minimum): no percentiles"
+                )
     if len(lvl.winners) < WINNERS_MIN:
         warnings.append(f"fewer winners than the minimum ({WINNERS_MIN}): {len(lvl.winners)}")
     if len(lvl.ranked) < ctx.winners:
@@ -1318,7 +1383,6 @@ def select(cases_in: Iterable[CaseInput], ctx: Context, base: Definition) -> Sel
             "the panel was widened or the thresholds relaxed (see steps); core-field findings "
             "are reported separately (R4.10)"
         )
-    ev = lvl.evaluation
     affected = {
         dim: sum(
             1
@@ -1335,7 +1399,21 @@ def select(cases_in: Iterable[CaseInput], ctx: Context, base: Definition) -> Sel
         "brief_version": ctx.brief_version,
         "shortlist_n": len(cases),
         "reference_population_n": len(population),
-        "no_anchor": sum(1 for c in cases if c.anchor is None and c.panel != "exemplar"),
+        "no_anchor": no_anchor,
+        "anchors": _count(
+            "none" if c.anchor is None else f"{c.anchor.type}:{c.anchor.via or c.anchor.source}"
+            for c in field_cases
+        ),
+        "pairs_by_anchor": _count(
+            f"{_anchor_type(by_ref[p.winner])}/{_anchor_type(by_ref[p.loser])}" for p in lvl.pairs
+        ),
+        "headline_pairs_launch_anchored": sum(
+            1
+            for p in lvl.pairs
+            if p.headline
+            and _anchor_type(by_ref[p.winner]) == "launch"
+            and _anchor_type(by_ref[p.loser]) == "launch"
+        ),
         "roles": {k: v for k, v in roles.items() if v},
         "final_distance": lvl.distance,
         "core_field_only": all(by_ref[r].distance == 0 for r in winners | field_losers),

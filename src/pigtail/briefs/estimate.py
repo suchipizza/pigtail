@@ -65,6 +65,8 @@ CORE_PER_CASE = 40  # deep forensics per winner, loser and reference case (event
 GRAPHQL_BATCH = 50  # candidates per GraphQL metadata query
 GRAPHQL_POINTS_PER_BATCH = 2
 HN_QUERIES_PER_TERM_SLICE = 1
+# selection-stage launch lookup (ADR-081): Show HN by repo URL, Show HN by name, Launch HN by name
+HN_LAUNCH_LOOKUP_PER_SHORTLISTED = 3
 
 # Relevance filter (M22, R4.6): about 20 candidates per request, each ~350 input tokens
 # (name, description, topics, README excerpt of <= 1,200 chars) and ~70 output tokens.
@@ -385,7 +387,10 @@ def estimate(
         requests[r] / (GITHUB_LIMITS_PER_HOUR[r] * DEFAULT_CAP_FRACTION)  # type: ignore[index]
         for r in requests
     )
-    other = {"hn_algolia": gh("discovery", terms * slices * HN_QUERIES_PER_TERM_SLICE)}
+    other = {
+        "hn_algolia": gh("discovery", terms * slices * HN_QUERIES_PER_TERM_SLICE),
+        "hn_launch_lookup": gh("evidence", shortlisted * HN_LAUNCH_LOOKUP_PER_SHORTLISTED),
+    }
     api = brief.budget.llm_backend == "api"
 
     def cost(stage: str, calls: int, *, reused_by: str | None = None) -> StageCost:
@@ -526,7 +531,7 @@ def render_text(e: Estimate, brief: Brief) -> str:
         *(f"  {k:<8} {v:>8,}" for k, v in e.github_requests.items()),
         f"  about {e.github_hours:.1f} h at the default 70 % caps",
         "Other free sources:",
-        *(f"  {k:<11} {v:>5,} requests" for k, v in e.other_requests.items()),
+        *(f"  {k:<16} {v:>5,} requests" for k, v in e.other_requests.items()),
         f"Candidates ~{e.candidates:,}, shortlisted ~{e.shortlisted:,}, cases {e.cases}"
         + (f" (incl. {e.exemplar_cases} distribution-exemplar cases)" if e.exemplar_cases else ""),
         "",
@@ -623,6 +628,9 @@ def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any
             {
                 "github": "star history: 1-3 core requests per shortlisted repo (ETag, 30 weeks "
                 "per page), plus 1 GraphQL query per 50 repos without metadata",
+                "hn_algolia_requests": e.other_requests.get("hn_launch_lookup", 0),
+                "hn": f"launch lookup: {HN_LAUNCH_LOOKUP_PER_SHORTLISTED} HN Algolia requests "
+                "per shortlisted repo (Show HN by URL and by name, Launch HN by name; ADR-081)",
                 "llm_calls": 0,
                 "api_usd": 0.0,
                 "runs_only_when": "the shortlist is final and the brief version is pre-registered",
@@ -658,6 +666,7 @@ def render_scope_text(scope: dict[str, Any]) -> str:
         lines.append(
             "  selection (once the shortlist is final): no model call; "
             + scope["selection"]["github"]
+            + f"; {scope['selection']['hn']} (~{scope['selection']['hn_algolia_requests']:,})"
         )
     fits = {True: "fits", False: "EXCEEDS a cap: the run will stop there", None: "unknown"}
     lines.append(

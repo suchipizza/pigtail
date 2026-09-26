@@ -93,7 +93,7 @@ def test_selection_runs_after_finalize_on_the_same_run_and_stores_provenance(w, 
     assert sel["brief_hash"] == example().content_hash()
     assert sel["data_version"].startswith("dv1-") and sel["as_of"] == date(2026, 9, 25)
     assert sel["data_version"].endswith("@2026-09-25")  # as_of folded in (R4.8)
-    assert sel["selection_version"] == "selection-v2" and sel["outcome_model_version"] == "2.1"
+    assert sel["selection_version"] == "selection-v3" and sel["outcome_model_version"] == "2.1"
     assert sel["params_version"] == "1.1.0"
     assert sel["code_commit"] is None or re.fullmatch(r"[0-9a-f]{7,40}", sel["code_commit"])
     assert re.fullmatch(r"[0-9a-f]{64}", sel["result_hash"])
@@ -251,10 +251,14 @@ def test_outcome_sort_matching_balance_sensitivity_on_stored_star_history(w, tmp
     # determinism: recomputing from the same stored data gives the same result hash
     b2 = b
     window = window_bounds(b2, NOW.date())
+    # no HN connector here: the stage says the launch lookup did not run (ADR-081)
+    lookup_off = [x for x in sel["summary"]["warnings"] if x.startswith("launch lookup not run")]
+    assert len(lookup_off) == 1
     again = select(
         load_inputs(w.conn, b2, shortlisted(w.conn, b2), window=window, as_of=NOW.date()),
         Context.from_brief(b2),
         Definition.from_brief(b2),
+        notes=lookup_off,
     )
     assert again.result_hash == sel["result_hash"] and again.inputs_hash == sel["inputs_hash"]
     res2 = stage(w, b)
@@ -265,6 +269,7 @@ def test_outcome_sort_matching_balance_sensitivity_on_stored_star_history(w, tmp
                     as_of=NOW.date() + timedelta(days=3)),
         Context.from_brief(b2),
         Definition.from_brief(b2),
+        notes=lookup_off,
     )  # fmt: skip
     assert later.result_hash == sel["result_hash"]
     # a horizon not reached yet is pending, never imputed

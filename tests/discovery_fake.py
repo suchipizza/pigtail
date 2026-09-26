@@ -318,27 +318,41 @@ class DiscoveryFakeGitHub(FakeGitHub):
 
 
 class FakeShowHN:
-    """HN Algolia `/search?tags=show_hn`: a hit matches when any query word (4+ letters) is in
-    its title, within the numeric time filter. It returns person-level fields on purpose."""
+    """HN Algolia `/search` with `tags=show_hn` or `tags=story` (the hit's `_tags` must hold the
+    tag): a hit matches when any query word (4+ letters) is in its title, or, for a query that
+    names `github.com`, when the query's path is in its URL (case-insensitive), within the
+    numeric time filter. It returns person-level fields on purpose."""
 
     def __init__(self, hits: list[dict[str, Any]] | None = None) -> None:
         self.hits = list(HN_HITS if hits is None else hits)
         self.requests: list[httpx.Request] = []
+        self.fail_after: int | None = None  # answer 500 once this many requests were served
 
     def client(self) -> httpx.Client:
         return httpx.Client(transport=httpx.MockTransport(self))
 
+    def _matches(self, h: dict[str, Any], query: str) -> bool:
+        if "github.com" in query.lower():
+            path = query.lower().split("github.com", 1)[1]
+            return path in str(h.get("url") or "").lower()
+        words = [w.lower() for w in re.findall(r"[A-Za-z]{4,}", query)]
+        return any(w in h["title"].lower() for w in words)
+
     def __call__(self, req: httpx.Request) -> httpx.Response:
+        if self.fail_after is not None and len(self.requests) >= self.fail_after:
+            return httpx.Response(500, json={"message": "unavailable"})
         self.requests.append(req)
         assert req.url.host == "hn.algolia.com" and req.url.path == "/api/v1/search", req.url
         p = {k: v[0] for k, v in parse_qs(req.url.query.decode()).items()}
-        assert p["tags"] == "show_hn" and "author" not in p.get("attributesToRetrieve", "")
+        assert p["tags"] in ("show_hn", "story")
+        assert "author" not in p.get("attributesToRetrieve", "")
         lo, hi = (int(x) for x in re.findall(r"created_at_i[<>]=?(\d+)", p["numericFilters"]))
-        words = [w.lower() for w in re.findall(r"[A-Za-z]{4,}", p.get("query", ""))]
         hits = [
             h
             for h in self.hits
-            if lo <= h["created_at_i"] < hi and any(w in h["title"].lower() for w in words)
+            if lo <= h["created_at_i"] < hi
+            and p["tags"] in h.get("_tags", ["story", "show_hn"])
+            and self._matches(h, p.get("query", ""))
         ][: int(p.get("hitsPerPage", "20"))]
         body = {"hits": hits, "nbHits": len(hits), "nbPages": 1, "page": 0}
         return httpx.Response(

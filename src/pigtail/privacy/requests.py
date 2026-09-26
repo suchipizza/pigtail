@@ -588,6 +588,16 @@ def _repo_evidence(
         cond, p = _url_cond("url", names)
         params |= p
         parts.append(sql.SQL("SELECT id FROM evidence WHERE ") + cond)
+        # the selection's launch lookup (ADR-081): one evidence row per search, named by repo
+        from pigtail.connectors.hn import LAUNCH_LOOKUP_EVIDENCE
+
+        params["lookup_prefix"] = [f"{LAUNCH_LOOKUP_EVIDENCE}{n.lower()}&" for n in names]
+        parts.append(
+            sql.SQL(
+                "SELECT id FROM evidence WHERE EXISTS (SELECT 1 FROM"
+                " unnest(%(lookup_prefix)s::text[]) AS q(x) WHERE starts_with(lower(url), q.x))"
+            )
+        )
     mention = sql.SQL(
         "(m.repo_full_name = ANY(%(names)s)"
         + (" OR m.repo_id = %(key)s" if key is not None else "")

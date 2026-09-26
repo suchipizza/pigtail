@@ -280,19 +280,32 @@ stores the brief version and content hash, the two partial hashes, the file's pa
 and the commit (table `brief_preregistration`). Until then the selection is refused with exit
 code 7, before anything is fetched, computed or stored. A file that quotes brief text is
 refused; so is a pre-registration once the version already has a selection. Editing the brief
-(a new version) or a new selection rule needs a new pre-registration.
+(a new version) or a new selection rule needs a new pre-registration. The selection rule
+includes the anchor rule (`anchor_rule_version`) and the launch lookup (ADR-081): since
+`selection-v3` a pre-registration recorded under `selection-v2` is refused, so pre-register the
+version again (a new file; the old one stays as it is).
 
-**5. Selection (R4.8, R4.3, R4.9, R4.10, R4.11; ADR-077, ADR-078).** It runs only on a
+**5. Selection (R4.8, R4.3, R4.9, R4.10, R4.11; ADR-077, ADR-078, ADR-081).** It runs only on a
 **final**, **pre-registered** shortlist: after `shortlist finalize` and `brief preregister`, run
 `pigtail run --brief my-project` again (or with `--stage selection`) and it continues the same
 run with this stage alone. It makes no model call.
-- **Outcome data.** With `GITHUB_TOKEN` set, it first fetches each shortlisted repo's **star
+- **Launch lookup** (ADR-081). It first looks up every shortlisted repo's own **Show HN and
+  Launch HN posts** in the brief's window, whether discovery found them or not: 3 HN Algolia
+  requests per repo (Show HN by the repo URL, Show HN by the repo name, Launch HN by the name),
+  paced by the connector's limiter (5,000 requests/hour), so about 25 minutes for 686 repos. A
+  post counts when it links the repo's `github.com/owner/name` (any capitalisation) or, linking
+  no other GitHub repo, names the repo as a whole word in its title (names of 4+ characters).
+  Only the item id, time, points and how it matched are kept; the raw page is dropped. It is
+  checkpointed per repo: after a failed request (exit 1) run again and it continues with the
+  next repo. With the Show HN connector off (`PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false`) it is
+  skipped and the selection warns that launched repos with little traction may have no anchor.
+- **Outcome data.** With `GITHUB_TOKEN` set, it then fetches each shortlisted repo's **star
   history** (daily net stars, back to 60 days before the brief's window; 1–3 core requests per
   repo, conditional) and fills missing metadata (creation date, language) for repos you added by
   URL. Without a token it uses what is already stored. The GitHub budget pauses it like
   discovery (exit 4; run again to continue). **Only star-based metrics exist so far**:
   `att.stars@30/@90` (raw net stars over 30 or 90 endpoint days from the anchor, labelled
-  "unfiltered, anomaly-checked") and `att.hn_points` (from the Show HN posts discovery recorded).
+  "unfiltered, anomaly-checked") and `att.hn_points` (from the declared launch posts).
   Registry downloads, dependents, contributor metrics and business signals have no connector
   yet and are `unknown` (reason `no_connector`); a value is never imputed. A brief whose primary
   dimension or thresholds use those metrics therefore gets **no winners** until the connectors
@@ -300,9 +313,16 @@ run with this stage alone. It makes no model call.
   connectors (npm and crates.io downloads, returning external contributors from GitHub pull
   requests; PyPI via BigQuery and deps.dev dependents optional) are milestone **M23b**
   (ADR-080); until then rank on attention, as the example brief does.
-- **Anchor T** per candidate: its first Show HN launch post, or the first star burst
-  (`velocity-v0`) in the window, by the outcome model's rule (§2.2). A value whose horizon hasn't
-  passed (`T + k + 3 days`) is `pending`. A candidate without an anchor can't be sorted.
+- **Anchor T** per candidate: its first declared launch (Show HN or Launch HN post, from
+  discovery or the lookup), or the first star burst (`velocity-v0`) in the window, by the
+  outcome model's rule (§2.2, rule `anchor-v2`). A launch on the burst's onset day (US Pacific
+  endpoint day) counts as preceding the burst. A value whose horizon hasn't passed
+  (`T + k + 3 days`) is `pending`. A candidate without an anchor can't be sorted. The result
+  counts anchors by type and source (`anchors`) and pairs by the anchor type of each side
+  (`pairs_by_anchor`): hypotheses about launching on HN (MC-01) are read only within pairs where
+  both sides are launch-anchored (ADR-081).
+- **Warnings** say why there are few or no winners, for example `no anchor: 12 of 40
+  shortlisted` or `attention population 19 < 20 (minimum): no percentiles`.
 - **Outcome sort** (outcome model §3, §5): percentiles within the final shortlist (field and
   reference repos with an anchor; at least 20 observed values, else `unknown`). A candidate
   qualifies when it meets every threshold; `unknown` or `pending` never meets one and makes it

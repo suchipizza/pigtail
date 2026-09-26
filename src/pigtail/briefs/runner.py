@@ -456,6 +456,7 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
                     run_date=date.fromisoformat(run.checkpoint["run_date"]),
                     clock=deps.clock,
                     recorder=deps.recorder,
+                    hn=deps.hn,
                 )
                 _link(db, run.id, sres.evidence_ids)
                 run.stage(name, "done", finished_at=deps.clock().isoformat(), result=sres.to_dict())
