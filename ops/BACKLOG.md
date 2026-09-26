@@ -8,18 +8,24 @@ v2 plan (ADR-047/048/049). Format: `- [ ] [ID] title — depends on — acceptan
 - [x] [M11] Re-scope cleanup (verifier PASS round 2, 2026-09-26) — — none — tag on origin ✓ (archive/global-collection); remove the watch list, all-GitHub search sweeps, global breakout detection, holdout split/guard and settle-lag code + their scheduler jobs and CLI; forward-only migration dropping their tables; HN poller repurposed (ADR-049.1); withdrawal amendments pushed (ADR-049.5); operator/developer guides, codebook, .claude/agents updated to v2 scope; CI green; verifier sign-off
 - [x] [M12] Research brief v1 (D7) — accepted 2026-09-26 (verifier PASS round 2) — — M11 — create/edit briefs (form + YAML), validation, versions + diff, multiple briefs, cost estimate, hard stop at budget (tested), cache reuse, brief files private (scan blocks them); example brief in docs
 - [ ] [OWNER] Owner's first brief (private brief store, v2): reference cases confirmed except one incomplete answer; distribution examples added (ADR-056)
-- [~] [CB-12] Privacy notice: filled privately 2026-09-26 (controller: the owner personally; Zürich, Switzerland); awaiting owner's go-ahead to publish (GitHub Pages or Vercel); open legal point: EU representative (GDPR Art. 27)
-- [ ] [CB-06b] Finish LLM-path redaction (gists, avatar URLs, bare handles in author fields): last partial ADR-022 precondition for person-level sources
+- [~] [CB-12] Privacy notice for the owner's instance (ADR-071.4): generic template stays in this repo; the instance notice is drafted outside git and will be published on GitHub Pages in a separate repo, only after the owner reviews and approves the draft (H5); dedicated contact alias pending (owner input, `ops/HUMAN_INPUTS.md`). Precondition for person-level sources (ADR-073.2)
+- [ ] [CB-06b] Finish LLM-path redaction (gists, avatar URLs, bare handles in author fields): with CB-12, the remaining precondition for person-level sources (ADR-022 as amended by ADR-073.2)
 
 ## Next
 - [ ] [M12-F] M12 follow-ups: scan blocks expansion proposal files (top-level brief_id + expansion); CLI edit refuses files without `version:` unless forced; stale estimate-v0 / brief-v1 labels
-- [ ] [M13] Two panels per brief (field + distribution examples, ADR-057), absolute numbers, transferability labels; discovery, relevance filter (batched ~20 candidates per call), shortlist (deep coding only after the owner's review); brief schema v1.1 with a `distribution_exemplars` field (ADR-056) — M12, GITHUB_TOKEN ✓ — Trendshift terms audit; logged candidates, verdicts, reasons; precision; deterministic selection; balance diagnostics; sensitivity check
-- [ ] [M14] Batch runs, launch mode, ops (launchd, Docker only during runs, FileVault check in doctor) — M12, M13, H1
-- [ ] [M15] Pilot: first end-to-end neighbourhood report on the owner's brief — M13, M14, H1, H3, H5, CB-12 (ADR-049.2)
-- [ ] [M16] Plan generator (D3) — M15
-- [ ] [M17] Project analyzer and tracker (D5) — M14, M15
-- [ ] [M18] Install for any user + v1 release (compliance template with safe defaults, ADR-047.9) — M15–M17, H2, H4
-- [ ] [M19] v2 execution engine (D4) — M18, H5
+- [-] [M13] [retired → see M20–M28, ADR-069/072] ~~Two panels per brief (field + distribution examples, ADR-057), absolute numbers, transferability labels; discovery, relevance filter (batched ~20 candidates per call), shortlist (deep coding only after the owner's review); brief schema v1.1 with a `distribution_exemplars` field (ADR-056) — M12, GITHUB_TOKEN ✓ — Trendshift terms audit; logged candidates, verdicts, reasons; precision; deterministic selection; balance diagnostics; sensitivity check~~
+- [-] [M14] [retired → see M20–M28, ADR-069/072] ~~Batch runs, launch mode, ops (launchd, Docker only during runs, FileVault check in doctor) — M12, M13, H1~~
+- [-] [M15] [retired → see M20–M28, ADR-069/072] ~~Pilot: first end-to-end neighbourhood report on the owner's brief — M13, M14, H1, H3, H5, CB-12 (ADR-049.2)~~
+- [-] [M16] [retired → see M20–M28, ADR-069/072] ~~Plan generator (D3) — M15~~
+- [-] [M17] [retired → see M20–M28, ADR-069/072] ~~Project analyzer and tracker (D5) — M14, M15~~
+- [-] [M18] [retired → see M20–M28, ADR-069/072] ~~Install for any user + v1 release (compliance template with safe defaults, ADR-047.9) — M15–M17, H2, H4~~
+- [-] [M19] [retired → see M20–M28, ADR-069/072] ~~v2 execution engine (D4) — M18, H5~~
+- [ ] [M23] Owner brief #1 pilot (WORK_ORDER §4.5 M23; Directive §11 step 4) — M22; owner's brief in `~/.pigtail/briefs`; person-level sources only after CB-12 (notice via H5) and CB-06b (ADR-073.2) — pre-registration pushed before the outcome data is examined (Directive §7, ADR-065); shortlist reviewed by the owner or verifier-skimmed with the label (ADR-072.8); first 5 cases double-coded with per-field α; cost per case and projection in `ops/COSTS.md` and `ops/STATUS.md` (H6 if over the cap); evidence decay at 1/7/30 days, cadence change as an ADR; results kept in the instance's private data directory (ADR-073.1); verifier sign-off
+- [ ] [M24] Owner brief #1 full run (Directive §11 step 5) — M23; projection within the cap (else H6) — run within `budget.money_usd`; per-brief D2 report with per-field α, sensitivity check, transferability labels, absolute numbers, loser contrasts; D1 criteria on its cases; 100% of claims resolve to snapshots; unreferenced cache purged and logged (R19.10); report stays private and backed up, no report in git (ADR-073.1); verifier sign-off
+- [ ] [M25] D3 plan (Directive §11 step 6) — M24 — D3 criteria pass; a plan exists for the owner's project, kept in her instance (ADR-073.1); verifier sign-off
+- [ ] [M26] Launch mode and D5 tracking (Directive §11 step 7) — M22; M24 (≥ 5 deep-forensics cases from brief #1 for the R17.5 validation); ready before the owner's first launch — simulated burst and declared launch switch the schedule; hourly star lanes only for launch-mode cases (ADR-070.3); launchd, cadence ≤ 60 days, `pigtail doctor` FileVault check, backup restore; D5 criteria incl. R17.5; verifier sign-off
+- [ ] [M27] Operator guide (Directive §11 step 8) — M24, M25, M26 — new user runs a first brief in under an hour with the example brief (D6 timed test); 3 consecutive scheduled runs with alerts; "Responsible use" section (ADR-066.8); compliance template (ADR-067); D6 criteria; verifier sign-off
+- [ ] [M28] v2 execution engine (D4) — M27; H5 — D4 criteria pass on 1 real launch
 - [x] [DEC-10] Decided by the owner: ADR-054 (exact match on audience bucket + launch half-year; SMD target; > 0.5 out of headline)
 
 ## v1 backlog (history)
@@ -120,7 +126,7 @@ Feature-specific:
 - [x] [CB-18b] RedactingFilter on every CLI command and scheduled job
 - [x] [LQ-27] Added to legal-review-questions (with LQ-28 OpenDigger, LQ-29 stargazer identities) — was: Add legal question: after an erasure, replay briefly re-processes the erased person's data before dropping it at ingest (ADR-030.1) — acceptable?
 - [ ] [M5-T1] Coding prompts must include the codebook P1 instruction (ignore personal characteristics); verifier checks it — codebook §12, DPIA R9
-- [ ] [M2-T3] Fake-star method: select, reproduce on a sample, document validation — R3.3 — M2-T1
+- [-] [M2-T3] ~~Fake-star method: select, reproduce on a sample, document validation — R3.3 — M2-T1~~ **Obsolete** (ADR-070.4): per-account fake-star filtering no longer works for repos we don't own; replaced by aggregate anomaly checks (M21)
 - [x] [M2-T4] Verifier spot-check — round 1 FAIL, round 2 PASS @191c44d (2026-09-25)
 - [ ] [M2-T5] Minor source-matrix follow-ups: Algolia earliest-item wording, cite yc-oss README, add #312 notes (Events API cache; merged-PR events) — verifier round 2 optional
 - [ ] [M3-T0] Check whether GH Archive still records merged PRs (PullRequestEvent closed+merged) on a sample of real hours; if not, the §8.1 "returning external contributors" metric needs the GitHub API — §8.1 — M1-T3

@@ -457,17 +457,27 @@ Source: `ops/OWNER_DIRECTIVE_001.md` (public copy, §4 redacted by owner decisio
 ## ADR-059 — Directive §1: project framing
 pigtail is a personal project for now: no service, no customers, no findings leave the owner's instance. Distribution follows the Crawl4AI model: open-source code, method, templates and docs that each user installs and runs with their own credentials and data. No data and no hosted service ship. Nothing in the code is owner-specific. Confirms ADR-047.
 
+Replaces chat reference: CR-002 (ADR-073.3; Directive §1).
+
 ## ADR-060 — Directive §2: brief-based research
 Brief fields and the per-brief flow as in §2.1–2.3 (confirms ADR-047, ADR-055, ADR-058). Every report records the brief version, shortlist decisions, data version **and code commit**. Cuts as in ADR-047.3. Findings are per-brief patterns showing n, the loser contrast and counterexamples.
+
+Replaces chat reference: CR-002 (ADR-073.3; Directive §2).
 
 ## ADR-061 — Directive §3: success definition and matching
 Confirms ADR-047.2 (primary dimension plus minimums; weights advanced only; PRD §5.3 amended), ADR-053.2 (fallbacks), and ADR-054.1 (exact match on audience bucket and launch half-year; SMD < 0.25 as a target; > 0.5 excluded from headline patterns). Every report includes the sensitivity check.
 
+Replaces chat reference: CR-002 (ADR-073.3; Directive §3).
+
 ## ADR-062 — Directive §4: the owner's first brief (content private)
 Per the owner's option (b), §4's content lives only in the owner's private brief: the field panel, widening steps, distribution exemplars, reference cases, audience and channels. The generic rules are public (ADR-054.3, ADR-057). Missing brief fields get defaults and are listed in `ops/HUMAN_INPUTS.md` (generically) for confirmation in the shortlist review. Unresolved reference cases never block a run.
 
+Replaces chat reference: CR-002 (ADR-073.3; Directive §4).
+
 ## ADR-063 — Directive §5: collection model
 Confirms ADR-048 and ADR-049.1 (batch runs `pigtail run --brief <id> [--incremental]`; 7-day default, 1–8 weeks; ceiling ≤ 60 days derived from per-source history windows; launch mode; D5 weekly; launchd; server optional). Confirms ADR-051 (archive tag; global code deleted; poller, scheduler and per-repo collectors kept). The **purge of cached data that no brief references**, once the first brief's shortlist is final, is logged. GH Archive is used for discovery signals only. §5.3's "stargazer timestamps" is **not implementable** (GitHub restricted them on 2026-06-30); the owner accepted daily counts instead (ADR-070). Evidence-decay study as ADR-048.3.
+
+Replaces chat reference: CR-001 (ADR-073.3; Directive §5).
 
 ## ADR-064 — Directive §6: LLM backends, models and cost (supersedes ADR-023 and ADR-053.1 for product calls)
 1. **Product LLM calls use `LLM_BACKEND=api`** (the owner's Anthropic API key, Commercial Terms, verified 2026-09-26). The `subscription` backend stays in the code for other users, documented as individual, non-commercial use on the operator's own plan through the official CLI only, with a pointer to Anthropic's terms.
@@ -475,8 +485,12 @@ Confirms ADR-048 and ADR-049.1 (batch runs `pigtail run --brief <id> [--incremen
 3. **Models:** relevance filter `claude-haiku-4-5-20251001`; extraction and coding `claude-sonnet-5`; synthesis, report and plan `claude-opus-5-5`. All three are visible on the owner's key (checked 2026-09-26). The **Batch API** is used for every stage that isn't time-sensitive; launch mode may use standard calls. Prompt caching covers the codebook and system prompts. Evidence is cut down before sending (truncation, deduplication, relevant excerpts). Model IDs and prompt versions are logged with every output.
 4. **Budget:** API hard cap USD 150 for the owner's first full brief and USD 200 per month. After the first 5 pilot cases, the cost per case and a projection go in `ops/COSTS.md` and `ops/STATUS.md`; if the projection exceeds the cap, stop and raise H6. Other paid services USD 0 (BigQuery free tier only; Trendshift and X off). A cost estimate is shown before every run (CLI and UI). Brief schema: `budget.money_usd` covers the API cap plus other paid services; `budget.subscription_share` now applies to agents only.
 
+Replaces chat reference: none (new in the directive; ADR-073.3, Directive §6).
+
 ## ADR-065 — Directive §7: quality and pre-registration
 Confirms ADR-047.7 and ADR-050: double coding with adjudication, Krippendorff's α per field, "low reliability" below 0.70 (also on findings resting on such fields), and the optional owner calibration (H3) or the "LLM-coded, not human-validated" label. Old pre-registrations are withdrawn by amendment, not deleted (done: ADR-049.5). Brief-level hypotheses are pre-registered before the outcome data they test is examined.
+
+Replaces chat reference: CR-002 (ADR-073.3; Directive §7).
 
 ## ADR-066 — Directive §8: privacy and legal mitigations (supersedes the pseudonymized-handle model of ADR-030/042/045 for coded data)
 1. **Code, then discard identities:** spread-graph nodes are roles and buckets (maintainer, account by follower bucket, newsletter, community, organization). Handles and personal names are never stored in coded data; organizations and projects may be named. The pseudonymized-handle scheme is replaced; existing data is migrated, then the handles and pseudonyms are purged. Kept: an HMAC fingerprint only for people who opted out (ADR-071).
@@ -488,14 +502,22 @@ Confirms ADR-047.7 and ADR-050: double coding with adjudication, Krippendorff's 
 7. **LLM processing:** API mode only, under the data processing agreement in the Commercial Terms. The compliance docs record that inference happens in the US.
 8. **Distribution safeguards:** no data and no default targets ship; the protections are on by default; a "Responsible use" section goes in the README and operator guide (each user is the controller of their own instance). MIT licence unchanged.
 
+Replaces chat reference: CR-003 (ADR-073.3; Directive §8).
+
 ## ADR-067 — Directive §9: compliance documents
 `docs/compliance/` becomes a **template**: a one-page LIA, a short privacy notice, a light DPIA, a retention policy matching §8.2, and a terms memo per source. The owner's completed pack is the first filled-in copy, kept outside git. `docs/compliance/LEGAL_REVIEW_H2.md` is narrowed to three questions (legitimate interest and GDPR Art. 3(2)(b); whether a public notice under Art. 14(5)(b) is enough; Reddit terms, only if Reddit is used beyond metadata). The Anthropic questions (LQ-1 to LQ-3) are closed, because product calls run on the API. H2 blocks publishing only, and publishing is disabled.
+
+Replaces chat reference: CR-003 (ADR-073.3; Directive §9).
 
 ## ADR-068 — Directive §10: human gates
 H1: Anthropic API key with Console spend limits (✓ key verified 2026-09-26; spend limits to be confirmed by the owner), GitHub token (✓), FileVault (✓), an encrypted local backup location, and the Claude subscription login for agents (✓); optional BigQuery (free tier) and SMTP. H2: the narrowed legal consult (collection continues under the mitigations). H3: optional calibration (~2 h). **H4: publishing disabled** until the owner revokes the directive. H5: no external action without approval (the privacy-notice publication falls under H5). H6: no spend above the ADR-064 caps.
 
+Replaces chat reference: none (new in the directive; ADR-073.3, Directive §10).
+
 ## ADR-069 — Directive §11: milestone re-plan
 Order: (1) documents, with the verifier's consistency check; (2) cleanup and privacy (ADR-051 done; §8.1 migration and handle purge; §8.2 purge job; `LLM_BACKEND=api` wiring; cost estimator); (3) brief feature (M12 done; discovery, relevance filter and shortlist review remain); (4) owner brief #1 pilot: the first 5 cases end to end with double coding, then the cost report and projection and the evidence-decay measurement; (5) full brief #1 run within the cap: report with per-field α, sensitivity check and transferability labels; (6) D3 plan; (7) launch mode and D5 before the owner's first launch; (8) operator guide: a new user runs a first brief in under an hour. Acceptance as in the directive. The WORK_ORDER milestones M13–M19 are renumbered accordingly.
+
+Replaces chat reference: none (new in the directive; ADR-073.3, Directive §11).
 
 ## ADR-070 — Daily star counts, day-level attribution, launch-mode star polling, aggregate anomaly checks (owner decision; resolves the directive's §5.3 conflict)
 1. **Stars** come from `GET /repos/{owner}/{repo}/stargazers/history` (daily net counts). Resolution is **daily**.
@@ -519,3 +541,12 @@ Order: (1) documents, with the verifier's consistency check; (2) cleanup and pri
 6. **Reddit metadata:** allowed only once the source matrix records its clearance and a Reddit API app exists (H1, optional). Until then it's a gap.
 7. **Wayback Machine:** off by default. When enabled, it is used only for project pages (sites, READMEs, pricing and docs pages) and never for person-level content. Narrowed H2 doesn't cover it; the source matrix keeps its conditions.
 8. **Shortlist check:** the old H3 shortlist skim moves into M23. The owner reviews the shortlist; if she doesn't, the verifier skims it and precision is labelled "verifier-checked, not owner-checked". H3 is now the optional calibration coding.
+
+## ADR-073 — Reports stay private; ADR-022 aligned with Owner Directive 001 (2026-09-26)
+1. **No reports in git** (Directive §8.6, ADR-066.6). Pilot, brief and final reports, cost reports with case detail, and evidence-decay results stay inside the owner's instance (private data directory, backed up), not in the public repo. The repo holds only code, method documents (codebook, specs, templates, guides), synthetic fixtures and ops logs with counts and method-level status only. Earlier plans for public `docs/reports/pilot.md` and `final.md` are withdrawn; `docs/reports/` keeps only the counts-only data inventory and method notes without case content.
+2. **ADR-022 amended:**
+   - Naming organisations, projects and matched losers is allowed **inside the instance** (private UI and private reports), because nothing is published (H4 disabled).
+   - Person-level sources (HN mentions and comments, Bluesky, per-repo events) may be enabled once **CB-12** (the owner's privacy notice published after her approval, H5) and **CB-06b** (the rest of the LLM-path redaction) are done, together with the controls already built (CB-01, 02, 03 via FileVault, 08, 13, 22, 23, 25, 29).
+   - Spread graphs are roles and buckets (ADR-066.1), so the old LQ-8 condition (account-level graphs) no longer applies.
+3. **Chat references:** ADR-059 to ADR-069 each derive from Owner Directive 001 (CR-003 for §8–§9; CR-002 for §1–§4 and §7; CR-001 for §5; §6, §10 and §11 are new in the directive). The mapping is recorded here and in the directive preamble.
+How to reverse: A new owner directive.

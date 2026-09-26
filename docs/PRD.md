@@ -10,7 +10,7 @@ User-facing deliverables (the pages and their acceptance criteria): `docs/DELIVE
 
 | Version | Date | Change |
 |---|---|---|
-| 2.2 | 2026-09-26 | Owner Directive 001 applied (Directive §0.3). Framing: personal project, Crawl4AI distribution model, nothing leaves the owner's instance (§1, ADR-059). Product LLM calls on `api`; `subscription` kept for other users' individual, non-commercial use (R15.1, R15.6; Directive §6.1, ADR-064.1). New R15.8 model assignment, R15.9 Batch API and prompt caching, R15.10 evidence trimming, R15.11 budget caps (Directive §6.3–6.4, ADR-064.3–4). Privacy model: roles and buckets instead of handles, opt-out HMAC only, bot flag on the coded record, snapshots kept until report final + 12 months, minimal collection, official APIs, Reddit metadata only, one short excerpt per source, publishing disabled, US inference (R2.2, R5.3, §7, §10; Directive §8, ADR-066, ADR-071). Stars: daily star-history counts, day-level attribution labels, launch-mode star polling, aggregate anomaly checks labelled "unfiltered, anomaly-checked" (R2.2, R3.3, R5.5, R19.4, §8.1; ADR-070, overriding Directive §5.3). Briefs stored outside git in `~/.pigtail/briefs` and backed up (R18.9; ADR-071.3). Brief fields aligned with Directive §2.1 (R18.1); reports record the code commit (§5.5, R18.6; ADR-060). New R19.9 snapshot purge job, R19.10 cache purge. R13.3 public mode disabled. §11 release criteria and §12 defaults updated. No requirement ID was renumbered. |
+| 2.2 | 2026-09-26 | Owner Directive 001 applied (Directive §0.3). Framing: personal project, Crawl4AI distribution model, nothing leaves the owner's instance (§1, ADR-059). Product LLM calls on `api`; `subscription` kept for other users' individual, non-commercial use (R15.1, R15.6; Directive §6.1, ADR-064.1). New R15.8 model assignment, R15.9 Batch API and prompt caching, R15.10 evidence trimming, R15.11 budget caps (Directive §6.3–6.4, ADR-064.3–4). Privacy model: roles and buckets instead of handles, opt-out HMAC only, bot flag on the coded record, snapshots kept until report final + 12 months, minimal collection, official APIs, Reddit metadata only, one short excerpt per source, publishing disabled, US inference (R2.2, R5.3, §7, §10; Directive §8, ADR-066, ADR-071). Stars: daily star-history counts, day-level attribution labels, launch-mode star polling, aggregate anomaly checks labelled "unfiltered, anomaly-checked" (R2.2, R3.3, R5.5, R19.4, §8.1; ADR-070, overriding Directive §5.3). Briefs stored outside git in `~/.pigtail/briefs` and backed up (R18.9; ADR-071.3). Brief fields aligned with Directive §2.1 (R18.1); reports record the code commit (§5.5, R18.6; ADR-060). New R19.9 snapshot purge job, R19.10 cache purge. R13.3 public mode disabled. §11 release criteria and §12 defaults updated. No requirement ID was renumbered. M20 verifier fixes: Wayback off by default, project pages only, not tied to H2 (R1.2, R2.2; ADR-072.7); ADR-022 as amended by ADR-073.2 (R2.2, §7 table, §10); reports stay private (§10, §11; ADR-073.1); R8.2 per-brief pre-registration (Directive §7, ADR-065); R15.1 code default decided (ADR-072.5); R18.1 and R15.11 budget fields (ADR-072.4, ADR-064.4). |
 | 2.1 | 2026-09-26 | Matching and panel rules (ADR-054, owner decision): exact match on founder audience bucket and launch half-year; SMD < 0.25 a target for other characteristics, balance always shown, pairs > 0.5 excluded from headline patterns (R4.3, §9.2). New R4.10 field widening with distance labels; R4.11 named reference cases and the repo-choice rule. |
 | 2.0 | 2026-09-26 | Re-scoped to brief-driven neighbourhood analysis (ADR-047, owner change request CR-002) and to batch runs with launch mode instead of continuous capture (ADR-048, CR-001). New: the research brief (F18), batch runs and launch mode (F19), neighbourhood patterns (F20). Cut: Tier 1 at scale, the global 24-month backfill, global breakout detection, the global mechanism library and its promotion rule, the §9.1 system tests, and the causal toolkit beyond event studies and winner/loser contrasts. §5.3 amended (ADR-047.2). Retired requirement IDs are listed where they stood and are never reused. |
 | 1.0 | 2026-09-25 | Global collection and mechanism-library scope. The full text is in git history (for example `git show archive/global-collection:docs/PRD.md`); the tag `archive/global-collection` marks the code state before the re-scope. |
@@ -80,7 +80,7 @@ Requirement IDs are referenced by the work order, by tests and by the backlog. W
 
 ### F1 Capture layer (runs inside batch runs; see F19)
 - ~~R1.1 Global GH Archive velocity scan and case opening.~~ **Retired** (ADR-047.6: global breakout detection is deleted; ADR-047.8: GH Archive is discovery-only). Burst detection for tracked projects is R19.5.
-- R1.2 (amended) For every case in a brief's winner/loser set and every tracked project, search each enabled source for mentions of the repo (URL, name, owner) at every run, and snapshot what is found at the run that first sees it: raw API JSON where available, rendered HTML or screenshot otherwise, plus a Wayback Machine save request where that is permitted. The evidence-decay study (R19.8) measures how much this cadence loses.
+- R1.2 (amended) For every case in a brief's winner/loser set and every tracked project, search each enabled source for mentions of the repo (URL, name, owner) at every run, and snapshot what is found at the run that first sees it: raw API JSON where available, rendered HTML or screenshot otherwise. A Wayback Machine save request is made only when the operator has enabled Wayback (off by default), only for project pages (project sites, READMEs, pricing and docs pages), and never for person-level content (ADR-072.7). The evidence-decay study (R19.8) measures how much this cadence loses.
 - ~~R1.3 Global watchlist of announced launches.~~ **Retired**. Its purpose was the prospective test (§9.1 v1, cut by ADR-047.3). A user declares their own launch through launch mode (R19.4), and launch-mode cases remain the prospective set for any later evaluation (ADR-048.4).
 - R1.4 Snapshot storage is content-addressed (SHA-256), and each snapshot is stored with source, URL, fetch time, collector version and terms basis.
 - R1.5 Deletion sync: re-check sources that impose deletion obligations at every scheduled run (and at least as often as the source's obligation requires); when content has been removed upstream, drop the raw copy and keep the hash plus coded facts (§10).
@@ -90,9 +90,10 @@ Requirement IDs are referenced by the work order, by tests and by the backlog. W
 - R2.2 (amended; ADR-047.8, ADR-010) Minimum set for v2:
   - **GitHub REST/GraphQL** for repo metadata, search, topics, releases, issues, PRs and contributors. Stars come from `GET /repos/{owner}/{repo}/stargazers/history`, the **star-history endpoint's daily net counts**; resolution is daily (ADR-032.3, ADR-070.1). Per-user star timestamps are not available: GitHub restricted stargazer lists to admins and collaborators on 2026-06-30. Directive §5.3's "stargazer timestamps; GraphQL sorted by star time" is therefore not implemented; the owner accepted daily counts instead (ADR-063, ADR-070). Known limits, documented in the source matrix: unstars can't be seen individually (the series is net), and very large repos can hit pagination caps (Directive §5.3).
   - **GH Archive / BigQuery**, restricted to the brief's topics and used for **discovery signals only** (activity, first releases). It has been close to push-events-only since mid-2025 and is never a source for stars, forks, issues or PRs (Directive §5.3, ADR-063).
-  - **Hacker News**: the front-page rank poller (project-level), Show HN discovery, and mention search subject to ADR-022's person-level holds.
+  - **Hacker News**: the front-page rank poller (project-level), Show HN discovery, and mention search, which is person-level and may be enabled only once CB-12 (the privacy notice, published after the owner's approval, H5) and CB-06b (the rest of the LLM-path redaction) are done, with the controls already built (ADR-022 as amended by ADR-073.2).
   - **Awesome-lists** (read through the GitHub API) for discovery.
-  - Bluesky (subject to ADR-022), package registries (PyPI BigQuery, npm, crates.io, Homebrew, Docker Hub), deps.dev, and the Wayback Machine (off until H2 answers).
+  - Bluesky (person-level; same preconditions as HN mention search, ADR-073.2), package registries (PyPI BigQuery, npm, crates.io, Homebrew, Docker Hub) and deps.dev.
+  - **Wayback Machine: off by default.** When the operator enables it, it is used only for project pages (project sites, READMEs, pricing and docs pages) and never for person-level content. It is not tied to H2 (the narrowed H2 doesn't cover it); the source matrix keeps its conditions (ADR-072.7).
   - **Trendshift**: **off by default** (Directive §8.4, ADR-066.4); an optional, per-user discovery source (ADR-047.1), enabled only once its terms are cleared in the source matrix (ADR-010).
   - **Reddit: metadata only** (link, title, score, timestamp) until Reddit API approval is granted (Directive §8.4, ADR-066.4), and only through the official API once the source matrix records that clearance; until then it stays a documented gap (ADR-010).
   - Sources recorded as gaps in the source matrix (YouTube, X, Product Hunt and others) stay gaps until their clearance changes (R2.3).
@@ -143,7 +144,7 @@ Requirement IDs are referenced by the work order, by tests and by the backlog. W
 
 ### F8 Analysis toolkit (event studies and winner/loser contrasts only)
 - R8.1 Event studies of star and download velocity around trigger events (front page, influencer post, newsletter, release).
-- R8.2 (amended) Winner/loser contrasts within a brief, with the tests fixed in the method version before the brief's outcome sort. For the pilot they are pre-registered (WORK_ORDER §6).
+- R8.2 (amended, Directive §7, ADR-065) Winner/loser contrasts within a brief. **For every brief**, its hypotheses and tests are pre-registered in `docs/preregistration/` before the outcome data they test is examined (for a brief's first run, before its outcome sort; WORK_ORDER §6). Pre-registrations never contain brief content; where one depends on it, it commits a SHA-256 hash instead, as ADR-050.9 does for the pilot's success definition.
 - ~~R8.3 Difference-in-differences.~~ **Retired** (ADR-047.3).
 - ~~R8.4 Survival analysis of momentum decay.~~ **Retired** (ADR-047.3). D5's descriptive burst/decay/stable status (R17.2) doesn't depend on it.
 - R8.5 Every analysis is a reproducible script that writes to the instance's report store, with the brief version and data version pinned.
@@ -187,7 +188,7 @@ Requirement IDs are referenced by the work order, by tests and by the backlog. W
 ### F15 LLM backend switch
 - R15.1 (amended, Directive §6.1, ADR-064.1) All LLM calls — discovery expansion, relevance filter, extraction, plan generation and asset drafting — go through a single `LLMClient` interface with two backends, selected by `LLM_BACKEND=subscription|api`. It is also shown in `/settings`.
   - **The owner's instance runs every product LLM call on `api`** (her own Anthropic API key, under Anthropic's Commercial Terms; key verified 2026-09-26).
-  - The shipped `.env.example` sets `LLM_BACKEND=api`. The code's built-in fallback when the variable is unset is `subscription` today; whether to change it is an implementation question for M21 (flagged, not decided here).
+  - **Decided (ADR-072.5):** the code's built-in default when `LLM_BACKEND` is unset stays `subscription` (the safe default for other users); the owner's instance sets `api` in its `.env`, and the shipped `.env.example` sets `LLM_BACKEND=api`.
   - Pigtail never switches backends on its own (ADR-053, ADR-064.2).
 - R15.2 The `subscription` backend calls the operator's locally installed, **official** Claude Code CLI in headless mode (`claude -p`, JSON output). It authenticates through Anthropic's own login flow or through a `CLAUDE_CODE_OAUTH_TOKEN` that the operator generated with `claude setup-token` and placed in their own environment.
   - pigtail never implements its own OAuth, and never collects, stores, proxies or transmits Claude credentials.
@@ -210,7 +211,7 @@ Requirement IDs are referenced by the work order, by tests and by the backlog. W
   | Extraction and coding | `claude-sonnet-5` |
   | Synthesis, report and plan | `claude-opus-5-5` |
 
-  All three were visible on the owner's key when checked on 2026-09-26 (ADR-064.3). Model IDs and prompt versions are logged with every output (R7.4). The single `LLM_MODEL` setting used so far is replaced by this per-stage assignment in M21.
+  All three were visible on the owner's key when checked on 2026-09-26 (ADR-064.3). Model IDs and prompt versions are logged with every output (R7.4). The single `LLM_MODEL` setting used so far is replaced by this per-stage assignment in M21 (`LLM_MODEL_RELEVANCE`, `LLM_MODEL_EXTRACTION`, `LLM_MODEL_SYNTHESIS` in `.env.example`; ADR-072.5).
 - R15.9 (new, Directive §6.3, ADR-064.3) **Batch API and prompt caching.** Every stage that isn't time-sensitive runs through the Message Batches API; launch mode (R19.4) may use standard calls. The codebook and system prompts are sent with prompt caching.
 - R15.10 (new, Directive §6.3, ADR-064.3) **Evidence trimming before a run.** Long threads are truncated, reposts are deduplicated, and only the relevant excerpts of an evidence item are sent to the model.
 - R15.11 (new, Directive §6.4, ADR-064.4) **Budget caps.**
@@ -219,7 +220,7 @@ Requirement IDs are referenced by the work order, by tests and by the backlog. W
   - **Pilot projection:** after the first 5 pilot cases, the actual cost per case and a projection for the full brief go in `ops/COSTS.md` and `ops/STATUS.md` (for the owner's development instance). If the projection exceeds the cap, the run stops and H6 is raised.
   - **Other paid services: USD 0.** BigQuery stays within the free tier; Trendshift and X are off. Before any step that would cost money outside the API cap, pigtail shows the estimate and waits for approval (H6).
   - **Subscription share** applies only to the agents building pigtail (at most about 50% of the owner's weekly allowance; pause on limits and resume; never switch backends) (ADR-064.2, ADR-064.4).
-  - Schema note: ADR-064.4 says `budget.money_usd` covers the API cap plus other paid services, while brief schema v1.1 carries a separate `budget.llm_api_usd`. Reconciling the field names is an M21 task.
+  - Schema note (ADR-072.4): `budget.money_usd` is the brief's total money cap, including API spend; brief schema v1.1's separate `budget.llm_api_usd` is folded into it in M21 (schema v1.2). The monthly cap is instance-wide (`BUDGET_USD_MONTH`).
 
 ### F16 Trends (part of the neighbourhood report, D2)
 - R16.1 (amended) Within the brief's neighbourhood, compute rising channels, communities, asset formats and message patterns over the **last 3–6 months** against the rest of the brief's window, with n and the window shown on every claim.
@@ -229,7 +230,7 @@ Requirement IDs are referenced by the work order, by tests and by the backlog. W
 ### F17 On-demand analyzer and tracking (deliverable D5; unchanged except where ADR-047/048 require)
 - R17.1 Given any GitHub URL, open a case and run a staged analysis:
   - Stage 1: GitHub history (star-history daily net counts, releases, issues, PRs, contributors), outcomes and a benchmark, in ≤ 10 min.
-  - Stage 2: an external evidence backfill (HN, Bluesky, registries, Wayback, as cleared and enabled), in ≤ 6 h.
+  - Stage 2: an external evidence backfill (HN, Bluesky, registries, Wayback, as cleared and enabled; person-level sources per ADR-073.2, Wayback for project pages only per ADR-072.7), in ≤ 6 h.
   - Stage 3: coding and matching against the patterns of any brief the project falls in.
 - R17.2 Current-state summary: momentum versus the repo's own baseline, burst/decay/stable status, and mentions from the last 7 days.
 - R17.3 Coverage score per source, showing each source's coverage window and stating that ephemeral evidence from before tracking started may be missing.
@@ -247,7 +248,7 @@ Requirement IDs are referenced by the work order, by tests and by the backlog. W
   - `panels` [`panel`, `distribution_exemplars`]: the field panel and the distribution-examples panel (ADR-057.1).
   - `reference_cases` [`field.reference_cases`]: named projects always studied, whatever their outcome (R4.11, ADR-057.4).
   - `sizes` [`panel.winners`, `panel.losers`]: default 20 winners and 20 losers for the field panel (range 15–25 each).
-  - `budget`: the brief's API cap and other paid services (R15.11; Directive §6.4, ADR-064.4).
+  - `budget`: `budget.money_usd`, the brief's total money cap including API spend (suggested default USD 150; any other paid service is off unless enabled individually, each with an H6 approval against this cap; ADR-072.4; schema v1.1 still has a separate `llm_api_usd`, folded into `money_usd` in schema v1.2, M21), and `budget.subscription_share`, which applies **only to the agents building pigtail**, not to product calls (ADR-064.4) (R15.11; Directive §6.4).
   - Metadata: brief id, version, created and edited times, schema version.
   - Missing fields get defaults and are listed (generically, never with their content) in `ops/HUMAN_INPUTS.md` for confirmation in the shortlist review; unresolved reference cases never block a run (Directive §4 generic rule, ADR-062).
 - R18.2 A guided form at `/briefs` creates and edits briefs, with YAML import and export. Form and YAML are equivalent.
@@ -290,7 +291,7 @@ Requirements: every record carries `schema_version`; records are stored in a mer
 |---|---|---|---|
 | Attention | Star velocity (daily net; labelled "unfiltered, anomaly-checked", R3.3; intra-day only for launch-mode polling, R19.4) | GitHub star-history endpoint (ADR-032, ADR-070) | verified |
 | | HN points, comments, front-page minutes | HN Algolia + own rank polling (ADR-040.2, ADR-041) | verified |
-| | Bluesky reach | Bluesky API (ADR-022 holds) | verified |
+| | Bluesky reach | Bluesky API (person-level; enabled only after CB-12 and CB-06b, ADR-073.2) | verified |
 | Adoption | Registry downloads | PyPI BigQuery, npm, crates.io, Homebrew, Docker Hub | verified (noisy) |
 | | Dependents | deps.dev, GitHub dependency graph | verified |
 | Community | Returning external contributors (ADR-016) | GitHub API (ADR-013) | verified |
@@ -298,7 +299,7 @@ Requirements: every record carries `schema_version`; records are stored in a mer
 | | Discord/Slack size | Invite APIs | estimated |
 | Business | MRR | Operator-entered with a citation (ADR-021) | self_reported |
 | | Funding | Press, public announcements | self_reported |
-| | Paid offering or pricing page exists | Wayback snapshots (when cleared) | verified |
+| | Paid offering or pricing page exists | Wayback snapshots of project pages (off by default; when enabled, ADR-072.7) | verified |
 | | Hiring | Careers pages, HN Who's Hiring | verified |
 
 Reddit reach is a documented gap (ADR-010); at most Reddit post metadata (link, title, score, timestamp) is used once cleared (R2.2; Directive §8.4, ADR-066.4). GH Archive is not a metric source (ADR-047.8).
@@ -346,7 +347,8 @@ Per Directive §11 and ADR-069 it runs in two steps: a **pilot of the first 5 ca
   - **Outputs** (§8.5, ADR-066.5): snapshots are never reproduced; at most one short attributed excerpt per source (R7.6).
   - **Publishing disabled** (§8.6, ADR-066.6; H4): no findings, data or reports leave the owner's instance. The CI private-data scan stays.
   - **Purpose limitation:** collection is scoped to briefs and tracked projects. Data collected before the re-scope is a cache that briefs may reuse; once the first brief's shortlist is final, anything no brief references is deleted and the purge is logged (ADR-047.6, R19.10).
-  - Deletion sync (R1.5), opt-outs, data-subject requests and the interim holds of ADR-022 (as amended) stay in force.
+  - Deletion sync (R1.5), opt-outs and data-subject requests stay in force. **ADR-022 as amended by ADR-073.2:** naming organisations, projects and matched losers is allowed inside the instance (private UI and private reports), because nothing is published (H4 disabled); person-level sources (HN mentions and comments, Bluesky, per-repo events) may be enabled only once CB-12 (the owner's privacy notice, published after her approval, H5) and CB-06b (the rest of the LLM-path redaction) are done, together with the controls already built (CB-01, 02, 03 via FileVault, 08, 13, 22, 23, 25, 29); spread graphs are roles and buckets (R5.3), so the old account-level-graph condition (LQ-8) no longer applies.
+  - **Reports stay private** (ADR-073.1): pilot, brief and final reports, cost reports with case detail and evidence-decay results are stored in the instance's private data directory and backed up, never in git.
   - **Privacy notice** (ADR-071.4): the owner's notice is published in a **separate repo on GitHub Pages**, because it describes her instance, not the tool. It names the controller (the owner), a dedicated contact alias (not a personal e-mail), purpose, sources, what is and isn't stored (roles and buckets, no handles), retention (R19.9), legal basis, how to opt out or object, and US processing. The draft is shown to the owner before publication (H5). The pigtail repo keeps the generic template.
   - **LLM processing** (§8.7, ADR-066.7): the owner's instance uses `api` mode only, relying on the data processing agreement that comes with Anthropic's Commercial Terms. **Inference happens in the US**, and the compliance docs record this. Other users who choose `subscription` mode (individual, non-commercial use, R15.6) must turn off model training on their Claude account (install-guide step); redaction still runs before every call.
 - **Responsible use** (Directive §8.8, ADR-066.8): the README and the operator guide carry a "Responsible use" section: each user is the controller of their own instance, must respect platform terms, and should adapt the compliance template. pigtail ships no data and no default targets. The MIT licence is unchanged.
@@ -361,7 +363,7 @@ Per Directive §11 and ADR-069 it runs in two steps: a **pilot of the first 5 ca
 - **Licensing:** MIT for code (already in the repo). The codebook and methodology are MIT too, unless the owner chooses CC BY 4.0.
 
 ## 11. Release criteria (v1)
-- The pilot report is complete and verified (§9.4), including relevance precision, per-field agreement, the sensitivity check and the evidence-decay study.
+- The pilot report is complete and verified (§9.4), including relevance precision, per-field agreement, the sensitivity check and the evidence-decay study. It is stored in the owner's instance and backed up, not published or committed (ADR-073.1).
 - D1, D2, D3, D5, D6 and D7 pass their acceptance criteria in `docs/DELIVERABLES.md`.
 - A new user can install pigtail and start a first brief in under an hour following the install guide, with credentials setup, cost expectations and the example brief (D6).
 - Documentation is complete: install guide, operator guide (Mac and optional server), brief guide, methodology paper, codebook, schema reference, limitations, and the compliance template.

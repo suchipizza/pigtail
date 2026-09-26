@@ -3,13 +3,13 @@
 Version 2.1 · Audience: Claude Code (the orchestrator session) and its subagents.
 Mission: build pigtail as specified in `docs/PRD.md` (v2.2), and deliver the pages and artifacts defined in `docs/DELIVERABLES.md` (D1–D3 and D5–D7 in v1; D4 in v2). pigtail ships a **method, not data**: every user runs their own instance with their own credentials. The owner is the first user, and her project's neighbourhood is the pilot. Work end to end with **minimal human supervision**.
 Repository: https://github.com/suchipizza/pigtail. It is **public**, MIT-licensed and on the `main` branch. Everything committed is visible to the world.
-Binding source for v2.1: `ops/OWNER_DIRECTIVE_001.md` (Owner Directive 001, public copy) and ADR-059 to ADR-071. ADR-070 and ADR-071 are the owner's later decisions and override the directive where they differ.
+Binding source for v2.1: `ops/OWNER_DIRECTIVE_001.md` (Owner Directive 001, public copy) and ADR-059 to ADR-073. ADR-070 and ADR-071 are the owner's later decisions and override the directive where they differ; ADR-072 and ADR-073 record how it is applied.
 
 ## Change history
 
 | Version | Date | Change |
 |---|---|---|
-| 2.1 | 2026-09-26 | Owner Directive 001 applied (Directive §0.3). Milestone plan re-ordered into the directive's 8 steps (Directive §11, ADR-069): the v2.0 milestones M13–M19, none of them started, are retired and replaced by **M20–M27** (with D4 as M28); M11 and M12 stay accepted (§4.5, with a mapping table). Human gates replaced by Directive §10 / ADR-068 (§5). Agents stay on the owner's subscription at ≤ ~50% of the weekly allowance; product calls use `api` (§2; Directive §6.1–6.2, §6.4; ADR-064). Hard rules gain: no handles stored, publishing disabled, brief content never in git (§6; Directive §8, ADR-066, ADR-071.3). Definition of done aligned with the directive's acceptance (§10). |
+| 2.1 | 2026-09-26 | Owner Directive 001 applied (Directive §0.3). Milestone plan re-ordered into the directive's 8 steps (Directive §11, ADR-069): the v2.0 milestones M13–M19, none of them started, are retired and replaced by **M20–M27** (with D4 as M28); M11 and M12 stay accepted (§4.5, with a mapping table). Human gates replaced by Directive §10 / ADR-068 (§5). Agents stay on the owner's subscription at ≤ ~50% of the weekly allowance; product calls use `api` (§2; Directive §6.1–6.2, §6.4; ADR-064). Hard rules gain: no handles stored, publishing disabled, brief content never in git (§6; Directive §8, ADR-066, ADR-071.3). Definition of done aligned with the directive's acceptance (§10). M20 verifier fixes: reports stay private and `docs/reports/pilot.md` / `final.md` are withdrawn (§4, §6, M23, M24, §8, §10; ADR-073.1); M23 depends on CB-12 and CB-06b for person-level sources (ADR-073.2); M26 depends on M24 for the R17.5 cases; M2-T3 obsolete (ADR-070.4). |
 | 2.0 | 2026-09-26 | Re-planned per ADR-047 (CR-002: brief-driven neighbourhood analysis) and ADR-048 (CR-001: batch runs on the owner's Mac, launch mode, evidence-decay study). M0, M2 and M3 are accepted history. M1 and M4 are closed as partly superseded (§4.2). M5–M10 are retired. New milestones M11–M19; the next major milestone is M15, the first end-to-end neighbourhood report on the owner's project (the pilot). Gates G1 and G2 are retired. H1 and H3 are redefined. The definition of done follows ADR-048.4. |
 | 1.0 | 2026-09-25 | Global collection, mechanism library, M0–M10. The full text is in git history (for example `git show archive/global-collection:docs/WORK_ORDER.md`); the tag `archive/global-collection` marks the code before the re-scope. |
 
@@ -68,18 +68,18 @@ Agents may revise PRD defaults (§12 of the PRD) with an ADR. They may **not** r
 
 ## 4. Milestones
 
-Tracks run in parallel. The dependencies listed are the only blockers. **The current plan is §4.5** (Directive §11, ADR-069); §4.1–4.4 are history. Each milestone ends with a document in `docs/` (or a private report for the owner's instance, with a public method-level summary) and a status entry. Milestone IDs are never reused: retired milestones keep their numbers.
+Tracks run in parallel. The dependencies listed are the only blockers. **The current plan is §4.5** (Directive §11, ADR-069); §4.1–4.4 are history. Each milestone ends with a method document in `docs/` or, for work on a brief, a report stored in the instance's private data directory and backed up (never in git; Directive §8.6, ADR-073.1), plus a status entry with counts and method-level status only. Milestone IDs are never reused: retired milestones keep their numbers.
 
 ### 4.1 Accepted (history)
 
 - **M0 — Bootstrap. Accepted** (verifier PASS, 2026-09-25). Scaffold, CI, docker compose, `LLMClient` with both backends, ops files, H1 raised.
-- **M2 — Prior art and source matrix. Accepted** (verifier spot-check round 2 PASS, 2026-09-25). `docs/research/literature.md`, `docs/research/source-matrix.md`. Carried over: M2-T3 (fake-star reproduction), now limited by data availability (PRD R3.3), and minor follow-ups M2-T5. The matrix gains a Trendshift entry in M22 (formerly M13; ADR-069).
+- **M2 — Prior art and source matrix. Accepted** (verifier spot-check round 2 PASS, 2026-09-25). `docs/research/literature.md`, `docs/research/source-matrix.md`. Carried over: minor follow-ups M2-T5. M2-T3 (fake-star reproduction) is **obsolete**: per-account filtering no longer works for repos we don't own and is replaced by aggregate anomaly checks in M21 (PRD R3.3, ADR-070.4). The matrix gains a Trendshift entry in M22 (formerly M13; ADR-069).
 - **M3 — Phase 0 specs. Accepted** (verifier PASS round 4, 2026-09-25). Outcome model spec, outcome thresholds, compliance pack, H2 raised. Under ADR-047.9 the compliance pack becomes a template (M27, formerly M18; ADR-069); the outcome spec's metrics stand, and its global classes are no longer how winners are chosen (PRD §8.2).
 
 ### 4.2 Closed as partly superseded
 
 - **M1 — Capture layer v0. Closed; not accepted as written.** Its acceptance (7 consecutive days of GH Archive scans, ≥ 20 cases opened automatically, deployment to a host) is replaced by ADR-048.4 and moves to M26 (formerly M14; ADR-069).
-  - Carried into the new plan: capture schema v0 and content-addressed snapshots, the connector base, HN rank poller and HN connectors (held under ADR-022), star-history client, per-repo collectors, pseudonymization, privacy controls (CB-*), scheduler (now running batch and launch-mode runs), replay, JSONL export, backups, and the D1 preview (browser check and p95 benchmark still open: M1-T25).
+  - Carried into the new plan: capture schema v0 and content-addressed snapshots, the connector base, HN rank poller and HN connectors (held under ADR-022 as amended by ADR-073.2), star-history client, per-repo collectors, pseudonymization, privacy controls (CB-*), scheduler (now running batch and launch-mode runs), replay, JSONL export, backups, and the D1 preview (browser check and p95 benchmark still open: M1-T25).
   - Superseded: global GH Archive velocity scan as a case opener (R1.1), the 50k watch list, all-GitHub search sweeps, global breakout detection (deleted in M11), the announced-launch watchlist (R1.3), and the 24/7 host.
 - **M4 — Codebook v0 and pilot. Closed; the method set carries over, the pilot is redefined.**
   - Carried: codebook v0.2.0 (the starting version for the new pilot), adaptive modules, double coding with adjudication, the seed candidate cards (as seed pattern codes), the citation validator requirement.
@@ -134,8 +134,8 @@ Tracks run in parallel. The dependencies listed are the only blockers. **The cur
 - **Evidence-decay study** (R19.8): share of key evidence still retrievable 1, 7 and 30 days after first capture. If more than 10% is lost at 7 days, shorten the cadence for new breakouts through an ADR and report the finding.
 - Once the pilot's shortlist is final, delete collected data that no brief references (ADR-047.6).
 - D2 report page and D1 full case view on the pilot's cases.
-- **Deliverables:** the neighbourhood report in the owner's private instance; `docs/reports/pilot.md` in the repo with method-level results only (precision, per-field agreement, balance, sensitivity, evidence decay, costs, run times, deviations from the pre-registration), with no brief content, case names or coded values unless the owner approves publishing them (H4).
-- **Accept when:** the pre-registration was pushed before the outcome sort; the D2 acceptance criteria pass on the owner's brief; the D1 acceptance criteria pass on its cases; relevance precision is reported (and, if below 80%, stated as such); per-field agreement is shown with the "low reliability" label applied; the sensitivity check flags affected cases; the evidence-decay study reports its 1/7/30-day shares and any cadence change is recorded as an ADR; 100% of claims resolve to snapshots; the public pilot report passes the private-data scan; the verifier signs off.
+- **Deliverables:** the neighbourhood report in the owner's private instance; `docs/reports/pilot.md` in the repo with method-level results only (precision, per-field agreement, balance, sensitivity, evidence decay, costs, run times, deviations from the pre-registration), with no brief content, case names or coded values unless the owner approves publishing them (H4). *Withdrawn: no pilot report goes into git (ADR-073.1).*
+- **Accept when:** the pre-registration was pushed before the outcome sort; the D2 acceptance criteria pass on the owner's brief; the D1 acceptance criteria pass on its cases; relevance precision is reported (and, if below 80%, stated as such); per-field agreement is shown with the "low reliability" label applied; the sensitivity check flags affected cases; the evidence-decay study reports its 1/7/30-day shares and any cadence change is recorded as an ADR; 100% of claims resolve to snapshots; the reports are in the private data directory and the backup, and nothing from them is committed (the private-data scan passes); the verifier signs off.
 
 #### ~~M16~~ (retired by ADR-069) — Plan generator (Track D) · depends on: M15
 - D3 `/plan` from a brief's report (F10) and the experiment registry (F11).
@@ -175,8 +175,8 @@ The directive's eight steps, in order. Tracks can overlap; the dependencies list
 | (v2) Execution engine | **M28** | M19 |
 
 #### M20 — Documents (step 1) · depends on: nothing
-- Apply Directive §0: commit the directive unchanged, log one ADR per section (ADR-059 to ADR-069, plus ADR-070 and ADR-071), and update `docs/PRD.md`, `docs/DELIVERABLES.md`, this work order, `CLAUDE.md`, `.env.example`, `ops/HUMAN_INPUTS.md` and `docs/compliance/LEGAL_REVIEW_H2.md`, each change traceable to a directive section or ADR.
-- **Accept when:** the `verifier` confirms every listed document is consistent with the directive and ADR-059 to ADR-071, before implementation starts (Directive §0.4).
+- Apply Directive §0: commit the directive unchanged, log one ADR per section (ADR-059 to ADR-069, plus ADR-070 to ADR-073), and update `docs/PRD.md`, `docs/DELIVERABLES.md`, this work order, `CLAUDE.md`, `.env.example`, `ops/HUMAN_INPUTS.md` and `docs/compliance/LEGAL_REVIEW_H2.md`, each change traceable to a directive section or ADR.
+- **Accept when:** the `verifier` confirms every listed document is consistent with the directive and ADR-059 to ADR-073, before implementation starts (Directive §0.4).
 
 #### M21 — Cleanup and privacy (step 2; Tracks A, C) · depends on: M20
 - §5.2 cleanup: the archive tag and deletions are done (M11, ADR-051); confirm nothing global remains.
@@ -193,26 +193,28 @@ The directive's eight steps, in order. Tracks can overlap; the dependencies list
 - Reddit metadata-only and Trendshift remain off until the source matrix clears them (PRD R2.2).
 - **Accept when:** on the example brief, run live, every candidate has a logged source, verdict and reason; every review decision is logged with reason and brief version; precision is computed; selection is deterministic for a given brief version and data version; balance diagnostics and the sensitivity check are produced; an interrupted run resumes correctly; the D7 criteria pass; the verifier signs off.
 
-#### M23 — Owner brief #1: pilot (step 4; Tracks C, E, D) · depends on: M22; the owner's brief (private, outside git)
+#### M23 — Owner brief #1: pilot (step 4; Tracks C, E, D) · depends on: M22; the owner's brief (private, outside git); for person-level sources (HN mentions and comments, Bluesky, per-repo events) also **CB-12** (the owner's privacy notice, published only after her approval, H5) and **CB-06b** (the rest of the LLM-path redaction) (ADR-022 as amended by ADR-073.2)
 - The owner's brief lives only in her instance (`~/.pigtail/briefs`). Missing brief fields get defaults and are listed generically in `ops/HUMAN_INPUTS.md` for confirmation in the shortlist review; unresolved reference cases don't block the run (ADR-062).
 - Pre-register the brief-level hypotheses and tests in `docs/preregistration/` before the outcome data they test is examined (Directive §7, ADR-065; ADR-050.9 for how the brief's success definition is committed by hash).
-- Shortlist review by the owner (if she doesn't do it, the verifier skims it and precision is labelled "verifier-checked, not owner-checked", as in the v2.0 H3 default).
+- Shortlist review by the owner (if she doesn't do it, the verifier skims it and precision is labelled "verifier-checked, not owner-checked"; ADR-072.8).
 - Run the **first 5 cases** end to end with double coding and adjudication.
 - **Cost report:** actual cost per case and the projection for the full brief in `ops/COSTS.md` and `ops/STATUS.md`. If the projection exceeds the brief's API cap, stop and raise H6 (Directive §6.4, ADR-064.4).
 - **Evidence-decay measurement** at 1, 7 and 30 days (PRD R19.8; Directive §5.4).
+- Until CB-12 and CB-06b are done, the pilot runs on project-level sources only and records the person-level sources as gaps (ADR-073.2).
+- The pilot report, the cost report's case detail and the decay results stay in the instance's private data directory and are backed up; `ops/COSTS.md` and `ops/STATUS.md` carry totals and per-case averages only (ADR-073.1).
 - **Accept when:** the pre-registration was pushed before the outcome data was examined; the 5 cases are double-coded with per-field α; the cost report and projection are written; the decay measurement is reported (and any cadence change is an ADR); the verifier signs off.
 
 #### M24 — Owner brief #1: full run (step 5) · depends on: M23; projection within the cap (else H6)
 - The full run within the API cap; the brief report (the per-brief D2) with per-field α, the sensitivity check, transferability labels, absolute numbers and loser contrasts.
 - Once the shortlist is final, purge cached data that no brief references and log the purge (PRD R19.10).
-- `docs/reports/pilot.md` in the repo holds method-level results only (precision, per-field agreement, balance, sensitivity, evidence decay, costs, run times, deviations from the pre-registration), with no brief content, case names or coded values (publishing disabled, Directive §8.6).
-- **Accept when:** the run completed within the cap; the D2 acceptance criteria pass on the owner's brief; the D1 criteria pass on its cases; 100% of claims resolve to snapshots; the public pilot report passes the private-data scan; the verifier signs off.
+- The brief report and the pilot's results (precision, per-field agreement, balance, sensitivity, evidence decay, costs, run times, deviations from the pre-registration) are stored in the instance's private data directory and backed up. No pilot or brief report goes into git (Directive §8.6, ADR-066.6, ADR-073.1).
+- **Accept when:** the run completed within the cap; the D2 acceptance criteria pass on the owner's brief; the D1 criteria pass on its cases; 100% of claims resolve to snapshots; the reports are in the private data directory and the backup, and nothing from them is committed (the private-data scan passes); the verifier signs off.
 
 #### M25 — D3 plan (step 6; Track D) · depends on: M24
 - D3 `/plan` from brief #1's report (F10) and the experiment registry (F11); a plan for the owner's project, kept in her instance.
 - **Accept when:** the D3 acceptance criteria pass and a plan exists for the owner's project (Directive §11 acceptance).
 
-#### M26 — Launch mode and D5 tracking (step 7; Track A, D) · depends on: M22; **must be ready before the owner's first launch**
+#### M26 — Launch mode and D5 tracking (step 7; Track A, D) · depends on: M22; M24 (the ≥ 5 deep-forensics cases from brief #1 that the R17.5 validation needs); **must be ready before the owner's first launch**
 - Launch mode (daily for 14 days, every 3 h on launch day; star polling every 3 h, hourly on launch day; triggered by a declared launch or a detected burst) (PRD R19.4, R19.5; ADR-070.3). Launch mode may use standard (non-batch) LLM calls.
 - Refresh cadence and the per-source ceiling (≤ 60 days, derivation documented); launchd schedule; Docker only during runs; run reports; local alerts with the sanitized export and e-mail if configured; `pigtail doctor` checks FileVault; encrypted backups, with a restore tested on a second machine or the server path (R19.3, R19.6, R19.7).
 - D5 `/analyze` (F17): stages 1–3, current state, benchmark, coverage score, tracking.
@@ -250,7 +252,7 @@ Gates per Directive §10 and ADR-068 (they replace the v2.0 table).
 - The repo is **public**. Never commit secrets, snapshots, raw records, handles, person-level data or any user's brief, including in ops logs, reports, test fixtures and commit messages. Fixtures must use synthetic data. Raw data lives only in private storage.
 - **Brief content never goes into git**, ops logs and ADRs included; briefs live in `~/.pigtail/briefs` (ADR-055.1, ADR-071.3).
 - **No handles or personal names in coded data**: roles and buckets only; the opt-out HMAC fingerprint is the only person-derived value kept (Directive §8.1, ADR-066.1, ADR-071.1).
-- **Publishing is disabled** (H4): no findings, data or reports leave the owner's instance; public reports are method-level only (Directive §8.6, ADR-066.6).
+- **Publishing is disabled** (H4): no findings, data or reports leave the owner's instance (Directive §8.6, ADR-066.6). **Reports stay private**: pilot, brief and final reports, cost reports with case detail and evidence-decay results live in the instance's private data directory and its backup, never in git; the repo holds method documents only, and ops logs carry counts and method-level status only (ADR-073.1).
 - **Product LLM calls use `api`**; agents stay on the subscription at ≤ ~50% of the weekly allowance; never switch backends on your own (Directive §6, ADR-064).
 - Nothing owner-specific in code, defaults, prompts or fixtures.
 - In `subscription` mode (agents; other users' individual, non-commercial use), never read, copy, log or transmit Claude credentials. Use only the official `claude` CLI and Anthropic's login flow.
@@ -269,10 +271,10 @@ Gates per Directive §10 and ADR-068 (they replace the v2.0 table).
 
 ## 8. Documentation requirements
 
-- `docs/` contains: research, specs, methodology (codebook, pattern schema and methods paper), compliance (as a template), preregistration, reports, install guide, brief guide, operator guide, developer guide and schema reference.
+- `docs/` contains: research, specs, methodology (codebook, pattern schema and methods paper), compliance (as a template), preregistration, `docs/reports/` (counts-only data inventory and method notes without case content; ADR-073.1), install guide, brief guide, operator guide, developer guide and schema reference.
 - `ops/DECISIONS.md` holds ADRs for every non-trivial choice.
 - `ops/STATUS.md` is a weekly digest for the owner, readable in 2 minutes: progress per milestone, what's blocked on her, costs to date, and notable findings.
-- Every report states its brief version (where applicable), data version, code commit and limitations (Directive §2.3, ADR-060).
+- Every report states its brief version (where applicable), data version, code commit and limitations (Directive §2.3, ADR-060). Reports are stored in the instance's private data directory (ADR-073.1).
 
 ## 9. Owner reporting
 
@@ -284,4 +286,4 @@ The owner does not supervise individual steps. She reads `ops/STATUS.md` weekly 
 - **Directive acceptance** (Directive §11, ADR-069): every document is consistent with the directive (verifier sign-off); the global-collection code is removed and the archive tag exists; no handles remain in the stored data; owner brief #1 completes within budget, with a report showing per-field α, loser contrasts, absolute numbers and transferability labels; a plan exists for the owner's project.
 - PRD §11 release criteria are met, or their exceptions are documented and approved by the owner.
 - **Three consecutive scheduled runs succeed, with alerts working.**
-- `docs/reports/final.md` summarizes the method, the pilot's method-level results, limitations and next steps.
+- A final report (method, the pilot's results, limitations and next steps) is stored in the instance's private data directory and backed up, not in git (ADR-073.1). The repo's method documents (methodology paper, codebook, limitations) are up to date.

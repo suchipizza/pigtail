@@ -709,9 +709,10 @@ will plug into the same job before it may be enabled.
   Setting `PIGTAIL_ENABLE_HN=1` fails with an error unless `PIGTAIL_ADR022_PERSON_SOURCES_OK=1`
   is also set. **Set that flag only after every ADR-022 precondition for person-level sources is
   in place on your deployment:** CB-01 (retention purge scheduled), CB-02 (deletion sync
-  scheduled), CB-03 (encryption at rest), CB-06 (LLM redaction), CB-08 (request handling),
-  CB-12 (published privacy notice) and CB-13 (opt-outs), per `ops/DECISIONS.md` ADR-022. Use by
-  commercial operators is also pending legal question LQ-6.
+  scheduled), CB-03 (encryption at rest; FileVault on the reference setup), CB-06 including the
+  CB-06b completion (LLM-path redaction), CB-08 (request handling), CB-12 (your privacy notice
+  published), CB-13 (opt-outs), and CB-22, 23, 25 and 29, per `ops/DECISIONS.md` ADR-022 as
+  amended by ADR-073.2. Use by commercial operators is also pending legal question LQ-6.
   ```bash
   uv run pigtail capture mentions --repo owner/name [--since 2026-09-01] [--loose] [--no-items]
   ```

@@ -22,7 +22,7 @@
 - Production capture won't start on a host until the basic privacy controls (retention purge, encryption, raw-dump minimization, a published notice) are built (ADR-022). They're next in the backlog.
 
 ### End-of-day summary (2026-09-25)
-**Milestones:** M0 accepted · M2 accepted (except the fake-star reproduction M2-T3, which needs star data) · M3 accepted, and the ADR-032–038 updates verified · M1 capture built but **not running** (no host, no GitHub token) · M4 pilot designed and pre-registered, not started.
+**Milestones:** M0 accepted · M2 accepted (except the fake-star reproduction M2-T3, which needs star data; *M2-T3 later marked obsolete: per-account filtering replaced by aggregate anomaly checks, ADR-070.4*) · M3 accepted, and the ADR-032–038 updates verified · M1 capture built but **not running** (no host, no GitHub token) · M4 pilot designed and pre-registered, not started.
 
 **What changed today that you should know**
 - **GitHub Archive is no longer a usable source of star data** (≈ 1–2% of stars captured), and **GitHub closed stargazer lists** on 2026-06-30. Star data now comes from GitHub's daily star counts, fetched per repo for each brief's candidates (ADR-032, ADR-047.8). The hourly watch list and global detection were removed on 2026-09-26 (ADR-051); migration 0014 deleted their tables and kept only row counts in the deletion log. The per-repo collectors are tested only against a fake GitHub API until a token exists.

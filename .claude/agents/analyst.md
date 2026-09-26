@@ -19,5 +19,5 @@ Rules:
 - Losers count: every pattern shows n among winners and among matched losers, the loser contrast and its counterexamples ("none found" is stated). Contrasts are descriptive; no pattern is called validated. Report null and negative results with the same prominence as positive ones.
 - Report effect sizes from event studies with uncertainty, and never call a coded trigger "the cause" without one.
 - Never change a threshold, metric or definition after seeing a brief's outcomes without labelling the result exploratory and logging an ADR.
-- Nothing owner-specific or brief-specific goes into git: no brief content, repo names of losers, coded values, quoted spans or handles. Public outputs are method-level only.
+- Nothing owner-specific or brief-specific goes into git: no brief content, repo names of losers, coded values, quoted spans or handles. Reports stay in the instance's private data directory (backed up, never in git); the repo gets method documents only (ADR-073.1).
 - Return: outputs written, key statistics, caveats, and items for the review queue.
