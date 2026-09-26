@@ -324,3 +324,33 @@ How to reverse: Per item, through an ADR.
 6. **Backups (CB-17b):** `pigtail doctor` checks `BACKUP_RECIPIENT` and backup age (warn after 2 days, fail after 7). Optional scheduler jobs for backup create and prune ship disabled.
 7. **CB-28:** `pigtail llm cache clear`.
 How to reverse: Per item, through an ADR.
+
+## ADR-047 — CR-002: re-scope to brief-driven neighbourhood analysis (owner decision; the owner called it "ADR-004", but that number was already taken) (2026-09-26)
+Context: The owner's goal is to launch her own open-source project well, by learning from recent, relevant launches. Pigtail must stay versatile: any user can run it on their own project's neighbourhood. Pigtail ships a method, not data. Each user runs their own instance with their own credentials, and nothing is shared or collected centrally. Nothing in the code is specific to the owner.
+Decision (CR-002, with the owner's answers of 2026-09-26):
+1. **Research brief** (new core object): versioned YAML plus a guided form at `/briefs`; several briefs per install. Flow: project description → LLM expansion (problem, users, keywords, topics, competitors; editable by the user) → candidate discovery (GitHub search and topics, Show HN, awesome-lists, Trendshift as an optional per-user source, GH Archive restricted to the brief's topics and used for discovery signals only) → LLM relevance filter against a written rubric, with the reason logged per candidate → shortlist review (accept, reject or add, all logged; precision logged, target ≥ 80%) → outcome sort → 15–25 winners and 15–25 matched losers → deep forensics → neighbourhood report → plan. Window: 12–18 months.
+2. **Success definition**: one primary dimension plus minimum thresholds on the others (for example, "top quartile on adoption and at least the median on attention"). Weights are an advanced option only. Every report includes a sensitivity check (does the winner set change under reasonable alternative definitions?) and flags the affected cases. **PRD §5.3 is amended:** a composite may rank candidates within a brief, but results are always shown per dimension.
+3. **Cut:** Tier 1 at scale, the global 24-month backfill, the global mechanism library and its promotion rule, the PRD §9.1 test suite, and the causal toolkit beyond event studies and winner/loser contrasts. Mechanism cards become **neighbourhood patterns**, each showing n, the loser contrast and counterexamples.
+4. **Keep:** snapshot or drop, matched losers, multi-metric outcomes, batch runs and launch mode (CR-001, ADR-048), pseudonymization, and the subscription/API switch (always the operator's own credentials).
+5. **Pages:** `/briefs` is new. D1 and D5 are unchanged. D2 becomes the per-brief neighbourhood report (what worked against losers; what's trending in the last 3–6 months). D3 builds plans from that report. D4 stays v2.
+6. **Continuous-collection code:** the current state is tagged `archive/global-collection`. The 50k-repo watch list, the all-GitHub search sweeps and the global breakout detection are then deleted. Kept for launch mode and briefs: the HN front-page poller, the scheduler (now running batch and launch-mode runs) and the per-repo collectors. Data already collected is kept as a cache briefs can reuse. After the first brief's shortlist is final, anything no brief references is deleted (purpose limitation).
+7. **Reliability:** each brief's deep forensics are double-coded, and the report shows agreement **per field**. Findings on fields with α < 0.70 are labelled "low reliability", not dropped. The earlier forecasting and global-calibration pre-registrations are withdrawn through a dated amendment, not deleted.
+8. **Data sources:** GH Archive has been nearly push-events-only since mid-2025, so stars, forks, issues and PRs come from the GitHub API. Stars come from the star-history endpoint's daily net counts (ADR-032). Per-user star timestamps are no longer available: GitHub restricted stargazer lists on 2026-06-30.
+9. **Compliance:** the compliance pack becomes a template each user adopts as controller of their own instance. Privacy-protective defaults ship in the tool (pseudonymization on, retention limits on). The owner's completed pack is the first filled-in copy.
+10. **Next major milestone:** the first end-to-end neighbourhood report on the owner's project, which is also the pilot. PRD, DELIVERABLES and WORK_ORDER are updated accordingly.
+How to reverse: Check out `archive/global-collection` and supersede this ADR.
+
+## ADR-048 — CR-001: batch runs on the owner's Mac instead of continuous capture (owner decision; the owner called it "ADR-003", but that number was already taken) (2026-09-26)
+Decision (CR-001, reconciled with CR-002 / ADR-047):
+1. **Batch runs:** `pigtail run --incremental` (per brief), idempotent and resumable from checkpoints. The initial run is the brief's own backfill (12–18 months; CR-002 replaces CR-001's global 24-month backfill). Refreshes default to every 7 days (configurable 1–8 weeks), with a hard ceiling between runs derived from each source's history window in the source matrix (at most 60 days).
+2. **Tracked projects (D5):** weekly by default. **Launch mode:** daily for 14 days around a declared or detected launch, every 3 h on launch day, and triggered automatically when a tracked project bursts.
+3. **Evidence-decay study** (in the pilot, which is the owner's neighbourhood): the share of key evidence still retrievable at 1, 7 and 30 days. If more than 10% is lost at 7 days, the cadence for new breakouts is shortened and the finding goes in the pilot report.
+4. **Acceptance criteria replaced:**
+   - M1: the brief's backfill completes, 2 incremental runs complete with no gaps in the brief's API series (GH Archive hours no longer apply, ADR-047.8), replay reproduces the records, and an interrupted run resumes correctly.
+   - D1: cases update at every run; launch-mode cases update on their own schedule.
+   - Definition of done: 3 consecutive scheduled runs succeed with alerts working.
+   - PRD §9.1: the test suite is cut (ADR-047.3). Launch-mode cases remain the prospective set for any later evaluation.
+5. **Ops:** a launchd schedule on macOS; Docker runs only during runs; **FileVault is required** (added to H1); encrypted backups to external or private storage; a run report, with alerts written locally and a sanitized export to `ops/ALERTS.md` (ADR-033.4), emailed if configured.
+6. **Server path:** optional, documented, and tested through backup and restore.
+Supersedes the always-on parts of ADR-033 and ADR-032.1; the 24/7 host in H1 becomes optional.
+How to reverse: Supersede this ADR and re-enable continuous capture from `archive/global-collection`.

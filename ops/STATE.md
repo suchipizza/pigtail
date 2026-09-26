@@ -1,9 +1,9 @@
-status: BLOCKED
+status: ACTIVE
 # ACTIVE | BLOCKED (every remaining task waits on a human gate) | DONE
 
-milestone_focus: M1 (capture), M2 (verification)
+milestone_focus: re-plan per ADR-047/048 → first end-to-end neighbourhood report on the owner's project
 updated: 2026-09-25
-paused_by_owner: 2026-09-25, until the host VM and GITHUB_TOKEN are ready (H1)
+resumed: 2026-09-26 after CR-001/CR-002 (ADR-047/048); work locally, no server
 
 | Track | Milestone | Status | Blocker |
 |---|---|---|---|
