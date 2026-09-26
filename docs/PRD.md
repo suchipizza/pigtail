@@ -9,6 +9,7 @@ User-facing deliverables (the pages and their acceptance criteria): `docs/DELIVE
 
 | Version | Date | Change |
 |---|---|---|
+| 2.1 | 2026-09-26 | Matching and panel rules (ADR-054, owner decision): exact match on founder audience bucket and launch half-year; SMD < 0.25 a target for other characteristics, balance always shown, pairs > 0.5 excluded from headline patterns (R4.3, §9.2). New R4.10 field widening with distance labels; R4.11 named reference cases and the repo-choice rule. |
 | 2.0 | 2026-09-26 | Re-scoped to brief-driven neighbourhood analysis (ADR-047, owner change request CR-002) and to batch runs with launch mode instead of continuous capture (ADR-048, CR-001). New: the research brief (F18), batch runs and launch mode (F19), neighbourhood patterns (F20). Cut: Tier 1 at scale, the global 24-month backfill, global breakout detection, the global mechanism library and its promotion rule, the §9.1 system tests, and the causal toolkit beyond event studies and winner/loser contrasts. §5.3 amended (ADR-047.2). Retired requirement IDs are listed where they stood and are never reused. |
 | 1.0 | 2026-09-25 | Global collection and mechanism-library scope. The full text is in git history (for example `git show archive/global-collection:docs/PRD.md`); the tag `archive/global-collection` marks the code state before the re-scope. |
 
@@ -99,11 +100,13 @@ Requirement IDs are referenced by the work order, by tests and by the backlog. W
 ### F4 Candidate discovery, shortlist and matched sets (per brief)
 - ~~R4.1 Global universe of repos crossing the velocity threshold in the trailing 24 months.~~ **Retired** (ADR-047.3).
 - ~~R4.2 Global stratification with case counts per cell.~~ **Retired** (ADR-047.3). A brief's field boundaries (R18.1) define its population.
-- R4.3 (amended) Matched-loser selection within the brief's shortlist: nearest-neighbour matching on launch-signal magnitude, launch quarter, repo age at launch, founder audience bucket and language. Report balance diagnostics for every match (§9.2).
+- R4.3 (amended, ADR-054) Matched-loser selection within the brief's shortlist: **exact match** on founder audience bucket and launch period (same half-year); nearest-neighbour matching on launch-signal magnitude, repo age at launch and language. Report balance diagnostics for every match and every characteristic (§9.2).
 - ~~R4.4 Tier assignment (Tier 1 ≥ 5,000; Tier 2 ≥ 300; Tier 3 ≥ 30 pairs).~~ **Retired** (ADR-047.3).
 - R4.5 (new) **Candidate discovery** from the brief's expanded description (R18.7) and time window: GitHub search and topics, Show HN, awesome-lists, Trendshift (optional, per user, once cleared), and GH Archive restricted to the brief's topics (discovery signals only). Each candidate records which source found it.
 - R4.6 (new) **LLM relevance filter.** Every candidate is judged against a written rubric derived from the brief (field boundaries, target users, problem). The verdict and the reason are logged per candidate, with the rubric version, prompt version and model.
 - R4.7 (new) **Shortlist review.** The user accepts, rejects or adds candidates. Every decision is logged with the brief version and a reason. Relevance-filter **precision** (the share of filter-accepted candidates the reviewer keeps) is logged per brief version; the target is **≥ 80%**. For the pilot, the owner or the verifier skims the shortlist once (WORK_ORDER H3). A precision below target is reported, never hidden.
+- R4.10 (new, ADR-054) **Field widening.** If the core field yields too few winners or losers, the brief widens step by step to adjacent fields it declares (for example: [owner widening step 1], then [owner widening step 2]). Every case is labelled with its distance from the core field (0 = core), and findings for the core field are always reported separately.
+- R4.11 (new, ADR-054) **Named reference cases.** A brief may name reference projects that stay in the report whatever their outcome, labelled as reference cases. When a project has several repos, pigtail studies the repo its launch posts linked to; if both a site and an engine were promoted, the engine is studied and the site is treated as an asset. The choice is logged per project.
 - R4.8 (new) **Outcome sort and selection.** The final shortlist is sorted by the brief's success definition (§8.2). pigtail selects the brief's number of winners (default 20, range 15–25) and the same number of matched losers (default 20, range 15–25; R4.3). The selection is deterministic for a given brief version and data version.
 - R4.9 (new) **Sensitivity check of the winner set.** The winner set is recomputed under reasonable alternative success definitions (for example, each other dimension as primary, and thresholds one band looser and tighter). The report states how much the set changes and flags every case whose winner or loser role depends on the definition.
 
@@ -276,7 +279,7 @@ The v1 forecasting, loser-value, generality and prospective tests are cut, and t
 - 100% of claims resolve to an evidence record with a valid hash.
 - Extraction agreement is reported per field (Krippendorff's α). Findings resting on a field with α < 0.70 are labelled "low reliability", not dropped (ADR-047.7). If a human calibration sample exists, LLM–human α is reported the same way.
 - Relevance-filter precision is logged per brief version; target ≥ 80% (R4.7).
-- Matched-set balance: the target is a standardized mean difference < 0.25 on every matching covariate. Where the shortlist can't reach it, the report says so per covariate and labels every loser contrast that depends on it.
+- Matched-set balance (ADR-054): exact match on founder audience bucket and launch half-year. For every other characteristic the standardized mean difference < 0.25 is a **target**, not a gate: balance is always shown per characteristic, and loser contrasts that depend on a characteristic missing the target are labelled. A pair that differs by > 0.5 on any characteristic is excluded from the headline patterns and shown only in the case-level view.
 - The sensitivity check of the winner set is present, and affected cases are flagged (R4.9).
 
 ### 9.3 Mechanism promotion rule — **retired** (ADR-047.3)
