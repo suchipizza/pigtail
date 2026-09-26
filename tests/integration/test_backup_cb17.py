@@ -263,18 +263,13 @@ def test_cb17_restore_reapplies_deletions_made_after_the_backup(
         # 3. a snapshot dropped at parse (tombstone replay)
         assert state(db2, parsed.id) == "raw_dropped"
         assert not store.exists(parsed.content_hash)
-        # 4. the erased person's rows (opt-out list carried over and re-applied)
-        assert q(
-            "SELECT count(*) FROM repo_event_actor WHERE actor_pseudonym = %s", (person,)
-        ).fetchone() == (0,)
+        # 4. the erased person: no per-person rows exist since migration 0017 (Directive §8.1);
+        # the opt-out entry is carried over and re-applied
         sup = suppression.load(db2, pz)
         assert x["key"] in sup.repos and person in sup.persons
         assert sup.name_suppressed(X[1])
         # the other repo is otherwise intact
         y_after = {(r.table, r.column): rows_of(db2, r, Y) for r in REPO_TABLES}
-        assert y_after[("repo_event_actor", "repo_host_id")] == 0
-        y_after.pop(("repo_event_actor", "repo_host_id"))
-        y_before.pop(("repo_event_actor", "repo_host_id"))
         assert y_after == y_before
         # the request log and tombstones survived; the restore itself is recorded
         got = q("SELECT outcome FROM privacy_requests WHERE id = %s", (res.request_id,))
