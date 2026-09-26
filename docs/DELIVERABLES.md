@@ -1,33 +1,37 @@
 # pigtail — Deliverables
 
-Version 2.0 · This document defines what each user receives, starting with the owner, who is pigtail's first user. `PRD.md` specifies the requirements behind each deliverable (R-IDs), and `WORK_ORDER.md` schedules them. A deliverable is done only when every acceptance criterion below passes and the `verifier` agent has signed it off.
+Version 2.1 · This document defines what each user receives, starting with the owner, who is pigtail's first user. `PRD.md` specifies the requirements behind each deliverable (R-IDs), and `WORK_ORDER.md` schedules them. A deliverable is done only when every acceptance criterion below passes and the `verifier` agent has signed it off.
 
 Repository: https://github.com/suchipizza/pigtail (public, MIT). Code, docs, methodology and a synthetic example brief live there. Briefs, raw data, snapshots, reports and person-level graphs never do: pigtail ships a method, not data, and each user's instance keeps its own.
+
+Binding source for v2.1: `ops/OWNER_DIRECTIVE_001.md` (Owner Directive 001, public copy) and ADR-059 to ADR-071 in `ops/DECISIONS.md`. ADR-070 and ADR-071 are the owner's later decisions and override the directive where they differ.
 
 ## Change history
 
 | Version | Date | Change |
 |---|---|---|
+| 2.1 | 2026-09-26 | Owner Directive 001 applied (Directive §0.3). Shared rules: roles and buckets instead of pseudonyms, one short excerpt per source, publishing and public mode disabled (Directive §8.1, §8.5, §8.6; ADR-066). D7: cost estimate before every run in UI **and** CLI against the per-brief and monthly API caps; briefs stored in `~/.pigtail/briefs` (Directive §6.4, ADR-064.4, ADR-071.3). D1: daily star-history counts labelled "unfiltered, anomaly-checked"; day-level attribution labels; hourly star lanes only for launch-mode cases; spread graph of roles and buckets (ADR-070, ADR-066.1). D2: per brief, with per-field α, sensitivity check, transferability labels, absolute numbers, code commit; public mode removed (Directive §7, §11; ADR-057, ADR-060, ADR-065). D5: launch-mode star polling (ADR-070.3). D6: product calls on `api`, subscription documented for individual non-commercial use; model assignment; "Responsible use" section; reports record the code commit (Directive §6, §8.8; ADR-064, ADR-066.8). Milestone column renumbered to M20–M28 (ADR-069; WORK_ORDER §4.5). |
 | 2.0 | 2026-09-26 | Re-scoped per ADR-047 (CR-002: brief-driven neighbourhood analysis) and ADR-048 (CR-001: batch runs and launch mode). New D7 `/briefs`. D1 updates at every run. D2 becomes the per-brief neighbourhood report. D3 builds plans from that report. D5 keeps its scope and gains launch mode. D6 acceptance becomes "a new user runs a first brief in under an hour". Criteria that depended on the global library, tiers or continuous capture are removed. |
 | 1.0 | 2026-09-25 | Global collection and mechanism-library scope. The full text is in git history (for example `git show archive/global-collection:docs/DELIVERABLES.md`). |
 
 ## Overview
 
-| ID | Deliverable | Page / surface | Phase | Earliest milestone (WORK_ORDER §4) |
+| ID | Deliverable | Page / surface | Phase | Earliest milestone (WORK_ORDER §4.5, ADR-069) |
 |---|---|---|---|---|
-| D7 | Research Briefs | `/briefs` | v1 | Core after M12, shortlist review after M13 |
-| D1 | Forensics Explorer | `/cases`, `/cases/:id` | v1 | Preview built in M1; updates per run after M14; full in M15 |
-| D2 | Neighbourhood Report (per brief) | `/insights` | v1 | M15 (the pilot) |
-| D3 | Plan Generator | `/plan` | v1 | M16 |
-| D4 | Execution Engine | `/execute` | **v2** | M19 |
-| D5 | Project Analyzer & Tracker (with launch mode) | `/analyze` | v1 | Tracking and launch mode in M14; full in M17 |
-| D6 | Platform, install and operations | CLI, API, `/admin`, `/settings`, docs | v1 | Throughout; install acceptance in M18 |
+| D7 | Research Briefs | `/briefs` | v1 | Core after M12 (accepted); discovery, relevance filter and shortlist review in M22 |
+| D1 | Forensics Explorer | `/cases`, `/cases/:id` | v1 | Preview built in M1; updates per run from M22; full in M23–M24 |
+| D2 | Neighbourhood Report (per brief) | `/insights` | v1 | M23 (pilot, first 5 cases), M24 (full brief #1) |
+| D3 | Plan Generator | `/plan` | v1 | M25 |
+| D4 | Execution Engine | `/execute` | **v2** | M28 |
+| D5 | Project Analyzer & Tracker (with launch mode) | `/analyze` | v1 | M26 (launch mode and tracking, before the owner's first launch) |
+| D6 | Platform, install and operations | CLI, API, `/admin`, `/settings`, docs | v1 | Throughout; cost estimator in M21; install acceptance in M27 |
 
 **Shared rules for every page.**
 - Every claim, number and event is traceable to evidence: one click opens the evidence record and its snapshot.
-- People appear only as pseudonyms, except for public figures when the codebook allows it.
+- People appear only as **roles and buckets** (maintainer, account by follower bucket, newsletter, community, organization). Handles and personal names are never stored or shown; organizations and projects may be named (Directive §8.1, ADR-066.1).
+- Snapshots are never reproduced: a page, report or export shows at most **one short attributed excerpt per source**; the full snapshot opens only inside the private instance (Directive §8.5, ADR-066.5).
 - Every brief-derived view names the brief and brief version it comes from.
-- The web app is **private by default**: it sits behind operator login, because it shows private data. An optional **public mode** exposes only aggregate, anonymized content from a neighbourhood report, after the user's own legal check.
+- The web app is **private**: it sits behind operator login, because it shows private data. **Publishing is disabled** on the owner's instance: no findings, data or reports leave it, and there is no public mode (Directive §8.6, ADR-066.6, H4). The code may keep a public-mode option for other users, off by default.
 - Nothing on any page is specific to the owner. Everything field-specific comes from the user's brief.
 
 ---
@@ -41,27 +45,28 @@ Repository: https://github.com/suchipizza/pigtail (public, MIT). Code, docs, met
 - Create a brief from the guided form, import one from YAML, or duplicate an existing one.
 
 **`/briefs/:id` — brief editor**
-- Guided form with the fields of PRD R18.1: project and target users; field boundaries (include/exclude); time window (default 12–18 months); success definition (one primary dimension plus minimum thresholds; weights only under "advanced"); own audience size per channel; channels; geographies; number of winners and losers (default 20/20, range 15–25); budget (LLM and BigQuery).
+- Guided form with the fields of PRD R18.1: project and target users; field boundaries (include/exclude); time window (default 12–18 months); success definition (one primary dimension plus minimum thresholds; weights only under "advanced"); own audience size per channel; channels and geographies (of interest and excluded); panels (field panel and distribution examples); reference cases; number of winners and losers (default 20/20, range 15–25); budget (the brief's API cap, suggested default USD 150, and other paid services, default USD 0) (Directive §2.1, §6.4; ADR-060, ADR-064.4).
 - **LLM expansion:** proposed problem statement, users, keywords, topics and competitors, each editable before the brief is saved (R18.7).
 - YAML view and export. The form and YAML are equivalent.
 - **Versions:** every save creates a new version; a diff view compares any two versions.
-- **Run:** shows the cost estimate (LLM and BigQuery; model calls in `subscription` mode) against the budget, and starts the run only after confirmation (R18.5). Re-runs show which cached results will be reused.
+- **Run:** shows the cost estimate (API cost per stage and model; any other paid cost; model calls in `subscription` mode) against the brief's API cap and the monthly cap, and starts the run only after confirmation (R18.5, R15.11). The same estimate is printed by the CLI before `pigtail run` (Directive §6.4, ADR-064.4). Re-runs show which cached results will be reused.
 
 **`/briefs/:id/shortlist` — shortlist review**
 - Every candidate with its discovery source, the relevance filter's verdict and logged reason, and the rubric version.
 - Accept, reject or add candidates, each with a reason; every decision is logged with the brief version (R4.7).
 - Relevance-filter precision for this brief version, against the ≥ 80% target.
+- Brief fields that were filled with defaults, and unresolved reference cases, are listed here for the user to confirm (Directive §4 generic rule, ADR-062).
 - After the review: the outcome sort, the selected winners and matched losers, balance diagnostics and the sensitivity check (R4.8, R4.9, R4.3).
 
 **Acceptance**
 - A brief can be created from the form and from YAML, and the two produce the same stored brief. Invalid briefs (for example, 30 winners, or no primary dimension) are rejected with a message naming the field.
 - Every edit creates a new version; old versions stay readable and diffable; reports name the version they came from.
 - An install holds at least two briefs that run and report independently.
-- A cost estimate is shown before every run. A run given a budget below its estimate stops at the budget with a resumable checkpoint and says so in its run report (tested).
+- A cost estimate is shown before every run, in the UI and in the CLI (Directive §6.4). A run given a budget below its estimate stops at the budget with a resumable checkpoint and says so in its run report (tested).
 - Re-running an unchanged brief makes no new LLM calls for cached items, and re-running an edited brief recomputes only what the edit affects; the run report lists both.
 - Every candidate has a logged reason; every shortlist decision is logged with reason and brief version; precision is computed and shown.
 - Winner and loser selection is deterministic for a given brief version and data version.
-- Briefs are stored only in the instance's private data directory; the private-data scan blocks a brief file in git.
+- Briefs are stored only outside git, by default in `~/.pigtail/briefs`, and that directory is included in the encrypted backup; the private-data scan blocks a brief file in git (ADR-071.3).
 
 ---
 
@@ -75,11 +80,11 @@ Repository: https://github.com/suchipizza/pigtail (public, MIT). Code, docs, met
 - A "Launch mode" strip shows tracked projects currently in launch mode, with velocity and the triggers detected so far.
 
 **`/cases/:id` — case view**
-- **Braided timeline:** time-aligned lanes for GitHub (daily net stars from star-history, filtered where available; forks, releases, contributors), Hacker News, Bluesky, blogs and newsletters, package downloads and business signals, plus any other cleared source.
+- **Braided timeline:** time-aligned lanes for GitHub (daily net stars from star-history, labelled "unfiltered, anomaly-checked" with anomaly flags shown on the lane (ADR-070.1, ADR-070.4); forks, releases, contributors), Hacker News, Bluesky, blogs and newsletters, package downloads and business signals, plus any other cleared source.
   - Events are annotated `prep | launch | burst | quiet | pivot | relaunch`.
-  - Each burst is linked to its ranked candidate triggers, with confidence levels.
-  - Zoom from full history down to the finest resolution each lane has (days for stars; hours where polling exists).
-- **Spread graph:** who published, who redistributed, and which edges the evidence supports. Edges are styled by evidence level, and each node opens its evidence. Account nodes stay off until LQ-8 is answered (ADR-022).
+  - Each burst is linked to its ranked candidate triggers, with confidence levels. Attributions that rely on daily star data carry the **"day-level"** label (ADR-070.2).
+  - Zoom from full history down to the finest resolution each lane has: days for stars, except that **hourly star lanes exist only for launch-mode cases**, from the moment launch-mode polling started (ADR-070.3).
+- **Spread graph:** which roles and buckets published and redistributed (maintainer, account by follower bucket, newsletter, community, organization), and which edges the evidence supports. Edges are styled by evidence level, and each node opens its evidence. No node shows a handle or personal name (Directive §8.1, ADR-066.1).
 - **Asset gallery:** the images, GIFs, demos, titles, phrases, benchmark claims and links that spread, grouped by asset category, each with its reach.
 - **Evidence inventory:** a sortable table of every item with source, date, reliability, snapshot link and retention state.
 - **Outcomes panel:** attention, adoption, community and business at T+7, T+30, T+90 and T+365, each with a verification tag, plus the case's role and rank in each brief it belongs to.
@@ -89,7 +94,9 @@ Repository: https://github.com/suchipizza/pigtail (public, MIT). Code, docs, met
 **Acceptance**
 - Every winner and loser case of a brief with a finished run renders all tabs, with no empty lane that isn't explained (for example "source not enabled", "gap in the source matrix" or "no coverage before tracking started").
 - Clicking a random sample of 50 claims resolves each one to a valid snapshot 100% of the time.
-- Cases update at every run; launch-mode cases update on their own schedule (ADR-048.4). Each case shows the time of its last update and the run that produced it.
+- Cases update at every run; launch-mode cases update on their own schedule (ADR-048.4). Each case shows the time of its last update and the run (with its code commit) that produced it.
+- Hourly star lanes appear only on launch-mode cases; every other star lane is daily, and star-based attributions carry the "day-level" label (ADR-070).
+- No stored or displayed node, event or evidence row contains a handle or personal name (verifier search; Directive §8.1, §11 acceptance).
 - The case page loads in ≤ 2 s at p95 for a case with 5,000 evidence items.
 - Preview (built in M1, see WORK_ORDER): the timeline and evidence tabs work on uncoded captured data and are labelled "uncoded preview".
 
@@ -99,35 +106,40 @@ Repository: https://github.com/suchipizza/pigtail (public, MIT). Code, docs, met
 
 *What worked in your neighbourhood against comparable projects that didn't make it, and what's trending there now.*
 
-One report per brief version and data version, at `/insights` (select the brief). The page has two sections that are **visibly separated**, because they make different kinds of claims.
+One report **per brief** version and data version, at `/insights` (select the brief). It stays inside the owner's instance: publishing is disabled (Directive §8.6). The page has two sections that are **visibly separated**, because they make different kinds of claims.
 
 **Header (provenance)**
-- Brief name and version; data version; code, codebook, prompt and model versions; generation date.
+- Brief name and version; data version; **code commit**; codebook, prompt and model versions (per stage, R15.8); generation date (Directive §2.3, ADR-060).
 - The success definition used, the reference population's n, and the number of winners and matched losers.
 - The shortlist record: candidates found, filter-accepted, reviewer-accepted, rejected and added; relevance-filter precision against the ≥ 80% target.
-- The sensitivity check: how much the winner set changes under alternative success definitions, and which cases are flagged.
+- The sensitivity check: how much the winner set changes under alternative success definitions, and which cases are flagged (Directive §3.2, ADR-061).
+- **Absolute numbers:** stars, downloads and contributors next to each winner and loser class, per panel, so the scale of "winning" is visible (ADR-057.3).
 
-**What worked against losers**
+**What worked against losers** (field panel; core-field findings reported separately, R4.10)
 - **Neighbourhood patterns.** Each shows: description, why people took part and shared, preconditions, required assets, typical sequence and timing, outcome dimensions affected, **n among winners and n among matched losers**, the supporting cases, the **counterexamples**, reliability labels, and sensitivity flags on the cases involved. Every case listed links to D1. No pattern is called "validated" or "promoted".
 - **Channel and timing analyses:** event-study charts (for example, star velocity around a front-page HN appearance), and how channels were sequenced among winners versus losers.
 - **Asset and message analyses:** which asset types and framing patterns appeared more often among winners than among their matched losers, with n on both sides.
 - "Insufficient evidence in this neighbourhood" wherever n is too small to say anything.
 
+**Distribution lessons** (distribution-examples panel; ADR-056, ADR-057)
+- Patterns from the examples panel, each stating its conditions (audience, timing, category hype, assets) and a **transferability label**: transferable, conditional or not transferable (ADR-057.2). Kept out of the field panel's headline patterns.
+
 **What's trending** (descriptive, the last 3–6 months; labelled "emerging signal")
 - Rising channels, communities, asset formats and message patterns in the neighbourhood over the last 3–6 months, compared with the rest of the brief's window.
 - Recent breakouts among the brief's cases and tracked projects, and the triggers detected for them, linked to D1.
 
-**Methods and data quality panel:** per-field agreement (α) with "low reliability" labels for fields below 0.70, "LLM-coded, not human-validated" where applicable, balance diagnostics per matching covariate, coverage per source, evidence counts, costs of the run, and known limitations.
+**Methods and data quality panel:** per-field agreement (Krippendorff's α) with "low reliability" labels for fields below 0.70, LLM–human agreement if the owner coded a calibration sample (H3) or else "LLM-coded, not human-validated" (Directive §7, ADR-065), star metrics labelled "unfiltered, anomaly-checked" (ADR-070.4), balance diagnostics per matching covariate, coverage per source, evidence counts, costs of the run, and known limitations.
 
 **Acceptance**
 - Every pattern shows n among winners, n among matched losers and its counterexamples ("none found" is stated explicitly). No pattern is shown without them.
 - Agreement is shown per field, and every finding that rests on a field with α < 0.70 carries the "low reliability" label (ADR-047.7).
 - The sensitivity check is present, and every affected case is flagged wherever it appears in the report.
-- The report records the brief version, the shortlist decisions and the data version (R18.6), and the same brief version plus data version regenerate the same report from the cache.
+- Distribution-examples patterns carry transferability labels, and absolute numbers are shown per class and panel (ADR-057; Directive §11 acceptance).
+- The report records the brief version, the shortlist decisions, the data version and the code commit (R18.6; ADR-060), and the same brief version plus data version regenerate the same report from the cache.
 - Trend claims show their window, their baseline and n. Nothing in "What's trending" is presented as a pattern.
 - The report regenerates after each run of its brief. Every chart shows the data version and the date it was generated.
-- The report can be exported as Markdown.
-- Public mode renders only aggregate data and passes the private-data scan.
+- The report can be exported as Markdown to the instance's private storage. It contains at most one short attributed excerpt per source (Directive §8.5).
+- Nothing is published: there is no public mode on the owner's instance (Directive §8.6, H4).
 
 ---
 
@@ -195,13 +207,13 @@ When the report has too little evidence for the profile, the plan says "insuffic
 - **Gaps and opportunities:** patterns that a relevant brief's winners showed and this project hasn't, plus trending signals. A link sends the profile into D3.
 - **Coverage score:** how complete the reconstruction is. The score states plainly that deleted or ephemeral evidence before tracking started may be missing, and shows each source's coverage window.
 
-**Tracking mode (ADR-048.2):** a tracked project refreshes weekly by default. **Launch mode** refreshes daily for 14 days around a declared or detected launch and every 3 h on launch day; it starts automatically when a tracked project bursts, or when the user declares a launch date. Alerts fire on bursts, new mentions above a reach threshold, and momentum decay. The operator can stop tracking at any time.
+**Tracking mode (ADR-048.2):** a tracked project refreshes weekly by default. **Launch mode** refreshes daily for 14 days around a declared or detected launch and every 3 h on launch day; it starts automatically when a tracked project bursts, or when the user declares a launch date. In launch mode the current star count is also polled every 3 h (hourly on launch day), which is the only source of D1's hourly star lanes (ADR-070.3). Alerts fire on bursts, new mentions above a reach threshold, and momentum decay. The operator can stop tracking at any time.
 
 **Acceptance**
 - First results (GitHub timeline, outcomes, benchmark) in ≤ 10 min. The full external evidence backfill completes in ≤ 6 h for a typical repo.
 - Works for repos of any size and age, including ones that never broke out, and shows a coverage score in every case.
 - Tracking a project runs its first capture within 1 h, and the project appears in the D1 feed.
-- Launch mode: a declared launch date, and a simulated burst on a tracked project, each switch the project to the launch-mode schedule (daily for 14 days, every 3 h on launch day), and D1 shows updates on that schedule.
+- Launch mode: a declared launch date, and a simulated burst on a tracked project, each switch the project to the launch-mode schedule (daily for 14 days, every 3 h on launch day, with star polling every 3 h and hourly on launch day), and D1 shows updates on that schedule.
 - The reconstruction is validated against ≥ 5 deep-forensics cases from the pilot brief: it must recover ≥ 80% of their verified key events.
 
 ---
@@ -212,16 +224,17 @@ Required for everything above, and delivered in v1.
 
 - **Data engine:** connectors, snapshot store, pipeline, briefs, reports and versioned data, all private to the instance. Data collected earlier is a cache that briefs reuse.
 - **Batch operations (ADR-048):** `pigtail run --incremental` per brief, idempotent and resumable; refresh every 7 days by default (1–8 weeks, never more than 60 days); a launchd schedule on macOS, with Docker running only during runs; a run report after every run; alerts written locally, with a sanitized export and e-mail if configured; encrypted backups to external or private storage. A server setup is optional, documented and tested through backup and restore.
-- **LLM backend switch (`/settings` and `LLM_BACKEND` env):** `subscription` (the default, on the operator's own Claude plan) or `api` (the operator's own key). The switch changes nothing else in the product. Usage, cost and rate-limit state per backend are shown in `/admin`. See PRD F15.
+- **LLM backend switch (`/settings` and `LLM_BACKEND` env):** `api` (the operator's own key under Anthropic's Commercial Terms; used for every product call on the owner's instance and set in `.env.example`) or `subscription` (the operator's own Claude plan through the official CLI, for individual, non-commercial use only) (Directive §6.1, ADR-064.1). Models per stage, the Batch API and prompt caching as PRD R15.8–R15.10. The switch changes nothing else in the product. Usage, cost and rate-limit state per backend are shown in `/admin`. See PRD F15.
+- **Cost estimate before every run** in the UI and the CLI, against the per-brief and monthly API caps (PRD R15.11, R18.5; Directive §6.4).
 - **`/admin`:** run history and run reports, collector health, gaps, error rates, costs and usage per brief, the review queue, and the retention/deletion-sync log.
 - **CLI and API:** every pipeline stage and every page's data is available through the CLI and a read-only API.
-- **Documentation:** install guide (new users), brief guide, operator guide (macOS reference setup and optional server), developer guide, methodology paper, codebook, schema reference, limitations, and the compliance template each user adopts as controller of their own instance.
+- **Documentation:** install guide (new users), brief guide, operator guide (macOS reference setup and optional server) with a **"Responsible use"** section (also in the README: each user is the controller of their own instance, must respect platform terms and should adapt the compliance template; Directive §8.8, ADR-066.8), developer guide, methodology paper, codebook, schema reference, limitations, and the compliance template each user adopts as controller of their own instance.
 - **Example brief:** a synthetic brief in the repo that a new user can run as-is or copy.
-- **Reports:** literature review, source matrix, pilot report and a final report.
-- **Open-source release:** the public repo contains code, codebook, schemas, UI, docs, the example brief and the compliance template. No data. The owner's aggregate findings are published only after H2 and H4.
+- **Reports:** literature review, source matrix, pilot report and a final report. Every report records the code commit (and, where applicable, the brief version and data version) (ADR-060).
+- **Open-source release:** the public repo contains code, codebook, schemas, UI, docs, the example brief and the compliance template. No data. **Publishing the owner's findings is disabled** (H4; Directive §8.6): the public pilot and final reports are method-level only and pass the private-data scan.
 
 **Acceptance**
-- **New-user install in under an hour.** On a fresh macOS user account (and on the documented server path), someone who hasn't used pigtail, following only the install guide, within 60 minutes: installs the prerequisites; sets up **their own** credentials (GitHub token, Claude login or API key, optional BigQuery project) with FileVault/disk encryption checked by `pigtail doctor`; reads the guide's cost expectations; loads the example brief (or writes their own); sees its cost estimate; and starts its first run, which then continues unattended. The test is timed and logged.
+- **New-user install in under an hour.** On a fresh macOS user account (and on the documented server path), someone who hasn't used pigtail, following only the install guide, within 60 minutes: installs the prerequisites; sets up **their own** credentials (GitHub token, an Anthropic API key or, for individual non-commercial use, a Claude login; optional BigQuery project) with FileVault/disk encryption checked by `pigtail doctor`; reads the guide's cost expectations; loads the example brief (or writes their own); sees its cost estimate; and starts its first run, which then continues unattended. The test is timed and logged.
 - The install guide states expected costs and run times for the example brief, measured on a real run, not estimated.
 - Three consecutive scheduled runs succeed, with alerts working (a deliberately broken run raises an alert) (ADR-048.4).
 - An interrupted run resumes from its checkpoint and produces the same records as an uninterrupted one; replay from snapshots reproduces the stored records.
