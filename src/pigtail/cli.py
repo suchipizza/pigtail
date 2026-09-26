@@ -1254,6 +1254,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_scheduler_commands(sub)  # `pigtail scheduler|health|alerts` (M1-T21)
 
+    from pigtail.briefs.cli import add_commands as add_brief_commands
+
+    add_brief_commands(sub)  # `pigtail brief ...` (M12, PRD F18)
+
     from pigtail.api.cli import add_parser as add_ui_parser
 
     add_ui_parser(sub)  # `pigtail ui hash-password|serve` (M1-T12, D1 preview)

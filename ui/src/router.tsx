@@ -1,4 +1,4 @@
-// A tiny history-API router: the app has four routes, a dependency isn't worth it.
+// A tiny history-API router: the app has a handful of routes, a dependency isn't worth it.
 import { useEffect, useState, type AnchorHTMLAttributes, type MouseEvent } from "react";
 
 const listeners = new Set<() => void>();
@@ -27,6 +27,10 @@ export type Route =
   | { name: "cases" }
   | { name: "case"; id: string }
   | { name: "evidence"; id: string }
+  | { name: "briefs" }
+  | { name: "briefNew" }
+  | { name: "brief"; id: string }
+  | { name: "briefEdit"; id: string }
   | { name: "notFound" };
 
 export function matchRoute(path: string): Route {
@@ -35,6 +39,13 @@ export function matchRoute(path: string): Route {
   if (m?.[1]) return { name: "case", id: m[1] };
   m = /^\/evidence\/([A-Za-z0-9_]+)\/?$/.exec(path);
   if (m?.[1]) return { name: "evidence", id: m[1] };
+  // D7 briefs (M12). Brief ids: lowercase letters, digits and dashes.
+  if (path === "/briefs" || path === "/briefs/") return { name: "briefs" };
+  if (path === "/briefs/new" || path === "/briefs/new/") return { name: "briefNew" };
+  m = /^\/briefs\/([a-z0-9-]+)\/edit\/?$/.exec(path);
+  if (m?.[1]) return { name: "briefEdit", id: m[1] };
+  m = /^\/briefs\/([a-z0-9-]+)\/?$/.exec(path);
+  if (m?.[1]) return { name: "brief", id: m[1] };
   return { name: "notFound" };
 }
 

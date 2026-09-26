@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, setUnauthorizedHandler } from "./api";
 import { PreviewBanner } from "./components/PreviewBanner";
+import { BriefEditorPage } from "./pages/BriefEditorPage";
+import { BriefPage } from "./pages/BriefPage";
+import { BriefsPage } from "./pages/BriefsPage";
 import { CasePage } from "./pages/CasePage";
 import { CasesPage } from "./pages/CasesPage";
 import { EvidencePage } from "./pages/EvidencePage";
@@ -11,7 +14,7 @@ type Auth = "checking" | "in" | "out";
 
 export function App() {
   const [auth, setAuth] = useState<Auth>("checking");
-  const { path } = useLocation();
+  const { path, search } = useLocation();
 
   useEffect(() => {
     setUnauthorizedHandler(() => setAuth("out"));
@@ -37,9 +40,13 @@ export function App() {
           pigtail <span className="muted">Forensics Explorer</span>
         </Link>
         {auth === "in" && (
-          <button type="button" className="link-button" onClick={logout}>
-            Log out
-          </button>
+          <nav className="topnav">
+            <Link href="/cases">Cases</Link>
+            <Link href="/briefs">Briefs</Link>
+            <button type="button" className="link-button" onClick={logout}>
+              Log out
+            </button>
+          </nav>
         )}
       </header>
       <main className="page">
@@ -51,6 +58,14 @@ export function App() {
           <CasePage id={route.id} />
         ) : route.name === "evidence" ? (
           <EvidencePage id={route.id} />
+        ) : route.name === "briefs" ? (
+          <BriefsPage />
+        ) : route.name === "briefNew" ? (
+          <BriefEditorPage importYaml={search.get("import") === "yaml"} />
+        ) : route.name === "brief" ? (
+          <BriefPage id={route.id} />
+        ) : route.name === "briefEdit" ? (
+          <BriefEditorPage key={route.id} id={route.id} />
         ) : (
           <p>
             Page not found. <Link href="/cases">Back to cases</Link>

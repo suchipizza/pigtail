@@ -107,6 +107,10 @@ class LLMStore:
         self.retention_days = retention_days
         self.clock = clock
 
+    def close(self) -> None:
+        with self._lock:
+            self._db.close()
+
     def _upgrade(self) -> None:
         """Add CB-05 columns to cache files created before them (idempotent)."""
         cols = {r[1] for r in self._db.execute("PRAGMA table_info(llm_cache)")}
@@ -355,6 +359,44 @@ class LLMStore:
             "cost_usd",
         )
         return {r[0]: {k: float(v or 0) for k, v in zip(keys, r[1:], strict=True)} for r in rows}
+
+    def usage_since(self, backend: str, since: datetime) -> dict[str, float]:
+        """Backend calls, tokens and cost recorded since `since` (M12 BudgetGuard, ADR-053.1).
+
+        Cache hits cost nothing and limit hits carry no tokens, so they are not counted.
+        """
+        with self._lock:
+            row = self._db.execute(
+                "SELECT COUNT(*), SUM(input_tokens), SUM(output_tokens), SUM(cost_usd)"
+                " FROM llm_usage WHERE backend = ? AND ts >= ?"
+                " AND status IN ('ok', 'invalid_output', 'error')",
+                (backend, _ts(since)),
+            ).fetchone()
+        calls, tin, tout, cost = row
+        return {
+            "calls": float(calls or 0),
+            "tokens": float((tin or 0) + (tout or 0)),
+            "cost_usd": float(cost or 0),
+        }
+
+    def last_limit(self, backend: str) -> datetime | None:
+        """Time of the most recent usage-limit hit on `backend` (allowance calibration)."""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT MAX(ts) FROM llm_usage WHERE backend = ? AND status = 'limit'", (backend,)
+            ).fetchone()
+        return datetime.fromisoformat(row[0]) if row and row[0] else None
+
+    def usage_between(self, backend: str, start: datetime, end: datetime) -> float:
+        """Tokens used on `backend` in [start, end)."""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT SUM(input_tokens + output_tokens) FROM llm_usage"
+                " WHERE backend = ? AND ts >= ? AND ts < ?"
+                " AND status IN ('ok', 'invalid_output', 'error')",
+                (backend, _ts(start), _ts(end)),
+            ).fetchone()
+        return float(row[0] or 0)
 
     # --- pause state (R15.5) -------------------------------------------------
     def pause(self, backend: str, until: datetime, reason: str) -> None:

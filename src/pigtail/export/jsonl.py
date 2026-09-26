@@ -59,6 +59,10 @@ TABLE_LEVELS: dict[str, Level] = {
     "repo_star_daily": "project",
     "repos": "project",
     "runs": "project",
+    "brief_runs": "project",  # M12: ids, versions, content hashes, estimates; no brief content
+    "shortlist_decision": "project",  # R4.7 (M13): project-level decisions with reasons
+    # LLM-derived stage results may quote evidence (as the LLM cache does, CB-05)
+    "brief_stage_cache": "person",
     "schema_migrations": "project",
     "star_history_fetch": "project",
     # person-level: pseudonyms (PERSON_TABLES), upstream item links, the refusal list

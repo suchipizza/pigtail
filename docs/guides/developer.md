@@ -53,6 +53,22 @@ and tables (migration 0014). They are in the git tag `archive/global-collection`
 them back without an ADR. New code is scoped to a brief or a tracked project: take the repos or
 queries as input, never enumerate GitHub. The full rewrite of this guide comes with M12/M14.
 
+## Briefs (M12; PRD F18, D7)
+`pigtail.briefs`: `model` (pydantic model behind `schemas/brief/v1.json`; regenerate the file
+with `uv run pigtail brief schema > schemas/brief/v1.json`, a test fails on drift), `store`
+(private, immutable versions under `PIGTAIL_DATA_DIR/briefs`), `diff`, `estimate`
+(`estimate-v0` planning model), `budget` and `cache`. Stages built from M13 on must:
+- call `BudgetGuard.check_llm` before each LLM call or chunk, `check_paid`/`charge_paid` around
+  any paid request and `check_backend` before routing a job; on `BudgetStop`, write a checkpoint
+  with `BriefRun.pause_for_budget` and exit cleanly (R18.5, ADR-053.1);
+- look results up through `StageCache.get_or_compute` with `item_key(...)` for per-item work
+  (relevance per candidate, evidence per repo, extraction per case) or the run's `stage_keys`
+  for whole-stage outputs, and declare in `cache.STAGE_INPUTS` every brief field the stage reads
+  (a stage that reads an undeclared field would be wrongly reused; bump `STAGE_VERSIONS` when a
+  stage's logic changes) (R18.4);
+- record provenance through `BriefRuns.create` (R18.6).
+Tests use synthetic briefs only (the example); never a real brief.
+
 ## Capture layer (M1)
 ```bash
 uv run pigtail db migrate                       # forward-only SQL in migrations/, tracked in schema_migrations

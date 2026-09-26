@@ -24,6 +24,7 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev --no-edi
     && rm /usr/local/bin/uv
 COPY migrations ./migrations
 COPY infra/schedule.toml ./infra/schedule.toml
+COPY docs/examples/brief-example.yaml ./docs/examples/brief-example.yaml
 
 RUN useradd --system --uid 10001 --user-group --home-dir /nonexistent --shell /usr/sbin/nologin pigtail \
     && mkdir -p /data && chown pigtail:pigtail /data && chmod 0700 /data
@@ -33,6 +34,7 @@ ENV PATH=/app/.venv/bin:$PATH \
     PIGTAIL_DATA_DIR=/data \
     PIGTAIL_MIGRATIONS_DIR=/app/migrations \
     PIGTAIL_SCHEDULE=/app/infra/schedule.toml \
+    PIGTAIL_EXAMPLE_BRIEF=/app/docs/examples/brief-example.yaml \
     PIGTAIL_HEALTH_PORT=8787
 USER pigtail:pigtail
 VOLUME ["/data"]

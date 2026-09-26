@@ -3,8 +3,10 @@
 
 Blocks: secrets/tokens, snapshot/raw-data paths and formats, personal e-mail addresses,
 unlisted test fixtures (fixtures must be synthetic or pseudonymized and listed in
-tests/fixtures/MANIFEST.md), and oversized files. Scans git-tracked + staged files by default,
-or the paths given on the command line (pre-commit passes staged files).
+tests/fixtures/MANIFEST.md), research briefs (PRD R18.9: briefs live only in the instance's data
+directory; the one synthetic example is allowlisted by path), and oversized files. Scans
+git-tracked + staged files by default, or the paths given on the command line (pre-commit
+passes staged files).
 
 Exit 0 = clean, 1 = findings.
 """
@@ -44,6 +46,19 @@ EMAIL_ALLOW = re.compile(
     re.IGNORECASE,
 )
 
+# Research briefs (PRD R18.9, D7): a file under a `briefs/` directory or named like a brief, or
+# any data file whose content has a brief's top-level structure (`brief_id` + `project`).
+# Code files are exempt from the content rule (tests build synthetic briefs in memory); the
+# explicit allowlist holds the synthetic example the repo ships (docs/examples).
+BRIEF_PATH = re.compile(r"(^|/)briefs/.+\.(ya?ml|json)$|(^|/)[^/]*brief[^/]*\.ya?ml$", re.I)
+BRIEF_YAML = (re.compile(r"^brief_id:[ \t]*\S", re.M), re.compile(r"^project:[ \t]*$", re.M))
+BRIEF_JSON = (
+    re.compile(r'"brief_id"\s*:\s*"'),
+    re.compile(r'"project"\s*:\s*\{\s*"(name|description|target_users)"'),
+)
+BRIEF_ALLOW = {"docs/examples/brief-example.yaml"}
+CODE_EXT = {".py", ".ts", ".tsx", ".js", ".jsx", ".sql", ".sh"}
+
 MAX_BYTES = 1_000_000
 BINARY_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".woff", ".woff2", ".zip"}
 SKIP_CONTENT = {"scripts/private_data_scan.py", "tests/unit/test_private_data_scan.py"}
@@ -69,6 +84,14 @@ def manifest_entries(root: Path) -> set[str]:
     return set(re.findall(r"`(tests/fixtures/[^`]+)`", path.read_text()))
 
 
+def looks_like_brief(rel: str, text: str) -> bool:
+    suffix = Path(rel).suffix.lower()
+    if suffix in CODE_EXT:
+        return False
+    pats = BRIEF_JSON if suffix == ".json" else BRIEF_YAML
+    return all(p.search(text) for p in pats)
+
+
 def scan(paths: list[str], root: Path = ROOT) -> list[str]:
     findings: list[str] = []
     listed = manifest_entries(root)
@@ -76,6 +99,9 @@ def scan(paths: list[str], root: Path = ROOT) -> list[str]:
         p = root / rel
         if FORBIDDEN_PATH.search(rel):
             findings.append(f"{rel}: forbidden path/format (raw data, snapshots or .env)")
+            continue
+        if BRIEF_PATH.search(rel) and rel not in BRIEF_ALLOW:
+            findings.append(f"{rel}: research brief file (briefs stay in PIGTAIL_DATA_DIR)")
             continue
         if not p.is_file():
             continue
@@ -89,6 +115,8 @@ def scan(paths: list[str], root: Path = ROOT) -> list[str]:
             text = p.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
+        if rel not in BRIEF_ALLOW and looks_like_brief(rel, text):
+            findings.append(f"{rel}: content has a research brief's structure (brief_id + project)")
         for name, pat in SECRET_PATTERNS.items():
             if pat.search(text):
                 findings.append(f"{rel}: possible {name}")

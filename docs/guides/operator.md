@@ -36,6 +36,88 @@ key handling and backups, the breach runbook, the subscription-vs-api scope of t
 
 Set `PIGTAIL_ADR022_PERSON_SOURCES_OK=1` only once those duties are met.
 
+## Your first brief (M12; PRD F18, D7)
+A **research brief** describes your project, its neighbourhood and what success means to you;
+every later stage (discovery, shortlist, report, plan) works from it. Plan on well under an hour:
+about 15 minutes for credentials, 30 for the brief, a few for the estimate.
+
+**1. Credentials (your own, never shared, never in git).**
+- `GITHUB_TOKEN`: a fine-grained token with public-repository read access only (see "GitHub
+  token and budgets" below). One token; pooling tokens is against GitHub's terms.
+- Claude: log in to Claude Code on your own plan (`LLM_BACKEND=subscription`, the default) or
+  set `ANTHROPIC_API_KEY` with `LLM_BACKEND=api` (see "LLM backend" below). Check with
+  `uv run pigtail llm smoke`.
+- Optional: a BigQuery project, only if you enable `optional_sources.bigquery` (off by default).
+- Run `uv run pigtail doctor`: disk encryption must be on for the machine that holds your data.
+
+**2. Where briefs live.** Only in `PIGTAIL_DATA_DIR/briefs/<brief_id>/vNNNN.yaml` (default
+`data/briefs`, git-ignored; directories 0700, files 0600). Every save of changed content writes a
+new, immutable version; old versions stay readable and diffable. An install can hold several
+briefs. The repo ships one synthetic example,
+[`docs/examples/brief-example.yaml`](../examples/brief-example.yaml); the schema is
+[`schemas/brief/v1.json`](../../schemas/brief/v1.json). The private-data scan (pre-commit and
+CI) refuses any other brief file in git, by path (`*/briefs/*.yaml`, `*brief*.yaml`) and by
+content (a top-level `brief_id:` plus `project:`), so don't paste a brief into an issue, doc or
+fixture either.
+
+**3. Write the brief.** Either in the web app (`/briefs` → *New brief*: a guided form pre-filled
+with the example, plus a YAML tab for import and export; both are validated by the same model),
+or on the command line:
+```bash
+uv run pigtail brief new --example --id my-project     # copy of the synthetic example, as v1
+uv run pigtail brief edit my-project                   # opens $EDITOR; saving makes v2, v3, ...
+uv run pigtail brief edit my-project --from my.yaml    # or save an edited file as the next version
+uv run pigtail brief validate my.yaml                  # every problem names its field
+uv run pigtail brief show my-project [--version 1] [--json]
+uv run pigtail brief list
+uv run pigtail brief versions my-project
+uv run pigtail brief diff my-project 1 2               # field-level changes between versions
+```
+What to fill in: the project and its target users; the **core field** with include/exclude
+boundaries, and the adjacent fields to widen to if the core field is too small (R4.10); seed
+projects (names only; discovery proposes matches you confirm) and reference cases that stay in
+the report whatever their outcome (R4.11); the window (12–18 months); the **success definition**:
+one primary dimension (attention, adoption, community or business), its threshold, minimums on
+the others, and the fallbacks for projects without measurable adoption or too few winners
+(ADR-053.2); weights only under "advanced"; your own audience per channel as a reach band
+(`none`, `r1` < 1k, `r2` < 10k, `r3` < 100k, `r4`, `unknown`; a number you type is turned into a
+band and not stored); channels to use and avoid; geography; 15–25 winners and losers with the
+matching rules (ADR-054); and the budget.
+
+**4. Cost expectations and the budget.** Two caps, both in the brief (ADR-053.1):
+- `budget.money_usd` (default **0**) for non-LLM paid services. With the default, and with
+  Trendshift, X and BigQuery off (the default), a run costs **no money**: the GitHub API and
+  Hacker News are free with your own token. Any step that would cost money is listed in the
+  estimate and needs explicit approval (`--approve-paid`); without it nothing starts.
+- `budget.subscription_share` (default **0.5**): the largest share of your weekly Claude
+  subscription allowance pigtail may use. Heavy stages run in chunks and pause at the cap, then
+  resume the next week; pigtail **never switches to the API on its own**. Claude Code exposes no
+  remaining-allowance figure, so pigtail meters its own usage ledger against an allowance that is
+  configured (`PIGTAIL_SUBSCRIPTION_WEEKLY_TOKENS`), calibrated from the last limit hit it saw,
+  or, failing both, a deliberately low assumed default (5M tokens/week). The estimate says which.
+  With `llm_backend: api`, calls cost money at list price and are capped by `budget.llm_api_usd`.
+
+Before every run, look at the estimate:
+```bash
+uv run pigtail brief estimate my-project          # or the "Cost estimate" panel on /briefs/my-project
+```
+It shows GitHub requests per bucket (core, GraphQL, search) and the hours they take at the
+default 70 % caps, the number of LLM calls and tokens per stage, the share of your weekly
+allowance and how many weeks the run spreads over, and the money cost. **Every figure is an
+estimate** from the `estimate-v0` planning model; measured costs and run times for the example
+brief will replace these numbers after its first real run (D6). For the example brief with the
+default budget, expect $0 in money, roughly 6,000 GitHub requests (under 2 hours of API time)
+and an LLM volume of about 12–13M tokens, several times the assumed weekly allowance, so at the
+0.5 share it spreads over several weeks unless your calibrated allowance is larger. The estimate exits with code 3 when paid steps need
+approval. When you re-run an edited brief, the estimate and the run record list which stages are
+reused and which are recomputed (R18.4).
+
+**5. Run it.** Discovery and the shortlist arrive in M13 and `pigtail run` with the launchd
+schedule in M14; until then the brief, its versions and its estimate are what you can prepare.
+Runs will record the brief version and content hash, the data version and the code, codebook,
+prompt and model versions (`brief_runs`, R18.6), and a run that reaches its budget stops with a
+resumable checkpoint (status `paused_budget`).
+
 ## LLM backend (`LLM_BACKEND`, PRD F15)
 | Value | What it uses | When |
 |---|---|---|

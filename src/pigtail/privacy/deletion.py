@@ -133,6 +133,9 @@ REPO_TABLES: tuple[RepoTable, ...] = (
     RepoTable("repo_event_daily_agg", "repo_host_id", "host_id", "delete"),
     # launch-mode windows of a tracked project (M11 stub, filled from M14; ADR-049.1)
     RepoTable("launch_mode_window", "repo_id", "id", "delete"),
+    # brief stage cache items and shortlist decisions about the repo (M12, R18.4, R4.7)
+    RepoTable("brief_stage_cache", "repo_id", "id", "delete"),
+    RepoTable("shortlist_decision", "candidate_repo_id", "id", "delete"),
     # ETag cache of per-repo GitHub API pages (url and etag only)
     RepoTable("github_http_cache", "url", "url", "delete"),
     # HN (M1-T4, M1-T14, M1-T23): mentions are deleted; the rank history keeps the item id but

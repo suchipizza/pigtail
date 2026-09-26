@@ -1,0 +1,90 @@
+# Synthetic example brief (schema brief/v1; PRD R18.9, D6). It describes a made-up project, not a
+# real one: copy it, change every field, and save it with `pigtail brief new --from <file>`.
+# Your own briefs live only in PIGTAIL_DATA_DIR/briefs and never in git.
+schema_version: brief/v1
+brief_id: example-config-linter
+status: draft
+
+project:
+  name: Example Config Linter
+  description: >-
+    A fictional open-source command-line tool that checks YAML, TOML and JSON configuration
+    files against a schema before they reach CI, with editor integration and fix suggestions.
+  target_users:
+    primary: backend and platform developers who maintain many configuration files
+    secondary: teams that run shared CI templates
+  business_model: open source; a hosted policy service may follow later
+  context: new project, not launched yet, no existing community
+
+field:
+  core_field: configuration file linters and validators
+  include:
+    - command-line linters for configuration formats (YAML, TOML, JSON)
+    - schema validation tools used in CI pipelines
+    - editor plugins that validate configuration files
+  exclude:
+    - general-purpose code linters for programming languages
+    - infrastructure-as-code security scanners
+  seed_projects: []        # names only; discovery proposes matches, you confirm them (ADR-053.3)
+  reference_cases: []      # stay in the report whatever their outcome (R4.11)
+  reference_models: []     # studied qualitatively; not in the winner/loser panel
+  widening_steps:          # used only if the core field yields too few winners or losers (R4.10)
+    - developer command-line tools for CI pipelines
+    - developer productivity command-line tools
+
+window:
+  months: 18               # 12-18 (ADR-047.1)
+
+success:
+  primary: adoption
+  primary_threshold: top_quartile
+  minimums:
+    attention: at_least_median
+  fallbacks:
+    no_measurable_adoption: use_community_as_primary_and_flag
+    too_few_winners:
+      min_winners: 10
+      steps: [relax_primary_to_top_third, drop_attention_minimum]
+
+own_audience:              # reach bands only (none, r1 < 1k, r2 < 10k, r3 < 100k, r4, unknown)
+  channels:
+    github: r1
+    hacker_news: none
+    reddit: none
+    bluesky: none
+  note: a small personal following, no project community yet
+
+channels:
+  planned: [github, hacker_news, reddit, bluesky, dev_to]
+  avoid: [paid_ads]
+
+geography:
+  scope: global, English-speaking developer communities first
+  languages: [en]
+
+panel:
+  winners: 20
+  losers: 20
+  exact_match: [founder_audience_bucket, launch_half_year]
+  smd_target: 0.25
+  headline_exclusion_smd: 0.5
+
+budget:
+  money_usd: 0             # free tiers only; any paid step needs your explicit approval
+  subscription_share: 0.5  # at most half of your weekly Claude subscription allowance
+  llm_backend: subscription
+
+optional_sources:
+  trendshift: false
+  x: false
+  bigquery: false
+
+expansion:
+  problem_statement: >-
+    Configuration mistakes are found late, in CI or production, because config files are not
+    validated where they are written.
+  users: [backend developers, platform engineers]
+  keywords: [config linter, yaml validation, toml linter, json schema cli]
+  topics: [yaml, toml, json-schema, linter, cli]
+  competitors: []
+  generated_by: user

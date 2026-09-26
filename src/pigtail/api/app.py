@@ -1,4 +1,5 @@
-"""FastAPI app: read-only D1 API (R14.2), operator login (R13.3, CB-19) and the built UI.
+"""FastAPI app: read-only D1 API (R14.2), D7 briefs (M12), operator login (R13.3, CB-19) and
+the built UI.
 
 Routes (all `/api/*` except login require an operator session):
     POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me
@@ -9,6 +10,7 @@ Routes (all `/api/*` except login require an operator session):
     GET  /api/cases/{id}/evidence         evidence inventory (sortable, filterable, paged)
     GET  /api/evidence/{id}               one evidence record, its links and retention state
     GET  /api/snapshots/{hash}            the raw snapshot, hash re-verified; 410 once dropped
+    /api/briefs...                        D7 research briefs, read and write (api/briefs.py)
 Anything else is served from the built UI (`ui/dist`, single-page app fallback).
 """
 
@@ -37,7 +39,9 @@ from pigtail.api.auth import (
     is_loopback_host,
     verify_password,
 )
+from pigtail.api.briefs import make_router as make_briefs_router
 from pigtail.api.settings import UISettings
+from pigtail.briefs.store import BriefStore
 from pigtail.capture.snapshots import (
     SnapshotIntegrityError,
     SnapshotNotFound,
@@ -141,7 +145,8 @@ def create_app(
         return th
 
     def same_origin(request: Request) -> None:
-        """Login/logout POSTs: JSON only and same origin (no cross-site form or fetch)."""
+        """Every POST (login, logout, brief writes): JSON only and same origin (no cross-site
+        form or fetch)."""
         ctype = request.headers.get("content-type", "").split(";")[0].strip().lower()
         if ctype != "application/json":
             raise HTTPException(415, "application/json required")
@@ -390,6 +395,28 @@ def create_app(
                 "Cache-Control": "private, no-store",
             },
         )
+
+    # --- D7 briefs (M12): read and write, behind the same login -----------------------------
+    def audit_write(event: str, route: str, request: Request, status: int) -> None:
+        auth_store().audit(
+            event,
+            route,
+            status=status,
+            session=getattr(request.state, "session", None),
+            client=client_of(request),
+        )
+
+    app.include_router(
+        make_briefs_router(
+            store=BriefStore.from_data_dir(capture.data_dir),
+            data_dir=capture.data_dir,
+            llm_model=capture.llm_model,
+            require_operator=require_operator,
+            same_origin=same_origin,
+            audit=audit_write,
+            read_conn=read_conn,
+        )
+    )
 
     @api.get("/{rest:path}", include_in_schema=False)
     def api_not_found(rest: str) -> None:

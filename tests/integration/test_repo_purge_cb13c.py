@@ -141,6 +141,18 @@ def seed(db: Any, store: LocalSnapshotStore, repo: tuple[int, str]) -> dict[str,
         " VALUES ('tracked_project', %s, %s, %s)",
         (key, t, t + timedelta(days=14)),
     )
+    q(  # M12: a cached per-repo stage result and a shortlist decision about the repo
+        "INSERT INTO brief_stage_cache (key, stage, stage_version, item_ref, repo_id, input_hash,"
+        " result, result_hash, first_brief_id, first_brief_version)"
+        " VALUES (%s, 'evidence', 'v0', %s, %s, 'h', '{}', %s, 'synthetic-brief', 1)",
+        (f"{hid:064x}", key, key, "0" * 64),
+    )
+    q(
+        "INSERT INTO shortlist_decision (brief_id, brief_version, candidate_ref,"
+        " candidate_repo_id, decision, reason, reviewer_role)"
+        " VALUES ('synthetic-brief', 1, %s, %s, 'accept', 'synthetic', 'user')",
+        (key, key),
+    )
     return {"key": key, "evidence": [page, hist, search]}
 
 

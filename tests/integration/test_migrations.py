@@ -40,6 +40,8 @@ def test_m1_t1_migrations_apply_and_are_idempotent(pg_url):
         }
         applied = [r[0] for r in c.execute("SELECT version FROM schema_migrations ORDER BY 1")]
     assert {"repos", "cases", "evidence", "runs", "repo_star_daily", "launch_mode_window"} <= tables
+    # M12 (0015): brief-run provenance, stage cache, shortlist decisions (R18.4, R18.6, R4.7)
+    assert {"brief_runs", "brief_stage_cache", "shortlist_decision"} <= tables
     # M11 (0014): the global-collection tables are gone (ADR-047.6, ADR-049.5)
     assert not tables & M11_DROPPED
     assert applied == versions

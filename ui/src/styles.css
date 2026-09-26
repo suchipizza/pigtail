@@ -239,3 +239,16 @@ table.data caption { text-align: left; color: var(--text-secondary); padding: 8p
   .metrics dd { font-size: 16px; }
   table.data { display: block; overflow-x: auto; }
 }
+
+/* D7 briefs (M12) */
+.topnav { display: flex; gap: 16px; align-items: center; }
+.button { display: inline-block; padding: 4px 10px; border: 1px solid var(--accent); border-radius: 6px; text-decoration: none; }
+.brief-form { display: grid; gap: 12px; margin-top: 12px; }
+.brief-section { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px 12px; display: grid; gap: 10px; background: var(--surface-1); }
+.brief-section legend { font-weight: 600; color: var(--text-primary); padding: 0 4px; }
+.brief-field { display: flex; flex-direction: column; gap: 2px; max-width: 720px; }
+.brief-field input, .brief-field textarea, .brief-field select { width: 100%; }
+.brief-checks { display: flex; flex-wrap: wrap; gap: 10px; }
+textarea { font: inherit; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); }
+textarea.yaml, pre.yaml { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+pre.yaml { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 8px; overflow-x: auto; }

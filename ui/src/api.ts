@@ -1,10 +1,19 @@
-// Typed client for the read-only API (PRD R14.2). Shapes mirror src/pigtail/api/queries.py.
+// Typed client for the API (PRD R14.2; D7 briefs, M12). Shapes mirror src/pigtail/api/queries.py
+// and src/pigtail/api/briefs.py.
+
+/** One validation problem, naming the brief field (D7 acceptance). */
+export interface FieldError {
+  path: string;
+  message: string;
+}
 
 export class ApiError extends Error {
   readonly status: number;
-  constructor(status: number, message: string) {
+  readonly errors: FieldError[];
+  constructor(status: number, message: string, errors: FieldError[] = []) {
     super(message);
     this.status = status;
+    this.errors = errors;
   }
 }
 
@@ -235,13 +244,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (res.status === 401 && !path.startsWith("/api/auth/")) onUnauthorized();
   if (!res.ok) {
     let msg = res.statusText;
+    let errors: FieldError[] = [];
     try {
-      const body = (await res.json()) as { detail?: unknown };
+      const body = (await res.json()) as { detail?: unknown; errors?: unknown };
       if (typeof body.detail === "string") msg = body.detail;
+      if (Array.isArray(body.errors)) errors = body.errors as FieldError[];
     } catch {
       /* not JSON */
     }
-    throw new ApiError(res.status, msg);
+    throw new ApiError(res.status, msg, errors);
   }
   return (await res.json()) as T;
 }
@@ -264,4 +275,127 @@ export const api = {
   caseEvidence: (id: string, q: Query) =>
     request<EvidencePage>(withQuery(`/api/cases/${encodeURIComponent(id)}/evidence`, q)),
   evidence: (id: string) => request<EvidenceDetail>(`/api/evidence/${encodeURIComponent(id)}`),
+  // D7 research briefs (M12). Writes are same-origin JSON POSTs, like the login.
+  briefs: () => request<BriefList>("/api/briefs"),
+  briefTemplate: () => request<{ brief: BriefData; yaml: string }>("/api/brief-template"),
+  brief: (id: string) => request<BriefDetail>(`/api/briefs/${encodeURIComponent(id)}`),
+  briefVersion: (id: string, v: number) =>
+    request<StoredBriefView>(`/api/briefs/${encodeURIComponent(id)}/versions/${v}`),
+  createBrief: (body: BriefWrite) => request<StoredBriefView>("/api/briefs", json(body)),
+  saveBriefVersion: (id: string, body: BriefWrite) =>
+    request<StoredBriefView & { created: boolean }>(`/api/briefs/${encodeURIComponent(id)}/versions`, json(body)),
+  validateBrief: (body: BriefWrite) => request<BriefValidation>("/api/briefs/validate", json(body)),
+  briefDiff: (id: string, from: number, to: number) =>
+    request<BriefDiff>(withQuery(`/api/briefs/${encodeURIComponent(id)}/diff`, { from, to })),
+  briefEstimate: (id: string, version?: number) =>
+    request<Estimate>(withQuery(`/api/briefs/${encodeURIComponent(id)}/estimate`, { version })),
 };
+
+// --- D7 briefs --------------------------------------------------------------------------------
+
+/** A brief as JSON (schemas/brief/v1.json). The form edits it by path; the server validates. */
+export type BriefData = Record<string, unknown>;
+
+export interface BriefWrite {
+  brief?: BriefData;
+  yaml?: string;
+  base_version?: number;
+}
+
+export interface StoredBriefView {
+  brief: BriefData;
+  yaml: string;
+  version: number;
+  content_hash: string;
+  warnings: string[];
+}
+
+export interface BriefVersionInfo {
+  version: number;
+  edited_at: string | null;
+  supersedes: number | null;
+  content_hash: string;
+}
+
+export interface BriefDetail extends StoredBriefView {
+  versions: BriefVersionInfo[];
+}
+
+export interface BriefRunSummary {
+  id: string;
+  brief_version: number;
+  status: string;
+  created_at: string;
+  finished_at: string | null;
+  spend: Record<string, unknown>;
+  stop: { kind: string; step: string; detail: string } | null;
+}
+
+export interface BriefListItem {
+  brief_id: string;
+  name: string;
+  latest_version: number;
+  versions: number;
+  created_at: string | null;
+  edited_at: string | null;
+  status: string;
+  last_run: BriefRunSummary | null;
+  budget: { money_usd: number; subscription_share: number; llm_backend: string; llm_api_usd: number };
+}
+
+export interface BriefList {
+  items: BriefListItem[];
+  exposure_warning: string | null;
+}
+
+export interface BriefValidation {
+  ok: true;
+  brief: BriefData;
+  yaml: string;
+  warnings: string[];
+}
+
+export interface BriefChange {
+  path: string;
+  kind: "added" | "removed" | "changed";
+  old: unknown;
+  new: unknown;
+  items_added?: unknown[];
+  items_removed?: unknown[];
+}
+
+export interface BriefDiff {
+  brief_id: string;
+  from_version: number | null;
+  to_version: number | null;
+  changes: BriefChange[];
+  unified: string;
+}
+
+export interface Estimate {
+  label: "estimate";
+  model: string;
+  github: { requests: Record<string, number>; hours_at_default_caps: number };
+  other_requests: Record<string, number>;
+  counts: { candidates: number; shortlisted: number; cases: number };
+  llm: {
+    backend: string;
+    calls: number;
+    tokens: number;
+    stages: { stage: string; llm_calls: number; input_tokens: number; output_tokens: number; reused: boolean }[];
+    subscription: {
+      share_of_weekly_allowance: number;
+      share_cap: number;
+      used_last_7_days_tokens: number;
+      weeks: number;
+      allowance: { weekly_tokens: number; basis: string; label: string };
+    };
+    api_usd: number;
+  };
+  money: {
+    usd: number | null;
+    paid_steps: { step: string; source: string; est_usd: number | null; note: string }[];
+    requires_approval: boolean;
+  };
+  reuse: { from_version: number | null; changed_fields: string[]; stages: { stage: string; action: string }[] } | null;
+}

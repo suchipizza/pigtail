@@ -15,6 +15,7 @@ dependencies = [
     "uvicorn>=0.30",
     "argon2-cffi>=25.1.0",
     "psycopg-pool>=3.3.3",
+    "pyyaml>=6.0",
 ]
 
 [project.scripts]
@@ -29,6 +30,7 @@ dev = [
     "pre-commit>=4",
     "jsonschema>=4.23",
     "boto3-stubs[s3]>=1.35",
+    "types-pyyaml>=6.0",
 ]
 
 [build-system]
