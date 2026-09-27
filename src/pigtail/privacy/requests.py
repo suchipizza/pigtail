@@ -598,6 +598,17 @@ def _repo_evidence(
                 " unnest(%(lookup_prefix)s::text[]) AS q(x) WHERE starts_with(lower(url), q.x))"
             )
         )
+        # view B's Product Hunt, Bluesky and declared-account requests (ADR-085): their evidence
+        # URLs carry `?launch_source_repo=<owner/name>&`, never a handle
+        from pigtail.connectors.producthunt import EVIDENCE_REPO_MARK
+
+        params["source_mark"] = [f"?{EVIDENCE_REPO_MARK}{n.lower()}&" for n in names]
+        parts.append(
+            sql.SQL(
+                "SELECT id FROM evidence WHERE EXISTS (SELECT 1 FROM"
+                " unnest(%(source_mark)s::text[]) AS q(x) WHERE strpos(lower(url), q.x) > 0)"
+            )
+        )
     mention = sql.SQL(
         "(m.repo_full_name = ANY(%(names)s)"
         + (" OR m.repo_id = %(key)s" if key is not None else "")

@@ -122,7 +122,9 @@ from pigtail.briefs.model import DIMENSIONS, RANKABLE, THRESHOLD_PERCENTILE, Bri
 # v6: numeric-only headline exclusion, language groups, distribution surface, view B's own
 #     launch-event anchor with the undeclared sub-population, full-pool SDs, view C over all
 #     non-winners; anchor-v5, confirm-v2 (ADR-084)
-SELECTION_VERSION = "selection-v6"
+# v7: view B's launch events add Product Hunt launches and declared maintainers' Bluesky posts,
+#     with the incomplete-source rule and the launch-source flags; anchor-v6 (ADR-085)
+SELECTION_VERSION = "selection-v7"
 # view A's metric: follow-through relative to launch size (ADR-083)
 FOLLOW_THROUGH_METRIC_VERSION = "follow-through-v1"
 OUTCOME_MODEL_VERSION = "2.1"
@@ -154,8 +156,9 @@ MATCHING_RULE = (
 # Since selection-v5 the live hash is also part of `Context.params()` (ADR-083), so any change to
 # the guarded code changes `selection_params_sha256` and an existing pre-registration stops
 # passing the gate by itself; the pinned constant makes the developer bump the versions too.
-ANCHOR_RULE_VERSION = "anchor-v5"  # v5: view B's launch-event anchor (ADR-084)
-ANCHOR_RULE_SOURCE_SHA256 = "fc33500e34dd756e6cd3d8696e11ebfe35c6664c2fcaf57327a0b3d6428da4d0"
+# v5: view B's launch-event anchor (ADR-084); v6: Product Hunt and Bluesky launch events (ADR-085)
+ANCHOR_RULE_VERSION = "anchor-v6"
+ANCHOR_RULE_SOURCE_SHA256 = "a260b1b4c10e5d3de06fbd2410a42e0a8afeff26e8086a7cde18bcd61d0b115a"
 ANCHOR_RULE = (
     "outcome-model §2.2 rules 1-6 as read by ADR-077.3; declared launches = Show HN or Launch HN "
     "posts from discovery and the per-repo launch lookup (current rule's records only), merged "
@@ -184,8 +187,16 @@ LAUNCH_LOOKUP = (
 ROUND = 6
 
 # --- view B's anchor (ADR-084; owner decision (2) of 2026-09-27) ---------------------------------
-# rule labels, in the order a tie between launch events at the same instant is broken
-DECLARED_RULES = ("show_hn", "launch_hn", "release_launch")
+# rule labels, in the order a tie between launch events at the same instant is broken (ADR-085):
+# the launch venues first (Show HN, Launch HN, Product Hunt), then a release worded as a launch,
+# then a declared maintainer's Bluesky post (a post often announces one of the others)
+DECLARED_RULES = (
+    "show_hn",
+    "launch_hn",
+    "product_hunt",
+    "release_launch",
+    "bluesky_maintainer_post",
+)
 UNDECLARED_RULES = ("undeclared:first_mention", "undeclared:first_release")
 ANCHOR_RULE_LABELS = (*DECLARED_RULES, *UNDECLARED_RULES, "none")
 RELEASE_LAUNCH_PATTERN = r"\b(?:launch|launching|introducing|announcing|first\s+public\s+release)\b"
@@ -194,13 +205,22 @@ VIEW_B_ANCHOR_RULE = (
     "data (bursts are never used): the earliest maintainer-initiated launch event inside the "
     "brief's window, i.e. (i) a Show HN or Launch HN post from discovery or the launch lookup "
     "(URL-matched, or a confirmed title match; Show HN is 'something you made' by HN's rules; "
-    "no author is stored or compared) or (ii) a GitHub release announced as a launch: its name, "
+    "no author is stored or compared), (ii) a Product Hunt launch (a post whose name is the "
+    "repo name, found by slug or topic scan and confirmed, ADR-085; dated featuredAt, else "
+    "createdAt), (iii) a GitHub release announced as a launch: its name, "
     "or the first 300 characters of its body, matches the whole-word, case-insensitive pattern "
     f"{RELEASE_LAUNCH_PATTERN!r} (releases fetched via the GitHub API, newest first, 100 per "
     "page, up to 10 pages; stored: tag, published_at, prerelease, launch match; never the name "
-    "or body). Rules show_hn, launch_hn, release_launch; a tie at the same instant in that "
-    "order, then item id or tag. Every later launch event in the window is a relaunch event "
-    "(time, kind, item id or tag), reported descriptively. No launch event in the window: the "
+    "or body), or (iv) a Bluesky post by an account the maintainer declared (a bsky.app profile "
+    "link or @name.bsky.social on the repo's homepage field, README, org page or GitHub profile "
+    "social accounts) that links the repo's GitHub URL or homepage (ADR-085; dated by the "
+    "API's sortAt; only kind, time, role and match stored). Rules show_hn, launch_hn, "
+    "product_hunt, release_launch, bluesky_maintainer_post; a tie at the same instant in that "
+    "order, then item id, post id, tag or post ordinal. Every later launch event in the window "
+    "is a relaunch event (time, kind, ref), reported descriptively. A repo whose Bluesky source "
+    "(or Product Hunt source) could not be read completely has no view-B anchor (rule none, "
+    "reason launch_source_incomplete:<source>), counted: an unread source could hold the "
+    "earliest event, so the anchor would silently change. No launch event in the window: the "
     "earlier of (a) the first external mention, the earliest HN story or comment up to the "
     "window's end whose URL or text links the repo's github.com/owner/name (HN Algolia "
     "search_by_date over all item types, typo tolerance off, walked from the oldest page, "
@@ -214,18 +234,24 @@ VIEW_B_ANCHOR_RULE = (
     "page cap, a mention search that hit its cap or failed): the earlier one can't be known"
 )
 VIEW_B_LIMITATIONS = (
-    "Product Hunt: no connector",
     "X: paid API, and the owner's cap for paid services other than the API is USD 0",
     "Reddit: no API approval",
     "blogs: no source",
-    "maintainer posts on Bluesky: identifying the maintainer across platforms would be "
-    "cross-platform name matching, which ADR-075.3 forbids",
+    "Bluesky posts by accounts the maintainer did not declare on the repo, README, org page or "
+    "GitHub profile: never searched (finding them would be cross-platform name matching, "
+    "which ADR-075.3 forbids)",
+    "Product Hunt launches under another product name than the repo's, or that no rule "
+    "confirms (ADR-085)",
 )
+# a source the pre-registered parameters turn off is a limitation too (ADR-085)
+PH_OFF_LIMITATION = "Product Hunt: not collected (launch source product_hunt off)"
+BSKY_OFF_LIMITATION = "Bluesky maintainer posts: not collected (launch source bluesky off)"
 VIEW_B_BIAS = (
-    "a case whose real first launch was on an unobserved channel (Product Hunt, X, Reddit, a "
-    "blog, Bluesky) is dated by its first observable event: its view-B anchor can be later "
-    "than the real launch, so launch size may be measured on a relaunch or follow-up, and a "
-    "case with no observable launch event is counted as an undeclared launch"
+    "a case whose real first launch was on an unobserved channel (X, Reddit, a blog, an "
+    "undeclared Bluesky account, a Product Hunt post under another name) is dated by its first "
+    "observable event: its view-B anchor can be later than the real launch, so launch size may "
+    "be measured on a relaunch or follow-up, and a case with no observable launch event is "
+    "counted as an undeclared launch"
 )
 
 # --- language groups (ADR-084; owner decision (1): "groups fixed now: JS+TS, Python, Go, Rust,
@@ -271,6 +297,9 @@ LAUNCH_DAYS = (0, 3)
 FOLLOW_DAYS = (3, 30)
 HN_POINTS = "att.hn_points"
 REDDIT_REACH = "att.reddit_reach"  # no Reddit connector (TM-05 is a GAP): always unknown
+# view B's secondary launch-size measures from Product Hunt (ADR-085): reported, never ranked on
+PH_VOTES = "att.ph_votes"
+PH_COMMENTS = "att.ph_comments"
 PLAIN_STARS = "att.stars@30"
 FIT_EPS = 1e-12  # Sxx at or below this is zero variance
 FT_ROUND = 9  # derived values are rounded so float noise never splits a percentile tie
@@ -286,6 +315,39 @@ FOLLOW_THROUGH_RULE = (
     "on each population it is used on (sensitivity D refits without the flagged cases)"
 )
 CONTEXT_LABEL = "context, not a headline"
+
+# --- view B's launch sources (ADR-085) -----------------------------------------------------------
+PH_TOPICS = ("open-source", "developer-tools")  # Product Hunt topic slugs scanned (a parameter)
+PH_FLAG_ENV = "PIGTAIL_SELECTION_PRODUCT_HUNT"
+BSKY_FLAG_ENV = "PIGTAIL_SELECTION_BLUESKY"
+PH_TOPICS_ENV = "PIGTAIL_PH_TOPICS"
+INCOMPLETE_PREFIX = "launch_source_incomplete:"  # a view-B anchor reason (ADR-085)
+
+
+def _flag(v: str | None, default: bool) -> bool:
+    if v is None or not v.strip():
+        return default
+    x = v.strip().lower()
+    if x in ("1", "true", "yes", "on"):
+        return True
+    if x in ("0", "false", "no", "off"):
+        return False
+    raise SelectionError(f"bad boolean {v!r} for a launch-source flag")
+
+
+def launch_source_settings(
+    env: Mapping[str, str] | None = None,
+) -> tuple[bool, bool, tuple[str, ...]]:
+    """(product_hunt, bluesky, Product Hunt topics) of this instance (ADR-085): both sources on
+    unless `PIGTAIL_SELECTION_PRODUCT_HUNT` / `PIGTAIL_SELECTION_BLUESKY` say false; topics from
+    `PIGTAIL_PH_TOPICS` (comma-separated slugs), else `PH_TOPICS`. They go into the
+    pre-registered parameters, so changing one after a pre-registration fails the gate."""
+    import os
+
+    e = os.environ if env is None else env
+    raw = (e.get(PH_TOPICS_ENV) or "").strip()
+    topics = tuple(t.strip().lower() for t in raw.split(",") if t.strip()) if raw else PH_TOPICS
+    return _flag(e.get(PH_FLAG_ENV), True), _flag(e.get(BSKY_FLAG_ENV), True), topics
 
 
 @dataclass(frozen=True)
@@ -433,7 +495,7 @@ VIEW_LAUNCH = View(
     LAUNCH_SIZE,
     "declared_launch",
     "pre_launch",
-    secondary=(HN_POINTS, REDDIT_REACH),
+    secondary=(HN_POINTS, PH_VOTES, PH_COMMENTS, REDDIT_REACH),
     anchor="launch_event",
 )
 VIEW_LAUNCH_UNDECLARED = View(
@@ -443,7 +505,7 @@ VIEW_LAUNCH_UNDECLARED = View(
     LAUNCH_SIZE,
     "undeclared_launch",
     "pre_launch",
-    secondary=(HN_POINTS, REDDIT_REACH),
+    secondary=(HN_POINTS, PH_VOTES, PH_COMMENTS, REDDIT_REACH),
     anchor="launch_event",
     headline=False,
 )
@@ -700,12 +762,19 @@ class Context:
     exemplar_match_on: tuple[str, ...] = ("launch_type", "launch_period", "audience_bucket")
     sensitivity: tuple[str, ...] = ("primary_swap", "band_shift", "weights", "fake_star_filter")
     view: View = VIEW_PLAIN  # the view `select` computes (ADR-083); not a brief setting
+    # view B's launch sources (ADR-085): on unless the instance turns them off before the
+    # pre-registration (`PIGTAIL_SELECTION_PRODUCT_HUNT`, `PIGTAIL_SELECTION_BLUESKY`); a source
+    # that applies must run, or the selection is refused (fail closed)
+    product_hunt: bool = True
+    bluesky: bool = True
+    ph_topics: tuple[str, ...] = PH_TOPICS
 
     @classmethod
-    def from_brief(cls, brief: Brief) -> Context:
+    def from_brief(cls, brief: Brief, env: Mapping[str, str] | None = None) -> Context:
         if brief.version is None:
             raise SelectionError("select on a stored brief version")
         tfw = brief.success.fallbacks.too_few_winners
+        ph, bsky, topics = launch_source_settings(env)
         return cls(
             brief_id=brief.brief_id,
             brief_version=brief.version,
@@ -720,7 +789,24 @@ class Context:
             losers_per_exemplar=brief.distribution_exemplars.losers_per_exemplar,
             exemplar_match_on=tuple(brief.distribution_exemplars.match_on),
             sensitivity=tuple(dict.fromkeys(brief.success.sensitivity)),
+            product_hunt=ph,
+            bluesky=bsky,
+            ph_topics=topics,
         )
+
+    @property
+    def required_launch_sources(self) -> tuple[str, ...]:
+        """The launch sources whose data view B's anchor needs (`product_hunt`, `bluesky`)."""
+        on = (("product_hunt", self.product_hunt), ("bluesky", self.bluesky))
+        return tuple(k for k, v in on if v)
+
+    def view_b_limitations(self) -> list[str]:
+        out = list(VIEW_B_LIMITATIONS)
+        if not self.product_hunt:
+            out.append(PH_OFF_LIMITATION)
+        if not self.bluesky:
+            out.append(BSKY_OFF_LIMITATION)
+        return out
 
     def tie(self, ref: str) -> str:
         """Deterministic tie-break key (outcome-model §5.4)."""
@@ -735,6 +821,7 @@ class Context:
         rule, the SD rule and views A, B (declared and undeclared) and C (ADR-084). The same
         for every view of one selection."""
         from pigtail.briefs.confirm import confirmation_params
+        from pigtail.briefs.launch_sources import launch_source_params
         from pigtail.briefs.outcomes import anchor_rule_source_sha256
         from pigtail.briefs.surface import surface_params
 
@@ -754,9 +841,14 @@ class Context:
                 "rules": list(ANCHOR_RULE_LABELS),
                 "release_launch_pattern": RELEASE_LAUNCH_PATTERN,
                 "release_launch_text": "release name, and the first 300 characters of the body",
-                "limitations": list(VIEW_B_LIMITATIONS),
+                "tie_break": "same instant: " + " < ".join(DECLARED_RULES) + ", then ref",
+                "limitations": self.view_b_limitations(),
                 "known_bias": VIEW_B_BIAS,
+                "secondary_launch_size": [HN_POINTS, PH_VOTES, PH_COMMENTS, REDDIT_REACH],
             },
+            "launch_sources": launch_source_params(
+                product_hunt=self.product_hunt, bluesky=self.bluesky, ph_topics=self.ph_topics
+            ),
             "distribution_surface": surface_params(),
             "language_groups": {
                 "mapping": dict(sorted(LANGUAGE_GROUPS.items())),
@@ -2209,8 +2301,13 @@ def select(
                 "anchor_rules": anchor_rule_counts(field_cases),
                 "relaunch_events": sum(len(c.relaunch_events) for c in field_cases),
                 "cases_with_relaunch": sum(1 for c in field_cases if c.relaunch_events),
-                "limitations": list(VIEW_B_LIMITATIONS),
+                "limitations": ctx.view_b_limitations(),
                 "known_bias": VIEW_B_BIAS,
+                "incomplete_sources": _count(
+                    str(c.anchor_reason).split(":", 1)[1]
+                    for c in field_cases
+                    if c.anchor is None and str(c.anchor_reason or "").startswith(INCOMPLETE_PREFIX)
+                ),
             }
             if view.anchor == "launch_event"
             else {}
@@ -2315,7 +2412,15 @@ def context_view(sel: Selection, ctx: Context | None = None) -> dict[str, Any]:
     metrics = list(
         dict.fromkeys(
             m
-            for m in (primary_metric, LAUNCH_SIZE, FOLLOW_STARS, PLAIN_STARS, HN_POINTS)
+            for m in (
+                primary_metric,
+                LAUNCH_SIZE,
+                FOLLOW_STARS,
+                PLAIN_STARS,
+                HN_POINTS,
+                PH_VOTES,
+                PH_COMMENTS,
+            )
             if m is not None
         )
     )
@@ -2427,6 +2532,12 @@ def select_views(
         "view_b_anchor_rules": anchor_rule_counts(b_cases),
         "undeclared_launch": sum(
             1 for c in b_cases if c.anchor is not None and c.anchor.undeclared
+        ),
+        # repos whose view-B anchor is unknown because a launch source was incomplete (ADR-085)
+        "view_b_incomplete": _count(
+            str(c.anchor_reason).split(":", 1)[1]
+            for c in b_cases
+            if c.anchor is None and str(c.anchor_reason or "").startswith(INCOMPLETE_PREFIX)
         ),
         "views": {
             k: {

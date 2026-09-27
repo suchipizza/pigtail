@@ -12,6 +12,10 @@ exit code 7 before anything is fetched, computed or stored, and the run row is l
 Likewise the selection's launch lookup (ADR-081) is part of its pre-registered rule, so without
 the Show HN connector (`PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false`, or not configured) the run
 is refused with exit code 8, nothing changed and resumable once the connector is on (ADR-082).
+The same exit code refuses the selection when a view-B launch source the pre-registered
+parameters apply can't run: Product Hunt without `PH_API_TOKEN`, or the Bluesky search connector
+off (ADR-085). More than 10 % of the shortlisted repos with incomplete Bluesky data (an outage)
+ends the run `failed` with exit code 9, resumable: the next run retries the incomplete repos.
 The selection's only model calls are the Haiku checks of title-only launch matches (ADR-083 E),
 through the same budget guard as relevance; refused or unapproved checks fail closed (the match
 is excluded), and a batch still running ends the run as `waiting_batch` (exit 5). Later
@@ -64,6 +68,7 @@ from pigtail.briefs.cache import BriefRuns, data_version
 from pigtail.briefs.candidates import Candidate, CandidateStore
 from pigtail.briefs.discovery import DISCOVERY_VERSION, Discovery, DiscoveryConfig, DiscoveryPaused
 from pigtail.briefs.estimate import RUN_STAGES
+from pigtail.briefs.launch_sources import LaunchSourceIncomplete
 from pigtail.briefs.model import Brief
 from pigtail.briefs.preregistration import EXIT_NOT_PREREGISTERED, PreregistrationMissing, require
 from pigtail.briefs.relevance import JOB as RELEVANCE_JOB
@@ -83,7 +88,10 @@ EXIT_BUDGET = 4
 EXIT_WAITING = 5
 EXIT_BUSY = 6
 EXIT_PREREG = EXIT_NOT_PREREGISTERED  # 7: the selection needs a pre-registration (R8.2)
-EXIT_NO_LAUNCH_LOOKUP = 8  # the selection needs the Show HN connector for its lookup (ADR-082)
+# the selection needs the Show HN connector for its lookup (ADR-082), and the Product Hunt and
+# Bluesky connectors when its pre-registered parameters apply them (ADR-085)
+EXIT_NO_LAUNCH_LOOKUP = 8
+EXIT_SOURCE_INCOMPLETE = 9  # > 10 % of repos with incomplete Bluesky data (ADR-085), resumable
 REFUSED = (EXIT_PREREG, EXIT_NO_LAUNCH_LOOKUP)  # the run row is left as it was
 
 RESUMABLE = ("planned", "running", "waiting_batch", "paused_budget", "failed")
@@ -112,6 +120,8 @@ class RunDeps:
     github: Any = None  # GitHubConnector (discovery, READMEs)
     hn: Any = None  # HNShowDiscoveryConnector
     gharchive: Any = None
+    ph: Any = None  # ProductHuntConnector (view B's launch events, ADR-085)
+    bsky: Any = None  # BlueskySearchConnector (view B's launch events, ADR-085)
     month_cap_usd: float = 200.0
     clock: Callable[[], datetime] = utcnow
     sleep: Callable[[float], None] | None = None
@@ -453,7 +463,8 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
                 )
             elif name == "selection":
                 from pigtail.briefs.confirm import JOB as TITLE_CHECK_JOB
-                from pigtail.briefs.confirm import Confirmer
+                from pigtail.briefs.confirm import PH_JOB, Confirmer
+                from pigtail.briefs.launch_sources import ph_confirmer
                 from pigtail.briefs.selection_store import run_stage
 
                 # ADR-083 E: the paid Haiku check of title-only launch matches goes through
@@ -502,6 +513,19 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
                     hn=deps.hn,
                     confirmer=confirmer,
                     coder=coder,
+                    ph=deps.ph,
+                    bsky=deps.bsky,
+                    # ADR-085: the Product Hunt Haiku check, through the same guard; fails closed
+                    ph_confirmer=ph_confirmer(
+                        deps.client,
+                        brief_run_id=run.id,
+                        before_submit=guard.before_submit,
+                        check_backend=lambda b: guard.check_backend(b, job=PH_JOB),
+                        poll_seconds=opts.poll_seconds,
+                        timeout_seconds=opts.wait_seconds,
+                        sleep=deps.sleep,
+                    ),
+                    readme=_readme_loader(deps, store),
                 )
                 _link(db, run.id, sres.evidence_ids)
                 run.stage(name, "done", finished_at=deps.clock().isoformat(), result=sres.to_dict())
@@ -566,6 +590,14 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
             "to collect them (nothing is resubmitted)",
             {"kind": "batch_pending", "step": current, "batch_ids": e.batch_ids},
         )
+    except LaunchSourceIncomplete as e:  # ADR-085: resumable; incomplete repos are retried
+        run.stage(current, "failed")
+        return stop(
+            "failed",
+            EXIT_SOURCE_INCOMPLETE,
+            str(e),
+            {"kind": "launch_source_incomplete", "step": current, "source": "bluesky"},
+        )
     except LLMError as e:
         run.stage(current, "failed")
         return stop(
@@ -595,12 +627,19 @@ def _selection_blocked(
     conn: psycopg.Connection[Any], brief: Brief, deps: RunDeps
 ) -> tuple[int, str] | None:
     """(exit code, why) when the selection may not run yet, else None: its pre-registration
-    (R8.2, exit 7), then the Show HN connector its launch lookup needs (ADR-082, exit 8)."""
+    (R8.2, exit 7), then the Show HN connector its launch lookup needs (ADR-082, exit 8), then
+    the Product Hunt and Bluesky connectors its pre-registered parameters apply (ADR-085,
+    exit 8)."""
+    from pigtail.briefs.launch_sources import blocked
     from pigtail.briefs.outcomes import launch_lookup_blocked
+    from pigtail.briefs.selection import launch_source_settings
 
     if (why := _prereg_missing(conn, brief)) is not None:
         return EXIT_PREREG, why
     if (why := launch_lookup_blocked(deps.hn)) is not None:
+        return EXIT_NO_LAUNCH_LOOKUP, why
+    ph_on, bsky_on, _topics = launch_source_settings()
+    if (why := blocked(deps.ph, deps.bsky, product_hunt=ph_on, bluesky=bsky_on)) is not None:
         return EXIT_NO_LAUNCH_LOOKUP, why
     return None
 

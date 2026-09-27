@@ -282,7 +282,7 @@ code 7, before anything is fetched, computed or stored. A file that quotes brief
 refused; so is a pre-registration once the version already has a selection. Editing the brief
 (a new version) or a new selection rule needs a new pre-registration. The selection rule
 includes the anchor rule (`anchor_rule_version`) and the launch lookup (ADR-081, ADR-082):
-since `selection-v6` (anchor rule `anchor-v5`, ADR-084) a pre-registration recorded under an
+since `selection-v7` (anchor rule `anchor-v6`, ADR-085) a pre-registration recorded under an
 earlier selection version is refused, so pre-register the version again (a new file or
 amendment; the old one stays as it is; the brief itself needs no new version). The selection
 parameters also hold the hash of the code that implements the anchor rule, the launch lookup,
@@ -290,7 +290,13 @@ the title confirmation and the views' star windows, so any change to that code m
 refuse an existing pre-registration by itself. `brief preregister --print-hashes` shows the
 versions (`anchor_rule_version`, `anchor_rule_source_sha256`, `follow_through_metric_version`,
 `title_confirmation_version`) next to the hashes. `brief preregister` warns when the Show HN
-connector is off, because the selection will then be refused (exit 8, below). The parameters
+connector is off, because the selection will then be refused (exit 8, below), and likewise when
+view B's Product Hunt or Bluesky source applies but can't run (no `PH_API_TOKEN`, or the
+Bluesky search connector off; ADR-085). Whether those two sources apply is part of the
+parameters: they are on unless you set `PIGTAIL_SELECTION_PRODUCT_HUNT=false` or
+`PIGTAIL_SELECTION_BLUESKY=false` **before** pre-registering (and keep it so), and the Product
+Hunt topics scanned are `open-source` and `developer-tools` unless `PIGTAIL_PH_TOPICS` lists
+others (comma-separated slugs). The parameters
 also hold the Haiku model this instance resolves for the relevance stage (`LLM_MODEL_RELEVANCE`,
 else `LLM_MODEL`, else the default): changing it after pre-registering makes the gate refuse,
 and a run whose client would call another model is refused too.
@@ -333,9 +339,12 @@ LLM cache need no approval.
     without one is anchored on the earlier of its first external mention (the earliest HN item
     linking its GitHub URL) and its first release, flagged `undeclared_launch`, and reported
     in its own sub-population `launch_undeclared`, never in view B's headline. Bursts never
-    anchor view B. The result counts repos per anchor rule. Product Hunt, X, Reddit, blogs and
-    Bluesky maintainer posts are not observed, so a repo first launched there is dated by its
-    first observable event. Losers are matched only on what existed before launch: audience
+    anchor view B. Since `selection-v7` (ADR-085) two more launch events count: a confirmed
+    **Product Hunt launch** and a **Bluesky post by an account the maintainer declared** that
+    links the repo (below); at the same instant the order is Show HN, Launch HN, Product Hunt,
+    release, Bluesky post. The result counts repos per anchor rule. X, Reddit, blogs, Bluesky
+    accounts the maintainer did not declare, and Product Hunt launches under another name are
+    not observed, so a repo first launched there is dated by its first observable event. Losers are matched only on what existed before launch: audience
     bucket and half-year (exact), quarter, repo age and **stars before launch** (stars from
     the repo's creation to the day before its launch; calipers 0.5 SD), language and core vs
     adjacent field. Launch size is not a matching key.
@@ -379,6 +388,39 @@ LLM cache need no approval.
   with no launch event, their first external mention on HN (1–5 free Algolia requests; only
   the item id, time and kind are kept). Both are checkpointed per repo; a GitHub budget stop
   pauses them like the star history.
+- **Product Hunt launches** (ADR-085; needs `PH_API_TOKEN`, a Product Hunt developer token with
+  the read-only public scope, in the instance's environment; see "Product Hunt" under the data
+  sources). Right after the HN lookup. The API has no text or URL search, so each shortlisted
+  repo is looked up by at most 2 slugs made from its GitHub name (lowercased, `_` and `.` as
+  `-`; then without hyphens), and every post of the topics `open-source` and
+  `developer-tools` inside the window is read once per brief (20 per page; a 12-month window
+  is a few hundred pages) and matched by name. A post counts only when its name is the repo's
+  name (case, spaces and punctuation ignored) and it is **confirmed**: its tagline or
+  description links the repo's GitHub URL or names its homepage domain, or shares two
+  distinctive words with the repo description, or, failing those, a Haiku check says it is the
+  same project (a paid step like the title check; without approval it fails closed). Repo
+  names under 5 characters or made of common words are confirmed only by the URL or domain.
+  The launch is dated when it was featured on Product Hunt's home page, else when it was
+  posted. Kept per repo: post id, times, votes, comments, how it was found and confirmed;
+  never a name, tagline or description, and never a maker (the query doesn't ask for makers,
+  users, comments or votes). Votes and comments are shown next to HN points in view B and
+  never ranked on. Checkpointed per topic page and per repo; the connector reads Product
+  Hunt's rate-limit headers and waits for the window to reset before the budget runs out.
+  **Without `PH_API_TOKEN` the selection is refused with exit 8** (when Product Hunt applies).
+- **Bluesky maintainer posts** (ADR-085; unauthenticated public search on `api.bsky.app`,
+  `PIGTAIL_BLUESKY_API_BASE` to change it). An account counts as the maintainer's only when the
+  maintainer declared it: a `bsky.app/profile/…` link or an `@name.bsky.social` on the repo's
+  homepage field, its README, its org page (blog, description) or the owner's GitHub profile
+  social accounts (1 GitHub core request per repo, plus one GraphQL query per 50 repos; READMEs
+  come from the snapshot store when they are still there). pigtail then searches that
+  account's posts that link the repo's GitHub URL (and its homepage, if any) inside the
+  window, and nothing else: no feed, profile or follower is read, and Bluesky is never
+  searched for people by name. The account is used in memory only; per repo pigtail keeps the
+  kind, time, role `maintainer` and whether the post linked the repo or its homepage, never
+  the handle. When a repo's search fails (an outage) or its sources can't be read, it is stored
+  `incomplete`: it gets no view-B anchor (counted in the warnings and the summary) and the
+  next run retries it. **More than 10 % of the repos incomplete: the run fails with exit 9**;
+  run the same command later to continue.
 - **Outcome data.** With `GITHUB_TOKEN` set, it then fetches each shortlisted repo's **star
   history** (daily net stars, back to 60 days before the brief's window; 1–3 core requests per
   repo, conditional; for a repo with a declared launch or a view-B anchor, back to its
@@ -455,7 +497,10 @@ LLM cache need no approval.
 **Resuming and exit codes.** A run is resumable after anything: a crash, a budget stop
 (`paused_budget`, exit 4; exit 3 when approval is missing), the GitHub request budget (exit 4), a
 failure (exit 1) or a batch still running (exit 5); a selection without its pre-registration
-stops with exit 7, and one without the Show HN connector with exit 8; both change nothing. Running the same command again resumes the
+stops with exit 7, and one without the Show HN connector (or, when they apply, without
+`PH_API_TOKEN` or the Bluesky search connector, ADR-085) with exit 8; both change nothing. More
+than 10 % of the shortlisted repos with incomplete Bluesky data ends the run with exit 9
+(resumable: the next run retries those repos). Running the same command again resumes the
 same run: completed stages are skipped, discovery skips the queries it did, and the relevance
 filter rebuilds the same requests, so answered ones come from the LLM cache and in-flight batches
 are collected by their stored ids. Only one run per brief at a time (exit 6 otherwise). A version
@@ -1085,6 +1130,19 @@ nothing and run even when HN collection is switched off. Items are tracked by id
 since migration 0017). Bluesky (≤ 48 h, push/tombstone based) will plug into the same job before
 it may be enabled; its account-level deletion signals will have to be resolved to items by the
 source itself, since pigtail no longer stores who wrote what.
+
+### Product Hunt and Bluesky (view B's launch events; ADR-085)
+- **Product Hunt** (`producthunt`): official API v2 (GraphQL) with your own developer token
+  (`PH_API_TOKEN`; read-only public scope; create it in your Product Hunt account's API
+  dashboard). Off without the token. Product Hunt's API terms say it "must not be used for
+  commercial purposes" and ask businesses to contact hello@producthunt.com; attribute data to
+  Product Hunt (TM-16). Personal, non-commercial use only unless Product Hunt agrees otherwise.
+  Only project-level post fields are asked for; raw answers are dropped after parsing.
+- **Bluesky search** (`bluesky_search`, on by default;
+  `PIGTAIL_CONNECTOR_BLUESKY_SEARCH_ENABLED=false` turns it off): `searchPosts` with an author
+  and a url filter only, for accounts the maintainer declared (TM-34). Handles stay in memory;
+  evidence URLs carry `[declared-account]`; raw pages are dropped after parsing. It is not the
+  held Bluesky mention collector of ADR-022 (TM-06), which stays off.
 
 ### Hacker News sources (M1-T4, M1-T14)
 - **Show HN discovery** (`hn_showhn`, M22, enabled by default;

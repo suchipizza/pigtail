@@ -32,6 +32,8 @@ JOB_STAGES: dict[str, LLMStageName] = {
     "title_match_check": "relevance",
     # the selection's distribution-surface coding, a balance variable (ADR-084)
     "distribution_surface": "relevance",
+    # the selection's check of name-only Product Hunt launch matches (ADR-085)
+    "ph_match_check": "relevance",
     # extraction and coding (Sonnet)
     "extraction": "extraction",
     "tier2_extraction": "extraction",

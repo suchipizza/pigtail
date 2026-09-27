@@ -95,6 +95,11 @@ class FakeGitHub:
         }
         self.events: dict[str, list[dict[str, Any]]] = {}
         self.releases: dict[str, list[dict[str, Any]]] = {}  # lowercase full name -> releases
+        # ADR-085: homepage field and owner type per lowercase full name, users' social
+        # accounts and org pages (all synthetic; fake handles only)
+        self.links: dict[str, tuple[str | None, str]] = {}
+        self.social: dict[str, list[dict[str, Any]]] = {}
+        self.orgs: dict[str, dict[str, Any]] = {}
         self.search_pool: list[dict[str, Any]] = []
         self.script: list[Any] = []
         self.requests: list[httpx.Request] = []
@@ -162,6 +167,12 @@ class FakeGitHub:
         m = re.fullmatch(r"/repos/([^/]+/[^/]+)/releases", path)
         if m:
             return self._releases(req, m.group(1))
+        m = re.fullmatch(r"/users/([^/]+)/social_accounts", path)
+        if m and m.group(1).lower() in self.social:
+            return self._json(req, "core", self.social[m.group(1).lower()])
+        m = re.fullmatch(r"/orgs/([^/]+)", path)
+        if m and m.group(1).lower() in self.orgs:
+            return self._json(req, "core", self.orgs[m.group(1).lower()])
         return httpx.Response(404, json={"message": "Not Found"})
 
     # --- releases (ADR-084) ---------------------------------------------------------------------
@@ -217,7 +228,12 @@ class FakeGitHub:
                     None,
                 )
             else:
-                r = self.by_name(f"{v[f'o{i}']}/{v[f'n{i}']}")
+                full = f"{v[f'o{i}']}/{v[f'n{i}']}".lower()
+                if full in self.links:  # ADR-085: homepage field and owner type
+                    hp, typ = self.links[full]
+                    data[alias] = {"homepageUrl": hp, "owner": {"__typename": typ}}
+                    continue
+                r = self.by_name(full)
             if r is None:
                 data[alias] = None
                 errors.append({"type": "NOT_FOUND", "path": [alias], "message": "not found"})

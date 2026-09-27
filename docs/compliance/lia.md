@@ -40,7 +40,9 @@
 | A6 | **Library, planner, trends, analyzer.** | F9, F10, F16, F17 | Aggregates. Links from each claim back to evidence (private UI only). |
 | A7 | **Publication of aggregate findings** (only after H2 and H4). | R13.3, §4 | None by design. Aggregate and anonymised only. |
 
-The following are out of scope for this LIA because they are either not processed or are documented gaps: Reddit, X, YouTube, Product Hunt, Lobste.rs, dev.to, Juejin, Zhihu, Bilibili, TrustMRR, Crunchbase and YC ([terms-memos.md](terms-memos.md), ADR-010). If a gap source is ever enabled under an operator's own agreement, this LIA must be re-run.
+Also assessed here since ADR-085 (2026-09-27): view B's launch events, i.e. Product Hunt post metadata (project-level only; personal, non-commercial use, TM-16) and the dates of Bluesky posts by accounts a maintainer declared on their own project (handle used in memory only, role stored; TM-34). The balancing is the one of A2 with less impact: no handle, text or count is kept, only posts that link a shortlisted project are searched, and only accounts the maintainer published as theirs.
+
+The following are out of scope for this LIA because they are either not processed or are documented gaps: Reddit, X, YouTube, Lobste.rs, dev.to, Juejin, Zhihu, Bilibili, TrustMRR, Crunchbase and YC ([terms-memos.md](terms-memos.md), ADR-010). If a gap source is ever enabled under an operator's own agreement, this LIA must be re-run.
 
 **OpenDigger GH-event mirror (TM-32): not processed.** It is a GAP pending LQ-28 and off by default (ADR-032.1); no connector exists, and `evidence.terms_basis` may not cite TM-32. It would carry the same person-level data as GH Archive at much higher capture, so enabling it needs a new LIA entry, not just a clearance. For transparency: the M1-T18 research on 2026-09-25 streamed OpenDigger hourly files once, filtered them to `WatchEvent`s in scratch storage, used them only for per-repo counts and event-id matching, and deleted them after the analysis; no identities were recorded (`docs/research/detection-replan.md` §7).
 

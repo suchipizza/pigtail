@@ -45,7 +45,7 @@ The clearance levels mean:
 | 13 | Wayback CDX + Save Page Now | The web since 1996 (depth per URL varies) | Per capture | Free | SPN: 7 captures/min and 30k/day (authenticated) | SPN: S3 keys | ToU (2014-12-31 text): **"scholarship and research purposes only"** (currency unverified) | "not to collect or store personal data" | Removals are at IA's discretion | None found | Medium–high | CLEARED-WITH-CONDITIONS |
 | 14 | YouTube Data API | Public videos | Per video | Free within quota | 10,000 units/day + 100 search calls/day | API key | Allowed in principle | **At most 30 days**; no derived metrics | Yes (30-day refresh or delete) | Derived-data ban | Medium | **GAP** |
 | 15 | X API | Full archive since 2006 | Per post | Pay-per-use: $0.005 per post read | Search: 300–450 per 15 min | Bearer / OAuth | **Beyond hobbyist or prototyping, Enterprise is required** | Must keep stored content in sync with X | **Yes, within 24 h of request** | No foundation-model training | High | **GAP** |
-| 16 | Product Hunt API | Posts (upcoming launches unverified) | Per post | Free | 6,250 complexity pts per 15 min | OAuth / dev token | **"must not be used for commercial purposes"** | Site ToS bans storing a "significant portion" | Not found | Not found | Medium | **GAP** |
+| 16 | Product Hunt API | Posts (upcoming launches unverified) | Per post | Free | 6,250 complexity pts per 15 min | OAuth / dev token | **"must not be used for commercial purposes"** | Site ToS bans storing a "significant portion" | Not found | Not found | Medium | CLEARED-WITH-CONDITIONS for the owner's personal, non-commercial use (ADR-085; view B launch events, project-level fields only); **GAP** for commercial use |
 | 17 | Lobste.rs | Since 2012; `.json` endpoints (undocumented) | Per story | Free | Code: 4/s, 30/min, 400/h per IP | None | No ToS; operator: "commercial service? … email me" | Not addressed | Not addressed | robots: `ai-input=no, ai-train=no` | Medium | **GAP** |
 | 18 | dev.to (Forem API) | Articles, current counters | Per article | Free | Unverified (code default: 3/s, 30/min) | API key (optional) | **ToS: "non-commercial transitory viewing only"** | "must destroy any downloaded materials" | Yes (destroy) | Not found | Medium | **GAP** |
 | 19 | V2EX | Topics and replies via API 2.0 | Per topic | Free | 600 req/h per IP | Personal access token | No ToS found | Not addressed | Not addressed | Not addressed | Medium | CLEARED-WITH-CONDITIONS (off by default until H2) |
@@ -62,6 +62,7 @@ The clearance levels mean:
 | 30 | HN "Who is hiring?" threads | Monthly threads by the `whoishiring` account since 2011 (observed) | Per comment | Free | As TM-03/TM-04 | None | As TM-03/TM-04 | As TM-03/TM-04 | None; `deleted` flag | None found | Medium | CLEARED-WITH-CONDITIONS (as HN, pending Q4) |
 | 31 | Press (funding announcements) | Whatever the operator enters | Per announcement | — | — | — | Operator-entered citation only | URL, date and a short quote only | — | — | Low | CLEARED-WITH-CONDITIONS (manual, `self_reported`) |
 | 32 | OpenDigger GH-event mirror | All public GitHub events since 2026-09-06; much higher capture than GH Archive (misses unmeasured) | Hourly files + manifests | Free (≈ 9 GB/day transfer) | None stated | None | No licence or terms; "publicly available for anyone to download and use" (issue #323) | Not addressed | None stated | None stated | **High** (single operator, weeks old, collector polls ≈ 1.5 s vs GitHub's 60 s `X-Poll-Interval`) | **GAP** pending LQ-28 (TM-32; off by default, ADR-032) |
+| 34 | Bluesky AppView `searchPosts` (declared maintainer accounts) | Posts of an account a maintainer declared, that link a shortlisted repo, in the brief's window | Per post (time and links read; nothing post-level kept) | Free | Not published for the app endpoints ("generous"); client-side 1/s with 50 % margin | None (api.bsky.app; owner's check 2026-09-27) | No ban found (as row 6) | Role, time and match per post only | Honour deletes (nothing post-level kept) | None found | Medium | CLEARED-WITH-CONDITIONS (TM-34, ADR-085) |
 | 33 | GitHub star-history endpoint (+ per-repo Events) | Every public repo, back to creation; no identities. Per-repo events: last 300 / 30 days, with `actor` | Weekly and daily (days not UTC-aligned) | Free | Core REST (1 request per 30 weeks) | PAT | As TM-02 | As TM-02 | None stated | As TM-02 | Low–medium (new endpoint, 2026-09-04) | CLEARED-WITH-CONDITIONS (TM-33; per-repo `actor` use pending LQ-29) |
 
 ---
@@ -464,10 +465,10 @@ The page says "No rate limits are required" for the sparse index, and "No rate l
 - Attribution is requested.
 - The site ToS bans storing a "significant portion" of content and bans crawling (https://www.producthunt.com/legal).
 
-**Decision: GAP**
-- Permission path: written permission from hello@producthunt.com.
-- Non-commercial research deployments could enable it under the API terms, but it stays off by default because R1.3 is used commercially too.
-- **Impact on R1.3:** the announced-launch watchlist must rely on HN, Bluesky and GitHub signals, plus manual entry by operators.
+**Decision: GAP** for commercial use; **CLEARED-WITH-CONDITIONS for the owner's personal, non-commercial use since 2026-09-27** (owner decision, ADR-085, TM-16 as amended).
+- Permission path for commercial use: written permission from hello@producthunt.com (the owner writes to Product Hunt herself, H5).
+- Use today: view B's launch events of a brief's selection. Per shortlisted repo, up to 2 `post(slug)` lookups and a scan of the topics `open-source` and `developer-tools` inside the brief's window; project-level fields only (`id`, `name`, `slug`, `tagline`, `description`, `votesCount`, `commentsCount`, `createdAt`, `featuredAt`; never makers, users, comments or votes objects); rate-limit headers respected; raw answers dropped after parsing; stored: post id, dates, counts, route and confirmation. The API has no text or URL search, and `website` is a Product Hunt redirect link, not the product's domain.
+- **Impact on R1.3 (unchanged):** the announced-launch watchlist must rely on HN, Bluesky and GitHub signals, plus manual entry by operators.
 
 ### 2.17 Lobste.rs (stretch), TM-17
 
@@ -700,6 +701,14 @@ The page says "No rate limits are required" for the sparse index, and "No rate l
 
 **Decision: CLEARED-WITH-CONDITIONS** (TM-33): one operator token; poll within `X-Poll-Interval` (15–60 min per repo, ETag); per-repo events only for cases, tracked and pre-threshold repos; pseudonymise `actor` at ingest, aggregates only, ≤ 30-day person-level rows, never rebuild a stargazer list (pending LQ-29).
 
+### 2.34 Bluesky AppView search for declared maintainer accounts (view B), TM-34
+
+- `GET https://api.bsky.app/xrpc/app.bsky.feed.searchPosts` with `author` (a handle or DID) and `url` filters, `since`/`until`, `sort=latest`, `limit`, `cursor` (and the lexicon's required `q`). Unauthenticated on `api.bsky.app` (the owner's check of 2026-09-27); `public.api.bsky.app` answers 403 for search.
+- Used only for accounts a maintainer declared on the repo's homepage field, README, org page or GitHub profile social accounts, and only for posts linking the shortlisted repo's GitHub URL or homepage (Directive §8.3). Handles in memory only; stored per post: kind, time, role `maintainer`, match.
+- **Rate limits:** not published for the app endpoints; pigtail paces itself at 1 request per second with a 50 % margin.
+
+**Decision: CLEARED-WITH-CONDITIONS** (TM-34, ADR-085). The Jetstream-based mention capture of §2.6 stays held (ADR-022 as amended by ADR-073.2).
+
 ---
 
 ## 3. Gap list (R2.3)
@@ -709,7 +718,7 @@ The page says "No rate limits are required" for the sparse index, and "No rate l
 | Reddit | Commercial use needs a separate agreement and prior approval. No sharing with third parties. Deletion within 48 h, and anonymisation does not cure it. (TM-05) | Operator's own written commercial agreement covering LLM processing and retention | The "Reddit reach" metric (§8.1); Reddit-driven cases; the Stage 2 backfill (R17.1) |
 | YouTube | 30-day storage cap and a ban on derived data (TM-14) | Audited analytics-developer status | Demo-video spread (R5.4); YouTube triggers (R5.5) |
 | X | Commercial use beyond prototyping needs Enterprise; 24 h deletion; tracking restrictions (TM-15) | Operator's own Enterprise agreement | Influencer triggers (R8.1, R5.5); a large part of the spread graph (R5.3) |
-| Product Hunt | API "must not be used for commercial purposes" (TM-16) | Email hello@producthunt.com | R1.3 announced-launch watchlist; PH launch type (R4.2) |
+| Product Hunt (commercial use only; personal use cleared by ADR-085) | API "must not be used for commercial purposes" (TM-16) | Email hello@producthunt.com (the owner writes, H5) | For commercial deployments: R1.3 announced-launch watchlist; PH launch type (R4.2); view B's Product Hunt launch events |
 | Lobste.rs | robots disallow; `ai-input=no` (TM-17) | Email the operator; database query on request | A small devtools channel |
 | dev.to | Non-commercial viewing only; destroy downloaded materials (TM-18) | Written permission from Forem | Blog-post triggers |
 | Juejin | Automated access and commercial reuse banned (TM-20) | Written permission | Chinese-ecosystem module (R6.2) |
@@ -814,6 +823,7 @@ Gap sources are not built. Their connector stubs carry only the enable flag, set
 
 ## Changelog
 
+- 2026-09-27 — owner decisions (ADR-085): row 16 (Product Hunt) cleared with conditions for the owner's personal, non-commercial use (GAP for commercial use), §2.16 updated; new row 34 and §2.34 (Bluesky AppView search for declared maintainer accounts, TM-34); gap list row updated.
 - 2026-09-25 — corrections after verifier spot-check M2-T4. GH Archive: issue #137 answer by the maintainer, #310 root cause and PR #317, #312 drop and recovery, #320 scope of 2 repos. PyPI licence is CC BY 4.0, and the immutability quote applies to `distribution_metadata` only. crates.io access order. "AppView" wording replaced. Internet Archive citation URL. HN Algolia depth and rank-field observation. GitHub ToS D.9 URL. X Developer Agreement section labels. yc-oss/api quote. New audits §2.26–§2.31 (TM-26 to TM-31), with the summary table, gap list, priority order, "Not audited" and implications updated.
 - 2026-09-25 — detection re-plan (ADR-032): rows 32 (OpenDigger mirror, **GAP** pending LQ-28, TM-32) and 33 (GitHub star-history endpoint plus per-repo events, CLEARED-WITH-CONDITIONS, TM-33); §2.32–§2.33 added; §2.2 and row 2 note that stargazer lists are restricted to admins and collaborators since 2026-06-30 (GitHub changelog); OpenDigger moved from "Not audited" to the gap list.
 - 2026-09-25 — fixes after verifier (ADR-036 alignment): §2.1 condition (d) and §5 item 1 marked superseded by ADR-032 (cross-check and confirmation now use the star-history endpoint and watch-list count snapshots, not the stargazers API).

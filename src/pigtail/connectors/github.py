@@ -651,6 +651,56 @@ def releases_url(full_name: str) -> str:
     return f"{API}/repos/{full_name}/releases"
 
 
+# --- declared Bluesky accounts (ADR-085): homepage field, owner profile, org page -------------
+LINKS_FIELDS = "homepageUrl owner { __typename }"
+
+
+def repo_links_query(names: Sequence[str]) -> tuple[str, dict[str, str]]:
+    """One aliased GraphQL query for up to 50 repos' homepage URL and owner type."""
+    parts: list[str] = []
+    variables: dict[str, str] = {}
+    decl: list[str] = []
+    for i, full in enumerate(names):
+        owner, _, name = full.partition("/")
+        variables[f"o{i}"], variables[f"n{i}"] = owner, name
+        decl += [f"$o{i}: String!", f"$n{i}: String!"]
+        parts.append(f"r{i}: repository(owner: $o{i}, name: $n{i}) {{ {LINKS_FIELDS} }}")
+    rl = "rateLimit { cost remaining limit resetAt }"
+    q = f"query({', '.join(decl)}) {{ {' '.join(parts)} {rl} }}"
+    return q, variables
+
+
+def parse_repo_links(node: Any) -> tuple[str | None, str | None] | None:
+    """(homepage URL, owner type) of one repository node, or None when it didn't resolve."""
+    if not isinstance(node, dict):
+        return None
+    owner = node.get("owner") if isinstance(node.get("owner"), dict) else {}
+    return _opt_str(node.get("homepageUrl")), _opt_str((owner or {}).get("__typename"))
+
+
+def parse_social_accounts(data: bytes) -> list[str]:
+    """The URLs of a user's social accounts (`GET /users/{u}/social_accounts`) whose provider is
+    `bluesky` or whose URL is on bsky.app; in memory only (ADR-085)."""
+    body = json.loads(data)
+    out: list[str] = []
+    for it in body if isinstance(body, list) else []:
+        if not isinstance(it, dict) or not isinstance(it.get("url"), str):
+            continue
+        url = it["url"]
+        if it.get("provider") == "bluesky" or "bsky.app/" in url.lower():
+            out.append(url)
+    return out
+
+
+def parse_org_profile(data: bytes) -> list[str]:
+    """The org page's text fields that may carry a bsky.app profile link (`blog`,
+    `description`), from `GET /orgs/{org}`; in memory only (ADR-085)."""
+    body = json.loads(data)
+    if not isinstance(body, dict):
+        return []
+    return [v for k in ("blog", "description") if isinstance(v := body.get(k), str) and v]
+
+
 def readme_url(full_name: str) -> str:
     return f"{API}/repos/{full_name}/readme"
 
@@ -776,6 +826,50 @@ class GitHubConnector(GitHubAPI):
             repo_id=repo_id,
             retention_class="person_level_24m",
         )
+
+    def repo_links(
+        self, names: Sequence[str]
+    ) -> tuple[dict[str, tuple[str | None, str | None]], list[Fetched]]:
+        """(lowercase `owner/name` -> (homepage URL, owner type), the fetched answers) for up to
+        50 repos per GraphQL query (ADR-085). The caller drops the raw answers after parsing:
+        a homepage field may itself be a Bluesky profile link."""
+        out: dict[str, tuple[str | None, str | None]] = {}
+        fetched: list[Fetched] = []
+        uniq = list(dict.fromkeys(n.strip() for n in names if n.strip()))
+        for start in range(0, len(uniq), 50):
+            chunk = uniq[start : start + 50]
+            q, v = repo_links_query(chunk)
+            res = self.graphql(q, v, est_cost=1)
+            fetched.append(res.fetched)
+            for i, full in enumerate(chunk):
+                got = parse_repo_links(res.data.get(f"r{i}"))
+                if got is not None:
+                    out[full.lower()] = got
+        return out, fetched
+
+    def social_accounts(self, login: str, *, evidence_url: str) -> Fetched | None:
+        """`GET /users/{login}/social_accounts` (core bucket), not parsed, or None for an
+        unknown user. Person-level (a user's own links): classed `person_level_24m` and dropped
+        by the caller right after `parse_social_accounts` (ADR-085)."""
+        try:
+            return self.fetch(
+                f"{API}/users/{login}/social_accounts",
+                params={"per_page": 100},
+                retention_class="person_level_24m",
+                evidence_url=evidence_url,
+            )
+        except NotFound:
+            return None
+
+    def org_profile(self, org: str, *, evidence_url: str) -> Fetched | None:
+        """`GET /orgs/{org}` (core bucket), not parsed, or None for an unknown org; dropped by
+        the caller right after `parse_org_profile` (ADR-085)."""
+        try:
+            return self.fetch(
+                f"{API}/orgs/{org}", retention_class="person_level_24m", evidence_url=evidence_url
+            )
+        except NotFound:
+            return None
 
     def repos_metadata(self, names: Sequence[str]) -> dict[str, RepoMeta]:
         """Project-level metadata for `owner/name` repos, 50 per GraphQL query (M22 discovery).

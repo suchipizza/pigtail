@@ -187,6 +187,10 @@ def run_stage(
     hn: Any = None,
     confirmer: Confirmer | None = None,
     coder: SurfaceCoder | None = None,
+    ph: Any = None,
+    bsky: Any = None,
+    ph_confirmer: Confirmer | None = None,
+    readme: Any = None,
 ) -> StageResult:
     """The selection stage (module docstring). Raises `PreregistrationMissing` before anything
     is fetched or computed when the brief version has no recorded pre-registration (R8.2,
@@ -201,9 +205,18 @@ def run_stage(
     lookup, the releases, the mention search and the star history, from the shortlist's own
     metadata and README excerpts. Without a coder (`SurfaceCodingUnavailable`), without
     approval or over a cap (`BudgetStop`) the selection is refused before any of those runs.
-    A client whose model differs from the pre-registered one is refused as well."""
+    A client whose model differs from the pre-registered one is refused as well.
+
+    View B's launch sources (ADR-085): when the pre-registered parameters say Product Hunt
+    (`launch_sources.product_hunt`) or Bluesky (`launch_sources.bluesky`) applies, `ph` (the
+    connector, with its token) or `bsky` must be there, or the stage raises
+    `LaunchSourceUnavailable` before anything is fetched or coded; `ph_confirmer` runs the
+    Product Hunt Haiku check (fail closed without it), `readme` loads READMEs for the declared
+    Bluesky accounts. More than 10 % of repos with incomplete Bluesky data raises
+    `LaunchSourceIncomplete` (resumable)."""
     from pigtail.briefs.cache import data_version
     from pigtail.briefs.discovery import window_bounds
+    from pigtail.briefs.launch_sources import LaunchSourceUnavailable, blocked
     from pigtail.briefs.outcomes import (
         LaunchLookupUnavailable,
         ambiguous_title_matches,
@@ -219,9 +232,13 @@ def run_stage(
     require(conn, brief)  # outcome-model §5.8: the point of no return needs a pre-registration
     if (why := launch_lookup_blocked(hn)) is not None:  # ADR-082: the lookup is pre-registered
         raise LaunchLookupUnavailable(why)
+    ctx = Context.from_brief(brief)
+    # ADR-085: a launch source the pre-registered parameters apply must be able to run
+    if (why := blocked(ph, bsky, product_hunt=ctx.product_hunt, bluesky=ctx.bluesky)) is not None:
+        raise LaunchSourceUnavailable(why)
     if coder is None or (why := coder.blocked()) is not None:  # ADR-084: never without it
         raise SurfaceCodingUnavailable(why or SURFACE_UNAVAILABLE)
-    _check_models(coder, confirmer)
+    _check_models(coder, confirmer, ph_confirmer)
     if "as_of" not in checkpoint:  # fixed for the whole run, so a resume judges `pending` alike
         checkpoint["as_of"] = clock().date().isoformat()
         save_checkpoint(checkpoint)
@@ -249,17 +266,27 @@ def run_stage(
         hn=hn,
         window=window,
         confirmer=confirmer,
+        launch_sources=ctx.required_launch_sources,
+        ph=ph,
+        bsky=bsky,
+        ph_confirmer=ph_confirmer,
+        ph_topics=ctx.ph_topics,
+        readme=readme,
     )
     cands = shortlisted(conn, brief)  # metadata and looked-up launches may have been added
-    inputs = load_inputs(conn, brief, cands, window=window, as_of=as_of)
+    inputs = load_inputs(
+        conn, brief, cands, window=window, as_of=as_of,
+        launch_sources=ctx.required_launch_sources,
+    )  # fmt: skip
     notes = lookup_notes(fetch.launch_lookup or {})
+    notes += launch_source_notes(fetch.product_hunt, fetch.bluesky)
     notes += view_b_notes(fetch.releases, fetch.mentions)
     if shared := ambiguous_title_matches(cands):
         notes.append(
             f"launch lookup: {len(shared)} title matches dropped as claimed by more than one "
             "shortlisted repo or linked by URL to another (ADR-082 rule e)"
         )
-    sel = select_views(inputs, Context.from_brief(brief), Definition.from_brief(brief), notes=notes)
+    sel = select_views(inputs, ctx, Definition.from_brief(brief), notes=notes)
     # R4.8 determinism is keyed on (brief version, data version); `as_of` decides `pending`, so
     # it is folded into the selection's data version (M22 verifier round 2): same data, another
     # day -> another data version.
@@ -290,6 +317,7 @@ def run_stage(
             for k, v in sel.views.items()
         },
         "view_b_anchor_rules": sel.summary["view_b_anchor_rules"],
+        "view_b_incomplete": sel.summary["view_b_incomplete"],
         "surface": surf.to_dict(),
         "warnings": len(sel.summary["warnings"]),
     }
@@ -303,10 +331,18 @@ def run_stage(
     )
 
 
-def _check_models(coder: SurfaceCoder, confirmer: Confirmer | None) -> None:
+def _check_models(
+    coder: SurfaceCoder, confirmer: Confirmer | None, ph_confirmer: Confirmer | None = None
+) -> None:
     """The pre-registered parameters hold the resolved Haiku model id (ADR-084): a client that
     would call another model is refused before anything runs."""
-    for job, llm in ((SURFACE_JOB, coder.llm), (TITLE_CHECK_JOB, getattr(confirmer, "llm", None))):
+    from pigtail.briefs.confirm import PH_JOB
+
+    for job, llm in (
+        (SURFACE_JOB, coder.llm),
+        (TITLE_CHECK_JOB, getattr(confirmer, "llm", None)),
+        (PH_JOB, getattr(ph_confirmer, "llm", None)),
+    ):
         if llm is None:
             continue
         want, got = resolved_model(job), llm.model_for(job)
@@ -316,6 +352,37 @@ def _check_models(coder: SurfaceCoder, confirmer: Confirmer | None) -> None:
                 f"{want!r} (LLM_MODEL_RELEVANCE / LLM_MODEL): align the settings, or "
                 "pre-register again"
             )
+
+
+def launch_source_notes(ph: dict[str, Any] | None, bsky: dict[str, Any] | None) -> list[str]:
+    """Selection warnings from view B's Product Hunt and Bluesky steps (ADR-085; counts only)."""
+    notes: list[str] = []
+    if ph is not None:
+        bad = {t: st for t, st in (ph.get("topic_status") or {}).items() if st != "complete"}
+        if bad:
+            notes.append(
+                "view B: Product Hunt topic scan not complete ("
+                + ", ".join(f"{t} {st}" for t, st in sorted(bad.items()))
+                + "): matches by topic may be missing (ADR-085)"
+            )
+        if ph.get("unconfirmed"):
+            why = ", ".join(f"{k} {v}" for k, v in sorted(ph["unconfirmed"].items()))
+            notes.append(
+                f"view B: {sum(ph['unconfirmed'].values())} Product Hunt name matches not "
+                f"confirmed and excluded ({why}; ADR-085)"
+            )
+        if ph.get("confirmed"):
+            how = ", ".join(f"{k} {v}" for k, v in sorted(ph["confirmed"].items()))
+            notes.append(f"view B: Product Hunt launches confirmed ({how}; ADR-085)")
+    if bsky is not None and bsky.get("incomplete"):
+        why = ", ".join(
+            f"{k} {v}" for k, v in sorted((bsky.get("incomplete_reasons") or {}).items())
+        )
+        notes.append(
+            f"view B: {bsky['incomplete']} repos' Bluesky data incomplete ({why}): no view-B "
+            "anchor for them, retried by the next run (ADR-085)"
+        )
+    return notes
 
 
 def view_b_notes(releases: dict[str, Any], mentions: dict[str, Any]) -> list[str]:

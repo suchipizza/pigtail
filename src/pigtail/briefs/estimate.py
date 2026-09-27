@@ -40,7 +40,12 @@ What it reports:
   (`distribution_surface`, relevance stage, 20 repos per request, a paid step), the GitHub
   releases of every shortlisted repo (`RELEASE_PAGES_PER_REPO`, core bucket) and the
   first-mention search of repos without a launch event (`MENTION_SEARCH_SHARE`,
-  `MENTION_REQUESTS_PER_SEARCH`, HN Algolia).
+  `MENTION_REQUESTS_PER_SEARCH`, HN Algolia). Since ADR-085 (`estimate-v6`), when the
+  launch-source flags apply them: the Product Hunt step (up to 2 slug lookups per repo, the topic
+  scan's pages for the window, a few posts re-read, and Haiku checks of name-only matches, a
+  paid step) and the Bluesky step (per repo one GitHub core request for the owner's profile
+  social accounts or the org page, one GraphQL query per 50 repos for homepage fields, READMEs
+  mostly from the snapshot store, and searches for the repos with a declared account).
 """
 
 from __future__ import annotations
@@ -62,13 +67,15 @@ from pigtail.connectors.github_budget import DEFAULT_CAP_FRACTION, GITHUB_LIMITS
 from pigtail.llm.pricing import TokenUsage, canonical_model, cost_usd, pricing_table
 from pigtail.llm.stages import stage_for, time_sensitive
 
+# v6 (ADR-085): Product Hunt (slug lookups, topic scan, Haiku checks) and Bluesky (declared
+# accounts on GitHub, searches).
 # v5 (ADR-084): the distribution-surface coding, GitHub releases and the first-mention search.
 # v4 (ADR-083): the selection's stars-before-launch pages and Haiku title-match checks.
 # v3 (M22): the relevance filter sends ~20 candidates per request; discovery fetches one README
 # per candidate (core bucket). v2 (M21b): per-stage models, Batch API discount, prompt caching,
 # the brief's total money cap and the monthly cap. v1 (ADR-058.4): expansion is an
 # on-demand call, not a run stage.
-ESTIMATE_MODEL = "estimate-v5"
+ESTIMATE_MODEL = "estimate-v6"
 
 # --- planning assumptions (placeholders until the pilot measures them, M23) ---------------
 SEARCH_PAGES_PER_QUERY = 2  # 100 results per page
@@ -110,11 +117,56 @@ MENTION_SEARCH_SHARE = 0.75
 MENTION_REQUESTS_PER_SEARCH = 2
 SURFACE = "distribution_surface"  # the job and the estimate stage (relevance stage, Haiku)
 SURFACE_PER_REQUEST = 20
+# ADR-085 (planning assumptions until the pilot measures them, M23): Product Hunt: 2 slug
+# lookups per repo (1 when the name has no hyphen, `_` or `.`), the topic scan (posts per month
+# and topic in the two default topics, 20 per page), 5 % of repos with a topic-only match to
+# re-read after a resume, and 0.05 Haiku checks per repo (name matches rules 1-3 don't
+# confirm); Bluesky: 1 GitHub core request per repo (social accounts or org page), 10 % of
+# READMEs no longer in the snapshot store, 30 % of repos with a declared account, 2 searches each
+# (repo URL and homepage, one page)
+PH_SLUG_REQUESTS_PER_REPO = 2
+PH_TOPIC_POSTS_PER_MONTH = 300
+PH_REFETCH_SHARE = 0.05
+PH_CHECKS_PER_SHORTLISTED = 0.05
+PH_CHECK = "ph_match_check"  # the job and the estimate stage (relevance stage, Haiku)
+BSKY_CORE_PER_REPO = 1
+BSKY_README_REFETCH_SHARE = 0.1
+BSKY_DECLARED_SHARE = 0.3
+BSKY_SEARCHES_PER_DECLARED = 2
+PH_OFF_WARNING = (
+    "Product Hunt applies to the selection (PIGTAIL_SELECTION_PRODUCT_HUNT unset or true) but "
+    "PH_API_TOKEN is not set, so the connector is off: `pigtail run` will refuse the selection "
+    "(exit 8) until the token is set, or pre-register with PIGTAIL_SELECTION_PRODUCT_HUNT=false "
+    "(ADR-085)"
+)
+BSKY_OFF_WARNING = (
+    "Bluesky applies to the selection (PIGTAIL_SELECTION_BLUESKY unset or true) but the "
+    "bluesky_search connector is off (PIGTAIL_CONNECTOR_BLUESKY_SEARCH_ENABLED=false): `pigtail "
+    "run` will refuse the selection (exit 8) until it is on, or pre-register with "
+    "PIGTAIL_SELECTION_BLUESKY=false (ADR-085)"
+)
 LAUNCH_LOOKUP_OFF_WARNING = (
     "the Show HN connector is off (PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false): the selection's "
     "launch lookup can't run, so `pigtail run` will refuse the selection (exit 8) until it is "
     "on; the pre-registered selection rule includes the lookup (ADR-082)"
 )
+
+
+def launch_source_warnings(env: Mapping[str, str] | None = None) -> list[str]:
+    """ADR-085: warnings for a launch source the flags apply whose connector is off."""
+    from pigtail.briefs.selection import launch_source_settings
+    from pigtail.connectors.bluesky import BlueskySearchConnector
+    from pigtail.connectors.producthunt import PH_TOKEN_ENV, ProductHuntConnector
+
+    e = os.environ if env is None else env
+    ph_on, bsky_on, _topics = launch_source_settings(e)
+    out = []
+    ph_ok = ProductHuntConnector.enabled_from_env(e) and bool((e.get(PH_TOKEN_ENV) or "").strip())
+    if ph_on and not ph_ok:
+        out.append(PH_OFF_WARNING)
+    if bsky_on and not BlueskySearchConnector.enabled_from_env(e):
+        out.append(BSKY_OFF_WARNING)
+    return out
 
 
 def launch_lookup_enabled(env: Mapping[str, str] | None = None) -> bool:
@@ -136,6 +188,9 @@ class SelectionState:
     surface_done: bool = False  # the surface coding finished (ADR-084)
     releases_done: int = 0
     mentions_done: int = 0
+    ph_done: int = 0  # repos the Product Hunt step finished (ADR-085)
+    ph_topics_done: bool = False  # the topic scan finished for every topic
+    bsky_done: int = 0  # repos the Bluesky step finished (ADR-085)
 
     def to_dict(self) -> dict[str, Any]:
         return dict(self.__dict__)
@@ -164,6 +219,10 @@ def selection_state(conn: Any, brief: Brief) -> SelectionState:
         surface_done=bool((cp.get("surface") or {}).get("surface_done")),
         releases_done=len(fetch.get("releases_done") or []),
         mentions_done=len(fetch.get("mentions_done") or []),
+        ph_done=len(fetch.get("ph_done") or []),
+        ph_topics_done=bool(fetch.get("ph_topics"))
+        and all((v or {}).get("status") != "running" for v in fetch["ph_topics"].values()),
+        bsky_done=len(fetch.get("bsky_done") or []),
     )
 
 
@@ -178,6 +237,7 @@ TOKENS = {
     # 20 repos per request (ADR-084): ~300 tokens of instructions, ~350 per repo (name,
     # description, topics, language, README excerpt of <= 1,200 chars), ~25 out per repo
     SURFACE: (300 + SURFACE_PER_REQUEST * 350, SURFACE_PER_REQUEST * 25),
+    PH_CHECK: (450, 60),  # one name match per request (ADR-085)
     "extraction": (8_000, 1_500),
     "adjudication": (6_000, 1_000),
     "patterns": (20_000, 3_000),
@@ -190,6 +250,7 @@ CACHED_PREFIX = {
     "relevance": 1_000,
     TITLE_CHECK: 0,  # far below Haiku's minimum cacheable prefix
     SURFACE: 0,  # likewise
+    PH_CHECK: 0,  # likewise
     "extraction": 6_000,
     "adjudication": 5_000,
     "patterns": 3_000,
@@ -460,13 +521,18 @@ def estimate(
     brief_spent_usd: float = 0.0,
     selection: SelectionState | None = None,
     hn_enabled: bool = True,
+    launch_sources: tuple[bool, bool] | None = None,
+    ph_topics: int | None = None,
+    source_warnings: list[str] | None = None,
 ) -> Estimate:
     """Estimate one run of `brief` (widening included as an upper bound).
 
     `models` maps LLM stages to models (R15.8; default: the code defaults); `batch` is whether
     non-time-sensitive stages use the Message Batches API (`LLM_BATCH`). `selection` is the
     selection stage's state (default: pending, nothing looked up); `hn_enabled` whether the
-    Show HN connector is on (ADR-082)."""
+    Show HN connector is on (ADR-082); `launch_sources` whether Product Hunt and Bluesky apply
+    (ADR-085), `ph_topics` how many Product Hunt topics are scanned, `source_warnings` the
+    warnings for a source that applies but can't run."""
     stage_models: dict[str, str] = {str(k): v for k, v in DEFAULT_STAGE_MODELS.items()}
     stage_models.update(models or {})
     slices = math.ceil(brief.window.months / 3)
@@ -517,7 +583,33 @@ def estimate(
         mention_requests = MENTION_REQUESTS_PER_SEARCH * searches
         if not sel.surface_done:
             surface_calls = math.ceil(sel_n / SURFACE_PER_REQUEST)
-    requests["core"] += prelaunch_pages + release_pages
+    # ADR-085: Product Hunt and Bluesky (when the launch-source flags apply them; default: this
+    # process's flags)
+    if launch_sources is None or ph_topics is None:
+        from pigtail.briefs.selection import launch_source_settings
+
+        flags = launch_source_settings()
+        launch_sources = launch_sources or (flags[0], flags[1])
+        ph_topics = len(flags[2]) if ph_topics is None else ph_topics
+    ph_on, bsky_on = launch_sources
+    ph_requests = ph_checks = bsky_requests = bsky_core = bsky_graphql = ph_topic_pages = 0
+    if sel.pending and ph_on:
+        left = max(0, sel_n - sel.ph_done)
+        if not sel.ph_topics_done:
+            ph_topic_pages = ph_topics * math.ceil(
+                brief.window.months * PH_TOPIC_POSTS_PER_MONTH / 20
+            )
+        ph_requests = (
+            PH_SLUG_REQUESTS_PER_REPO * left + math.ceil(left * PH_REFETCH_SHARE) + ph_topic_pages
+        )
+        ph_checks = math.ceil(left * PH_CHECKS_PER_SHORTLISTED)
+    if sel.pending and bsky_on:
+        left = max(0, sel_n - sel.bsky_done)
+        bsky_core = BSKY_CORE_PER_REPO * left + math.ceil(left * BSKY_README_REFETCH_SHARE)
+        bsky_graphql = math.ceil(left / GRAPHQL_BATCH)
+        bsky_requests = BSKY_SEARCHES_PER_DECLARED * math.ceil(left * BSKY_DECLARED_SHARE)
+    requests["core"] += prelaunch_pages + release_pages + bsky_core
+    requests["graphql"] += bsky_graphql
     hours = max(
         requests[r] / (GITHUB_LIMITS_PER_HOUR[r] * DEFAULT_CAP_FRACTION)  # type: ignore[index]
         for r in requests
@@ -526,6 +618,8 @@ def estimate(
         "hn_algolia": gh("discovery", terms * slices * HN_QUERIES_PER_TERM_SLICE),
         "hn_launch_lookup": lookups,
         "hn_first_mention": mention_requests,
+        "producthunt": ph_requests,
+        "bluesky": bsky_requests,
     }
     api = brief.budget.llm_backend == "api"
 
@@ -567,6 +661,8 @@ def estimate(
         cost(TITLE_CHECK, title_checks),
         # the selection's distribution-surface coding (ADR-084), likewise this version's
         cost(SURFACE, surface_calls),
+        # the selection's Haiku check of name-only Product Hunt matches (ADR-085)
+        cost(PH_CHECK, ph_checks),
     ]
 
     paid: list[PaidStep] = []
@@ -604,6 +700,8 @@ def estimate(
     warnings = []
     if sel.pending and not hn_enabled:
         warnings.append(LAUNCH_LOOKUP_OFF_WARNING)
+    if sel.pending:
+        warnings += list(source_warnings or [])
     return Estimate(
         brief_id=brief.brief_id,
         brief_version=brief.version,
@@ -636,6 +734,17 @@ def estimate(
             "release_core_requests": release_pages,
             "hn_first_mention_requests": mention_requests,
             "surface_coding_requests": surface_calls,
+            "launch_sources": {"product_hunt": ph_on, "bluesky": bsky_on},
+            "producthunt_requests": ph_requests,
+            "producthunt_topic_pages": ph_topic_pages,
+            "ph_match_checks": ph_checks,
+            "ph_match_usd": next(
+                (None if s.usd is None else round(s.usd, 4) for s in stages if s.stage == PH_CHECK),
+                0.0,
+            ),
+            "bluesky_requests": bsky_requests,
+            "bluesky_github_core_requests": bsky_core,
+            "bluesky_github_graphql_requests": bsky_graphql,
             "surface_coding_usd": next(
                 (None if s.usd is None else round(s.usd, 4) for s in stages if s.stage == SURFACE),
                 0.0,
@@ -665,14 +774,17 @@ def estimate_for(
     brief_spent_usd: float = 0.0,
     selection: SelectionState | None = None,
     hn_enabled: bool | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> tuple[Estimate, RerunPlan | None]:
     """Estimate against this install's usage ledger (this month's API spend), with a reuse
     plan when an earlier version of the brief was run (used by the CLI and the D7 API).
     `brief_spent_usd` is what the brief has already spent (`PgCostLedger.brief_total`);
     `selection` the selection stage's state (`selection_state`); `hn_enabled` defaults to this
     process's environment (`launch_lookup_enabled`)."""
+    from pigtail.briefs.selection import launch_source_settings
     from pigtail.llm.store import LLMStore
 
+    ph_on, bsky_on, topics = launch_source_settings(env)
     ledger = LLMStore(Path(data_dir) / "llm.sqlite3")
     try:
         month = ledger.usage_since("api", month_start(utcnow()))["cost_usd"]
@@ -693,7 +805,10 @@ def estimate_for(
         month_spent_usd=month,
         brief_spent_usd=brief_spent_usd,
         selection=selection,
-        hn_enabled=launch_lookup_enabled() if hn_enabled is None else hn_enabled,
+        hn_enabled=launch_lookup_enabled(env) if hn_enabled is None else hn_enabled,
+        launch_sources=(ph_on, bsky_on),
+        ph_topics=len(topics),
+        source_warnings=launch_source_warnings(env),
     )
     return est, plan
 
@@ -794,12 +909,14 @@ def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any
     llm = rel.to_dict() if "relevance" in st and not rel.reused else None
     tc = by[TITLE_CHECK]
     sc = by[SURFACE]
+    pc = by[PH_CHECK]
     usd: float | None = 0.0
     if llm is not None and e.llm_backend == "api":
         usd = rel.usd
     sel_usd: float | None = 0.0
     if "selection" in st and e.llm_backend == "api":
-        sel_usd = None if tc.usd is None or sc.usd is None else tc.usd + sc.usd
+        parts = (tc.usd, sc.usd, pc.usd)
+        sel_usd = None if any(x is None for x in parts) else sum(x or 0.0 for x in parts)
         usd = None if usd is None or sel_usd is None else usd + sel_usd
     brief_left = max(0.0, e.brief_cap_usd - e.brief_spent_usd)
     month_left = max(0.0, e.month_cap_usd - e.month_spent_usd)
@@ -829,6 +946,17 @@ def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any
                 "external mention of repos without a launch event, "
                 f"~{MENTION_REQUESTS_PER_SEARCH} HN Algolia requests each (up to 5), "
                 f"~{e.other_requests.get('hn_first_mention', 0):,} in total",
+                "launch_sources": "view B's Product Hunt and Bluesky steps (ADR-085): "
+                f"~{e.other_requests.get('producthunt', 0):,} Product Hunt requests (up to "
+                f"{PH_SLUG_REQUESTS_PER_REPO} slug lookups per repo, "
+                f"~{e.selection.get('producthunt_topic_pages', 0):,} topic-scan pages), "
+                f"~{pc.llm_calls:,} Haiku checks of name-only matches; "
+                f"~{e.other_requests.get('bluesky', 0):,} Bluesky searches for repos with a "
+                "declared maintainer account, "
+                f"~{e.selection.get('bluesky_github_core_requests', 0):,} GitHub core "
+                "requests (profile social accounts or org page, READMEs not in the snapshot "
+                "store)",
+                "ph_calls": pc.llm_calls,
                 "surface_calls": sc.llm_calls,
                 "surface_model": sc.model,
                 "surface_job": "Haiku distribution-surface coding, 20 repos per request, the "
@@ -876,6 +1004,7 @@ def render_scope_text(scope: dict[str, Any]) -> str:
             "  selection (once the shortlist is final): "
             + s["github"]
             + f"; {s['prelaunch']}; {s['hn']} (~{s['hn_algolia_requests']:,}); {s['view_b']}; "
+            f"{s['launch_sources']}; "
             f"~{s['surface_calls']:,} Haiku surface-coding requests and ~{s['llm_calls']:,} "
             f"Haiku title-match checks on {s['llm_model']} ({s['llm_mode']}), "
             f"{_usd(s['api_usd'])}"

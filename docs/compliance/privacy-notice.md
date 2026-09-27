@@ -27,10 +27,12 @@ We study **how open-source software projects grow**: which launches, posts and c
 | **GitHub**, via the public GH Archive dataset and the GitHub API | Your public username and account id, and public actions on repositories (starring, forking, issues, pull requests, comments) with their times. The raw public event files also contain the text of public issues and comments. | When your public activity touches a repository we study |
 | **Hacker News** (official APIs) | Your username, and the public posts and comments that mention a project we study, with times and points | Only for projects we analyse in depth |
 | **Bluesky** (AT Protocol) | Your handle and DID, and public posts that mention a project we study, with times and engagement counts | Only for projects we analyse in depth |
+| **Bluesky**, if you maintain a project we study and published your Bluesky account on it (its repository, README, organisation page or your GitHub profile) | The dates of your public posts that link that project. We use your handle only while we collect and never store it; we keep only "a maintainer posted about the project on this date" | Only for projects in a research brief |
+| **Product Hunt** (official API) | Project-level launch facts only (post id, dates, votes and comment counts). We never request makers, hunters or other people | Only for projects in a research brief |
 | **V2EX** (official API) | Your username, and public topics and replies that mention a project | Off by default |
 | Package registries, Wayback Machine, Discord invite counts | Project-level figures only (downloads, archived project pages, member counts). Nothing about you. | — |
 
-We do **not** collect data from Reddit, X/Twitter, YouTube, Product Hunt, Lobste.rs, dev.to, Juejin, Zhihu or Bilibili.
+We do **not** collect data from Reddit, X/Twitter, YouTube, Lobste.rs, dev.to, Juejin, Zhihu or Bilibili.
 
 We do not try to collect sensitive information (for example health, political or religious views). If a public post happens to contain some, we do not extract or use it.
 

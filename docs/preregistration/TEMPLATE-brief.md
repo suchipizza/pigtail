@@ -41,12 +41,13 @@ Paste the output of `pigtail brief preregister <brief-id> --print-hashes`:
 | `brief_version` | `<n>` |
 | `brief_sha256` (the whole brief version's content hash) | `<64 hex>` |
 | `success_definition_sha256` (primary dimension, percentile thresholds and minimums, metrics, business minimum, weights, `if_not_applicable`, the no-measurable-adoption rule) | `<64 hex>` |
-| `selection_params_sha256` (N winners and losers, exact-match keys, SMD target, headline exclusion SMD, calipers, matching rule, widening steps allowed, fallback steps, exemplar matching, sensitivity alternatives, selection / outcome-model / analysis-params versions; since `selection-v5` also views A, B and C, the follow-through metric, the title-confirmation rule with the Haiku prompt's fingerprint and the hash of the guarded anchor-rule code, ADR-083; since `selection-v6` also view B's launch-event anchor rule and its limitations, the undeclared-launch sub-population, the language groups and the pattern rule, the numeric-only headline rule, the SD rule, the distribution-surface coding with its prompt fingerprint, and the resolved Haiku model id, ADR-084) | `<64 hex>` |
-| `selection_version` | `selection-v6` |
+| `selection_params_sha256` (N winners and losers, exact-match keys, SMD target, headline exclusion SMD, calipers, matching rule, widening steps allowed, fallback steps, exemplar matching, sensitivity alternatives, selection / outcome-model / analysis-params versions; since `selection-v5` also views A, B and C, the follow-through metric, the title-confirmation rule with the Haiku prompt's fingerprint and the hash of the guarded anchor-rule code, ADR-083; since `selection-v6` also view B's launch-event anchor rule and its limitations, the undeclared-launch sub-population, the language groups and the pattern rule, the numeric-only headline rule, the SD rule, the distribution-surface coding with its prompt fingerprint, and the resolved Haiku model id, ADR-084; since `selection-v7` also view B's launch sources: whether Product Hunt and Bluesky apply, the Product Hunt topics, slug rule, product slot and confirmation rule with its Haiku prompt fingerprint, the Bluesky declared-account sources, search calls and incomplete rule, ADR-085) | `<64 hex>` |
+| `selection_version` | `selection-v7` |
 | `outcome_model_version` | `2.1` |
-| `anchor_rule_version` / `anchor_rule_source_sha256` | `anchor-v5` / `<64 hex>` |
+| `anchor_rule_version` / `anchor_rule_source_sha256` | `anchor-v6` / `<64 hex>` |
 | `follow_through_metric_version` / `title_confirmation_version` | `follow-through-v1` / `confirm-v2` |
 | `distribution_surface` version / prompt fingerprint / Haiku model | `surface-v1` / `<12 hex>` / `<model id>` |
+| View B's launch sources: Product Hunt / Bluesky (applies: yes or no), Product Hunt topics, `ph_match_check` prompt fingerprint | `yes` / `yes` / `open-source, developer-tools` / `<12 hex>` |
 | Codebook version | `<x.y.z>` |
 
 How the two partial hashes are computed (anyone holding the private brief can re-check them):
@@ -90,11 +91,9 @@ file knows what was fixed before the outcome sort.
   headline. Bursts never anchor view B. The report shows the count per anchor rule
   (`show_hn`, `launch_hn`, `release_launch`, `undeclared:first_mention`,
   `undeclared:first_release`, `none`).
-- **Limitations of view B's anchor (state them in the report):** Product Hunt (no connector),
-  X (paid API; USD 0 cap for other paid services), Reddit (no API approval), blogs (no source)
-  and maintainer posts on Bluesky (cross-platform name matching, forbidden by ADR-075.3) are
-  not observed. **Known bias:** a case whose real first launch was on one of these channels is
-  dated by its first observable event.
+- **Limitations of view B's anchor (state them in the report):** as amended by §1d.
+  **Known bias:** a case whose real first launch was on an unobserved channel is dated by its
+  first observable event.
 - **Headline exclusion:** only numeric standardized differences > 0.5 exclude a pair (LSM and
   repo age in A; repo age and stars before launch in B). Language, language group, category
   and the distribution surface stay in the balance table (`balance_limited` when they miss the
@@ -117,6 +116,40 @@ file knows what was fixed before the outcome sort.
 - **View C** ("all losers"): every shortlisted non-winner of the brief, no-anchor and
   undetermined repos included; statistics over those with a value, with the counts with and
   without one.
+
+## 1d. What `selection-v7` adds (ADR-085; owner decisions of 2026-09-27 on Product Hunt and Bluesky)
+
+Committed in `selection_params_sha256` (`launch_sources`); restate what applies to this brief.
+
+- **Product Hunt launches** (if it applies; on unless the instance set
+  `PIGTAIL_SELECTION_PRODUCT_HUNT=false` before this pre-registration): official API with the
+  operator's developer token, project-level post fields only. A post counts as the repo's
+  launch when it is found by slug (at most 2 slug candidates: the GitHub name lowercased with
+  `_` and `.` turned into `-`, then the same without hyphens) or by the scan of the topics
+  listed above inside the window; its name normalizes (casefold, only a–z and 0–9 kept) to the
+  repo's GitHub name; and it is confirmed by the first of: the repo's GitHub URL in its tagline
+  or description, the repo's homepage domain there, two distinctive keywords shared with the
+  repo description, the Haiku check (`ph_match_check`, fail closed). A repo name under 5
+  characters or made of stop-list words is confirmed by the URL or domain rule only. Dated
+  `featuredAt`, else `createdAt`. Votes and comments are reported as secondary launch-size
+  measures (`att.ph_votes`, `att.ph_comments`), never ranked on.
+- **Bluesky posts by declared maintainer accounts** (if it applies): only accounts the
+  maintainer declared by a `bsky.app/profile/…` link or `@name.bsky.social` on the repo's
+  homepage field, README, org page (`blog`, `description`) or GitHub profile social accounts
+  (at most 3 per repo), matched in memory; the search asks for that account's posts linking the
+  repo's GitHub URL or homepage, inside the window. Only kind, time, role `maintainer` and match
+  are stored; never the handle.
+- **Tie-break at the same instant:** `show_hn`, `launch_hn`, `product_hunt`, `release_launch`,
+  `bluesky_maintainer_post`, then the event's ref. The earliest event anchors; later ones are
+  relaunch events. The report's counts per anchor rule include the two new kinds.
+- **Incomplete sources:** a repo whose Bluesky data (or Product Hunt data) could not be read
+  completely has no view-B anchor (`launch_source_incomplete:<source>`) and is counted; more
+  than 10 % of the shortlisted repos incomplete refuses the selection.
+- **Limitations of view B's anchor (state them in the report):** X (paid API; USD 0 cap for
+  other paid services), Reddit (no API approval), blogs (no source), Bluesky posts by accounts
+  the maintainer did not declare (finding them would be cross-platform name matching, forbidden
+  by ADR-075.3), Product Hunt launches under another name or that no rule confirms; a launch
+  source turned off for this brief.
 
 ## 2. Hypotheses (codebook §7.2)
 

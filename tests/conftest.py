@@ -91,6 +91,30 @@ def _isolated_briefs_dir(tmp_path_factory: pytest.TempPathFactory, monkeypatch: 
     return d
 
 
+# --- ADR-085: view B's Product Hunt and Bluesky launch sources ---------------------------------
+@pytest.fixture(autouse=True)
+def _launch_sources_off() -> Iterator[None]:
+    """The instance flags turn both launch sources on by default (fail closed without their
+    connectors). Tests written before ADR-085 run the selection without them, so the default
+    for the suite is off; the ADR-085 tests turn them back on (`launch_sources_on`). A real
+    token or base URL from the developer's environment never reaches a test. Its own
+    MonkeyPatch, so a test's `monkeypatch.undo()` keeps it."""
+    mp = pytest.MonkeyPatch()
+    mp.setenv("PIGTAIL_SELECTION_PRODUCT_HUNT", "false")
+    mp.setenv("PIGTAIL_SELECTION_BLUESKY", "false")
+    for k in ("PH_API_TOKEN", "PIGTAIL_BLUESKY_API_BASE", "PIGTAIL_PH_TOPICS"):
+        mp.delenv(k, raising=False)
+    yield
+    mp.undo()
+
+
+@pytest.fixture
+def launch_sources_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Both launch sources as the defaults have them: on (ADR-085)."""
+    monkeypatch.delenv("PIGTAIL_SELECTION_PRODUCT_HUNT", raising=False)
+    monkeypatch.delenv("PIGTAIL_SELECTION_BLUESKY", raising=False)
+
+
 # --- Postgres / S3 fixtures (M1-T1) ------------------------------------------------------------
 import os  # noqa: E402
 import uuid  # noqa: E402

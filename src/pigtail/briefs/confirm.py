@@ -274,9 +274,10 @@ def haiku_input(
 
 @dataclass(frozen=True)
 class Check:
-    """One title match waiting for the Haiku check: `key` is the caller's (ref, item id)."""
+    """One title match waiting for the Haiku check: `key` is the caller's (ref, item id); the
+    item id is an HN item id or a Product Hunt post id (ADR-085)."""
 
-    key: tuple[str, int]
+    key: tuple[str, int | str]
     input_text: str
 
 
@@ -287,21 +288,25 @@ class Outcome:
     provenance: dict[str, Any] | None = None
 
 
-def _fail(checks: Sequence[Check], reason: str) -> dict[tuple[str, int], Outcome]:
+def _fail(checks: Sequence[Check], reason: str) -> dict[tuple[str, int | str], Outcome]:
     return {c.key: Outcome(False, f"unconfirmed:{reason}") for c in checks}
 
 
-def est_usd_per_check(model: str, text: str, *, batch: bool) -> float | None:
+def est_usd_per_check(
+    model: str, text: str, *, batch: bool, prompt: PromptSpec = PROMPT
+) -> float | None:
     """List-price estimate of one check (chars / 4 tokens; no prompt cache: the prefix is far
     below Haiku's minimum cacheable length)."""
-    tin = (len(SYSTEM) + len(TEMPLATE) + len(text)) // 4 + 50
+    tin = (len(prompt.system) + len(prompt.template) + len(text)) // 4 + 50
     return cost_usd(model, TokenUsage(input=tin, output=OUTPUT_TOKENS), batch=batch)
 
 
 @dataclass
 class Confirmer:
     """Runs rule 4 for a group of title matches (module docstring). `llm` None, or the backend
-    refused by `check_backend`, fails closed."""
+    refused by `check_backend`, fails closed. `prompt`, `job` and `namespace` default to the HN
+    title check; the Product Hunt check (ADR-085) passes `PH_PROMPT`, `PH_JOB`, `PH_NAMESPACE`
+    (`ph_confirmer`)."""
 
     llm: LLMClient | None
     brief_run_id: str | None = None
@@ -310,15 +315,18 @@ class Confirmer:
     poll_seconds: float = 60.0
     timeout_seconds: float | None = None
     sleep: Callable[[float], None] | None = None
+    prompt: PromptSpec = PROMPT
+    job: str = JOB
+    namespace: str = NAMESPACE
 
     def _key(self, text: str) -> str:
         assert self.llm is not None
-        backend = self.llm.backend_for(JOB).name
-        model = self.llm.model_for(JOB)
-        ih = sha256_text(self.llm.redact(text, NAMESPACE))
-        return self.llm.cache_key(backend, model, PROMPT, schema_hash(TitleMatchVerdict), ih)
+        backend = self.llm.backend_for(self.job).name
+        model = self.llm.model_for(self.job)
+        ih = sha256_text(self.llm.redact(text, self.namespace))
+        return self.llm.cache_key(backend, model, self.prompt, schema_hash(TitleMatchVerdict), ih)
 
-    def run(self, checks: Sequence[Check]) -> dict[tuple[str, int], Outcome]:
+    def run(self, checks: Sequence[Check]) -> dict[tuple[str, int | str], Outcome]:
         """One outcome per check. `BatchPending` propagates (the stage resumes and collects
         the batch); every other failure fails closed."""
         if not checks:
@@ -327,34 +335,37 @@ class Confirmer:
             return _fail(checks, "haiku_unavailable")
         llm = self.llm
         try:
-            backend = llm.backend_for(JOB).name
-            model = llm.model_for(JOB)
+            backend = llm.backend_for(self.job).name
+            model = llm.model_for(self.job)
             if self.check_backend is not None:
                 self.check_backend(backend)
         except (BudgetStop, ValueError):
             return _fail(checks, "haiku_unavailable")
-        out: dict[tuple[str, int], Outcome] = {}
+        out: dict[tuple[str, int | str], Outcome] = {}
         cached = [c for c in checks if llm.store.cache_get(self._key(c.input_text)) is not None]
         todo = [c for c in checks if c not in cached]
         for c in cached:  # served from the cache: no money, no approval needed
             res = llm.complete(
-                PROMPT,
+                self.prompt,
                 c.input_text,
                 TitleMatchVerdict,
-                job=JOB,
-                namespace=NAMESPACE,
+                job=self.job,
+                namespace=self.namespace,
                 brief_run_id=self.brief_run_id,
             )
             out[c.key] = _outcome(res)
         if not todo:
             return out
-        batch = llm.batches_for(JOB)
+        batch = llm.batches_for(self.job)
         est: float | None = 0.0
         if backend == "api":
-            ests = [est_usd_per_check(model, c.input_text, batch=batch) for c in todo]
+            ests = [
+                est_usd_per_check(model, c.input_text, batch=batch, prompt=self.prompt)
+                for c in todo
+            ]
             est = None if any(e is None for e in ests) else max(e or 0.0 for e in ests)
         items = [
-            BatchItem(ref=f"t{i:05d}", input_text=c.input_text, namespace=NAMESPACE)
+            BatchItem(ref=f"t{i:05d}", input_text=c.input_text, namespace=self.namespace)
             for i, c in enumerate(todo)
         ]
         by_ref = {it.ref: c for it, c in zip(items, todo, strict=True)}
@@ -363,10 +374,10 @@ class Confirmer:
             kw["sleep"] = self.sleep
         try:
             run = llm.run_batch(
-                PROMPT,
+                self.prompt,
                 items,
                 TitleMatchVerdict,
-                job=JOB,
+                job=self.job,
                 brief_run_id=self.brief_run_id,
                 before_submit=self.before_submit,
                 est_usd_per_item=est,
@@ -440,6 +451,144 @@ def confirmation_params() -> dict[str, Any]:
             "prompt_version": PROMPT.version,
             "prompt_fingerprint": PROMPT.fingerprint,
             "schema_sha": schema_hash(TitleMatchVerdict),
+            "confirms_only": "true",
+        },
+    }
+
+
+# --- Product Hunt (ADR-085): the E rules adapted to a launch that has no URL search ------------
+# A Product Hunt post is matched to a repo by its name alone (a slug candidate, or a topic scan;
+# `pigtail.briefs.launch_sources`), so every match is "name-only": it counts only when the post's
+# name fills the product slot (it normalizes to the repo name) and the first of these holds:
+# (1) `github_url`: the tagline or description links the repo's github.com/owner/name;
+# (2) `homepage_domain`: the tagline or description names the repo's homepage domain (a whole
+#     domain, `www.` optional; never a shared host);
+# (3) `description_keywords`: tagline + description and the repo description share at least
+#     `KEYWORD_MIN_SHARED` keywords (`keywords`, the tokenizer of rule 3 above);
+# (4) `haiku`: the Product Hunt variant of the Haiku check (`PH_PROMPT`, job `ph_match_check`)
+#     answers same_project "true"; fail closed exactly like the HN check.
+# Rule 2 of the HN check (owner login) has no counterpart: a Product Hunt post has no link to
+# compare the login with, and its makers are never requested.
+PH_CONFIRMATION_VERSION = "ph-confirm-v1"
+PH_JOB = "ph_match_check"
+PH_NAMESPACE = "producthunt"
+PH_TEXT_CHARS = 300  # the start of the post's description the model sees
+PH_SYSTEM = (
+    "You check whether a Product Hunt launch presents a given open-source project. You get "
+    "public project-level facts only: the repository's name, its description and its homepage "
+    "domain, and the launch's product name, tagline and the start of its description. Answer "
+    "same_project 'true' only when the launch clearly presents this same project (same product, "
+    "same purpose); 'false' when it clearly presents a different product that happens to share "
+    "the name; 'unsure' when the facts are not enough to tell. reason: at most 20 words, about "
+    "the projects only, never about people. Reply only through the requested JSON schema."
+)
+PH_TEMPLATE = (
+    "Project and Product Hunt launch as JSON:\n\n{input}\n\nDoes the launch present this project?"
+)
+PH_PROMPT = PromptSpec(id=PH_JOB, version="1", system=PH_SYSTEM, template=PH_TEMPLATE)
+PH_CONFIRMATION_RULE = (
+    f"{PH_CONFIRMATION_VERSION}: a Product Hunt post found by slug or topic scan counts as the "
+    "repo's launch only when its name normalizes (casefolded, every character other than a-z "
+    "and 0-9 removed) to the repo's GitHub name (the product slot), and it is confirmed by the "
+    "first of: (1) github_url: the tagline or description links the repo's github.com/owner/"
+    "name; (2) homepage_domain: the tagline or description names the repo's homepage domain as "
+    "a whole domain (www. optional), never a shared host (SHARED_HOSTS); (3) "
+    f"description_keywords: tagline + description and the repo description share >= "
+    f"{KEYWORD_MIN_SHARED} keywords (the rule-3 tokenizer and stop-list, repo-name parts and the "
+    "owner login excluded); (4) haiku: the Product Hunt Haiku check answers same_project 'true' "
+    "('false' and 'unsure' exclude; fail closed: no client, backend refused, no approval, a "
+    "cap or an API error exclude the match). A repo name shorter than 5 characters or made "
+    "only of stop-list words (outcomes.TITLE_STOPLIST) is confirmed by rules 1-2 only. "
+    "Stored: post id, createdAt, featuredAt, votesCount, commentsCount, route, confirmed, "
+    "confirmation (method or unconfirmed:<reason>) and Haiku provenance; never a name, tagline "
+    "or description"
+)
+
+
+def domain_in_text(text: str | None, domain: str) -> bool:
+    """Whether `text` names `domain` as a whole domain (`www.` optional; `sub.domain` and
+    `domain.other` don't count), case-insensitive."""
+    if not text or not domain:
+        return False
+    pat = r"(?<![A-Za-z0-9.@-])(?:www\.)?" + re.escape(domain) + r"(?![A-Za-z0-9-]|\.[A-Za-z0-9])"
+    return re.search(pat, text, re.IGNORECASE) is not None
+
+
+def ph_confirm_by_rules(
+    *,
+    full_name: str,
+    description: str | None,
+    homepage_domain: str | None,
+    tagline: str | None,
+    post_description: str | None,
+    urls_only: bool = False,
+) -> str | None:
+    """The first of the Product Hunt rules 1-3 that confirms the match, or None (then rule 4).
+    `urls_only`: a short or common repo name, confirmed by rules 1-2 only."""
+    from pigtail.connectors.hn import github_repos_in_text
+
+    text = " ".join(t for t in (tagline, post_description) if t)
+    if full_name.lower() in github_repos_in_text(text):
+        return "github_url"
+    d = (homepage_domain or "").lower()
+    if d and d not in SHARED_HOSTS and domain_in_text(text, d):
+        return "homepage_domain"
+    if urls_only:
+        return None
+    exclude = [*_repo_name_parts(full_name)[1:], _owner(full_name)]
+    shared = keywords(text, exclude=exclude) & keywords(description, exclude=exclude)
+    if len(shared) >= KEYWORD_MIN_SHARED:
+        return "description_keywords"
+    return None
+
+
+def ph_haiku_input(
+    full_name: str,
+    description: str | None,
+    homepage_domain: str | None,
+    name: str | None,
+    tagline: str | None,
+    post_description: str | None,
+) -> str:
+    """What the Product Hunt check's model sees: public project-level text (the owner login as
+    `[owner]`; the LLMClient's alias redaction then runs on it)."""
+    from pigtail.briefs.candidates import strip_owner
+
+    owner, _, repo = full_name.partition("/")
+    head = (post_description or "")[:PH_TEXT_CHARS] or None
+    return json.dumps(
+        {
+            "repo_name": strip_owner(repo, owner),
+            "repo_description": strip_owner(description, owner),
+            "repo_homepage_domain": homepage_domain or None,
+            "launch_name": strip_owner(name, owner),
+            "launch_tagline": strip_owner(tagline, owner),
+            "launch_description_start": strip_owner(head, owner),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
+def ph_confirmation_params() -> dict[str, Any]:
+    """The Product Hunt confirmation rule as it goes into the pre-registered parameters."""
+    return {
+        "version": PH_CONFIRMATION_VERSION,
+        "rule": PH_CONFIRMATION_RULE,
+        "keyword_min_chars": KEYWORD_MIN_CHARS,
+        "keyword_min_shared": KEYWORD_MIN_SHARED,
+        "keyword_stopwords_sha256": _sha(KEYWORD_STOPWORDS),
+        "shared_hosts_sha256": _sha(SHARED_HOSTS),
+        "haiku": {
+            "job": PH_JOB,
+            "stage": "relevance",
+            "default_model": "claude-haiku-4-5-20251001",
+            "model": resolved_model(PH_JOB),
+            "prompt_id": PH_PROMPT.id,
+            "prompt_version": PH_PROMPT.version,
+            "prompt_fingerprint": PH_PROMPT.fingerprint,
+            "schema_sha": schema_hash(TitleMatchVerdict),
+            "text_chars": PH_TEXT_CHARS,
             "confirms_only": "true",
         },
     }

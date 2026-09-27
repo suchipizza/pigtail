@@ -44,6 +44,11 @@ points; no identities):
    stored: item id, time, kind). Both checkpointed per repo. The star history of every repo
    with a view-B anchor is fetched back to its creation week (stars before launch).
 
+   Since anchor-v6 (ADR-085), right after the HN lookup: **Product Hunt launches** (slug lookup
+   and topic scan, confirmed name matches; `launch_sources.run_product_hunt`) and **Bluesky posts
+   by declared maintainer accounts** that link the repo (`launch_sources.run_bluesky`), when the
+   pre-registered parameters say they apply. Both are launch events of view B.
+
 2. **`load_inputs`** (database only): one `selection.CaseInput` per shortlisted repo, carrying
    the same repo as view B reads it (`launch_case`: anchored by `view_b_anchor` on launch
    events only, never on star data; its values, covariates and anomaly flag relative to that
@@ -99,6 +104,13 @@ from pigtail.analysis.bursts import Onset, segment
 from pigtail.analysis.params import ANOMALY, STAR_HISTORY_DAY_TZ
 from pigtail.briefs.candidates import Candidate, CandidateStore
 from pigtail.briefs.confirm import Check, Confirmer, confirm_by_rules, haiku_input
+from pigtail.briefs.launch_sources import (
+    BSKY_KIND,
+    BSKY_SOURCE,
+    PH_SOURCE,
+    run_bluesky,
+    run_product_hunt,
+)
 from pigtail.briefs.model import METRICS, Brief
 from pigtail.briefs.selection import (
     ANCHOR_RULE_VERSION,
@@ -107,8 +119,12 @@ from pigtail.briefs.selection import (
     DECLARED_RULES,
     FOLLOW_DAYS,
     FOLLOW_STARS,
+    INCOMPLETE_PREFIX,
     LAUNCH_DAYS,
     LAUNCH_SIZE,
+    PH_COMMENTS,
+    PH_TOPICS,
+    PH_VOTES,
     REDDIT_REACH,
     RELEASE_LAUNCH_PATTERN,
     Anchor,
@@ -162,6 +178,9 @@ class FetchResult:
     # view B's launch events (ADR-084): GitHub releases and the first external mention
     releases: dict[str, Any] = field(default_factory=dict)
     mentions: dict[str, Any] = field(default_factory=dict)
+    # ADR-085: Product Hunt launches and declared maintainers' Bluesky posts (counts only)
+    product_hunt: dict[str, Any] | None = None
+    bluesky: dict[str, Any] | None = None
     evidence_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -213,8 +232,18 @@ def fetch_outcome_data(
     hn: Any = None,
     window: tuple[datetime, datetime] | None = None,
     confirmer: Confirmer | None = None,
+    launch_sources: Sequence[str] = (),
+    ph: Any = None,
+    bsky: Any = None,
+    ph_confirmer: Confirmer | None = None,
+    ph_topics: Sequence[str] = PH_TOPICS,
+    readme: Callable[[Candidate], tuple[bytes | None, str | None]] | None = None,
 ) -> FetchResult:
     """Step 1 (module docstring). `BudgetExhausted` propagates: the stage pauses, resumable.
+    `launch_sources` names the view-B sources the pre-registered parameters apply
+    (`product_hunt`, `bluesky`; ADR-085): their steps run after the HN lookup with `ph` /
+    `bsky` (refused without them, `LaunchSourceUnavailable`), `ph_confirmer` running the
+    Product Hunt Haiku check and `readme` loading READMEs for the declared accounts.
     With `window`, the launch lookup (step 1b) runs after the metadata fill and before the star
     history, checkpointed per repo group; it needs `hn` (`LaunchLookupUnavailable` otherwise,
     raised before anything is written; ADR-082), and `confirmer` runs the Haiku check of title
@@ -301,6 +330,22 @@ def fetch_outcome_data(
         )
         res.launch_lookup = lk.to_dict()
         res.evidence_ids.extend(lk.evidence_ids)
+        live = [latest.get(c.ref, c) for c in cands if c.ref not in refused]
+        # view B's Product Hunt launches and declared maintainers' Bluesky posts (ADR-085)
+        if "product_hunt" in launch_sources:
+            pr = run_product_hunt(
+                conn, brief, ph, live, window=window, checkpoint=checkpoint, save=save,
+                topics=ph_topics, recorder=recorder, confirmer=ph_confirmer,
+            )  # fmt: skip
+            res.product_hunt = pr.to_dict()
+            res.evidence_ids.extend(pr.evidence_ids)
+        if "bluesky" in launch_sources:
+            br = run_bluesky(
+                conn, brief, bsky, github if gh_on else None, live, window=window,
+                checkpoint=checkpoint, save=save, recorder=recorder, readme=readme,
+            )  # fmt: skip
+            res.bluesky = br.to_dict()
+            res.evidence_ids.extend(br.evidence_ids)
         # view B's launch events (ADR-084): releases (GitHub), then the first external mention
         # (HN) of repos with no launch event; project-level, checkpointed per repo
         keep = [c.ref for c in cands if c.ref not in refused]
@@ -1031,9 +1076,11 @@ class LaunchEvent:
     """One maintainer-initiated launch event of a repo (view B, ADR-084)."""
 
     at: datetime
-    kind: str  # show_hn | launch_hn | release_launch
-    ref: str  # the HN item id or the release tag
-    via: str  # discovery | lookup:url | lookup:title | github_release
+    kind: str  # show_hn | launch_hn | product_hunt | release_launch | bluesky_maintainer_post
+    ref: str  # the HN item id, the Product Hunt post id, the release tag, or `<match>#<n>`
+    # discovery | lookup:url | lookup:title | product_hunt:<route> | github_release |
+    # bluesky:<match>
+    via: str
 
     def to_dict(self) -> dict[str, Any]:
         return {"at": self.at.isoformat(), "kind": self.kind, "ref": self.ref, "via": self.via}
@@ -1047,20 +1094,50 @@ def _signal(c: Candidate, source: str) -> dict[str, Any] | None:
     return None
 
 
+def ph_launches(
+    c: Candidate,
+    start: datetime,
+    end: datetime,
+    drop: set[tuple[str, Any]] | frozenset[tuple[str, Any]] = frozenset(),
+) -> list[tuple[datetime, str, str, int | None, int | None]]:
+    """The repo's confirmed Product Hunt launches inside the window (ADR-085): (time, post id,
+    route, votes, comments), the time being featuredAt when set, else createdAt. A post
+    confirmed for more than one shortlisted repo (`drop`) never counts."""
+    out = []
+    for r in (_signal(c, PH_SOURCE) or {}).get("posts") or []:
+        if r.get("confirmed") is not True or (c.ref, f"ph:{r.get('ph_post_id')}") in drop:
+            continue
+        raw = r.get("featured_at") or r.get("created_at")
+        if not raw:
+            continue
+        t = _t(raw)
+        if start <= t <= end:
+            v, n = r.get("votes"), r.get("comments")
+            votes = v if isinstance(v, int) else None
+            comments = n if isinstance(n, int) else None
+            out.append((t, str(r["ph_post_id"]), str(r.get("route") or ""), votes, comments))
+    return sorted(out, key=lambda x: (x[0], x[1]))
+
+
 def launch_events(
     c: Candidate,
     start: datetime,
     end: datetime,
-    drop: set[tuple[str, int]] | frozenset[tuple[str, int]] = frozenset(),
+    drop: set[tuple[str, Any]] | frozenset[tuple[str, Any]] = frozenset(),
 ) -> list[LaunchEvent]:
     """The repo's launch events inside the window, in order: its declared Show HN / Launch HN
-    launches (`_launches`: discovery and the lookup, confirmed title matches only) and its
-    GitHub releases announced as a launch (`release_is_launch`, stored as `launch`). Sorted by
-    time, then kind (show_hn, launch_hn, release_launch), then item id or tag. No star data."""
+    launches (`_launches`: discovery and the lookup, confirmed title matches only), its
+    confirmed Product Hunt launches (`ph_launches`, ADR-085), its GitHub releases announced as
+    a launch (`release_is_launch`, stored as `launch`) and the Bluesky posts of its declared
+    maintainer accounts that link it (ADR-085). Sorted by time, then kind (`DECLARED_RULES`:
+    show_hn, launch_hn, product_hunt, release_launch, bluesky_maintainer_post), then ref. No
+    star data."""
     order = {k: i for i, k in enumerate(DECLARED_RULES)}
     out = [
         LaunchEvent(x.at, x.source, str(x.item_id), x.via) for x in _launches(c, start, end, drop)
     ]
+    for t, pid, route, _v, _n in ph_launches(c, start, end, drop):
+        out.append(LaunchEvent(t, "product_hunt", pid, f"product_hunt:{route}"))
     rel = _signal(c, RELEASE_SOURCE)
     for r in (rel or {}).get("releases") or []:
         if not r.get("launch"):
@@ -1068,7 +1145,42 @@ def launch_events(
         t = _t(r["published_at"])
         if start <= t <= end:
             out.append(LaunchEvent(t, "release_launch", str(r["tag"]), "github_release"))
+    bs = _signal(c, BSKY_SOURCE)
+    if bs is not None and bs.get("status") == "complete":
+        for i, r in enumerate(bs.get("posts") or []):
+            if r.get("kind") != BSKY_KIND or r.get("role") != "maintainer" or not r.get("time"):
+                continue
+            t = _t(r["time"])
+            if start <= t <= end:
+                m = str(r.get("match"))
+                out.append(LaunchEvent(t, BSKY_KIND, f"{m}#{i}", f"bluesky:{m}"))
     return sorted(out, key=lambda e: (e.at, order[e.kind], e.ref))
+
+
+def incomplete_source(c: Candidate, sources: Sequence[str]) -> str | None:
+    """The first launch source among `sources` (the ones the pre-registered parameters apply)
+    whose data for this repo is missing or incomplete (ADR-085), else None. An unread source
+    could hold the earliest launch event, so the view-B anchor would silently change."""
+    for src in sources:
+        if src == "product_hunt" and _signal(c, PH_SOURCE) is None:
+            return src
+        if src == "bluesky":
+            s = _signal(c, BSKY_SOURCE)
+            if s is None or s.get("status") not in ("complete", "no_declared_account"):
+                return src
+    return None
+
+
+def ambiguous_ph_posts(cands: Sequence[Candidate]) -> set[tuple[str, str]]:
+    """(candidate ref, `ph:<post id>`) of Product Hunt posts confirmed for more than one
+    shortlisted repo (ADR-085): dropped for all of them, as ADR-082 rule (e) drops a title
+    match two repos claim."""
+    by_post: dict[str, set[str]] = {}
+    for c in cands:
+        for r in (_signal(c, PH_SOURCE) or {}).get("posts") or []:
+            if r.get("confirmed") is True and r.get("ph_post_id") is not None:
+                by_post.setdefault(str(r["ph_post_id"]), set()).add(c.ref)
+    return {(ref, f"ph:{pid}") for pid, refs in by_post.items() if len(refs) > 1 for ref in refs}
 
 
 def first_release_at(c: Candidate) -> tuple[datetime | None, str | None, bool]:
@@ -1135,9 +1247,16 @@ def view_b_anchor(
     c: Candidate,
     start: datetime,
     end: datetime,
-    drop: set[tuple[str, int]] | frozenset[tuple[str, int]] = frozenset(),
+    drop: set[tuple[str, Any]] | frozenset[tuple[str, Any]] = frozenset(),
+    *,
+    required: Sequence[str] = (),
 ) -> tuple[Anchor | None, str | None, list[dict[str, Any]]]:
-    """View B's anchor of a candidate from its stored launch signals (`choose_launch_anchor`)."""
+    """View B's anchor of a candidate from its stored launch signals (`choose_launch_anchor`).
+    `required`: the launch sources the pre-registered parameters apply (ADR-085); when one's
+    data for this repo is missing or incomplete, there is no anchor (reason
+    `launch_source_incomplete:<source>`)."""
+    if (src := incomplete_source(c, required)) is not None:
+        return None, f"{INCOMPLETE_PREFIX}{src}", []
     return choose_launch_anchor(
         launch_events(c, start, end, drop),
         _signal(c, MENTION_SOURCE),
@@ -1390,6 +1509,42 @@ ANCHOR_RULE_FUNCTIONS = (
     "pigtail.briefs.selection:CaseInput",
     "pigtail.briefs.selection:anchor_rule",
     "pigtail.briefs.selection:in_population",
+    # Product Hunt and declared maintainers' Bluesky posts (ADR-085)
+    "ph_launches",
+    "incomplete_source",
+    "ambiguous_ph_posts",
+    "ph_values",
+    "pigtail.briefs.launch_sources:ph_blocked",
+    "pigtail.briefs.launch_sources:bsky_blocked",
+    "pigtail.briefs.launch_sources:ph_name_key",
+    "pigtail.briefs.launch_sources:ph_repo_key",
+    "pigtail.briefs.launch_sources:ph_slug_candidates",
+    "pigtail.briefs.launch_sources:ph_urls_only",
+    "pigtail.briefs.launch_sources:run_product_hunt",
+    "pigtail.briefs.launch_sources:ph_confirmer",
+    "pigtail.briefs.launch_sources:_norm_url",
+    "pigtail.briefs.launch_sources:links_to",
+    "pigtail.briefs.launch_sources:homepage_search_url",
+    "pigtail.briefs.launch_sources:default_readme",
+    "pigtail.briefs.launch_sources:run_bluesky",
+    "pigtail.briefs.confirm:domain_in_text",
+    "pigtail.briefs.confirm:ph_confirm_by_rules",
+    "pigtail.briefs.confirm:ph_haiku_input",
+    "pigtail.briefs.selection:launch_source_settings",
+    "pigtail.briefs.selection:_flag",
+    "pigtail.connectors.producthunt:PHPost",
+    "pigtail.connectors.producthunt:parse_post_node",
+    "pigtail.connectors.producthunt:parse_post",
+    "pigtail.connectors.producthunt:parse_posts_page",
+    "pigtail.connectors.producthunt:ProductHuntConnector",
+    "pigtail.connectors.bluesky:account_id",
+    "pigtail.connectors.bluesky:declared_accounts",
+    "pigtail.connectors.bluesky:_links",
+    "pigtail.connectors.bluesky:parse_search_page",
+    "pigtail.connectors.bluesky:BlueskySearchConnector",
+    "pigtail.connectors.github:parse_repo_links",
+    "pigtail.connectors.github:parse_social_accounts",
+    "pigtail.connectors.github:parse_org_profile",
 )
 ANCHOR_RULE_CONSTANTS = (
     "TITLE_MIN_CHARS",
@@ -1436,6 +1591,44 @@ ANCHOR_RULE_CONSTANTS = (
     "pigtail.connectors.github:RELEASE_BODY_CHARS",
     "pigtail.connectors.hn:MENTION_FIELDS",
     "pigtail.connectors.hn:_GH_URL_IN_TEXT",
+    # ADR-085
+    "pigtail.briefs.launch_sources:PH_SOURCE",
+    "pigtail.briefs.launch_sources:PH_SLUG_CANDIDATES",
+    "pigtail.briefs.launch_sources:PH_TOPIC_MAX_PAGES",
+    "pigtail.briefs.launch_sources:PH_GROUP",
+    "pigtail.briefs.launch_sources:BSKY_SOURCE",
+    "pigtail.briefs.launch_sources:BSKY_KIND",
+    "pigtail.briefs.launch_sources:BSKY_ROLE",
+    "pigtail.briefs.launch_sources:BSKY_MAX_ACCOUNTS",
+    "pigtail.briefs.launch_sources:BSKY_MAX_PAGES",
+    "pigtail.briefs.launch_sources:BSKY_INCOMPLETE_MAX_SHARE",
+    "pigtail.briefs.launch_sources:README_CHARS",
+    "pigtail.briefs.confirm:PH_CONFIRMATION_VERSION",
+    "pigtail.briefs.confirm:PH_JOB",
+    "pigtail.briefs.confirm:PH_NAMESPACE",
+    "pigtail.briefs.confirm:PH_TEXT_CHARS",
+    "pigtail.briefs.confirm:PH_SYSTEM",
+    "pigtail.briefs.confirm:PH_TEMPLATE",
+    "pigtail.briefs.selection:PH_TOPICS",
+    "pigtail.briefs.selection:INCOMPLETE_PREFIX",
+    "pigtail.connectors.producthunt:POST_FIELDS",
+    "pigtail.connectors.producthunt:SLUG_QUERY",
+    "pigtail.connectors.producthunt:ID_QUERY",
+    "pigtail.connectors.producthunt:TOPIC_QUERY",
+    "pigtail.connectors.producthunt:PH_PAGE",
+    "pigtail.connectors.producthunt:RESERVE_FRACTION",
+    "pigtail.connectors.producthunt:DESCRIPTION_CHARS",
+    "pigtail.connectors.bluesky:SEARCH_PATH",
+    "pigtail.connectors.bluesky:BSKY_QUERY",
+    "pigtail.connectors.bluesky:BSKY_PAGE",
+    "pigtail.connectors.bluesky:SEARCH_PARAMS",
+    "pigtail.connectors.bluesky:_HANDLE",
+    "pigtail.connectors.bluesky:_DID",
+    "pigtail.connectors.bluesky:_PROFILE",
+    "pigtail.connectors.bluesky:_AT_HANDLE",
+    "pigtail.connectors.bluesky:_RESERVED",
+    "pigtail.connectors.bluesky:_URL_IN_TEXT",
+    "pigtail.connectors.github:LINKS_FIELDS",
 )
 
 
@@ -1555,8 +1748,11 @@ def load_inputs(
     *,
     window: tuple[datetime, datetime],
     as_of: date,
+    launch_sources: Sequence[str] = (),
 ) -> list[CaseInput]:
-    """Step 2 (module docstring). Each case also carries the same repo as view B reads it
+    """Step 2 (module docstring). `launch_sources`: the view-B sources the pre-registered
+    parameters apply (ADR-085; a repo whose data from one is incomplete has no view-B anchor).
+    Each case also carries the same repo as view B reads it
     (`CaseInput.launch_case`, ADR-084): anchored on its launch-event anchor
     (`view_b_anchor`, from launch events only, never star data), with its values, covariates
     and anomaly flags relative to that anchor, and its relaunch events. Both carry the
@@ -1567,7 +1763,7 @@ def load_inputs(
     k_max = _star_horizon_max(definition)
     start, end = window
     prepared: list[dict[str, Any]] = []
-    drop = ambiguous_title_matches(cands)
+    drop: set[tuple[str, Any]] = {*ambiguous_title_matches(cands), *ambiguous_ph_posts(cands)}
     for c in sorted(cands, key=lambda x: x.ref):
         series = star_series(conn, c.repo_host_id, as_of) if c.repo_host_id is not None else {}
         created = _created(c)
@@ -1581,7 +1777,7 @@ def load_inputs(
                 bursts = [b.onset for b in seg.bursts]
         anchor, reason = choose_anchor(launches, bursts, bool(series))
         # view B (ADR-084): launch events only; the star series is not an input
-        b_anchor, b_reason, relaunches = view_b_anchor(c, start, end, drop)
+        b_anchor, b_reason, relaunches = view_b_anchor(c, start, end, drop, required=launch_sources)
         prepared.append(
             {
                 "c": c,
@@ -1593,6 +1789,9 @@ def load_inputs(
                 "b_anchor": b_anchor,
                 "b_reason": b_reason,
                 "relaunches": relaunches,
+                "ph": ph_launches(c, start, end, drop)
+                if "product_hunt" in launch_sources
+                else None,
             }
         )
 
@@ -1682,6 +1881,7 @@ def _case_input(
             if pts
             else Value("unknown", reason="no_matched_story_captured")
         )
+        values[PH_VOTES], values[PH_COMMENTS] = ph_values(p.get("ph"), a.at)
         lsm = None
         launch_days = [f + DAY * i for i in range(*LAUNCH_DAYS)]
         if all(d in series for d in launch_days):
@@ -1752,3 +1952,26 @@ def _case_input(
 
 def _iso(d: date | None) -> str | None:
     return None if d is None else d.isoformat()
+
+
+def ph_values(
+    posts: Sequence[tuple[datetime, str, str, int | None, int | None]] | None, at: datetime
+) -> tuple[Value, Value]:
+    """View B's secondary launch-size measures from Product Hunt (ADR-085; reported, never
+    ranked on): the votes and comments of the confirmed post at or after `at - 7 d` with the
+    most votes (earliest on a tie), as of fetch. `posts` None: the source is off."""
+    if posts is None:
+        no = Value("unknown", reason="product_hunt_not_collected")
+        return no, no
+    cand = [x for x in posts if x[0] >= at - timedelta(days=7) and x[3] is not None]
+    if not cand:
+        no = Value("unknown", reason="no_product_hunt_launch")
+        return no, no
+    best = max(cand, key=lambda x: (x[3] or 0, -x[0].timestamp()))
+    votes = Value("observed", float(best[3] or 0), "verified", "as of fetch")
+    comments = (
+        Value("observed", float(best[4]), "verified", "as of fetch")
+        if best[4] is not None
+        else Value("unknown", reason="no_comment_count")
+    )
+    return votes, comments

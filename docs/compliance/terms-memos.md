@@ -1,4 +1,4 @@
-# Per-source terms memos (TM-01 … TM-33)
+# Per-source terms memos (TM-01 … TM-34)
 
 Part of the compliance pack: see [README.md](README.md).
 
@@ -282,15 +282,25 @@ AUP §7 applies as in TM-01.
 
 ### TM-16: Product Hunt API
 
-**Decision: GAP**
+**Decision (amended 2026-09-27, owner decision, ADR-085): CLEARED-WITH-CONDITIONS for the owner's personal, non-commercial use; GAP for any commercial use.** Until 2026-09-27 it was GAP for every use.
 
 **Clauses relied on**
 - From https://api.producthunt.com/v2/docs:
   > "The Product Hunt API must not be used for commercial purposes. If you would like to use it for your business, please contact us at hello@producthunt.com."
 - The site terms (https://www.producthunt.com/legal) bar anyone who:
   > "Copies or stores any significant portion of the Content"
+- Attribution to Product Hunt is requested (source matrix §2.16; not re-quoted here: no network in the 2026-09-27 session).
 
-**Path forward:** written permission from hello@producthunt.com.
+**Why personal use is cleared.** pigtail is a personal project for now: no service, no customers, and no findings leave the owner's instance (Directive §1, ADR-059). The owner's use is personal and non-commercial, which the API terms allow; the owner writes to hello@producthunt.com herself (H5, `ops/HUMAN_INPUTS.md`) to tell Product Hunt about the use and ask whether anything more is needed. pigtail stores, per shortlisted repo, a post id, two dates and two counts, which is not a "significant portion of the Content".
+
+**Conditions**
+- Official API v2 (GraphQL) only, with the operator's own developer token (`PH_API_TOKEN`, read-only public scope), never pooled; the connector is off without it.
+- Project-level post fields only (`id`, `name`, `slug`, `tagline`, `description`, `votesCount`, `commentsCount`, `createdAt`, `featuredAt`); the `makers`, `user`, `comments` and `votes` objects are never requested (tested on the query text).
+- Only for repos on a brief's final shortlist (slug lookups) and the brief's own window (topic scan) (Directive §8.3).
+- Rate limits: the connector reads the rate-limit headers, waits for the window to reset once 10 % of its budget is left, honours 429s, and paces requests client-side (one every 4 s).
+- Raw answers dropped right after parsing (CB-24); names, taglines and descriptions never stored.
+- Attribution: any report view that shows Product Hunt data names Product Hunt as the source.
+- **Commercial use:** GAP. If the project becomes commercial, or Product Hunt answers otherwise, turn it off (`PIGTAIL_SELECTION_PRODUCT_HUNT=false` before pre-registering) until written permission exists.
 
 ### TM-17: Lobste.rs
 
@@ -585,6 +595,27 @@ AUP §7 applies as in TM-01.
 - Deletion sync (CB-02): GitHub states no deletion duty for this API (TM-02, §H), and there is no GitHub deletion-sync source (`pigtail privacy deletion-sync` accepts only `--source hn`). For this source CB-02 is met by the raw drop at parse plus the 16-day expiry of actor rows (ADR-038); LQ-29 item 4 stays open.
 - Search result pages are stored as `person_level_24m` because items embed owner objects (ADR-037.8); only the owner type is parsed. The stargazers list endpoint is not called.
 
+### TM-34: Bluesky AppView search, declared maintainer accounts only (view B's launch events)
+
+**Decision: CLEARED-WITH-CONDITIONS (2026-09-27, owner decision, ADR-085).** A narrow use of the Bluesky app endpoints, separate from the mention capture of TM-06 (which ADR-022 as amended by ADR-073.2 still holds).
+
+**Clauses relied on**
+- The Developer Guidelines and Terms of Service quoted in TM-06 (accessed 2026-09-25): a method for deleting content a user asked to delete; reasonable security measures; deletion notices to other services.
+- Public API: `GET https://api.bsky.app/xrpc/app.bsky.feed.searchPosts` answers without authentication with the `author` and `url` filters (the owner's check of 2026-09-27; `public.api.bsky.app` answers 403 for search). Rate limits: the Bluesky app endpoints' limits are "generous" with no numbers published; the PDS limit is 3,000 requests per 5 minutes per IP (source matrix §2.6).
+- No commercial-use restriction was found in the guidelines (TM-06; source matrix row 6). Not re-quoted in this session (no network): re-check the current text at H2.
+
+**What is collected, and what isn't**
+- Used in memory only, never stored or logged: the handle or DID a maintainer declared (a `bsky.app/profile/…` link or `@name.bsky.social` on the repo's homepage field, README, org page or GitHub profile social accounts); the search hits (post URI, time, links).
+- Stored per shortlisted repo: a status (`complete`, `no_declared_account`, `incomplete` with a reason code) and per post the kind `bluesky_maintainer_post`, the time, the role `maintainer` and the match (`repo_url` | `homepage_url`).
+- Never collected: accounts the maintainer did not declare; people searched by name (ADR-075.3); feeds, profiles, followers; posts that don't link the shortlisted repo; text, handles, DIDs, URIs, like/repost/reply counts.
+
+**Conditions**
+- At most 3 declared accounts per repo; `author` and `url` filters on every search; the brief's window as `since`/`until`; up to 5 pages per account and URL (a capped search makes the repo `incomplete`).
+- Client-side rate limit of 1 request per second with a 50 % margin (1,800 an hour), few retries, 429 honoured (`Retry-After` or `ratelimit-reset`).
+- Raw pages dropped right after parsing (CB-24); evidence URLs carry `[declared-account]` in place of the author; errors carry the endpoint and status only.
+- Deletion: nothing post-level is kept (no URI, text or handle), so an upstream deletion leaves only a role-coded time on a repo, a non-identifying coded fact (retention policy §4).
+- **Differences from TM-06's conditions:** TM-06 asks for authenticated search with the operator's own credentials; this search is unauthenticated on the public AppView, which the owner verified works. TM-06's Jetstream deletion sync and DID pseudonymisation concern stored person-level content, which this search does not keep. Whether this narrow use sits outside ADR-073.2's hold is flagged for the verifier and the owner (ADR-085).
+
 ---
 
 ## Questions for the owner's lawyer (gate H2)
@@ -613,3 +644,4 @@ New questions from TM-32 and TM-33 go straight into `legal-review-questions.md`:
 - 2026-09-25 — fixes after verifier (ADR-036 alignment): TM-33 names `WatchEvent` and `ForkEvent` actors (forks for fork-farm bot/lockstep features and the PRD §8.1 attention metrics), the ADR-036 gate and the `person_level_30d` class.
 - 2026-09-25 — CB-22/23 implemented (M1-T24, ADR-037): TM-33 gains an implementation-status note (connectors, gate, scope as coded, CB-22 and CB-23 implemented with test citations, no lockstep on per-repo events, search pages `person_level_24m`).
 - 2026-09-25 — ADR-038 wording (16-day default; CB-02 per source)
+- 2026-09-27 — owner decisions (ADR-085): TM-16 (Product Hunt) amended to CLEARED-WITH-CONDITIONS for the owner's personal, non-commercial use (GAP for commercial use), with conditions (own token, project-level fields only, rate-limit headers, raw dropped, attribution) and the owner's email to Product Hunt (H5); new TM-34 (Bluesky AppView search for declared maintainer accounts, author and url filters, role stored, never the handle).

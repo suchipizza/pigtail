@@ -406,11 +406,18 @@ def _selection_state(settings: Any, brief: Brief) -> SelectionState | None:
 
 def _warn_launch_lookup_off() -> None:
     """ADR-082: the pre-registered selection rule includes the launch lookup; say so when the
-    Show HN connector it needs is off."""
-    from pigtail.briefs.estimate import LAUNCH_LOOKUP_OFF_WARNING, launch_lookup_enabled
+    Show HN connector it needs is off. ADR-085: likewise for Product Hunt (no PH_API_TOKEN) and
+    the Bluesky search connector, when the launch-source flags apply them."""
+    from pigtail.briefs.estimate import (
+        LAUNCH_LOOKUP_OFF_WARNING,
+        launch_lookup_enabled,
+        launch_source_warnings,
+    )
 
     if not launch_lookup_enabled():
         print(f"warning: {LAUNCH_LOOKUP_OFF_WARNING}", file=sys.stderr)
+    for w in launch_source_warnings():
+        print(f"warning: {w}", file=sys.stderr)
 
 
 def _last_run_version(settings: Any, brief_id: str) -> int | None:
@@ -733,6 +740,25 @@ def _connectors(s: Any, db: Any, recorder: Any, need_github: bool) -> tuple[Any,
     return github, hn, gharchive
 
 
+def _launch_connectors(s: Any, db: Any, recorder: Any) -> tuple[Any, Any]:
+    """View B's Product Hunt and Bluesky connectors (ADR-085). Product Hunt is off without
+    PH_API_TOKEN; the selection then refuses when its parameters apply it."""
+    from pigtail.capture.snapshots import build_store
+    from pigtail.connectors.bluesky import BlueskySearchConnector
+    from pigtail.connectors.producthunt import ProductHuntConnector
+
+    snaps = build_store(s)
+    ph = None
+    if ProductHuntConnector.enabled_from_env(os.environ):
+        ph = ProductHuntConnector(store=snaps, run=recorder, evidence_sink=db.upsert_evidence)
+        if not ph.enabled:
+            ph = None
+    bsky = None
+    if BlueskySearchConnector.enabled_from_env(os.environ):
+        bsky = BlueskySearchConnector(store=snaps, run=recorder, evidence_sink=db.upsert_evidence)
+    return ph, bsky
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     """R19.1: run (or resume) a brief's stages; the cost estimate is shown first (R18.5)."""
     from pigtail.briefs.estimate import (
@@ -839,6 +865,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         with RunRecorder("brief.run", config, sink=db.upsert_run) as rec:
             try:
                 github, hn, gha = _connectors(s, db, rec, need_github="discovery" in stages)
+                ph, bsky = _launch_connectors(s, db, rec)
                 opts = RunOptions(
                     stages=stages,
                     incremental=args.incremental,
@@ -856,6 +883,8 @@ def cmd_run(args: argparse.Namespace) -> int:
                 github=github,
                 hn=hn,
                 gharchive=gha,
+                ph=ph,
+                bsky=bsky,
                 month_cap_usd=s.budget_usd_month,
                 run_record_id=rec.id,
                 recorder=rec,
@@ -870,7 +899,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         from pigtail.briefs.runner import REFUSED
 
         # a refused selection leaves the run as it was: say "refused", not the run's status
-        # (7: no pre-registration; 8: no Show HN connector for the launch lookup, ADR-082)
+        # (7: no pre-registration; 8: no Show HN connector for the launch lookup, ADR-082, or
+        # no Product Hunt token / Bluesky connector when the parameters apply them, ADR-085)
         head = "refused" if outcome.exit_code in REFUSED else outcome.status
         print(f"\n{head}: {outcome.message}")
         if outcome.brief_run_id:
@@ -1240,6 +1270,11 @@ def _print_sel_view(
             + ", ".join(f"{k} {n}" for k, n in sm["anchor_rules"].items())
             + f"; relaunch events {sm.get('relaunch_events', 0)}"
         )
+        if sm.get("incomplete_sources"):  # ADR-085: no anchor, a launch source incomplete
+            print(
+                "No view-B anchor, launch source incomplete: "
+                + ", ".join(f"{k} {n}" for k, n in sm["incomplete_sources"].items())
+            )
         print("Not observable (limitations): " + "; ".join(sm.get("limitations") or []))
     print("Steps (R4.10, ADR-053.2):")
     for st in sm["steps"]:

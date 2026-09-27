@@ -357,8 +357,9 @@ def test_view_b_anchors_on_launch_events_relaunches_and_undeclared_launches(capt
     uroles = {r["repo_full_name"]: r["role"] for r in v["cases_by_view"]["launch_undeclared"]}
     assert roles[C] == roles[D] == "not_in_view" and uroles[A] == uroles[B_] == "not_in_view"
     assert roles[E] == uroles[E] == "no_anchor"
-    counts = {"show_hn": 1, "launch_hn": 0, "release_launch": 1,
-              "undeclared:first_mention": 1, "undeclared:first_release": 1, "none": 1}  # fmt: skip
+    counts = {"show_hn": 1, "launch_hn": 0, "product_hunt": 0, "release_launch": 1,
+              "bluesky_maintainer_post": 0, "undeclared:first_mention": 1,
+              "undeclared:first_release": 1, "none": 1}  # fmt: skip
     sel = v["selection"]
     assert sel["summary"]["view_b_anchor_rules"] == counts
     assert sel["views"]["launch"]["summary"]["anchor_rules"] == counts

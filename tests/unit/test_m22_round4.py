@@ -232,9 +232,9 @@ def test_refusal_names_the_show_hn_connector_flag():
 
 # --- 6. versions, the rule text in the hash, and the guard ------------------------------------
 def test_versions_and_title_rule_are_in_the_selection_params():
-    assert SELECTION_VERSION == "selection-v6" and ANCHOR_RULE_VERSION == "anchor-v5"
+    assert SELECTION_VERSION == "selection-v7" and ANCHOR_RULE_VERSION == "anchor-v6"
     p = Context.from_brief(brief()).params()
-    assert p["selection_version"] == "selection-v6" and p["anchor_rule_version"] == "anchor-v5"
+    assert p["selection_version"] == "selection-v7" and p["anchor_rule_version"] == "anchor-v6"
     rule = p["launch_lookup"]
     for part in ("tags=launch_hn", "(Show|Launch) HN:", ">= 5 characters", "1 day before",
                  "links no GitHub repo", "claimed by two", "refused"):  # fmt: skip

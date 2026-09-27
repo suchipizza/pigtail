@@ -443,8 +443,9 @@ def mixed_field() -> list[CaseInput]:
 def test_declared_and_undeclared_sub_populations_flags_and_rule_counts():
     cases = mixed_field()
     sels = select_views(cases, ctx(), Definition.from_brief(B))
-    counts = {"show_hn": 7, "launch_hn": 7, "release_launch": 6,
-              "undeclared:first_mention": 13, "undeclared:first_release": 7, "none": 4}  # fmt: skip
+    counts = {"show_hn": 7, "launch_hn": 7, "product_hunt": 0, "release_launch": 6,
+              "bluesky_maintainer_post": 0, "undeclared:first_mention": 13,
+              "undeclared:first_release": 7, "none": 4}  # fmt: skip
     assert sels.summary["view_b_anchor_rules"] == counts
     assert list(counts) == list(ANCHOR_RULE_LABELS)
     assert sels.summary["undeclared_launch"] == 20
@@ -481,7 +482,7 @@ def test_declared_and_undeclared_sub_populations_flags_and_rule_counts():
     row = next(r for r in s2.cases if r["candidate_ref"] == c0.ref)
     assert row["relaunch_events"] == [dict(ev[0])]
     assert s2.summary["relaunch_events"] == 1 and s2.summary["cases_with_relaunch"] == 1
-    assert "Product Hunt: no connector" in s2.summary["limitations"]
+    assert "X: paid API" in s2.summary["limitations"][0]
 
 
 def test_anchor_rule_counts_show_every_label():
@@ -540,14 +541,16 @@ def test_view_c_covers_every_shortlisted_non_winner_with_counts_of_values():
 
 # --- 7. versions, guard, determinism, estimate -------------------------------------------
 def test_versions_are_bumped():
-    assert SELECTION_VERSION == "selection-v6" and ANCHOR_RULE_VERSION == "anchor-v5"
+    assert SELECTION_VERSION == "selection-v7" and ANCHOR_RULE_VERSION == "anchor-v6"
     p = Context.from_brief(B).params()
-    assert p["selection_version"] == "selection-v6" and p["anchor_rule_version"] == "anchor-v5"
+    assert p["selection_version"] == "selection-v7" and p["anchor_rule_version"] == "anchor-v6"
     assert set(p["views"]) == {"follow_through", "launch", "launch_undeclared"}
     vb = p["view_b_anchor"]
     assert vb["rules"] == list(ANCHOR_RULE_LABELS)
     assert vb["release_launch_pattern"] == selmod.RELEASE_LAUNCH_PATTERN
-    assert len(vb["limitations"]) == 5 and "ADR-075" in vb["limitations"][-1]
+    # selection-v7 (ADR-085): Bluesky and Product Hunt are sources now; the ADR-075 limitation
+    # names only the accounts the maintainer did not declare
+    assert any("ADR-075" in x for x in vb["limitations"])
     assert "unobserved channel" in vb["known_bias"]
     assert "numeric standardized differences only" in p["headline_exclusion_rule"]
 
