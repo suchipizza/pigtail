@@ -171,8 +171,9 @@ def bsky_post(
 class FakeBluesky:
     """`GET https://api.bsky.app/xrpc/app.bsky.feed.searchPosts` with the author, url, since,
     until, sort, limit and cursor filters. Any other path is an assertion error (pigtail never
-    reads a feed or a profile). `fail` answers 503 to every search; `fail_urls` to searches of
-    those URLs."""
+    reads a feed or a profile), and `com.atproto.identity.resolveHandle` (400 for a handle that
+    names no account). `fail` answers 503 to every request; `fail_urls` to searches of those
+    URLs."""
 
     def __init__(self, posts: list[dict[str, Any]] | None = None) -> None:
         self.posts = list(posts or [])
@@ -180,15 +181,29 @@ class FakeBluesky:
         self.fail = False
         self.fail_urls: set[str] = set()
         self.page_size: int | None = None
+        # handles without posts in this fake that still resolve to an account
+        self.known: dict[str, str] = {
+            HANDLE_C: "did:plc:cccccccccccccccccccccccc",
+            "maintainer-d.example": "did:plc:dddddddddddddddddddddddd",
+        }
 
     def client(self) -> httpx.Client:
         return httpx.Client(transport=httpx.MockTransport(self))
 
     def __call__(self, req: httpx.Request) -> httpx.Response:
         assert req.method == "GET" and req.url.host == "api.bsky.app", req.url
-        assert req.url.path == "/xrpc/app.bsky.feed.searchPosts", req.url.path
         self.requests.append(req)
         p = dict(req.url.params)
+        if req.url.path == "/xrpc/com.atproto.identity.resolveHandle":
+            if self.fail:
+                return httpx.Response(503, json={"error": "unavailable"})
+            for x in self.posts:
+                if x["author"]["handle"] == p["handle"]:
+                    return httpx.Response(200, json={"did": x["author"]["did"]})
+            if p["handle"] in self.known:
+                return httpx.Response(200, json={"did": self.known[p["handle"]]})
+            return httpx.Response(400, json={"error": "InvalidRequest"})
+        assert req.url.path == "/xrpc/app.bsky.feed.searchPosts", req.url.path
         if self.fail or p.get("url") in self.fail_urls:
             return httpx.Response(503, json={"error": "unavailable"})
         author, url = p["author"], p["url"]
@@ -213,3 +228,13 @@ class FakeBluesky:
         if start + n < len(hits):
             body["cursor"] = str(start + n)
         return httpx.Response(200, json=body)
+
+
+def did_of(fake: FakeBluesky, account: str) -> str:
+    """The DID the fake resolves `account` to (a DID is returned unchanged)."""
+    if account.startswith("did:"):
+        return account
+    for x in fake.posts:
+        if x["author"]["handle"] == account:
+            return str(x["author"]["did"])
+    return fake.known[account]

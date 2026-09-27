@@ -158,7 +158,7 @@ MATCHING_RULE = (
 # passing the gate by itself; the pinned constant makes the developer bump the versions too.
 # v5: view B's launch-event anchor (ADR-084); v6: Product Hunt and Bluesky launch events (ADR-085)
 ANCHOR_RULE_VERSION = "anchor-v6"
-ANCHOR_RULE_SOURCE_SHA256 = "a260b1b4c10e5d3de06fbd2410a42e0a8afeff26e8086a7cde18bcd61d0b115a"
+ANCHOR_RULE_SOURCE_SHA256 = "d9e5029c3f435cd59383879a817efb04d0b5f37aab06d80c3dedf8eef26e8fa2"
 ANCHOR_RULE = (
     "outcome-model §2.2 rules 1-6 as read by ADR-077.3; declared launches = Show HN or Launch HN "
     "posts from discovery and the per-repo launch lookup (current rule's records only), merged "

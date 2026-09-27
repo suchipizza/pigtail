@@ -48,6 +48,7 @@ from tests.launch_sources_fake import (
     FakeBluesky,
     FakeProductHunt,
     bsky_post,
+    did_of,
     ph_post,
 )
 from tests.selection_fake import brief as synthetic_brief
@@ -375,18 +376,22 @@ def test_bluesky_declared_accounts_searches_and_view_b_anchor(capture_db, tmp_pa
     assert bs["status"] == {"complete": 4, "no_declared_account": 1} and bs["incomplete"] == 0
     assert bs["declared_in"] == {"github_profile": 1, "homepage": 1, "org_page": 1, "readme": 1}
     # searches: author = a declared account, url = the repo URL (and the homepage for beta-kit)
-    seen = [(r.url.params["author"], r.url.params["url"]) for r in fake.requests]
+    # (a declared handle is resolved to its DID first, in memory; the search uses the DID)
+    searches = [r for r in fake.requests if r.url.path.endswith("searchPosts")]
+    seen = [(r.url.params["author"], r.url.params["url"]) for r in searches]
     assert sorted(seen) == sorted([
-        (HANDLE_A, "https://github.com/org-b1/alpha-tool"),
+        (did_of(fake, HANDLE_A), "https://github.com/org-b1/alpha-tool"),
         (DID_B, "https://github.com/org-b2/beta-kit"),
         (DID_B, "https://betakit.example"),
-        (HANDLE_C, "https://github.com/org-b3/gamma-lib"),
-        (HANDLE_D, "https://github.com/org-b4/delta-app"),
+        (did_of(fake, HANDLE_C), "https://github.com/org-b3/gamma-lib"),
+        (did_of(fake, HANDLE_D), "https://github.com/org-b4/delta-app"),
     ])  # fmt: skip
-    for r in fake.requests:
+    resolves = [r for r in fake.requests if r.url.path.endswith("resolveHandle")]
+    assert {r.url.params["handle"] for r in resolves} == {HANDLE_A, HANDLE_C, HANDLE_D}
+    for r in searches:
         assert set(r.url.params) <= SEARCH_PARAMS and r.url.params["sort"] == "latest"
         assert r.url.params["since"] and r.url.params["until"]
-    assert HANDLE_OTHER not in {a for a, _ in seen}
+    assert HANDLE_OTHER not in {a for a, _ in seen} | {r.url.params["handle"] for r in resolves}
     # GitHub: profile social accounts for user owners, the org page for org owners
     paths = [r.url.path for r in gh.requests]
     assert "/users/org-b1/social_accounts" in paths and "/orgs/org-b2" in paths
@@ -485,7 +490,7 @@ def test_incomplete_bluesky_repos_have_no_anchor_are_counted_and_retried(
                  bsky=bsky_conn(capture_db, fake, tmp_path),
                  github=gh_fake(capture_db, tmp_path)[1], readme=readme_of(texts),
                  checkpoint=cp)  # fmt: skip
-    assert len(fake.requests) == n + 1 and len(cp["fetch"]["bsky_done"]) == 10
+    assert len(fake.requests) == n + 2 and len(cp["fetch"]["bsky_done"]) == 10  # resolve+search
     assert res2.fetch["bluesky"]["searched"] == 1 and res2.fetch["bluesky"]["already_done"] == 9
     assert res2.counts["view_b_incomplete"] == {}
 
@@ -557,3 +562,17 @@ def test_run_refuses_with_exit_8_and_fails_resumably_with_exit_9(capture_db, tmp
     again = go(ph, bsky)  # the same run resumes and completes once the outage is over
     assert again.exit_code == 0 and again.status == "succeeded", again.message
     assert again.brief_run_id == failed.brief_run_id and again.resumed
+
+
+def test_a_declared_handle_that_names_no_account_is_skipped_not_incomplete(
+    capture_db, tmp_path, monkeypatch
+):
+    """A dead or mistyped declared link (resolveHandle: 400) is skipped and counted; it never
+    makes the repo incomplete (live acceptance run: 8 such repos were wrongly incomplete)."""
+    fake = FakeBluesky([])
+    texts = {f"org-x{i}/repo-{i:02d}": b"@nobody-zz9.bsky.social" for i in range(3)}
+    _b, fake, _gh, res, _cp = run_bsky(capture_db, tmp_path, monkeypatch, TEN, fake=fake,
+                                       readmes=texts)  # fmt: skip
+    bs = res.fetch["bluesky"]
+    assert bs["incomplete"] == 0 and bs["accounts_unresolvable"] == 3
+    assert not [r for r in fake.requests if r.url.path.endswith("searchPosts")]

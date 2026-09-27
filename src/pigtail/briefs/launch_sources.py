@@ -421,6 +421,7 @@ class BskyResult:
     already_done: int = 0
     with_declared_account: int = 0
     accounts_over_cap: int = 0
+    accounts_unresolvable: int = 0  # declared links that point to no account (dead links)
     declared_in: dict[str, int] = field(default_factory=dict)  # source kind -> repos (counts)
     bluesky_requests: int = 0
     github_requests: int = 0
@@ -621,19 +622,38 @@ def run_bluesky(
             urls.append(("homepage_url", hp))
         found: dict[str, tuple[datetime, str]] = {}
         for account in accounts:
+            # a declared handle is resolved first: a dead or mistyped link (HTTP 400) is skipped
+            # and counted, never mistaken for an outage; the DID stays in memory
+            author: str | None = account
+            if not account.startswith("did:"):
+                try:
+                    author = bsky.resolve_handle(account)
+                except FetchError:
+                    return incomplete("resolve_failed")
+                res.bluesky_requests += 1
+            if author is None:
+                res.accounts_unresolvable += 1
+                continue
+            dead = False
             for match, url in urls:
+                if dead:
+                    break
                 cursor: str | None = None
                 for page in range(BSKY_MAX_PAGES):
                     try:
                         f = bsky.search_posts(
-                            author=account,
+                            author=author,
                             url=url,
                             since=start,
                             until=end,
                             cursor=cursor,
                             evidence_url=bsky_evidence_url(bsky.base, full, match, page),
                         )
-                    except FetchError:
+                    except FetchError as e:
+                        if e.status == 400 and author.startswith("did:") and page == 0:
+                            dead = True  # a declared DID that names no account: skipped
+                            res.accounts_unresolvable += 1
+                            break
                         return incomplete("search_failed")
                     res.bluesky_requests += 1
                     res.evidence_ids.append(f.evidence.id)

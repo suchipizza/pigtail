@@ -65,6 +65,7 @@ from pigtail.connectors.base import (
 BSKY_BASE_ENV = "PIGTAIL_BLUESKY_API_BASE"
 DEFAULT_BSKY_BASE = "https://api.bsky.app"
 SEARCH_PATH = "/xrpc/app.bsky.feed.searchPosts"
+RESOLVE_PATH = "/xrpc/com.atproto.identity.resolveHandle"
 BSKY_QUERY = "*"  # the lexicon requires `q`; the author and url filters select the posts
 BSKY_PAGE = 100
 SEARCH_PARAMS = frozenset({"q", "author", "url", "since", "until", "sort", "limit", "cursor"})
@@ -278,6 +279,22 @@ class BlueskySearchConnector(Connector):
                 raise FetchError(url, resp.status_code, f"rate limited for {wait:.0f}s")
             self.sleep(wait if wait is not None else self.retry.backoff(attempt, self.rng))
             attempt += 1
+
+    def resolve_handle(self, handle: str) -> str | None:
+        """The DID of a declared handle (`com.atproto.identity.resolveHandle`), or None when the
+        handle doesn't resolve (a dead or mistyped link: HTTP 400). Not snapshotted: the answer
+        is an identifier, used for the search in memory only and never stored or logged. Other
+        failures raise `FetchError` (an outage, not a dead link)."""
+        resp = self._request(f"{self.base}{RESOLVE_PATH}", {"handle": handle}, None)
+        if resp.status_code == 400:
+            return None
+        if not resp.is_success:
+            raise FetchError(f"{self.base}{RESOLVE_PATH}", resp.status_code)
+        try:
+            did = resp.json().get("did")
+        except ValueError as e:
+            raise FetchError(f"{self.base}{RESOLVE_PATH}", resp.status_code, "bad json") from e
+        return did if isinstance(did, str) and _DID.match(did) else None
 
     def search_posts(
         self,

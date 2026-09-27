@@ -299,9 +299,10 @@ def test_search_posts_carries_author_and_url_filters_only_and_no_handle_leaves_m
         c.search_posts(author=HANDLE_A, url="https://x.example", since=W0, until=W1, cursor=None,
                        evidence_url=ev)  # fmt: skip
     assert HANDLE_A not in str(ei.value) and "ConnectError" in str(ei.value)
-    # no feed, profile or follower method exists on the connector
+    # no feed, profile or follower method exists on the connector; handle resolution only
     methods = {m for m in dir(c) if callable(getattr(c, m, None))}
-    assert not {m for m in methods if re.search(r"feed|profile|follow|resolve", m, re.I)}
+    assert not {m for m in methods if re.search(r"feed|profile|follow", m, re.I)}
+    assert {m for m in methods if re.search(r"resolve", m, re.I)} == {"resolve_handle"}
 
 
 def test_sort_at_is_the_earlier_of_created_and_indexed_and_links_are_checked():
