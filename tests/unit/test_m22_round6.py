@@ -40,9 +40,11 @@ from pigtail.briefs.outcomes import (
     view_b_anchor,
 )
 from pigtail.briefs.selection import (
+    ANCHOR_COUNT_LABELS,
     ANCHOR_RULE_LABELS,
     ANCHOR_RULE_VERSION,
     LANGUAGE_GROUPS,
+    PRE_WINDOW_LABELS,
     SELECTION_VERSION,
     VIEW_FOLLOW_THROUGH,
     VIEW_LAUNCH,
@@ -445,9 +447,10 @@ def test_declared_and_undeclared_sub_populations_flags_and_rule_counts():
     sels = select_views(cases, ctx(), Definition.from_brief(B))
     counts = {"show_hn": 7, "launch_hn": 7, "product_hunt": 0, "release_launch": 6,
               "bluesky_maintainer_post": 0, "undeclared:first_mention": 13,
-              "undeclared:first_release": 7, "none": 4}  # fmt: skip
+              "undeclared:first_release": 7, "none": 4,
+              **dict.fromkeys(PRE_WINDOW_LABELS, 0)}  # fmt: skip
     assert sels.summary["view_b_anchor_rules"] == counts
-    assert list(counts) == list(ANCHOR_RULE_LABELS)
+    assert list(counts) == list(ANCHOR_COUNT_LABELS)
     assert sels.summary["undeclared_launch"] == 20
     b, u = sels.views["launch"], sels.views["launch_undeclared"]
     assert b.summary["anchor_rules"] == u.summary["anchor_rules"] == counts
@@ -486,7 +489,8 @@ def test_declared_and_undeclared_sub_populations_flags_and_rule_counts():
 
 
 def test_anchor_rule_counts_show_every_label():
-    assert anchor_rule_counts([]) == dict.fromkeys(ANCHOR_RULE_LABELS, 0)
+    assert anchor_rule_counts([]) == dict.fromkeys(ANCHOR_COUNT_LABELS, 0)
+    assert list(ANCHOR_COUNT_LABELS) == [*ANCHOR_RULE_LABELS, *PRE_WINDOW_LABELS]
 
 
 # --- 5. SD over the full shortlisted pool ---------------------------------------------------------
@@ -541,14 +545,14 @@ def test_view_c_covers_every_shortlisted_non_winner_with_counts_of_values():
 
 # --- 7. versions, guard, determinism, estimate -------------------------------------------
 def test_versions_are_bumped():
-    assert SELECTION_VERSION == "selection-v8" and ANCHOR_RULE_VERSION == "anchor-v7"
+    assert SELECTION_VERSION == "selection-v9" and ANCHOR_RULE_VERSION == "anchor-v8"
     p = Context.from_brief(B).params()
-    assert p["selection_version"] == "selection-v8" and p["anchor_rule_version"] == "anchor-v7"
+    assert p["selection_version"] == "selection-v9" and p["anchor_rule_version"] == "anchor-v8"
     assert set(p["views"]) == {"follow_through", "launch", "launch_undeclared"}
     vb = p["view_b_anchor"]
     assert vb["rules"] == list(ANCHOR_RULE_LABELS)
     assert vb["release_launch_pattern"] == selmod.RELEASE_LAUNCH_PATTERN
-    # selection-v8 (ADR-085): Bluesky and Product Hunt are sources now; the ADR-075 limitation
+    # selection-v9 (ADR-085): Bluesky and Product Hunt are sources now; the ADR-075 limitation
     # names only the accounts the maintainer did not declare
     assert any("ADR-075" in x for x in vb["limitations"])
     assert "unobserved channel" in vb["known_bias"]

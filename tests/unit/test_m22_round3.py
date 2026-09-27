@@ -63,7 +63,8 @@ def test_lookup_queries_hold_only_the_repo_name():
         ("name", "kubeforge", "show_hn"),
         ("launch_hn", "kubeforge", "launch_hn"),
     ]
-    assert len(qs) == LAUNCH_LOOKUP_REQUESTS == HN_LAUNCH_LOOKUP_PER_SHORTLISTED
+    # inside the window, then again before it (anchor-v8, ADR-085 addendum 3)
+    assert 2 * len(qs) == LAUNCH_LOOKUP_REQUESTS == HN_LAUNCH_LOOKUP_PER_SHORTLISTED
 
 
 def test_launches_merge_discovery_and_lookup_by_item_id():
@@ -151,8 +152,8 @@ def test_hour_precision_onsets_still_compare_instants():
 def test_anchor_rule_is_part_of_the_selection_params_hash(monkeypatch):
     ctx = Context.from_brief(brief())
     p = ctx.params()
-    assert p["selection_version"] == "selection-v8"  # current (ADR-083)
-    assert p["anchor_rule_version"] == "anchor-v7"
+    assert p["selection_version"] == "selection-v9"  # current (ADR-083)
+    assert p["anchor_rule_version"] == "anchor-v8"
     assert "day precision" in p["anchor_rule"] or "endpoint day" in p["anchor_rule"]
     assert "Launch" in p["launch_lookup"] and "tags=launch_hn" in p["launch_lookup"]
     h = sha256_json(p)
@@ -212,4 +213,4 @@ def test_pairs_store_each_sides_anchor_type():
 # --- the estimate counts the lookup's HN requests ----------------------------------------------
 def test_estimate_counts_the_launch_lookup():
     e = estimate(brief())
-    assert e.other_requests["hn_launch_lookup"] == e.shortlisted * 3
+    assert e.other_requests["hn_launch_lookup"] == e.shortlisted * 6  # in and before the window

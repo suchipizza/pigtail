@@ -40,7 +40,7 @@
 | A6 | **Library, planner, trends, analyzer.** | F9, F10, F16, F17 | Aggregates. Links from each claim back to evidence (private UI only). |
 | A7 | **Publication of aggregate findings** (only after H2 and H4). | R13.3, §4 | None by design. Aggregate and anonymised only. |
 
-Also assessed here since ADR-085 (2026-09-27): view B's launch events, i.e. Product Hunt post metadata (project-level only; personal, non-commercial use, TM-16) and the dates of Bluesky posts by accounts a maintainer declared on their own project (handle used in memory only, role stored; TM-34). The balancing is the one of A2 with less impact: no handle, text or count is kept, only posts that link a shortlisted project are searched, and only accounts the maintainer published as theirs.
+Also assessed here since ADR-085 (2026-09-27): view B's launch events, i.e. Product Hunt post metadata (project-level only; personal, non-commercial use, TM-16) and the dates of Bluesky posts by accounts a maintainer declared on their own project (handle used in memory only, role stored; TM-34). The balancing is the one of A2 with less impact: no handle, text or engagement count is kept (a post's text is read in memory only, to test for launch wording; only the number of posts without it is kept per project), only posts that link a shortlisted project are searched, and only accounts the maintainer published as theirs (a README only when it names exactly one account; ADR-085 addendum 3).
 
 The following are out of scope for this LIA because they are either not processed or are documented gaps: Reddit, X, YouTube, Lobste.rs, dev.to, Juejin, Zhihu, Bilibili, TrustMRR, Crunchbase and YC ([terms-memos.md](terms-memos.md), ADR-010). If a gap source is ever enabled under an operator's own agreement, this LIA must be re-run.
 
@@ -231,3 +231,4 @@ This LIA supports Art. 6(1)(f) GDPR and Art. 31(1) FADP **only while all of the 
 - 2026-09-25 — §6 condition 2: S1, S3 and S12 are merged.
 - 2026-09-25 — ADR-046: §4 A1 conditions, CB-09 status (rotation tooling CB-25 and CB-26 done, CB-27 not needed).
 - 2026-09-26 — sync to the M11 removal (ADR-047.6, ADR-051; migration 0014): A1 velocity scan marked removed 2026-09-26 (ADR-051), its data deleted by migration 0014 except count-only `deletion_log` rows (reason `purpose_limitation`); a brief-restricted GH Archive use (M13) needs a new assessment; A1b and S16 target any live case, pre-threshold targets removed (ADR-051.1, ADR-051.6); §4.3 scale, §4.4 S3 code citation, §4.5 A1 conditions and §7 outcome updated.
+- 2026-09-27 — ADR-085 addendum 3 (owner decisions after verifier M22 round 7): the ADR-085 paragraph names the launch-wording test (text in memory only), the count kept and the README rule.

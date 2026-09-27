@@ -139,13 +139,13 @@ Legal basis is not a RoPA field, but is given for convenience: all activities on
 |---|---|
 | Purpose | Date each shortlisted repo's launch for the selection's view B (the earliest maintainer-initiated launch event), per the owner's decisions of 2026-09-27 |
 | Data subjects | Maintainers who declared a Bluesky account on their repo, README, org page or GitHub profile; people possibly named in Product Hunt descriptions (read in memory only) |
-| Personal data | In memory only: declared handles or DIDs, GitHub profile social-account links and org-page text, Bluesky search hits, Product Hunt names, taglines and descriptions. Stored per repo: Product Hunt post id, times, votes and comments counts, route and confirmation; Bluesky status and per post kind, time, role `maintainer` and match. No handle, DID, post URI or text |
+| Personal data | In memory only: declared handles or DIDs (a handle resolved to its DID with `resolveHandle`, ADR-085 addendum 1), GitHub profile social-account links and org-page text, Bluesky search hits and their text (read only to test for launch wording, ADR-085 addendum 3), Product Hunt names, taglines and descriptions. Stored per repo: Product Hunt post id, times, votes and comments counts, route and confirmation; Bluesky status, the number of in-window posts without launch wording, whether the README named more than one account, and per launch-worded post kind, time, role `maintainer` and match. No handle, DID, post URI or text |
 | Source | Product Hunt API v2 (TM-16; the operator's developer token, personal non-commercial use); Bluesky AppView `searchPosts` with author and url filters (TM-34); GitHub API (TM-02) for the declared-account sources |
 | Recipients | Hosting and storage processors; Anthropic for the Product Hunt Haiku check of name-only matches (A3; project-level text, owner login replaced, redacted) |
 | Transfers | Anthropic (A3) only |
 | Retention | Raw answers: dropped right after parsing (CB-24). Stored facts: with the brief's candidates (`brief_candidate`), project-level and role-coded; a repo opt-out deletes them and their evidence rows (CB-13c) |
 | Security | §2.3; handles never stored or logged (Directive §8.1); evidence URLs carry `[declared-account]`; errors carry the endpoint only; never a search of people by name (ADR-075.3) |
-| Status | I (M22, ADR-085). Both on by default through the selection's launch-source flags (`PIGTAIL_SELECTION_PRODUCT_HUNT`, `PIGTAIL_SELECTION_BLUESKY`); Product Hunt off without `PH_API_TOKEN` (the selection then refuses). The ADR-073.2 reading for Bluesky is flagged for the verifier and the owner |
+| Status | I (M22, ADR-085). Both on by default through the selection's launch-source flags (`PIGTAIL_SELECTION_PRODUCT_HUNT`, `PIGTAIL_SELECTION_BLUESKY`); Product Hunt off without `PH_API_TOKEN` (the selection then refuses). The ADR-073.2 reading for Bluesky was accepted by the owner (ADR-085 addendum 3) |
 
 ### A3 · LLM coding
 | Field | Value |
@@ -218,6 +218,7 @@ Not active. Blocked until H2 and H4 ([lia.md](lia.md) §7). No personal data by 
 ---
 
 ## Changelog
+- 2026-09-27 — ADR-085 addendum 3 (owner decisions after verifier M22 round 7): A2c updated (handles resolved in memory; post text in memory for the launch-wording test; README with exactly one account; the count of unworded posts; the ADR-073.2 reading accepted).
 - 2026-09-27 — ADR-085: A2c added (view B's Product Hunt launches and declared maintainers' Bluesky posts; handles in memory only, role stored).
 - 2026-09-25: v0.1 created (CB-15). Activities A1, A1b, A1c, A2a, A2b, A3, A7, A8, A9, A10, A11; each checked against `main`. Gaps recorded as CB-31 (alert-file rotation), CB-32 (cap on `GHARCHIVE_RAW_RETENTION_DAYS`) and CB-33 (UI audit-log purge without logins).
 - 2026-09-25 — status sync (M3-T11): §2.1 backup target and §2.3 measures updated (CB-17 backups I with follow-ups; CB-18 I with host rotation O; CB-13b/CB-13c; CB-19 role-based access P); A8 status notes role-based access open; A10 backups implemented, LLM cache not in backups.

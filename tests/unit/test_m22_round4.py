@@ -232,9 +232,9 @@ def test_refusal_names_the_show_hn_connector_flag():
 
 # --- 6. versions, the rule text in the hash, and the guard ------------------------------------
 def test_versions_and_title_rule_are_in_the_selection_params():
-    assert SELECTION_VERSION == "selection-v8" and ANCHOR_RULE_VERSION == "anchor-v7"
+    assert SELECTION_VERSION == "selection-v9" and ANCHOR_RULE_VERSION == "anchor-v8"
     p = Context.from_brief(brief()).params()
-    assert p["selection_version"] == "selection-v8" and p["anchor_rule_version"] == "anchor-v7"
+    assert p["selection_version"] == "selection-v9" and p["anchor_rule_version"] == "anchor-v8"
     rule = p["launch_lookup"]
     for part in ("tags=launch_hn", "(Show|Launch) HN:", ">= 5 characters", "1 day before",
                  "links no GitHub repo", "claimed by two", "refused"):  # fmt: skip
@@ -273,14 +273,14 @@ def test_estimate_counts_the_lookup_whatever_the_reuse_plan_says():
     sort = {d["stage"]: d for d in (e.reuse or {})["stages"]}["outcome_sort"]
     assert sort["action"] == "recompute" and "not yet run" in sort["because"][0]
     scope = run_scope(e, ("selection",))
-    assert scope["selection"]["hn_algolia_requests"] == 342
+    assert scope["selection"]["hn_algolia_requests"] == 684  # in and before the window
     # repos already looked up (run checkpoint) are not counted again
     part = estimate(v2, plan=plan, selection=SelectionState(True, 114, lookup_done=100))
     assert part.other_requests["hn_launch_lookup"] == 14 * HN_LAUNCH_LOOKUP_PER_SHORTLISTED
     # a done selection costs nothing; without a state the planning estimate is used
     done = estimate(v2, plan=plan, selection=SelectionState(pending=False))
     assert done.other_requests["hn_launch_lookup"] == 0
-    assert estimate(v2).other_requests["hn_launch_lookup"] == 3 * estimate(v2).shortlisted
+    assert estimate(v2).other_requests["hn_launch_lookup"] == 6 * estimate(v2).shortlisted
     assert estimate(v2).selection["hn_launch_lookup_requests"] > 0
 
 

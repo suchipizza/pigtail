@@ -16,12 +16,15 @@ never the handle. This module holds:
   `sort=latest`, `limit=100`, `cursor`, and the lexicon's required `q` set to `*` (the filters do
   the selecting). Unauthenticated on `api.bsky.app` (the owner's check of 2026-09-27;
   `public.api.bsky.app` answers 403 for search), configurable with `PIGTAIL_BLUESKY_API_BASE`.
-  No feed (`getAuthorFeed`), profile or follower endpoint exists here; handles are not resolved
-  (the search takes a handle or a DID).
-- **Parsing** (`parse_search_page`): per post, only the links it carries (link facets, external
-  embeds, URLs in the text, all read in memory to check that it really links the URL searched)
-  and its time (`sortAt` as the API defines it: the earlier of `record.createdAt` and
-  `indexedAt`). The author object, text, counts and URI are never kept.
+  No feed (`getAuthorFeed`), profile or follower endpoint exists here. A declared handle is
+  resolved to its DID first (`com.atproto.identity.resolveHandle`, ADR-085 addendum 1); the DID
+  stays in memory.
+- **Parsing** (`parse_search_page`): per post, the links it carries (link facets, external
+  embeds, URLs in the text, read to check that it really links the URL searched), its text
+  (for the launch-wording test, ADR-085 addendum 3) and its time (`sortAt` as the API defines
+  it: the earlier of `record.createdAt` and `indexedAt`). The links, text and URI live in memory
+  for the repo's step only and are never stored or logged; the author object and counts are
+  never read.
 
 **Storage.** Raw pages are snapshotted before parsing and dropped right after (CB-24), classed
 `person_level_24m` until then. The evidence URL never holds the handle or the DID: it names the
@@ -42,7 +45,7 @@ import json
 import os
 import re
 from collections.abc import Iterable, Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
@@ -147,11 +150,14 @@ _URL_IN_TEXT = re.compile(
 @dataclass(frozen=True)
 class BskyPost:
     """One search hit as the selection reads it: a key for de-duplication within the run (the
-    post's URI, in memory only), its time, and the links it carries (in memory only)."""
+    post's URI), its time, the links it carries and its text (for the launch-wording test,
+    ADR-085 addendum 3). All in memory only: nothing that stores signals may include the key,
+    the links or the text."""
 
     key: str
     at: datetime | None
     links: tuple[str, ...]
+    text: str = field(default="", repr=False)
 
 
 def _dt(v: Any) -> datetime | None:
@@ -187,8 +193,9 @@ def _links(record: Mapping[str, Any], view_embed: Any) -> list[str]:
 
 def parse_search_page(data: bytes) -> tuple[list[BskyPost], str | None]:
     """(posts, next cursor) of one `searchPosts` page. Reads `uri`, `indexedAt`, the record's
-    `createdAt`, link facets, external embeds and URLs in the text; never the author, counts or
-    labels (and nothing it reads is kept beyond this run)."""
+    `createdAt` and text, link facets, external embeds and URLs in the text; never the author,
+    counts or labels (and nothing it reads is kept beyond the repo's step: the text only feeds
+    the launch-wording test in memory)."""
     body = json.loads(data)
     out: list[BskyPost] = []
     for p in body.get("posts") or []:
@@ -197,11 +204,13 @@ def parse_search_page(data: bytes) -> tuple[list[BskyPost], str | None]:
         raw = p.get("record")
         rec: dict[str, Any] = raw if isinstance(raw, dict) else {}
         times = [t for t in (_dt(rec.get("createdAt")), _dt(p.get("indexedAt"))) if t is not None]
+        text = rec.get("text")
         out.append(
             BskyPost(
                 key=str(p.get("uri") or ""),
                 at=min(times) if times else None,  # sortAt: the earlier of the two
                 links=tuple(_links(rec, p.get("embed"))),
+                text=text if isinstance(text, str) else "",
             )
         )
     cursor = body.get("cursor")

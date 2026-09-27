@@ -18,15 +18,20 @@ routes:
   and its name parts joined give the same key). Checkpointed per topic page (cursor), the
   matches kept in the checkpoint as post ids only.
 
-A post found either way counts only when its launch time (`featuredAt`, else `createdAt`) is in
-the brief's window, its name fills the **product slot** (`ph_name_key(name)` equals the repo's)
+A post found either way is kept when its name fills the **product slot** (`ph_name_key(name)`
+equals the repo's)
 and it is **confirmed** (`confirm.ph_confirm_by_rules`, then the Product Hunt Haiku check,
 fail-closed; repo names shorter than 5 characters or made of stop-list words confirm by the URL
 and domain rules only). Stored per repo (signal `ph_launch`): per post the id, createdAt,
 featuredAt, votesCount, commentsCount, route (`slug`, `topic`, `slug+topic`), confirmed,
 confirmation (method or `unconfirmed:<reason>`) and the Haiku provenance; never a name, tagline or
 description (they are held in memory while the repo's group is processed). Posts whose name
-doesn't fill the slot are counted, not stored. A failed request propagates (the run fails,
+doesn't fill the slot are counted, not stored. Since anchor-v8 (ADR-085 addendum 3) posts of any
+date are kept (the slug route has no date bound): a confirmed post before the window is a launch
+before the window (view B's pre-window rule), and one after the window's end can still give the
+votes of an anchor near its end. Its launch time (`featuredAt`, else `createdAt`) decides whether it
+is a launch event of the window. The topic scan stays bounded to the window, so a launch before the
+window that only the topic scan would find is missed. A failed request propagates (the run fails,
 resumable), as in the HN lookup.
 
 **Bluesky** (`run_bluesky`; connector `pigtail.connectors.bluesky`, TM-34). Per repo, in memory
@@ -34,14 +39,23 @@ only: the **declared accounts** (`declared_accounts`) in, in this order, the own
 profile social accounts (`GET /users/{owner}/social_accounts`, provider `bluesky` or a bsky.app
 URL; owner type User), the org page (`GET /orgs/{org}`: `blog` and `description`; owner type
 Organization), the repo's homepage field (GraphQL `homepageUrl`, 50 repos per query) and the
-README (from the snapshot store when present, else fetched), at most `BSKY_MAX_ACCOUNTS` (3). Then,
-per account, `searchPosts` with `author` and `url` = the repo's GitHub URL, then its homepage URL
-when it has one, inside the window, newest first, up to `BSKY_MAX_PAGES` pages each; each post is
-kept only when one of its links really is that URL. Every raw answer (GitHub and Bluesky) is
-dropped right after parsing. Stored per repo (signal `bsky_maintainer_posts`): the status
-(`complete`, `no_declared_account`, or `incomplete` with a reason code) and per post the kind
+README (from the snapshot store when present, else fetched), at most `BSKY_MAX_ACCOUNTS` (3). The
+profile, org page and homepage field always count; the README counts only when it names exactly
+one account (`README_MAX_ACCOUNTS`, distinct after normalization), else it declares nothing and is
+counted `readme_ambiguous` (ADR-085 addendum 3; `declared_account_sources`). Then, per account,
+`searchPosts` with `author` and `url` = the repo's GitHub URL, then its homepage URL when it has
+one, newest first, with no date filter (the window is applied in memory), every page until the
+list ends or a launch-worded post before the window is found, up to `BSKY_MAX_PAGES` pages each;
+each post is kept only when one of its links really is that URL. A post is a **launch event only
+when its text is worded as a launch** (`bsky_post_is_launch`: the release rule's pattern,
+`outcomes.RELEASE_LAUNCH_RE`, on the text, in memory only); posts that link the repo without it
+are counted (a number, in the window), never events or relaunches. Every raw answer (GitHub and
+Bluesky) is dropped right after parsing. Stored per repo (signal `bsky_maintainer_posts`): the
+status (`complete`, `no_declared_account`, or `incomplete` with a reason code), per
+launch-worded post up to the window's end (before the window included) the kind
 `bluesky_maintainer_post`, the time, the role `maintainer` and the match (`repo_url` |
-`homepage_url`); never the handle, the DID, the post URI, text or counts.
+`homepage_url`), the number of in-window posts without launch wording, and whether the README was
+ambiguous; never the handle, the DID, the post URI, text, or a post's like/repost/reply counts.
 
 **Incomplete Bluesky data** (a failed or capped search, or declared-account sources that could not
 be read) does not block the selection: the repo is stored `incomplete`, its view-B anchor is
@@ -86,6 +100,7 @@ BSKY_MAX_ACCOUNTS = 3
 BSKY_MAX_PAGES = 5  # 100 posts per page, per account and URL
 BSKY_INCOMPLETE_MAX_SHARE = 0.10
 README_CHARS = 200_000
+README_MAX_ACCOUNTS = 1  # a README declares an account only when it names exactly one
 
 PH_NEEDS_TOKEN = (
     "the selection's Product Hunt launch lookup needs PH_API_TOKEN (a Product Hunt developer "
@@ -180,7 +195,9 @@ class PHResult:
     posts: int = 0
     by_route: dict[str, int] = field(default_factory=dict)
     not_product_slot: int = 0
-    out_of_window: int = 0
+    no_time: int = 0
+    before_window: int = 0  # kept (anchor-v8): a launch before the window when confirmed
+    after_window: int = 0  # kept (anchor-v8): votes of an anchor near the window's end
     confirmed: dict[str, int] = field(default_factory=dict)
     unconfirmed: dict[str, int] = field(default_factory=dict)
     haiku_checks: int = 0
@@ -344,9 +361,15 @@ def run_product_hunt(
             for pid in sorted(found):
                 p, routes = found[pid]
                 at = p.event_at
-                if at is None or not start <= at <= end:
-                    res.out_of_window += 1
+                if at is None:
+                    res.no_time += 1
                     continue
+                # kept whatever its date (anchor-v8): before the window it is a launch before
+                # the window, after it it can still give an anchor's launch-window votes
+                if at < start:
+                    res.before_window += 1
+                elif at > end:
+                    res.after_window += 1
                 if ph_name_key(p.name) != ph_repo_key(full):
                     res.not_product_slot += 1
                     counts["not_slot"] = int(counts.get("not_slot") or 0) + 1
@@ -423,6 +446,10 @@ class BskyResult:
     accounts_over_cap: int = 0
     accounts_unresolvable: int = 0  # declared links that point to no account (dead links)
     declared_in: dict[str, int] = field(default_factory=dict)  # source kind -> repos (counts)
+    readme_ambiguous: int = 0  # READMEs naming 2+ accounts: they declare nothing (addendum 3)
+    launch_posts: int = 0  # launch-worded posts stored (any date up to the window's end)
+    launch_posts_before_window: int = 0
+    posts_without_launch_wording: int = 0  # in the window: never events (addendum 3)
     bluesky_requests: int = 0
     github_requests: int = 0
     posts: int = 0
@@ -436,6 +463,42 @@ class BskyResult:
         d = dict(self.__dict__)
         d.pop("evidence_ids")
         return d
+
+
+def bsky_post_is_launch(text: str | None) -> bool:
+    """ADR-085 addendum 3: a declared maintainer's Bluesky post is a launch event only when its
+    text is worded as a launch, by the release rule's own pattern (`outcomes.RELEASE_LAUNCH_RE`,
+    from `selection.RELEASE_LAUNCH_PATTERN`: whole words, case-insensitive). The text is read in
+    memory only and never stored."""
+    from pigtail.briefs.outcomes import RELEASE_LAUNCH_RE
+
+    return RELEASE_LAUNCH_RE.search(text or "") is not None
+
+
+def declared_account_sources(
+    sources: Sequence[tuple[str, list[str]]],
+) -> tuple[list[str], list[str], bool]:
+    """(accounts in order of first appearance, the source kinds that declared at least one new
+    account, README ambiguous) from the texts of each source (ADR-085 addendum 3). The GitHub
+    profile's social accounts, the org page and the homepage field always count; the README
+    counts only when it names exactly `README_MAX_ACCOUNTS` (1) account, distinct after
+    normalization (`account_id`: a handle lowercased; a handle and a DID are two identifiers),
+    else it declares nothing and is reported ambiguous. In memory only."""
+    from pigtail.connectors.bluesky import declared_accounts
+
+    accounts: list[str] = []
+    kinds: list[str] = []
+    ambiguous = False
+    for kind, texts in sources:
+        named = declared_accounts(texts)
+        if kind == "readme" and len(named) > README_MAX_ACCOUNTS:
+            ambiguous = True
+            continue
+        got = [a for a in named if a not in accounts]
+        if got:
+            kinds.append(kind)
+        accounts += got
+    return accounts, kinds, ambiguous
 
 
 def _norm_url(u: str) -> tuple[str, str] | None:
@@ -527,7 +590,7 @@ def run_bluesky(
     the GitHub budget propagates (the stage pauses)."""
     from pigtail.capture.db import CaptureDB
     from pigtail.connectors.base import FetchError
-    from pigtail.connectors.bluesky import bsky_evidence_url, declared_accounts, parse_search_page
+    from pigtail.connectors.bluesky import bsky_evidence_url, parse_search_page
     from pigtail.connectors.github import parse_org_profile, parse_social_accounts
     from pigtail.connectors.producthunt import EVIDENCE_REPO_MARK
     from pigtail.privacy.deletion import PARSE_ERRORS, DeletionLog
@@ -604,14 +667,14 @@ def run_bluesky(
             return incomplete("declared_sources_failed")
         if raw:
             sources.append(("readme", [raw[:README_CHARS].decode("utf-8", errors="replace")]))
-        accounts: list[str] = []
-        for kind, texts in sources:
-            got = [a for a in declared_accounts(texts) if a not in accounts]
-            if got:
-                res.declared_in[kind] = res.declared_in.get(kind, 0) + 1
-            accounts += got
+        accounts, kinds, ambiguous = declared_account_sources(sources)
+        for kind in kinds:
+            res.declared_in[kind] = res.declared_in.get(kind, 0) + 1
+        if ambiguous:
+            res.readme_ambiguous += 1
+        extra = {"readme_ambiguous": ambiguous}
         if not accounts:
-            return {"status": "no_declared_account", "posts": []}
+            return {"status": "no_declared_account", "posts": [], **extra}
         res.with_declared_account += 1
         if len(accounts) > BSKY_MAX_ACCOUNTS:
             res.accounts_over_cap += len(accounts) - BSKY_MAX_ACCOUNTS
@@ -620,7 +683,9 @@ def run_bluesky(
         hp = homepage_search_url(homepage, full)
         if hp is not None:
             urls.append(("homepage_url", hp))
-        found: dict[str, tuple[datetime, str]] = {}
+        found: dict[str, tuple[datetime, str]] = {}  # launch-worded posts up to the window's end
+        seen: set[str] = set()
+        unworded = 0
         for account in accounts:
             # a declared handle is resolved first: a handle that resolves to nothing (HTTP 400
             # "Unable to resolve handle") is a dead or mistyped link, skipped
@@ -660,14 +725,24 @@ def run_bluesky(
                     finally:
                         drop(db, bsky.store, f.evidence.id, f.content_hash, dlog)
                     # no date filter in the request (the AppView refuses q=* with since/until):
-                    # the window is applied here, and paging stops once a page (newest first)
-                    # reaches before the window's start
+                    # the window is applied here. Posts before it are read too (anchor-v8: a
+                    # launch-worded one is a launch before the window); paging (newest first)
+                    # stops at the list's end or at the first launch-worded post before the
+                    # window, since older pages can't change that
+                    pre_launch = False
                     for h in hits:
-                        if h.at is None or not start <= h.at <= end:
+                        if h.at is None or h.at > end or not links_to(h.links, match, full, url):
                             continue
-                        if links_to(h.links, match, full, url):
-                            found.setdefault(h.key or h.at.isoformat(), (h.at, match))
-                    if not cursor or any(h.at is not None and h.at < start for h in hits):
+                        key = h.key or h.at.isoformat()
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        if bsky_post_is_launch(h.text):  # the text: in memory only
+                            found[key] = (h.at, match)
+                            pre_launch = pre_launch or h.at < start
+                        elif h.at >= start:
+                            unworded += 1
+                    if not cursor or pre_launch:
                         break
                 else:
                     return incomplete("search_capped")
@@ -676,7 +751,10 @@ def run_bluesky(
              for at, m in found.values()),
             key=lambda x: (x["time"], x["match"]),
         )  # fmt: skip
-        return {"status": "complete", "posts": posts}
+        res.launch_posts_before_window += sum(1 for at, _m in found.values() if at < start)
+        res.posts_without_launch_wording += unworded
+        return {"status": "complete", "posts": posts, "posts_without_launch_wording": unworded,
+                **extra}  # fmt: skip
 
     incomplete_refs: list[str] = []
     for c in pending:
@@ -686,6 +764,7 @@ def run_bluesky(
         )
         res.searched += 1
         res.posts += len(body["posts"])
+        res.launch_posts += len(body["posts"])
         st = str(body["status"])
         res.status[st] = res.status.get(st, 0) + 1
         if st == "incomplete":
@@ -719,7 +798,7 @@ def launch_source_params(
     *, product_hunt: bool, bluesky: bool, ph_topics: Sequence[str]
 ) -> dict[str, Any]:
     """View B's launch sources as they go into `Context.params()` (ADR-085)."""
-    from pigtail.connectors.bluesky import BSKY_QUERY, SEARCH_PATH
+    from pigtail.connectors.bluesky import BSKY_QUERY, RESOLVE_PATH, SEARCH_PATH
     from pigtail.connectors.producthunt import POST_FIELDS
 
     return {
@@ -737,13 +816,19 @@ def launch_source_params(
             f"order NEWEST), every page (up to {PH_TOPIC_MAX_PAGES} per topic), matched by "
             "normalized name (casefold, only a-z and 0-9 kept) equal to the repo name",
             "product_slot": "the post's normalized name equals the repo's normalized GitHub name",
-            "event_time": "featuredAt when set, else createdAt; inside the brief's window",
+            "event_time": "featuredAt when set, else createdAt; a launch event inside the "
+            "brief's window; a confirmed post before it is a launch before the window (posts "
+            "of any date found by slug are stored; the topic scan is bounded to the window, so "
+            "a launch before the window found only by the topic scan is missed)",
             "confirmation": ph_confirmation_params(),
             "stored": "post id, createdAt, featuredAt, votesCount, commentsCount, route, "
             "confirmed, confirmation (method or reason), Haiku provenance",
-            "secondary_measures": "votes and comments of the confirmed post at or after the "
-            "view-B anchor minus 7 days with the most votes: att.ph_votes, att.ph_comments; "
-            "reported, never ranked on",
+            "secondary_measures": "att.ph_votes and att.ph_comments: votes and comments (as of "
+            "fetch) of the confirmed post whose launch time falls in the launch-size window, "
+            "endpoint days 0..2 from the view-B anchor's first day (the launch-size day "
+            "mapping: US Pacific endpoint days), the one with the most votes (earliest on a "
+            "tie); none there: unknown (no_ph_post_in_launch_window); reported, never ranked "
+            "on",
             "ambiguity": "a post confirmed for more than one shortlisted repo is dropped for all",
         },
         "bluesky": {
@@ -755,15 +840,29 @@ def launch_source_params(
             "bsky.app URL; user owners), the org page's blog and description (org owners), the "
             "repo's homepage field, the README; at most "
             f"{BSKY_MAX_ACCOUNTS} accounts per repo; matched in memory, never stored or logged; "
-            "never a search for people by name (ADR-075.3)",
+            "never a search for people by name (ADR-075.3); declared handles resolved in memory "
+            f"({RESOLVE_PATH}), the DID never stored",
+            "readme_rule": "the profile, org page and homepage field always count; the README "
+            f"counts only when it names exactly {README_MAX_ACCOUNTS} account (distinct after "
+            "normalization: handles lowercased); with 2 or more it declares nothing and is "
+            "counted readme_ambiguous",
             "search": f"GET {SEARCH_PATH} q={BSKY_QUERY!r} author=<declared account> url=<repo "
-            "GitHub URL>, then url=<homepage URL> when there is one, since/until = the window, "
-            f"sort=latest, limit=100, up to {BSKY_MAX_PAGES} pages each; a post counts only "
-            "when one of its links is that URL; no feed, profile or follower reads",
+            "GitHub URL>, then url=<homepage URL> when there is one, sort=latest, limit=100, "
+            "no since/until (the AppView refuses them with q=*; the window is applied in "
+            "memory), every page until the list ends or a launch-worded post before the window "
+            f"is found, up to {BSKY_MAX_PAGES} pages each (more: incomplete); a post counts "
+            "only when one of its links is that URL; no feed, profile or follower reads",
+            "launch_wording": "a post is a launch event only when its text (record.text, "
+            "whole) matches the release rule's pattern (view_b_anchor.release_launch_pattern, "
+            "whole words, case-insensitive), read in memory, never stored; posts linking the "
+            "repo without it are neither launch events nor relaunches, and are counted (a "
+            "number per repo, in the window)",
             "event_time": "the API's sortAt: the earlier of the record's createdAt and indexedAt",
             "stored": "kind bluesky_maintainer_post, time, role maintainer, match (repo_url | "
-            "homepage_url) per post, and the repo's status; never a handle, DID, URI, text or "
-            "count",
+            "homepage_url) per launch-worded post up to the window's end (before it included), "
+            "the repo's status, the number of in-window posts without launch wording and "
+            "whether the README was ambiguous; never a handle, DID, URI, text, or a post's "
+            "like/repost/reply counts",
             "incomplete": "a failed or capped search, or unreadable declared-account sources: "
             "the repo is stored incomplete, has no view-B anchor (launch_source_incomplete:"
             "bluesky, counted) and is retried by the next run",

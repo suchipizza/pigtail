@@ -194,7 +194,7 @@ def test_the_gate_refuses_an_old_pre_registration_and_one_before_a_guarded_code_
     monkeypatch.setattr(selmod.Context, "params", v4_params)
     prereg(capture_db.conn, b, tmp_path)
     monkeypatch.setattr(selmod.Context, "params", new_params)
-    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v8"):
+    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v9"):
         require(capture_db.conn, b)
     fake = FakeShowHN([])
     with pytest.raises(PreregistrationMissing):

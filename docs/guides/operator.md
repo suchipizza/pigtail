@@ -282,7 +282,7 @@ code 7, before anything is fetched, computed or stored. A file that quotes brief
 refused; so is a pre-registration once the version already has a selection. Editing the brief
 (a new version) or a new selection rule needs a new pre-registration. The selection rule
 includes the anchor rule (`anchor_rule_version`) and the launch lookup (ADR-081, ADR-082):
-since `selection-v8` (anchor rule `anchor-v7`, ADR-085 and its addenda) a pre-registration recorded under an
+since `selection-v9` (anchor rule `anchor-v8`, ADR-085 and its addenda) a pre-registration recorded under an
 earlier selection version is refused, so pre-register the version again (a new file or
 amendment; the old one stays as it is; the brief itself needs no new version). The selection
 parameters also hold the hash of the code that implements the anchor rule, the launch lookup,
@@ -344,7 +344,12 @@ LLM cache need no approval.
     links the repo (below); at the same instant the order is Show HN, Launch HN, Product Hunt,
     release, Bluesky post. The result counts repos per anchor rule. X, Reddit, blogs, Bluesky
     accounts the maintainer did not declare, and Product Hunt launches under another name are
-    not observed, so a repo first launched there is dated by its first observable event. Losers are matched only on what existed before launch: audience
+    not observed, so a repo first launched there is dated by its first observable event. Since
+    `selection-v9` (ADR-085 addendum 3) a repo whose first declared launch event precedes the
+    window gets no view-B anchor (`launched_before_window`, counted per kind): the launch lookup
+    also searches HN from its epoch to the window's start, Product Hunt posts found by slug are
+    kept whatever their date, and Bluesky is read past the window's start (a Product Hunt launch
+    before the window that only the topic scan would find is not seen). Losers are matched only on what existed before launch: audience
     bucket and half-year (exact), quarter, repo age and **stars before launch** (stars from
     the repo's creation to the day before its launch; calipers 0.5 SD), language and core vs
     adjacent field. Launch size is not a matching key.
@@ -404,7 +409,8 @@ LLM cache need no approval.
   posted. Kept per repo: post id, times, votes, comments, how it was found and confirmed;
   never a name, tagline or description, and never a maker (the query doesn't ask for makers,
   users, comments or votes). Votes and comments are shown next to HN points in view B and
-  never ranked on. Checkpointed per topic page and per repo; the connector reads Product
+  never ranked on; since `selection-v9` they come only from a post launched on days 0..2 of the
+  view-B anchor (else `unknown`, `no_ph_post_in_launch_window`). Checkpointed per topic page and per repo; the connector reads Product
   Hunt's rate-limit headers and waits for the window to reset before the budget runs out.
   **Without `PH_API_TOKEN` the selection is refused with exit 8** (when Product Hunt applies).
 - **Bluesky maintainer posts** (ADR-085; unauthenticated public search on `api.bsky.app`,
@@ -412,12 +418,20 @@ LLM cache need no approval.
   maintainer declared it: a `bsky.app/profile/…` link or an `@name.bsky.social` on the repo's
   homepage field, its README, its org page (blog, description) or the owner's GitHub profile
   social accounts (1 GitHub core request per repo, plus one GraphQL query per 50 repos; READMEs
-  come from the snapshot store when they are still there). pigtail then searches that
-  account's posts that link the repo's GitHub URL (and its homepage, if any) inside the
-  window, and nothing else: no feed, profile or follower is read, and Bluesky is never
-  searched for people by name. The account is used in memory only; per repo pigtail keeps the
-  kind, time, role `maintainer` and whether the post linked the repo or its homepage, never
-  the handle. When a repo's search fails (an outage) or its sources can't be read, it is stored
+  come from the snapshot store when they are still there). The profile, org page and homepage
+  field always count; a README counts only when it names exactly one account (two or more:
+  it declares none, counted as `readme_ambiguous`). A declared handle is first resolved to its
+  DID (`resolveHandle`, in memory). pigtail then searches that account's posts that link the
+  repo's GitHub URL (and its homepage, if any), with no date filter (the window is applied in
+  memory; pages are read until the list ends or a launch-worded post before the window turns
+  up), and nothing else: no feed, profile or follower is read, and Bluesky is never searched
+  for people by name. **A post counts only when its text is worded as a launch** (the release
+  rule's words: launch, launching, introducing, announcing, first public release); the text is
+  read in memory and never kept. The account is used in memory only; per repo pigtail keeps,
+  for each launch-worded post, the kind, time, role `maintainer` and whether the post linked the
+  repo or its homepage, plus the number of posts that linked the repo without launch wording
+  (shown in the warnings: "N maintainer posts linked the repo without launch wording"); never
+  the handle or the text. When a repo's search fails (an outage) or its sources can't be read, it is stored
   `incomplete`: it gets no view-B anchor (counted in the warnings and the summary) and the
   next run retries it. **More than 10 % of the repos incomplete: the run fails with exit 9**;
   run the same command later to continue.
@@ -1139,10 +1153,13 @@ source itself, since pigtail no longer stores who wrote what.
   Product Hunt (TM-16). Personal, non-commercial use only unless Product Hunt agrees otherwise.
   Only project-level post fields are asked for; raw answers are dropped after parsing.
 - **Bluesky search** (`bluesky_search`, on by default;
-  `PIGTAIL_CONNECTOR_BLUESKY_SEARCH_ENABLED=false` turns it off): `searchPosts` with an author
-  and a url filter only, for accounts the maintainer declared (TM-34). Handles stay in memory;
-  evidence URLs carry `[declared-account]`; raw pages are dropped after parsing. It is not the
-  held Bluesky mention collector of ADR-022 (TM-06), which stays off.
+  `PIGTAIL_CONNECTOR_BLUESKY_SEARCH_ENABLED=false` turns it off): `resolveHandle` for a declared
+  handle, then `searchPosts` with an author and a url filter only (no `since`/`until`), for
+  accounts the maintainer declared (TM-34). Handles, DIDs and post texts stay in memory (the
+  text only for the launch-wording test); evidence URLs carry `[declared-account]`; raw pages
+  are dropped after parsing. It is not the held Bluesky mention collector of ADR-022 (TM-06),
+  which stays off; the owner accepted that this search sits outside that hold (ADR-085
+  addendum 3).
 
 ### Hacker News sources (M1-T4, M1-T14)
 - **Show HN discovery** (`hn_showhn`, M22, enabled by default;

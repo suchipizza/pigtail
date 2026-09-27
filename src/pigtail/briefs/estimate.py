@@ -45,7 +45,9 @@ What it reports:
   scan's pages for the window, a few posts re-read, and Haiku checks of name-only matches, a
   paid step) and the Bluesky step (per repo one GitHub core request for the owner's profile
   social accounts or the org page, one GraphQL query per 50 repos for homepage fields, READMEs
-  mostly from the snapshot store, and searches for the repos with a declared account).
+  mostly from the snapshot store, and searches for the repos with a declared account). Since
+  ADR-085 addendum 3 (`estimate-v7`) the launch lookup makes its three searches twice (inside
+  the window, and from HN's epoch to the window's start).
 """
 
 from __future__ import annotations
@@ -75,7 +77,7 @@ from pigtail.llm.stages import stage_for, time_sensitive
 # per candidate (core bucket). v2 (M21b): per-stage models, Batch API discount, prompt caching,
 # the brief's total money cap and the monthly cap. v1 (ADR-058.4): expansion is an
 # on-demand call, not a run stage.
-ESTIMATE_MODEL = "estimate-v6"
+ESTIMATE_MODEL = "estimate-v7"
 
 # --- planning assumptions (placeholders until the pilot measures them, M23) ---------------
 SEARCH_PAGES_PER_QUERY = 2  # 100 results per page
@@ -90,8 +92,9 @@ GRAPHQL_BATCH = 50  # candidates per GraphQL metadata query
 GRAPHQL_POINTS_PER_BATCH = 2
 HN_QUERIES_PER_TERM_SLICE = 1
 # selection-stage launch lookup (ADR-081, ADR-082): Show HN by repo URL, Show HN by name,
-# Launch HN (`tags=launch_hn`) by name; an upper bound per repo not yet looked up
-HN_LAUNCH_LOOKUP_PER_SHORTLISTED = 3
+# Launch HN (`tags=launch_hn`) by name; an upper bound per repo not yet looked up; inside the
+# window and again before it (anchor-v8, ADR-085 addendum 3)
+HN_LAUNCH_LOOKUP_PER_SHORTLISTED = 6
 # ADR-083 (planning assumptions until the pilot measures them, M23): the share of shortlisted
 # repos with a declared launch (their star history is fetched back to creation for "stars
 # before launch"; the live acceptance run had 26 anchored of 114, most by launch), the extra
@@ -936,7 +939,8 @@ def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any
                 "hn_algolia_requests": e.other_requests.get("hn_launch_lookup", 0),
                 "hn": f"launch lookup: up to {HN_LAUNCH_LOOKUP_PER_SHORTLISTED} HN Algolia "
                 "requests per shortlisted repo not yet looked up (Show HN by URL and by name, "
-                "Launch HN by name; ADR-082)",
+                "Launch HN by name, inside the window and before it; ADR-082, ADR-085 "
+                "addendum 3)",
                 "prelaunch": f"stars before launch (ADR-083): about {CREATION_EXTRA_PAGES} extra "
                 "core requests per repo with a declared launch, to reach its creation week "
                 f"(~{e.selection.get('prelaunch_extra_core_requests', 0):,} in total)",

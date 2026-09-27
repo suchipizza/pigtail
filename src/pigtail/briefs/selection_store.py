@@ -30,7 +30,7 @@ latest per brief version is shown.
 from __future__ import annotations
 
 import secrets
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
@@ -280,6 +280,8 @@ def run_stage(
     )  # fmt: skip
     notes = lookup_notes(fetch.launch_lookup or {})
     notes += launch_source_notes(fetch.product_hunt, fetch.bluesky)
+    bsky_counts = bluesky_counts(cands) if ctx.bluesky else {}
+    notes += bluesky_count_notes(bsky_counts)
     notes += view_b_notes(fetch.releases, fetch.mentions)
     if shared := ambiguous_title_matches(cands):
         notes.append(
@@ -318,6 +320,7 @@ def run_stage(
         },
         "view_b_anchor_rules": sel.summary["view_b_anchor_rules"],
         "view_b_incomplete": sel.summary["view_b_incomplete"],
+        "bluesky": bsky_counts,
         "surface": surf.to_dict(),
         "warnings": len(sel.summary["warnings"]),
     }
@@ -352,6 +355,44 @@ def _check_models(
                 f"{want!r} (LLM_MODEL_RELEVANCE / LLM_MODEL): align the settings, or "
                 "pre-register again"
             )
+
+
+def bluesky_counts(cands: Sequence[Candidate]) -> dict[str, int]:
+    """From the stored Bluesky signals of the current anchor rule (ADR-085 addendum 3; counts
+    only): posts of declared maintainer accounts that linked the repo in the window without
+    launch wording (never launch events), and READMEs that named more than one account (they
+    declare none). Read from stored data, so a resumed run counts every repo."""
+    from pigtail.briefs.launch_sources import BSKY_SOURCE
+    from pigtail.briefs.selection import ANCHOR_RULE_VERSION
+
+    out = {"posts_without_launch_wording": 0, "repos_with_unworded_posts": 0,
+           "readme_ambiguous": 0}  # fmt: skip
+    for c in cands:
+        for sig in c.sources:
+            if sig.get("source") != BSKY_SOURCE or sig.get("rule") != ANCHOR_RULE_VERSION:
+                continue
+            n = int(sig.get("posts_without_launch_wording") or 0)
+            out["posts_without_launch_wording"] += n
+            out["repos_with_unworded_posts"] += 1 if n else 0
+            out["readme_ambiguous"] += 1 if sig.get("readme_ambiguous") else 0
+    return out
+
+
+def bluesky_count_notes(counts: dict[str, int]) -> list[str]:
+    """Selection notes from `bluesky_counts` (ADR-085 addendum 3)."""
+    notes: list[str] = []
+    if counts.get("posts_without_launch_wording"):
+        notes.append(
+            f"view B: {counts['posts_without_launch_wording']} maintainer posts linked the repo "
+            f"without launch wording ({counts['repos_with_unworded_posts']} repos; Bluesky, in "
+            "the window): not launch events or relaunches (ADR-085 addendum 3)"
+        )
+    if counts.get("readme_ambiguous"):
+        notes.append(
+            f"view B: {counts['readme_ambiguous']} READMEs named more than one Bluesky account "
+            "and declared none (ADR-085 addendum 3)"
+        )
+    return notes
 
 
 def launch_source_notes(ph: dict[str, Any] | None, bsky: dict[str, Any] | None) -> list[str]:

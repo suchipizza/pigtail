@@ -131,6 +131,18 @@ HANDLE_C = "maintainer-c.bsky.social"
 HANDLE_OTHER = "someone-else.example"
 
 
+def synthetic_did(handle: str) -> str:
+    """A made-up `did:plc:` for a synthetic handle (24 base32 letters derived from it), so two
+    fake authors never share a DID."""
+    import base64
+    import hashlib
+
+    return (
+        "did:plc:"
+        + base64.b32encode(hashlib.sha256(handle.encode()).digest()).decode().lower()[:24]
+    )
+
+
 def bsky_post(
     n: int,
     author: str,
@@ -138,20 +150,23 @@ def bsky_post(
     links: list[str],
     *,
     did: str | None = None,
-    text: str = "SYNTH-POST-TEXT",
+    text: str = "SYNTH-POST-TEXT: launching today",
     indexed: datetime | None = None,
 ) -> dict[str, Any]:
-    """A synthetic post view as searchPosts returns it, author object included."""
+    """A synthetic post view as searchPosts returns it, author object included. The default
+    text is worded as a launch ("launching", ADR-085 addendum 3); pass `text` for a post
+    without launch wording."""
     facets = [
         {"index": {"byteStart": 0, "byteEnd": 1},
          "features": [{"$type": "app.bsky.richtext.facet#link", "uri": u}]}
         for u in links
     ]  # fmt: skip
+    did = did or synthetic_did(author)
     return {
-        "uri": f"at://{did or 'did:plc:zzzzzzzzzzzzzzzzzzzzzzzz'}/app.bsky.feed.post/{n:08d}",
+        "uri": f"at://{did}/app.bsky.feed.post/{n:08d}",
         "cid": f"bafy{n:08d}",
         "author": {
-            "did": did or "did:plc:zzzzzzzzzzzzzzzzzzzzzzzz",
+            "did": did,
             "handle": author,
             "displayName": "SYNTH-DISPLAY-NAME",
         },

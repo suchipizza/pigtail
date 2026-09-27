@@ -40,7 +40,7 @@ from pigtail.briefs.launch_sources import (
     ph_urls_only,
 )
 from pigtail.briefs.model import sha256_json
-from pigtail.briefs.outcomes import launch_events, ph_values, view_b_anchor
+from pigtail.briefs.outcomes import launch_events, view_b_anchor
 from pigtail.briefs.selection import (
     ANCHOR_RULE_LABELS,
     ANCHOR_RULE_VERSION,
@@ -436,18 +436,8 @@ def test_ambiguous_ph_post_is_dropped_for_every_repo():
 
 
 # --- PH votes and comments: secondary, never ranked on -----------------------------------------
-def test_ph_values_pick_the_top_post_near_the_anchor():
-    posts = [
-        (d(3), "1", "slug", 50, 7),
-        (d(5), "2", "topic", 80, None),
-        (d(1), "3", "slug", 900, 1),
-    ]
-    v, n = ph_values(posts, d(4))  # d(1) is more than 7 days before the anchor
-    assert v.status == "observed" and v.value == 80.0 and n.status == "unknown"
-    v, n = ph_values(posts, d(1, 5))
-    assert (v.value, n.value) == (900.0, 1.0) and v.reason == "as of fetch"
-    assert ph_values(None, d(4))[0].reason == "product_hunt_not_collected"
-    assert ph_values([], d(4))[0].reason == "no_product_hunt_launch"
+# (the launch-window rule of ph_values replaced the "anchor - 7 days" rule in anchor-v8: see
+# tests/unit/test_m22_round8.py)
 
 
 def test_ph_votes_and_comments_are_reported_never_ranked():
@@ -482,12 +472,12 @@ def test_ph_votes_and_comments_are_reported_never_ranked():
 
 # --- versions, parameters, guard, determinism, estimate ----------------------------------------
 def test_versions_and_the_launch_source_flags_in_the_params(launch_sources_on, monkeypatch):
-    assert SELECTION_VERSION == "selection-v8" and ANCHOR_RULE_VERSION == "anchor-v7"
+    assert SELECTION_VERSION == "selection-v9" and ANCHOR_RULE_VERSION == "anchor-v8"
     c = Context.from_brief(B)
     assert c.product_hunt and c.bluesky and c.ph_topics == ("open-source", "developer-tools")
     assert c.required_launch_sources == ("product_hunt", "bluesky")
     p = c.params()
-    assert p["selection_version"] == "selection-v8" and p["anchor_rule_version"] == "anchor-v7"
+    assert p["selection_version"] == "selection-v9" and p["anchor_rule_version"] == "anchor-v8"
     lsp = p["launch_sources"]
     assert lsp["product_hunt"]["applies"] is True and lsp["bluesky"]["applies"] is True
     assert lsp["product_hunt"]["topics"] == ["open-source", "developer-tools"]
