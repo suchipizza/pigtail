@@ -25,6 +25,10 @@
 6. **CB-33**: UI audit rows (`ui_audit_log`, ADR-034.2) older than `LOG_RETENTION_DAYS` are
    deleted, and expired UI sessions with them. The UI also deletes them at each login; this step
    makes the limit hold when nobody logs in (the scheduler runs `retention purge` daily).
+7. **ADR-085 addendum 4**: the shared Product Hunt topic-listing cache (project-level listing
+   data, migration 0027) is kept only while it can serve a scan: posts not seen by any scan for
+   `PH_TOPIC_CACHE_RETENTION_DAYS` (90) days, and scan rows started that long ago, are deleted
+   (a complete scan is reused for 14 days only, so older rows serve no brief).
 
 `project_level` and `derived_aggregate` data are never touched. Each action writes a tombstone
 to the append-only `deletion_log`; the caller wraps the purge in a `RunRecorder` (job
@@ -39,6 +43,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
+from pigtail.briefs.ph_cache import PH_TOPIC_CACHE_RETENTION_DAYS
 from pigtail.capture.retention import purge_raw
 from pigtail.privacy.deletion import (
     PERSON_TABLES,
@@ -63,6 +68,7 @@ class RetentionConfig:
     log_days: int = 365
     github_events_days: int = 16  # CB-22 / ADR-038: person_level_30d evidence
     after_report_days: int = 365  # R19.9: report final + 12 months
+    ph_topic_cache_days: int = PH_TOPIC_CACHE_RETENTION_DAYS  # ADR-085 addendum 4
 
 
 @dataclass
@@ -86,6 +92,8 @@ class PurgeReport:
     run_errors_cleared: int = 0
     ui_audit_rows_deleted: int = 0
     ui_sessions_expired_deleted: int = 0
+    ph_topic_posts_deleted: int = 0
+    ph_topic_scans_deleted: int = 0
     dropped_hashes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -204,6 +212,19 @@ def purge(
     if rep.ui_sessions_expired_deleted:
         log.write("rows_deleted", "ui_sessions", rows=rep.ui_sessions_expired_deleted)
 
+    # 7. ADR-085 addendum 4: the Product Hunt topic-listing cache past its use.
+    ph_cutoff = now - timedelta(days=cfg.ph_topic_cache_days)
+    rep.ph_topic_posts_deleted = _delete_older(
+        db, "ph_topic_post", "last_seen_at", ph_cutoff, dry_run
+    )
+    if rep.ph_topic_posts_deleted:
+        log.write("rows_deleted", "ph_topic_post", rows=rep.ph_topic_posts_deleted)
+    rep.ph_topic_scans_deleted = _delete_older(
+        db, "ph_topic_scan", "started_at", ph_cutoff, dry_run
+    )
+    if rep.ph_topic_scans_deleted:
+        log.write("rows_deleted", "ph_topic_scan", rows=rep.ph_topic_scans_deleted)
+
     if run is not None:
         for key in (
             "gharchive_raw_hashes_dropped",
@@ -220,6 +241,8 @@ def purge(
             "run_errors_cleared",
             "ui_audit_rows_deleted",
             "ui_sessions_expired_deleted",
+            "ph_topic_posts_deleted",
+            "ph_topic_scans_deleted",
         ):
             run.incr(key, getattr(rep, key))
         run.incr("person_rows_deleted", sum(rep.person_rows_deleted.values()))

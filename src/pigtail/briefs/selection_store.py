@@ -272,6 +272,7 @@ def run_stage(
         ph_confirmer=ph_confirmer,
         ph_topics=ctx.ph_topics,
         readme=readme,
+        clock=clock,
     )
     cands = shortlisted(conn, brief)  # metadata and looked-up launches may have been added
     inputs = load_inputs(
@@ -289,6 +290,14 @@ def run_stage(
             "shortlisted repo or linked by URL to another (ADR-082 rule e)"
         )
     sel = select_views(inputs, ctx, Definition.from_brief(brief), notes=notes)
+    if fetch.product_hunt is not None:
+        # provenance (ADR-085 addendum 4): the Product Hunt listing snapshot this selection used,
+        # per topic and interval (reused from the shared cache, or scanned by this run); in the
+        # stored summary, outside the result hash (it records when data was fetched, not a rule)
+        sel.summary["product_hunt_listing"] = {
+            "intervals": fetch.product_hunt.get("topic_cache") or [],
+            "days": fetch.product_hunt.get("topic_cache_days") or {},
+        }
     # R4.8 determinism is keyed on (brief version, data version); `as_of` decides `pending`, so
     # it is folded into the selection's data version (M22 verifier round 2): same data, another
     # day -> another data version.
@@ -400,6 +409,11 @@ def launch_source_notes(ph: dict[str, Any] | None, bsky: dict[str, Any] | None) 
     notes: list[str] = []
     if ph is not None:
         bad = {t: st for t, st in (ph.get("topic_status") or {}).items() if st != "complete"}
+        if ph.get("incomplete"):
+            notes.append(
+                f"view B: {ph['incomplete']} repos with incomplete Product Hunt data (topic scan "
+                "failed): no view-B anchor, retried by the next run (ADR-085 addendum 4)"
+            )
         if bad:
             notes.append(
                 "view B: Product Hunt topic scan not complete ("

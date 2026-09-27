@@ -55,6 +55,11 @@ points; no identities):
    be seen: such a repo has no view-B anchor (`launched_before_window`). A Bluesky post is a
    launch event only when its text is worded as a launch (the release pattern, in memory).
 
+   Since anchor-v9 (ADR-085 addendum 4): the Product Hunt topic scan reads a **shared,
+   instance-level listing cache** (`pigtail.briefs.ph_cache`): only the parts of the window no
+   complete scan of the last 14 days covers are scanned, and a failed topic scan leaves the
+   repos not done yet `incomplete` (no view-B anchor, counted; more than 10 % refuses).
+
 2. **`load_inputs`** (database only): one `selection.CaseInput` per shortlisted repo, carrying
    the same repo as view B reads it (`launch_case`: anchored by `view_b_anchor` on launch
    events only, never on star data; its values, covariates and anomaly flag relative to that
@@ -245,6 +250,7 @@ def fetch_outcome_data(
     ph_confirmer: Confirmer | None = None,
     ph_topics: Sequence[str] = PH_TOPICS,
     readme: Callable[[Candidate], tuple[bytes | None, str | None]] | None = None,
+    clock: Callable[[], datetime] | None = None,
 ) -> FetchResult:
     """Step 1 (module docstring). `BudgetExhausted` propagates: the stage pauses, resumable.
     `launch_sources` names the view-B sources the pre-registered parameters apply
@@ -342,7 +348,7 @@ def fetch_outcome_data(
         if "product_hunt" in launch_sources:
             pr = run_product_hunt(
                 conn, brief, ph, live, window=window, checkpoint=checkpoint, save=save,
-                topics=ph_topics, recorder=recorder, confirmer=ph_confirmer,
+                topics=ph_topics, recorder=recorder, confirmer=ph_confirmer, clock=clock,
             )  # fmt: skip
             res.product_hunt = pr.to_dict()
             res.evidence_ids.extend(pr.evidence_ids)
@@ -1209,8 +1215,11 @@ def incomplete_source(c: Candidate, sources: Sequence[str]) -> str | None:
     whose data for this repo is missing or incomplete (ADR-085), else None. An unread source
     could hold the earliest launch event, so the view-B anchor would silently change."""
     for src in sources:
-        if src == "product_hunt" and _signal(c, PH_SOURCE) is None:
-            return src
+        if src == "product_hunt":
+            # anchor-v9 (ADR-085 addendum 4): a failed topic scan stores `incomplete`
+            p = _signal(c, PH_SOURCE)
+            if p is None or p.get("status") != "complete":
+                return src
         if src == "bluesky":
             s = _signal(c, BSKY_SOURCE)
             if s is None or s.get("status") not in ("complete", "no_declared_account"):
@@ -1575,6 +1584,14 @@ ANCHOR_RULE_FUNCTIONS = (
     "pigtail.briefs.launch_sources:ph_slug_candidates",
     "pigtail.briefs.launch_sources:ph_urls_only",
     "pigtail.briefs.launch_sources:run_product_hunt",
+    # the shared Product Hunt topic cache (ADR-085 addendum 4)
+    "pigtail.briefs.ph_cache:ScanRow",
+    "pigtail.briefs.ph_cache:gaps",
+    "pigtail.briefs.ph_cache:usable_scans",
+    "pigtail.briefs.ph_cache:start_scan",
+    "pigtail.briefs.ph_cache:save_page",
+    "pigtail.briefs.ph_cache:end_scan",
+    "pigtail.briefs.ph_cache:window_posts",
     "pigtail.briefs.launch_sources:ph_confirmer",
     "pigtail.briefs.launch_sources:_norm_url",
     "pigtail.briefs.launch_sources:links_to",
@@ -1652,6 +1669,12 @@ ANCHOR_RULE_CONSTANTS = (
     "pigtail.briefs.launch_sources:PH_SLUG_CANDIDATES",
     "pigtail.briefs.launch_sources:PH_TOPIC_MAX_PAGES",
     "pigtail.briefs.launch_sources:PH_GROUP",
+    "pigtail.briefs.launch_sources:PH_INCOMPLETE_MAX_SHARE",
+    "pigtail.briefs.ph_cache:PH_TOPIC_CACHE_RULE",
+    "pigtail.briefs.ph_cache:PH_TOPIC_CACHE_MAX_AGE_DAYS",
+    "pigtail.briefs.ph_cache:GAP_RULE",
+    "pigtail.briefs.ph_cache:INDEX_RULE",
+    "pigtail.connectors.producthunt:TOPIC_FIELDS",
     "pigtail.briefs.launch_sources:BSKY_SOURCE",
     "pigtail.briefs.launch_sources:BSKY_KIND",
     "pigtail.briefs.launch_sources:BSKY_ROLE",

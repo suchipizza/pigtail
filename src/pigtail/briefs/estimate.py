@@ -47,7 +47,12 @@ What it reports:
   social accounts or the org page, one GraphQL query per 50 repos for homepage fields, READMEs
   mostly from the snapshot store, and searches for the repos with a declared account). Since
   ADR-085 addendum 3 (`estimate-v7`) the launch lookup makes its three searches twice (inside
-  the window, and from HN's epoch to the window's start).
+  the window, and from HN's epoch to the window's start). Since ADR-085 addendum 4
+  (`estimate-v8`) the Product Hunt topic scan counts only the gaps of the window the shared
+  topic cache doesn't cover (pages per day of gap from the cache's own density when it has a
+  complete scan, else the planning default; at most `PH_TOPIC_MAX_PAGES` per gap), shows
+  "Product Hunt: cached listing reused for N of M days", and the Product Hunt time is computed
+  at the measured ~230 requests an hour (`PH_REQUESTS_PER_HOUR`).
 """
 
 from __future__ import annotations
@@ -69,6 +74,9 @@ from pigtail.connectors.github_budget import DEFAULT_CAP_FRACTION, GITHUB_LIMITS
 from pigtail.llm.pricing import TokenUsage, canonical_model, cost_usd, pricing_table
 from pigtail.llm.stages import stage_for, time_sensitive
 
+# v8 (ADR-085 addendum 4): the Product Hunt topic scan counts only the gaps the shared topic
+# cache doesn't cover; the Product Hunt time at the measured 230 requests an hour.
+# v7 (ADR-085 addendum 3): the launch lookup inside the window and before it.
 # v6 (ADR-085): Product Hunt (slug lookups, topic scan, Haiku checks) and Bluesky (declared
 # accounts on GitHub, searches).
 # v5 (ADR-084): the distribution-surface coding, GitHub releases and the first-mention search.
@@ -77,7 +85,7 @@ from pigtail.llm.stages import stage_for, time_sensitive
 # per candidate (core bucket). v2 (M21b): per-stage models, Batch API discount, prompt caching,
 # the brief's total money cap and the monthly cap. v1 (ADR-058.4): expansion is an
 # on-demand call, not a run stage.
-ESTIMATE_MODEL = "estimate-v7"
+ESTIMATE_MODEL = "estimate-v8"
 
 # --- planning assumptions (placeholders until the pilot measures them, M23) ---------------
 SEARCH_PAGES_PER_QUERY = 2  # 100 results per page
@@ -128,7 +136,17 @@ SURFACE_PER_REQUEST = 20
 # READMEs no longer in the snapshot store, 30 % of repos with a declared account, 2 searches each
 # (repo URL and homepage, one page)
 PH_SLUG_REQUESTS_PER_REPO = 2
-PH_TOPIC_POSTS_PER_MONTH = 300
+# Planning density of a topic listing until the instance's cache has a complete scan of its own
+# (then `ph_cache.coverage` gives pages per day of the complete scans, a measurement). Raised from
+# 300 (ADR-085 addendum 4): the live scan of 2026-09-27 took about ten hours for the two default
+# topics at ~230 requests an hour, i.e. about the 1,000-page cap per topic; for an 18-month
+# window that is at least ~1,100 posts per month and topic. An inference, not a count.
+PH_TOPIC_POSTS_PER_MONTH = 1_100
+DAYS_PER_MONTH = 30.44
+# Measured 2026-09-27 on the live API with the owner's developer token (ADR-085 addendum 4):
+# about 230 requests an hour get through (the rate-limit headers make the connector wait for the
+# window's reset), not the client limiter's 900. The Product Hunt time estimate uses it.
+PH_REQUESTS_PER_HOUR = 230
 PH_REFETCH_SHARE = 0.05
 PH_CHECKS_PER_SHORTLISTED = 0.05
 PH_CHECK = "ph_match_check"  # the job and the estimate stage (relevance stage, Haiku)
@@ -194,16 +212,23 @@ class SelectionState:
     ph_done: int = 0  # repos the Product Hunt step finished (ADR-085)
     ph_topics_done: bool = False  # the topic scan finished for every topic
     bsky_done: int = 0  # repos the Bluesky step finished (ADR-085)
+    # the shared Product Hunt topic cache for this window (ADR-085 addendum 4;
+    # `ph_cache.coverage`): per topic the window's days, the days reused, the gaps (days), the
+    # pages unfinished scans of those gaps already read, and the cached pages per day
+    ph_cache: dict[str, dict[str, Any]] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return dict(self.__dict__)
 
 
-def selection_state(conn: Any, brief: Brief) -> SelectionState:
-    """The selection stage's state for this brief version, from the run rows and the shortlist
-    (database reads only)."""
+def selection_state(conn: Any, brief: Brief, *, now: Any = None) -> SelectionState:
+    """The selection stage's state for this brief version, from the run rows, the shortlist and
+    the shared Product Hunt topic cache (database reads only)."""
+    from pigtail.briefs.discovery import window_bounds
     from pigtail.briefs.outcomes import shortlisted
+    from pigtail.briefs.ph_cache import coverage, scan_rows
     from pigtail.briefs.runner import find_run
+    from pigtail.briefs.selection import launch_source_settings
     from pigtail.briefs.shortlist import Shortlist
 
     _kind, row = find_run(conn, brief)
@@ -215,6 +240,15 @@ def selection_state(conn: Any, brief: Brief) -> SelectionState:
     done = len(fetch.get("launch_lookup_done") or [])
     st = Shortlist(conn, brief).status()
     n = len(shortlisted(conn, brief)) if st is not None and st["status"] == "final" else None
+    now = now or utcnow()
+    _ph, _bsky, topics = launch_source_settings()
+    ph_cache = coverage(conn, topics, window_bounds(brief, now.date()), now=now)
+    plan = fetch.get("ph_cache") or {}
+    ids = [i for t in topics for i in (plan.get(t) or {}).get("scans") or []]
+    topics_done = bool(plan) and all(t in plan for t in topics)
+    topics_done = topics_done and all(
+        r.status in ("complete", "truncated") for r in scan_rows(conn, ids)
+    )
     return SelectionState(
         pending=True,
         shortlisted=n,
@@ -223,9 +257,9 @@ def selection_state(conn: Any, brief: Brief) -> SelectionState:
         releases_done=len(fetch.get("releases_done") or []),
         mentions_done=len(fetch.get("mentions_done") or []),
         ph_done=len(fetch.get("ph_done") or []),
-        ph_topics_done=bool(fetch.get("ph_topics"))
-        and all((v or {}).get("status") != "running" for v in fetch["ph_topics"].values()),
+        ph_topics_done=topics_done,
         bsky_done=len(fetch.get("bsky_done") or []),
+        ph_cache=ph_cache,
     )
 
 
@@ -513,6 +547,44 @@ def expansion_status(brief: Brief) -> dict[str, Any]:
     }
 
 
+def ph_topic_scan_pages(
+    brief: Brief,
+    topics: int,
+    cache: Mapping[str, Mapping[str, Any]] | None,
+    *,
+    done: bool = False,
+) -> tuple[int, str | None]:
+    """(topic-scan pages left, the "cached listing reused for N of M days" line) for the
+    selection's Product Hunt step (ADR-085 addendum 4). With the shared cache's coverage
+    (`SelectionState.ph_cache`), only its gaps count: pages per day of gap from the cache's own
+    density when it has a complete scan, else the planning default, at most `PH_TOPIC_MAX_PAGES`
+    per gap, minus the pages unfinished scans of that gap already read. Without it (no database
+    at hand), the whole window, as for a first run."""
+    from pigtail.briefs.launch_sources import PH_TOPIC_MAX_PAGES
+
+    default = PH_TOPIC_POSTS_PER_MONTH / 20 / DAYS_PER_MONTH  # pages per day
+    if cache:
+        pages = 0
+        for c in cache.values():
+            density = c.get("pages_per_day") or default
+            done_pages = c.get("gap_pages_done") or []
+            for d, got in zip(c.get("gaps_days") or [], done_pages, strict=False):
+                pages += max(0, min(PH_TOPIC_MAX_PAGES, math.ceil(d * density)) - int(got or 0))
+        per = {t: (int(c["reused_days"]), round(c["window_days"])) for t, c in cache.items()}
+        if len(set(per.values())) == 1:
+            n, m = next(iter(per.values()))
+            note = f"Product Hunt: cached listing reused for {n} of {m} days"
+        else:
+            note = "Product Hunt: cached listing reused for " + ", ".join(
+                f"{n} of {m} days ({t})" for t, (n, m) in sorted(per.items())
+            )
+        return (0 if done else pages), note
+    days = brief.window.months * DAYS_PER_MONTH
+    pages = topics * min(PH_TOPIC_MAX_PAGES, math.ceil(days * default))
+    note = f"Product Hunt: cached listing reused for 0 of {round(days)} days"
+    return (0 if done else pages), note
+
+
 def estimate(
     brief: Brief,
     *,
@@ -596,12 +668,12 @@ def estimate(
         ph_topics = len(flags[2]) if ph_topics is None else ph_topics
     ph_on, bsky_on = launch_sources
     ph_requests = ph_checks = bsky_requests = bsky_core = bsky_graphql = ph_topic_pages = 0
+    ph_note: str | None = None
     if sel.pending and ph_on:
         left = max(0, sel_n - sel.ph_done)
-        if not sel.ph_topics_done:
-            ph_topic_pages = ph_topics * math.ceil(
-                brief.window.months * PH_TOPIC_POSTS_PER_MONTH / 20
-            )
+        ph_topic_pages, ph_note = ph_topic_scan_pages(
+            brief, ph_topics, sel.ph_cache, done=sel.ph_topics_done or left == 0
+        )
         ph_requests = (
             PH_SLUG_REQUESTS_PER_REPO * left + math.ceil(left * PH_REFETCH_SHARE) + ph_topic_pages
         )
@@ -740,6 +812,10 @@ def estimate(
             "launch_sources": {"product_hunt": ph_on, "bluesky": bsky_on},
             "producthunt_requests": ph_requests,
             "producthunt_topic_pages": ph_topic_pages,
+            "producthunt_hours": round(ph_requests / PH_REQUESTS_PER_HOUR, 2),
+            "producthunt_requests_per_hour": PH_REQUESTS_PER_HOUR,
+            "ph_cache_note": ph_note,
+            "ph_cache": sel.ph_cache,
             "ph_match_checks": ph_checks,
             "ph_match_usd": next(
                 (None if s.usd is None else round(s.usd, 4) for s in stages if s.stage == PH_CHECK),
@@ -830,6 +906,15 @@ def render_text(e: Estimate, brief: Brief) -> str:
         f"  about {e.github_hours:.1f} h at the default 70 % caps",
         "Other free sources:",
         *(f"  {k:<16} {v:>5,} requests" for k, v in e.other_requests.items()),
+        *(
+            [
+                f"  {e.selection['ph_cache_note']}; Product Hunt about "
+                f"{e.selection.get('producthunt_hours', 0):.1f} h at the measured "
+                f"~{PH_REQUESTS_PER_HOUR} requests an hour"
+            ]
+            if e.selection and e.selection.get("ph_cache_note")
+            else []
+        ),
         f"Candidates ~{e.candidates:,}, shortlisted ~{e.shortlisted:,}, cases {e.cases}"
         + (f" (incl. {e.exemplar_cases} distribution-exemplar cases)" if e.exemplar_cases else ""),
         "",
@@ -953,7 +1038,10 @@ def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any
                 "launch_sources": "view B's Product Hunt and Bluesky steps (ADR-085): "
                 f"~{e.other_requests.get('producthunt', 0):,} Product Hunt requests (up to "
                 f"{PH_SLUG_REQUESTS_PER_REPO} slug lookups per repo, "
-                f"~{e.selection.get('producthunt_topic_pages', 0):,} topic-scan pages), "
+                f"~{e.selection.get('producthunt_topic_pages', 0):,} topic-scan pages; about "
+                f"{e.selection.get('producthunt_hours', 0):.1f} h at the measured "
+                f"~{PH_REQUESTS_PER_HOUR} requests an hour; "
+                f"{e.selection.get('ph_cache_note') or 'no Product Hunt step'}), "
                 f"~{pc.llm_calls:,} Haiku checks of name-only matches; "
                 f"~{e.other_requests.get('bluesky', 0):,} Bluesky searches for repos with a "
                 "declared maintainer account, "

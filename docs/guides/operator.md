@@ -398,8 +398,7 @@ LLM cache need no approval.
   sources). Right after the HN lookup. The API has no text or URL search, so each shortlisted
   repo is looked up by at most 2 slugs made from its GitHub name (lowercased, `_` and `.` as
   `-`; then without hyphens), and every post of the topics `open-source` and
-  `developer-tools` inside the window is read once per brief (20 per page; a 12-month window
-  is a few hundred pages) and matched by name. A post counts only when its name is the repo's
+  `developer-tools` inside the window is listed (20 per page) and matched by name. A post counts only when its name is the repo's
   name (case, spaces and punctuation ignored) and it is **confirmed**: its tagline or
   description links the repo's GitHub URL or names its homepage domain, or shares two
   distinctive words with the repo description, or, failing those, a Haiku check says it is the
@@ -413,6 +412,22 @@ LLM cache need no approval.
   view-B anchor (else `unknown`, `no_ph_post_in_launch_window`). Checkpointed per topic page and per repo; the connector reads Product
   Hunt's rate-limit headers and waits for the window to reset before the budget runs out.
   **Without `PH_API_TOKEN` the selection is refused with exit 8** (when Product Hunt applies).
+  - **The topic listing is shared and reused (since `selection-v10`, ADR-085 addendum 4).**
+    Product Hunt lets about **230 requests an hour** through (measured 2026-09-27), and
+    listing both topics over an 18-month window takes **about ten hours**. The listing (post
+    id, name, slug and dates; nothing else) is therefore kept once per instance, in the
+    database (`ph_topic_post`, `ph_topic_scan`), and reused: **the first run in an instance
+    does the long scan once; later runs and other briefs within 14 days of it reuse it** and
+    list only the days their window adds (for a window ending today, the rest of today). After
+    14 days a scan is no longer reused and the window is listed again. The scan stores its
+    cursor after every page, so an interrupted run resumes where it stopped (`pigtail run`
+    again). The estimate shows "Product Hunt: cached listing reused for N of M days" and the
+    Product Hunt hours at 230 requests an hour. A page Product Hunt answers with something
+    that can't be parsed fails the topic's scan: the repos not done yet have no view-B anchor
+    for now (counted), and when that is more than 10 % of the shortlist the selection stops
+    with **exit 9** (resumable; run again later). The selection records which listing it used
+    (`product_hunt_listing` in its summary). Cached rows unseen for 90 days are deleted by
+    `pigtail retention purge`.
 - **Bluesky maintainer posts** (ADR-085; unauthenticated public search on `api.bsky.app`,
   `PIGTAIL_BLUESKY_API_BASE` to change it). An account counts as the maintainer's only when the
   maintainer declared it: a `bsky.app/profile/…` link or an `@name.bsky.social` on the repo's
@@ -1151,7 +1166,10 @@ source itself, since pigtail no longer stores who wrote what.
   dashboard). Off without the token. Product Hunt's API terms say it "must not be used for
   commercial purposes" and ask businesses to contact hello@producthunt.com; attribute data to
   Product Hunt (TM-16). Personal, non-commercial use only unless Product Hunt agrees otherwise.
-  Only project-level post fields are asked for; raw answers are dropped after parsing.
+  Only project-level post fields are asked for; raw answers are dropped after parsing. The
+  topic listing (id, name, slug, createdAt, featuredAt per post) is cached per instance and
+  reused for 14 days (ADR-085 addendum 4; 90-day retention); the API lets about 230 requests an
+  hour through (measured 2026-09-27).
 - **Bluesky search** (`bluesky_search`, on by default;
   `PIGTAIL_CONNECTOR_BLUESKY_SEARCH_ENABLED=false` turns it off): `resolveHandle` for a declared
   handle, then `searchPosts` with an author and a url filter only (no `since`/`until`), for

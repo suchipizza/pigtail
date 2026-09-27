@@ -635,7 +635,7 @@ def test_guard_hash_is_in_the_params_and_any_guarded_change_changes_the_params_h
 
 def test_params_define_the_views_the_confirmation_rule_and_the_prompt():
     p = Context.from_brief(B).params()
-    assert p["selection_version"] == "selection-v9" and p["anchor_rule_version"] == "anchor-v8"
+    assert p["selection_version"] == "selection-v10" and p["anchor_rule_version"] == "anchor-v9"
     assert set(p["views"]) == {"follow_through", "launch", "launch_undeclared"}
     a, b = p["views"]["follow_through"], p["views"]["launch"]
     assert a["attention_metric"] == FT_RESID and a["matching"]["calipers"]["lsm_sd"] == 0.5

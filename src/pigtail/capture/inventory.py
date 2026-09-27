@@ -61,6 +61,9 @@ TABLES: tuple[TableSpec, ...] = (
     # M22 selection (0022): outcome sort, winners, matched losers, balance, sensitivity
     TableSpec("brief_selection", "operational", None, "created_at"),
     TableSpec("brief_selection_case", "operational", "repo_full_name", None),
+    # the shared Product Hunt topic-listing cache (0027, ADR-085 addendum 4): products, not repos
+    TableSpec("ph_topic_post", "cache", None, "last_seen_at"),
+    TableSpec("ph_topic_scan", "cache", None, "started_at"),
     # pre-registration records (0023, R8.2): ids, versions and SHA-256 values only
     TableSpec("brief_preregistration", "operational", None, "recorded_at"),
     TableSpec("brief_report_final", "operational", None, "report_final_at"),

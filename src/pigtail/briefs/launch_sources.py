@@ -15,8 +15,19 @@ routes:
   window end, order: NEWEST)` for each topic of the parameters (`PH_TOPICS`: `open-source`,
   `developer-tools`), matched in memory against the shortlist by normalized name
   (`ph_name_key`: casefolded, every character other than a-z and 0-9 removed, so the repo name
-  and its name parts joined give the same key). Checkpointed per topic page (cursor), the
-  matches kept in the checkpoint as post ids only.
+  and its name parts joined give the same key). Since anchor-v9 (ADR-085 addendum 4) the
+  listing is a **shared, instance-level cache** (`pigtail.briefs.ph_cache`, tables
+  `ph_topic_post` and `ph_topic_scan`): only the gaps of the window that no complete scan of
+  the last `PH_TOPIC_CACHE_MAX_AGE_DAYS` (14) days covers are read, every post of every page is
+  cached (id, name, slug, createdAt, featuredAt), the cursor stored after each page
+  (resumable); the brief's name index is then built from the cached rows of the window. The
+  scan rows a run uses are fixed in its checkpoint (`ph_cache`) and recorded in the result
+  (`topic_cache`). A topic hit is read again by `post(id:)` before it is confirmed. A page that
+  can't be parsed fails the topic's scan: every repo not done yet is stored `incomplete`
+  (`topic_scan_failed`: no view-B anchor, counted, retried), and more than
+  `PH_INCOMPLETE_MAX_SHARE` (10 %) of the repos refuses the selection (exit 9, resumable from
+  the stored cursor). A scan cut at `PH_TOPIC_MAX_PAGES` is `truncated`: used by this run (a
+  warning), never reused by another.
 
 A post found either way is kept when its name fills the **product slot** (`ph_name_key(name)`
 equals the repo's)
@@ -69,7 +80,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -93,6 +104,7 @@ PH_SOURCE = "ph_launch"
 PH_SLUG_CANDIDATES = 2
 PH_TOPIC_MAX_PAGES = 1000  # 20 posts per page: 20,000 posts per topic and window
 PH_GROUP = 25  # repos per checkpoint group and per Haiku batch
+PH_INCOMPLETE_MAX_SHARE = 0.10  # as Bluesky's: more incomplete repos refuse the selection
 BSKY_SOURCE = "bsky_maintainer_posts"
 BSKY_KIND = "bluesky_maintainer_post"
 BSKY_ROLE = "maintainer"
@@ -190,8 +202,14 @@ class PHResult:
     looked_up: int = 0
     already_done: int = 0
     requests: int = 0
-    topic_pages: dict[str, int] = field(default_factory=dict)
+    topic_pages: dict[str, int] = field(default_factory=dict)  # pages of this run's scans
     topic_status: dict[str, str] = field(default_factory=dict)
+    topic_requests: int = 0  # topic pages requested by this invocation
+    # the listing snapshot used (ADR-085 addendum 4): per topic and interval, reused or scanned
+    topic_cache: list[dict[str, Any]] = field(default_factory=list)
+    topic_cache_days: dict[str, dict[str, float]] = field(default_factory=dict)
+    incomplete: int = 0
+    incomplete_reasons: dict[str, int] = field(default_factory=dict)
     posts: int = 0
     by_route: dict[str, int] = field(default_factory=dict)
     not_product_slot: int = 0
@@ -224,11 +242,22 @@ def run_product_hunt(
     recorder: Any = None,
     confirmer: Confirmer | None = None,
     group_size: int = PH_GROUP,
+    clock: Callable[[], datetime] | None = None,
 ) -> PHResult:
     """The Product Hunt step (module docstring). `LaunchSourceUnavailable` without the
     connector or its token; a failed request propagates (resumable); a Haiku batch still running
     raises `BatchPending` (the group's repos are not checkpointed, so a resume redoes them and
     collects the batch)."""
+    from pigtail.briefs.ph_cache import days as ph_days
+    from pigtail.briefs.ph_cache import (
+        end_scan,
+        gaps,
+        save_page,
+        scan_rows,
+        start_scan,
+        usable_scans,
+        window_posts,
+    )
     from pigtail.capture.db import CaptureDB
     from pigtail.connectors.producthunt import (
         parse_post,
@@ -241,8 +270,9 @@ def run_product_hunt(
     assert brief.version is not None
     if (why := ph_blocked(ph)) is not None:
         raise LaunchSourceUnavailable(why)
+    clock = clock or (lambda: datetime.now(UTC))
     if checkpoint.get("ph_rule") != ANCHOR_RULE_VERSION:  # an older rule's progress
-        for k in ("ph_done", "ph_topics", "ph_topic_hits", "ph_counts"):
+        for k in ("ph_done", "ph_topics", "ph_topic_hits", "ph_counts", "ph_cache"):
             checkpoint.pop(k, None)
         checkpoint["ph_rule"] = ANCHOR_RULE_VERSION
     start, end = window
@@ -257,7 +287,6 @@ def run_product_hunt(
     )
     pending = [c for c in todo if c.ref not in done]
     res.already_done = len(todo) - len(pending)
-    texts: dict[str, Any] = {}  # post id -> PHPost, in memory for this invocation only
 
     def fetch_drop(f: Any, parse: Callable[[bytes], Any]) -> Any:
         res.requests += 1
@@ -270,50 +299,107 @@ def run_product_hunt(
         finally:
             drop(db, ph.store, f.evidence.id, f.content_hash, dlog)
 
-    # (b) the topic scan, checkpointed per topic page; the matches kept as post ids only
-    hits: dict[str, list[str]] = checkpoint.setdefault("ph_topic_hits", {})
-    tcp: dict[str, Any] = checkpoint.setdefault("ph_topics", {})
+    # (b) the topic scan (ADR-085 addendum 4): the shared, instance-level listing cache; only
+    # the gaps of the window no fresh complete scan covers are read, every post of every page is
+    # cached, the cursor stored after each page. The plan (the scan rows used per topic) is
+    # fixed in the checkpoint at the run's first invocation, so a resume uses the same snapshot
+    plan: dict[str, dict[str, list[int]]] = checkpoint.setdefault("ph_cache", {})
+    for topic in topics if pending else ():
+        if topic not in plan:
+            use = usable_scans(conn, topic, now=clock())
+            s0 = [u for u in use if u.posted_after <= end and u.posted_before >= start]
+            todo_gaps = gaps(window, [u.covered for u in s0])
+            new_scans = [start_scan(conn, topic, g, now=clock()) for g in todo_gaps]
+            plan[topic] = {"reused": [u.id for u in s0], "scans": [x.id for x in new_scans]}
+            save(checkpoint)
+        for scan in scan_rows(conn, plan[topic]["scans"]):
+            if scan.status == "failed":  # a failed page is tried again from its cursor
+                scan = end_scan(conn, scan, "running", now=clock())
+            while scan.status == "running":
+                if scan.pages >= PH_TOPIC_MAX_PAGES:
+                    scan = end_scan(conn, scan, "truncated", now=clock())
+                    break
+                f = ph.topic_page(
+                    topic,
+                    posted_after=scan.posted_after,
+                    posted_before=scan.posted_before,
+                    after=scan.cursor,
+                    evidence_url=ph_evidence_url(f"topic:{topic}", page=scan.pages),
+                )
+                res.topic_requests += 1
+                got = fetch_drop(f, parse_posts_page)
+                if got is None:
+                    scan = end_scan(conn, scan, "failed", now=clock())
+                    break
+                posts, more, cursor = got
+                last = not more or not cursor
+                scan = save_page(
+                    conn, scan, posts, cursor=cursor,
+                    status="complete" if last else "running", now=clock(),
+                )  # fmt: skip
+    # the brief's name index, from the cache: the posts of the window the plan's rows saw
     index: dict[str, list[str]] = {}
     for c in todo:
         index.setdefault(ph_repo_key(str(c.repo_full_name)), []).append(c.ref)
-    for topic in topics if pending else ():
-        st = tcp.setdefault(topic, {"cursor": None, "pages": 0, "status": "running"})
-        while st["status"] == "running":
-            if st["pages"] >= PH_TOPIC_MAX_PAGES:
-                st["status"] = "truncated"
-                break
-            f = ph.topic_page(
-                topic,
-                posted_after=start,
-                posted_before=end,
-                after=st["cursor"],
-                evidence_url=ph_evidence_url(f"topic:{topic}", page=st["pages"]),
-            )
-            got = fetch_drop(f, parse_posts_page)
-            if got is None:
-                st["status"] = "failed:parse"
-                break
-            posts, more, cursor = got
-            for p in posts:
-                for ref in index.get(ph_name_key(p.name), []):
-                    lst = hits.setdefault(ref, [])
-                    if p.id not in lst:
-                        lst.append(p.id)
-                    texts[p.id] = p
-            st["pages"] += 1
-            st["cursor"] = cursor
-            if not more or not cursor:
-                st["status"] = "complete"
-            save(checkpoint)
+    hits: dict[str, list[str]] = {}
+    failed_topics: list[str] = []
+    for topic in topics:
+        if topic not in plan:
+            continue
+        reused = scan_rows(conn, plan[topic]["reused"])
+        scanned = scan_rows(conn, plan[topic]["scans"])
+        res.topic_cache += [u.to_dict(reused=True) for u in reused]
+        res.topic_cache += [u.to_dict(reused=False) for u in scanned]
+        statuses = {u.status for u in scanned}
+        status = (
+            "failed:parse" if statuses & {"failed", "running"}
+            else "truncated" if "truncated" in statuses else "complete"
+        )  # fmt: skip
+        res.topic_status[topic] = status
+        res.topic_pages[topic] = sum(u.pages for u in scanned)
+        total = ph_days(start, end)
+        left = sum(ph_days(a, b) for a, b in gaps(window, [u.covered for u in reused]))
+        res.topic_cache_days[topic] = {
+            "window_days": round(total, 2),
+            "reused_days": round(total - left, 2),
+        }
+        if status != "complete" and status != "truncated":
+            failed_topics.append(topic)
+            continue
+        for pid, key in window_posts(conn, topic, window, [*reused, *scanned]):
+            for ref in index.get(key, []):
+                lst = hits.setdefault(ref, [])
+                if pid not in lst:
+                    lst.append(pid)
+    # a topic that could not be read completely leaves Product Hunt incomplete for every repo
+    # not done yet (ADR-085 item 8's rule, applied to Product Hunt; verifier round 7): stored
+    # `incomplete`, no view-B anchor, not checkpointed, retried by the next run
+    if failed_topics and pending:
+        why = "topic_scan_failed"
+        for c in pending:
+            store.replace_signals(
+                c.ref, PH_SOURCE,
+                [{"source": PH_SOURCE, "rule": ANCHOR_RULE_VERSION, "status": "incomplete",
+                  "reason": why, "posts": []}],
+            )  # fmt: skip
+        res.incomplete = len(pending)
+        res.incomplete_reasons = {why: len(pending)}
         save(checkpoint)
-    res.topic_pages = {t: int(v.get("pages") or 0) for t, v in sorted(tcp.items())}
-    res.topic_status = {t: str(v.get("status")) for t, v in sorted(tcp.items())}
+        if len(pending) > PH_INCOMPLETE_MAX_SHARE * len(todo):
+            raise LaunchSourceIncomplete(
+                f"Product Hunt: the topic scan of {', '.join(failed_topics)} could not be read "
+                f"completely, so {len(pending)} of {len(todo)} shortlisted repos have incomplete "
+                f"Product Hunt data (more than {PH_INCOMPLETE_MAX_SHARE:.0%}): the selection is "
+                "refused so view B's anchors don't change silently. Run again later: the scan "
+                "resumes from its stored cursor (ADR-085 addendum 4)"
+            )
+        pending = []
 
     def finish(c: Candidate, recs: dict[str, dict[str, Any]]) -> None:
         store.replace_signals(
             c.ref,
             PH_SOURCE,
-            [{"source": PH_SOURCE, "rule": ANCHOR_RULE_VERSION,
+            [{"source": PH_SOURCE, "rule": ANCHOR_RULE_VERSION, "status": "complete",
               "posts": [recs[k] for k in sorted(recs)]}],
         )  # fmt: skip
         for rec in recs.values():
@@ -346,12 +432,9 @@ def run_product_hunt(
                 if pid in found:
                     found[pid][1].add("topic")
                     continue
-                p = texts.get(pid)
-                if p is None:  # found by an earlier invocation's scan: read it again
-                    f = ph.post_by_id(
-                        pid, evidence_url=ph_evidence_url(f"repo:{full}", route="topic")
-                    )
-                    p = fetch_drop(f, parse_post)
+                # a topic hit (the cache holds no tagline, description or counts): read fresh
+                f = ph.post_by_id(pid, evidence_url=ph_evidence_url(f"repo:{full}", route="topic"))
+                p = fetch_drop(f, parse_post)
                 if p is not None:
                     found[p.id] = (p, {"topic"})
             recs: dict[str, dict[str, Any]] = {}
@@ -798,8 +881,9 @@ def launch_source_params(
     *, product_hunt: bool, bluesky: bool, ph_topics: Sequence[str]
 ) -> dict[str, Any]:
     """View B's launch sources as they go into `Context.params()` (ADR-085)."""
+    from pigtail.briefs.ph_cache import cache_params
     from pigtail.connectors.bluesky import BSKY_QUERY, RESOLVE_PATH, SEARCH_PATH
-    from pigtail.connectors.producthunt import POST_FIELDS
+    from pigtail.connectors.producthunt import POST_FIELDS, TOPIC_FIELDS
 
     return {
         "product_hunt": {
@@ -812,9 +896,20 @@ def launch_source_params(
             "slug_rule": "at most 2 slug candidates: the GitHub name lowercased with _ and . "
             "turned into -, then the same without hyphens when that differs; post(slug: ...)",
             "topics": list(ph_topics),
-            "topic_scan": "posts(topic, postedAfter = window start, postedBefore = window end, "
-            f"order NEWEST), every page (up to {PH_TOPIC_MAX_PAGES} per topic), matched by "
-            "normalized name (casefold, only a-z and 0-9 kept) equal to the repo name",
+            "topic_scan": "posts(topic, postedAfter, postedBefore, order NEWEST) over the gaps of "
+            "the window the shared topic cache doesn't cover (topic_cache), every page (up to "
+            f"{PH_TOPIC_MAX_PAGES} per scanned interval: truncated, a warning, never reused), "
+            f"listing fields {', '.join(TOPIC_FIELDS)} only; the cached posts of the window "
+            "matched by normalized name (casefold, only a-z and 0-9 kept) equal to the repo "
+            "name; a topic hit read again by post(id:)",
+            "topic_cache": cache_params(),
+            "incomplete": "a topic page that can't be parsed fails that topic's scan: every repo "
+            "not done yet is stored incomplete (topic_scan_failed), has no view-B anchor "
+            "(launch_source_incomplete:product_hunt, counted) and is retried by the next run "
+            "(the scan resumes from its stored cursor)",
+            "incomplete_max_share": PH_INCOMPLETE_MAX_SHARE,
+            "incomplete_refusal": "more than 10 % of the shortlisted repos incomplete: the "
+            "selection is refused (exit 9, resumable)",
             "product_slot": "the post's normalized name equals the repo's normalized GitHub name",
             "event_time": "featuredAt when set, else createdAt; a launch event inside the "
             "brief's window; a confirmed post before it is a launch before the window (posts "

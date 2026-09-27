@@ -16,7 +16,7 @@ from psycopg import sql
 from pigtail.capture.snapshots import LocalSnapshotStore
 from pigtail.llm.store import LLMStore
 from pigtail.privacy import requests
-from pigtail.privacy.deletion import REPO_TABLES, DeletionLog, RepoTable
+from pigtail.privacy.deletion import NOT_REPO_KEYED, REPO_TABLES, DeletionLog, RepoTable
 from tests.integration.test_privacy_ops import put_ev
 
 pytestmark = pytest.mark.db
@@ -48,7 +48,10 @@ def test_cb13c_every_repo_keyed_column_is_registered(capture_db):
     """Schema introspection: every repo key column of every table is in `REPO_TABLES`."""
     found = repo_key_columns(capture_db)
     registered = {(t.table, t.column) for t in REPO_TABLES}
-    missing = found - registered
+    # columns named like a repo key that key something else, each with its documented decision
+    # (ADR-085 addendum 4: the Product Hunt listing cache's product name key)
+    assert not set(NOT_REPO_KEYED) & registered and all(NOT_REPO_KEYED.values())
+    missing = found - registered - set(NOT_REPO_KEYED)
     assert not missing, (
         f"repo-keyed columns not registered in REPO_TABLES (pigtail.privacy.deletion): "
         f"{sorted(missing)}; decide delete / clear / evidence / final for each (CB-13c)"

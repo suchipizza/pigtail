@@ -100,7 +100,7 @@ def test_selection_runs_after_finalize_on_the_same_run_and_stores_provenance(w, 
     assert sel["brief_hash"] == example().content_hash()
     assert sel["data_version"].startswith("dv1-") and sel["as_of"] == date(2026, 9, 25)
     assert sel["data_version"].endswith("@2026-09-25")  # as_of folded in (R4.8)
-    assert sel["selection_version"] == "selection-v9" and sel["outcome_model_version"] == "2.1"
+    assert sel["selection_version"] == "selection-v10" and sel["outcome_model_version"] == "2.1"
     assert sel["params_version"] == "1.1.0"
     assert sel["code_commit"] is None or re.fullmatch(r"[0-9a-f]{7,40}", sel["code_commit"])
     assert re.fullmatch(r"[0-9a-f]{64}", sel["result_hash"])

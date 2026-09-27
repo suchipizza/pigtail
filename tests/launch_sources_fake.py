@@ -56,7 +56,10 @@ def _dt(s: str | None) -> datetime | None:
 class FakeProductHunt:
     """`POST https://api.producthunt.com/v2/api/graphql`: `post(slug|id)` and `posts(topic, …)`.
     Answers only the fields the query names (like GraphQL). Rate-limit headers from
-    `limit` / `remaining` / `reset`; `script` holds canned responses served first."""
+    `limit` / `remaining` / `reset`; `script` holds canned responses served first. Topic-page
+    requests are counted (`topic_requests`, their variables, ADR-085 addendum 4); the topic
+    requests whose ordinal (0-based, over every topic request) is in `fail_topic_at` answer 503,
+    in `garble_topic_at` an unparseable 200."""
 
     FIELDS = re.compile(r"\{\s*([a-zA-Z ]+)\s*\}")
 
@@ -68,6 +71,13 @@ class FakeProductHunt:
         self.reset = 900
         self.script: list[Any] = []
         self.page_size = 20
+        self.fail_topic_at: set[int] = set()
+        self.garble_topic_at: set[int] = set()
+
+    @property
+    def topic_requests(self) -> list[dict[str, Any]]:
+        """The variables of every topic-page request, in order."""
+        return [r.get("variables") or {} for r in self.requests if "posts(" in r["query"]]
 
     def client(self) -> httpx.Client:
         return httpx.Client(transport=httpx.MockTransport(self))
@@ -97,6 +107,11 @@ class FakeProductHunt:
         q, v = body["query"], body.get("variables") or {}
         fields = self.FIELDS.findall(q)[-1].split()
         if "posts(" in q:
+            n = len(self.topic_requests) - 1
+            if n in self.fail_topic_at:
+                return httpx.Response(503, json={"error": "unavailable"}, headers=self._headers())
+            if n in self.garble_topic_at:
+                return httpx.Response(200, content=b"<html>not json", headers=self._headers())
             lo, hi = _dt(v.get("postedAfter")), _dt(v.get("postedBefore"))
             hits = [
                 p

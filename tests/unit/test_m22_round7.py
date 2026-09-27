@@ -23,6 +23,7 @@ import httpx
 import pytest
 
 from pigtail.briefs import confirm as conf
+from pigtail.briefs import estimate as est
 from pigtail.briefs import launch_sources as ls
 from pigtail.briefs import outcomes as out
 from pigtail.briefs import selection as selmod
@@ -70,6 +71,8 @@ from pigtail.connectors.github import parse_org_profile, parse_social_accounts
 from pigtail.connectors.producthunt import (
     POST_FIELDS,
     QUERIES,
+    TOPIC_FIELDS,
+    TOPIC_QUERY,
     ProductHuntConnector,
     ProductHuntRateLimited,
     parse_post,
@@ -104,9 +107,11 @@ def test_ph_queries_request_no_person_fields():
     for q in QUERIES:
         tokens = set(re.findall(r"[A-Za-z_]+", q))
         assert not tokens & PERSON_FIELDS, (q, tokens & PERSON_FIELDS)
-        # every field requested on a post is one of the project-level fields
+        # every field requested on a post is one of the project-level fields; the topic
+        # listing asks only for what the shared topic cache stores (ADR-085 addendum 4)
         inner = re.findall(r"\{\s*([a-zA-Z ]+)\s*\}", q)[-1].split()
-        assert set(inner) == set(POST_FIELDS)
+        want = TOPIC_FIELDS if q == TOPIC_QUERY else POST_FIELDS
+        assert set(inner) == set(want) and set(want) <= set(POST_FIELDS)
     assert "url" not in POST_FIELDS and "website" not in POST_FIELDS and "topics" not in POST_FIELDS
 
 
@@ -322,10 +327,13 @@ def test_sort_at_is_the_earlier_of_created_and_indexed_and_links_are_checked():
 
 
 # --- view B: five launch-event kinds ----------------------------------------------------------
-def ph_sig(*posts: tuple[str, datetime | None, datetime, bool], votes: int = 5) -> dict[str, Any]:
+def ph_sig(
+    *posts: tuple[str, datetime | None, datetime, bool], votes: int = 5, status: str = "complete"
+) -> dict[str, Any]:
     return {
         "source": "ph_launch",
         "rule": ANCHOR_RULE_VERSION,
+        "status": status,
         "posts": [
             {"ph_post_id": pid, "created_at": created.isoformat(),
              "featured_at": None if feat is None else feat.isoformat(), "votes": votes,
@@ -472,12 +480,12 @@ def test_ph_votes_and_comments_are_reported_never_ranked():
 
 # --- versions, parameters, guard, determinism, estimate ----------------------------------------
 def test_versions_and_the_launch_source_flags_in_the_params(launch_sources_on, monkeypatch):
-    assert SELECTION_VERSION == "selection-v9" and ANCHOR_RULE_VERSION == "anchor-v8"
+    assert SELECTION_VERSION == "selection-v10" and ANCHOR_RULE_VERSION == "anchor-v9"
     c = Context.from_brief(B)
     assert c.product_hunt and c.bluesky and c.ph_topics == ("open-source", "developer-tools")
     assert c.required_launch_sources == ("product_hunt", "bluesky")
     p = c.params()
-    assert p["selection_version"] == "selection-v9" and p["anchor_rule_version"] == "anchor-v8"
+    assert p["selection_version"] == "selection-v10" and p["anchor_rule_version"] == "anchor-v9"
     lsp = p["launch_sources"]
     assert lsp["product_hunt"]["applies"] is True and lsp["bluesky"]["applies"] is True
     assert lsp["product_hunt"]["topics"] == ["open-source", "developer-tools"]
@@ -550,7 +558,12 @@ def test_recompute_is_deterministic_with_the_new_kinds():
 def test_estimate_counts_product_hunt_and_bluesky(launch_sources_on):
     e = estimate(B, selection=SelectionState(pending=True, shortlisted=114))
     s = e.selection
-    pages = 2 * math.ceil(B.window.months * 300 / 20)
+    # no cache known (no database): the whole window, at the planning density, capped per topic
+    # (ADR-085 addendum 4)
+    per_day = est.PH_TOPIC_POSTS_PER_MONTH / 20 / est.DAYS_PER_MONTH
+    pages = 2 * min(
+        ls.PH_TOPIC_MAX_PAGES, math.ceil(B.window.months * est.DAYS_PER_MONTH * per_day)
+    )
     assert s["producthunt_topic_pages"] == pages
     assert s["producthunt_requests"] == 2 * 114 + math.ceil(114 * 0.05) + pages
     assert e.other_requests["producthunt"] == s["producthunt_requests"]

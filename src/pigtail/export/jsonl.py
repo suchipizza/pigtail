@@ -71,6 +71,10 @@ TABLE_LEVELS: dict[str, Level] = {
     # and statistics; repo names only in the case rows)
     "brief_selection": "project",
     "brief_selection_case": "project",
+    # the shared Product Hunt topic-listing cache (0027, ADR-085 addendum 4): a product's id,
+    # name, slug and dates per topic, and the scanned intervals; no tagline, count or person
+    "ph_topic_post": "project",
+    "ph_topic_scan": "project",
     # pre-registration records (0023, R8.2): brief id, version, SHA-256 values, file path, commit
     "brief_preregistration": "project",
     "brief_report_final": "project",  # R19.9 anchor (0018): ids, versions, timestamps

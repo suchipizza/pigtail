@@ -127,7 +127,10 @@ from pigtail.briefs.model import DIMENSIONS, RANKABLE, THRESHOLD_PERCENTILE, Bri
 # v9: Bluesky posts need launch wording, the README declares only one account, a declared launch
 #     before the window leaves no view-B anchor, PH votes/comments from days 0-2 only; anchor-v8
 #     (ADR-085 addendum 3)
-SELECTION_VERSION = "selection-v9"
+# v10: the Product Hunt topic scan reads a shared, instance-level listing cache (only the gaps no
+#      complete scan of the last 14 days covers are scanned) and a failed topic scan leaves
+#      Product Hunt incomplete; anchor-v9 (ADR-085 addendum 4)
+SELECTION_VERSION = "selection-v10"
 # view A's metric: follow-through relative to launch size (ADR-083)
 FOLLOW_THROUGH_METRIC_VERSION = "follow-through-v1"
 OUTCOME_MODEL_VERSION = "2.1"
@@ -161,8 +164,9 @@ MATCHING_RULE = (
 # passing the gate by itself; the pinned constant makes the developer bump the versions too.
 # v5: view B's launch-event anchor (ADR-084); v6: Product Hunt and Bluesky launch events (ADR-085)
 # v8: the owner decisions after verifier round 7 (ADR-085 addendum 3)
-ANCHOR_RULE_VERSION = "anchor-v8"
-ANCHOR_RULE_SOURCE_SHA256 = "982418244b2b5aedbf8f3ad58f61d2f7c1c3048a95689c0a69442c3efe940202"
+# v9: the shared Product Hunt topic cache and Product Hunt's incomplete state (addendum 4)
+ANCHOR_RULE_VERSION = "anchor-v9"
+ANCHOR_RULE_SOURCE_SHA256 = "9a37a2391debae296ad52e85d58411076e22b170a4791cfd84c070263df1633a"
 ANCHOR_RULE = (
     "outcome-model §2.2 rules 1-6 as read by ADR-077.3; declared launches = Show HN or Launch HN "
     "posts from discovery and the per-repo launch lookup (current rule's records only), merged "

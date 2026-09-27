@@ -13,7 +13,10 @@ requested**; `url`, `website` (a Product Hunt redirect link, not the product's d
 - `post(slug: $slug)` (and `post(id: $id)`, to re-read a post the topic scan found, after a
   resume) for one post;
 - `posts(topic: $topic, postedAfter, postedBefore, order: NEWEST, first: 20, after: $cursor)`
-  for one page of a topic's posts inside the brief's window.
+  for one page of a topic's posts inside an interval of the brief's window. Since ADR-085
+  addendum 4 this listing asks only for `TOPIC_FIELDS` (`id`, `name`, `slug`, `createdAt`,
+  `featuredAt`): what the shared topic cache (`pigtail.briefs.ph_cache`) stores and the name
+  matching needs; a topic hit is read again in full by `post(id:)`.
 
 There is no text or URL search in the API, which is why the matching (slug candidates and a
 topic scan) lives in `pigtail.briefs.launch_sources`.
@@ -26,7 +29,10 @@ re-checked live: no network in this session). The connector reads them after eve
 once the remaining budget falls to `RESERVE_FRACTION` of the limit, sleeps until the reset before
 the next request (or raises `ProductHuntRateLimited` when that is longer than `max_rate_wait`);
 a 429 waits for `Retry-After` or the reset. On top of that a conservative client-side token bucket
-(`rate_per_second` 0.5 with a 50 % margin: one request every 4 s, 900 an hour).
+(`rate_per_second` 0.5 with a 50 % margin: one request every 4 s, 900 an hour). **Measured
+2026-09-27 (live, the owner's developer token): about 230 requests an hour** get through before
+the headers make the connector wait for the reset, so a long topic scan runs at that pace, not at
+the limiter's; the estimate uses the measured figure (`estimate.PH_REQUESTS_PER_HOUR`).
 
 **Off without a token.** `PH_API_TOKEN` unset means the connector is off (`enabled` false), and
 the selection refuses to run when its pre-registered parameters say Product Hunt applies (ADR-085,
@@ -82,13 +88,17 @@ POST_FIELDS = (
     "featuredAt",
 )
 _FIELDS = " ".join(POST_FIELDS)
+# the topic listing asks for less (ADR-085 addendum 4): what the shared topic cache stores and the
+# name matching needs; a topic hit is read again in full by `post(id:)` before it is confirmed
+TOPIC_FIELDS = ("id", "name", "slug", "createdAt", "featuredAt")
+_TOPIC_FIELDS = " ".join(TOPIC_FIELDS)
 SLUG_QUERY = f"query($slug: String!) {{ post(slug: $slug) {{ {_FIELDS} }} }}"
 ID_QUERY = f"query($id: ID!) {{ post(id: $id) {{ {_FIELDS} }} }}"
 TOPIC_QUERY = (
     "query($topic: String!, $postedAfter: DateTime, $postedBefore: DateTime, $first: Int!, "
     "$after: String) { posts(topic: $topic, postedAfter: $postedAfter, postedBefore: "
     "$postedBefore, order: NEWEST, first: $first, after: $after) { pageInfo { hasNextPage "
-    f"endCursor }} edges {{ node {{ {_FIELDS} }} }} }} }}"
+    f"endCursor }} edges {{ node {{ {_TOPIC_FIELDS} }} }} }} }}"
 )
 QUERIES = (SLUG_QUERY, ID_QUERY, TOPIC_QUERY)
 # Evidence URLs name the repo (or topic) and the route only; a repo opt-out finds them by the
