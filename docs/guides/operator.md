@@ -303,12 +303,12 @@ approval those matches are simply excluded, never accepted.
 - **Two headline views and a context view** (ADR-083). The brief's success definition is
   used twice, reading "attention" in two ways; the brief itself is unchanged.
   - **View A, follow-through**: attention = stars on endpoint days 3..29 after the anchor
-    relative to launch size (stars on days 0..1): the residual from a straight line fitted on
+    relative to launch size (stars on days 0..2): the residual from a straight line fitted on
     the log scale over the brief's anchored repos (at least 20, else no percentiles and a
     warning). Losers are matched as below (launch-signal caliper included), so pairs launched
     alike and differ in what followed. Sensitivity adds the log-ratio and plain
     `att.stars@30`.
-  - **View B, launch**: attention = launch size (days 0..1), with HN points next to it
+  - **View B, launch**: attention = launch size (days 0..2), with HN points next to it
     (Reddit reach is `unknown`: no connector). Only **launch-anchored** repos take part (a
     burst anchor is itself a large launch). Losers are matched only on what existed before
     launch: audience bucket and half-year (exact), quarter, repo age and **stars before launch**

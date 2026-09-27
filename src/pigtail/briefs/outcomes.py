@@ -49,13 +49,13 @@ points; no identities):
      first day (§1.2 day mapping), `pending` until `T + k + settle_lag (3 d)` has passed,
      `unknown` when a day is missing, labelled "unfiltered, anomaly-checked";
      `att.hn_points` = the highest points of a declared launch post from `T − 7 d` on (as of
-     fetch). The views' windows (ADR-083): `att.stars_launch@0-2` (endpoint days 0 and 1, the
-     LSM days) and `att.stars_follow@3-30` (days 3..29), with the same pending/unknown rules;
+     fetch). The views' windows (ADR-083): `att.stars_launch@0-2` (endpoint days 0, 1 and 2,
+     the LSM days) and `att.stars_follow@3-30` (days 3..29), with the same pending/unknown rules;
      `att.reddit_reach` is `unknown` (`no_connector`: TM-05 is a GAP, pigtail has no Reddit
      connector). **Every other metric is `unknown` with reason `no_connector`**: registry downloads,
      dependents, PR-based community metrics and the business signals have no connector yet
      (outcome-model §7), and nothing is imputed (R18.8).
-   - **Covariates** (§5.6): LSM from the first 2 endpoint days, launch quarter and half-year of
+   - **Covariates** (§5.6): LSM from endpoint days 0..2 (ADR-083), launch quarter and half-year of
      T (UTC), repo age at T from the creation date, primary language (current, not at T),
      launch type (`show_hn`, `launch_hn` or `burst`), stars before launch (net stars from the
      repo's creation day to the day before the anchor window's first day; `unknown` when the
@@ -1052,7 +1052,7 @@ def star_value(series: Mapping[date, int], first: date, k: int, as_of: date) -> 
 
 def star_window(series: Mapping[date, int], first: date, lo: int, hi: int, as_of: date) -> Value:
     """Raw net stars on the endpoint days with index `lo <= i < hi` from the anchor window's
-    first day (§1.2 day mapping; ADR-083: launch size `[0, 2)`, follow-through `[3, 30)`).
+    first day (§1.2 day mapping; ADR-083: launch size `[0, 3)`, follow-through `[3, 30)`).
     `pending` until `first + hi + settle_lag` (the horizon rule of `att.stars@k`, with k = hi),
     `unknown` without a series or with a missing day; labelled "unfiltered, anomaly-checked"."""
     if as_of < first + timedelta(days=hi + SETTLE_LAG_DAYS):
@@ -1187,7 +1187,7 @@ def load_inputs(
             values[BUSINESS_COUNT] = NO_CONNECTOR
             for k in (30, 90):
                 values[f"att.stars@{k}"] = star_value(series, f, k, as_of)
-            # the views' star windows (ADR-083): launch size (days 0..1, the LSM days) and
+            # the views' star windows (ADR-083): launch size (days 0..2, the LSM days) and
             # follow-through (days 3..29); Reddit reach has no connector (TM-05 is a GAP)
             values[LAUNCH_SIZE] = star_window(series, f, *LAUNCH_DAYS, as_of)
             values[FOLLOW_STARS] = star_window(series, f, *FOLLOW_DAYS, as_of)
@@ -1204,8 +1204,9 @@ def load_inputs(
                 else Value("unknown", reason="no_matched_story_captured")
             )
             lsm = None
-            if f in series and f + DAY in series:
-                lsm = math.log10(1 + max(0, series[f] + series[f + DAY]))
+            launch_days = [f + DAY * i for i in range(*LAUNCH_DAYS)]
+            if all(d in series for d in launch_days):
+                lsm = math.log10(1 + max(0, sum(series[d] for d in launch_days)))
             age = None
             if p["created"] is not None:
                 age = math.log10(max(1, (a.at.astimezone(UTC).date() - p["created"]).days))

@@ -62,8 +62,8 @@ both (selection-version semantics, not a brief change):
 
 | View | Attention means | Population | Winners and losers are paired on |
 |---|---|---|---|
-| **A, follow-through** (headline 1) | stars on endpoint days 3..29 after the anchor relative to launch size: the residual of `ln(1 + stars d3..29)` on `ln(1 + stars d0..1)` (OLS on the brief's anchored cases); sensitivity: the log-ratio and plain `att.stars@30` | every anchored field and reference case | launch size (LSM caliper 0.5 SD), audience bucket and half-year (exact), quarter (±1), repo age and language (distance) |
-| **B, launch** (headline 2) | launch size: stars on endpoint days 0..1; `att.hn_points` (and Reddit reach, `unknown`: no connector) reported next to it | launch-anchored cases only (a burst anchor is defined by launch size) | only what existed before launch: audience bucket and half-year (exact), quarter (±1), repo age and stars before launch (calipers 0.5 SD), language and core/adjacent field (distance). Launch size is **not** a key |
+| **A, follow-through** (headline 1) | stars on endpoint days 3..29 after the anchor relative to launch size: the residual of `ln(1 + stars d3..29)` on `ln(1 + stars d0..2)` (OLS on the brief's anchored cases); sensitivity: the log-ratio and plain `att.stars@30` | every anchored field and reference case | launch size (LSM caliper 0.5 SD), audience bucket and half-year (exact), quarter (±1), repo age and language (distance) |
+| **B, launch** (headline 2) | launch size: stars on endpoint days 0..2; `att.hn_points` (and Reddit reach, `unknown`: no connector) reported next to it | launch-anchored cases only (a burst anchor is defined by launch size) | only what existed before launch: audience bucket and half-year (exact), quarter (±1), repo age and stars before launch (calipers 0.5 SD), language and core/adjacent field (distance). Launch size is **not** a key |
 | **C, context** | per view, winners against the whole loser pool, no matching | as A or B | nothing: labelled "context, not a headline" |
 
 The brief's threshold (for example top quartile), its fallback steps (for example top third),

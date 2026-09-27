@@ -243,13 +243,13 @@ def test_outcome_sort_matching_balance_sensitivity_on_stored_star_history(w, tmp
     stars = c0["values"]["att.stars@30"]
     assert stars["status"] == "observed" and stars["value"] == 2 * 3 + 28 * 1
     assert stars["tag"] == "verified" and stars["reason"] == "unfiltered, anomaly-checked"
-    # the views' windows (ADR-083): days 0..1 and 3..29 (day index 2 in neither)
-    assert c0["values"]["att.stars_launch@0-2"]["value"] == 2 * 3
+    # the views' windows (ADR-083): days 0..2 and 3..29 (contiguous)
+    assert c0["values"]["att.stars_launch@0-2"]["value"] == 2 * 3 + 1
     assert c0["values"]["att.stars_follow@3-30"]["value"] == 27 * 1
     assert c0["values"]["att.stars_follow_resid@3-30"]["status"] == "observed"
     # stars before launch: 2 a day from the creation day (1 Jun 2025) to the day before launch
     assert c0["covariates"]["prelaunch_stars"] == 2 * (date(2025, 10, 1) - date(2025, 5, 31)).days
-    assert c0["covariates"]["lsm"] == pytest.approx(math.log10(1 + 6), abs=1e-6)
+    assert c0["covariates"]["lsm"] == pytest.approx(math.log10(1 + 7), abs=1e-6)
     assert c0["covariates"]["launch_half_year"] == "2025H2"
     assert c0["values"]["att.hn_points"]["value"] == 10
     # outcome sort (median floor, 32 observed values): 16 or so qualify, the top 20 are winners

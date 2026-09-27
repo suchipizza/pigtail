@@ -55,11 +55,11 @@ descriptive context view; the brief's success definition is unchanged, and each 
 
 - **A, follow-through** (`VIEW_FOLLOW_THROUGH`): attention is follow-through relative to launch
   size, the residual of `ln(1 + stars on endpoint days 3..29)` from the closed-form OLS line on
-  `ln(1 + stars on days 0..1)` fitted on the view's population (`follow_through_fit`; no fit,
+  `ln(1 + stars on days 0..2)` fitted on the view's population (`follow_through_fit`; no fit,
   so no percentiles, below `MIN_POPULATION` or with zero variance). Population: every anchored
   field and reference case. Matching as before (LSM caliper 0.5 SD, exact keys, quarter).
   Sensitivity adds the log-ratio and plain `att.stars@30`.
-- **B, launch** (`VIEW_LAUNCH`): attention is launch size (stars on days 0..1). Population:
+- **B, launch** (`VIEW_LAUNCH`): attention is launch size (stars on days 0..2). Population:
   launch-anchored cases only (a burst anchor is defined by star velocity, i.e. by launch size:
   including it would select on the outcome). Matching only on characteristics that existed
   before launch: the exact keys, quarter, repo age and stars before launch (calipers 0.5 SD),
@@ -122,7 +122,7 @@ MATCHING_RULE = (
 # the guarded code changes `selection_params_sha256` and an existing pre-registration stops
 # passing the gate by itself; the pinned constant makes the developer bump the versions too.
 ANCHOR_RULE_VERSION = "anchor-v4"
-ANCHOR_RULE_SOURCE_SHA256 = "5bdc45af493c1f4e0ff788108bf71e334a3ef5b0a8392905da27ea5b5fc27147"
+ANCHOR_RULE_SOURCE_SHA256 = "467117e3178d4b036582617698f9baacd5bc966c6f664d80127e2cce75757a66"
 ANCHOR_RULE = (
     "outcome-model §2.2 rules 1-6 as read by ADR-077.3; declared launches = Show HN or Launch HN "
     "posts from discovery and the per-repo launch lookup (current rule's records only), merged "
@@ -152,13 +152,13 @@ ROUND = 6
 
 # --- metrics of the views (ADR-083; outcome-model §1.2 day mapping) ------------------------------
 # Endpoint-day windows are half-open day-index ranges from the first day of the anchor window
-# (§1.2): "days 0-2" = indices 0 and 1 (the LSM days), "days 3-30" = indices 3..29 (27 days).
-# Day index 2 belongs to neither window.
+# (§1.2): "days 0-2" = indices 0, 1 and 2 (the LSM days, owner decision 2026-09-27: days 0-2
+# inclusive), "days 3-30" = indices 3..29 (27 days, to the end of the 30-day horizon). Contiguous.
 LAUNCH_SIZE = "att.stars_launch@0-2"  # view B's attention metric; view A's regressor
 FOLLOW_STARS = "att.stars_follow@3-30"  # view A's outcome count
 FT_RESID = "att.stars_follow_resid@3-30"  # view A's primary metric (derived, per population)
 FT_LOGRATIO = "att.stars_follow_logratio@3-30"  # view A's sensitivity alternative (derived)
-LAUNCH_DAYS = (0, 2)
+LAUNCH_DAYS = (0, 3)
 FOLLOW_DAYS = (3, 30)
 HN_POINTS = "att.hn_points"
 REDDIT_REACH = "att.reddit_reach"  # no Reddit connector (TM-05 is a GAP): always unknown
@@ -166,8 +166,8 @@ PLAIN_STARS = "att.stars@30"
 FIT_EPS = 1e-12  # Sxx at or below this is zero variance
 FT_ROUND = 9  # derived values are rounded so float noise never splits a percentile tie
 FOLLOW_THROUGH_RULE = (
-    f"{FOLLOW_THROUGH_METRIC_VERSION}: X = ln(1 + max(0, stars on endpoint days 0..1)), "
-    "Y = ln(1 + max(0, stars on endpoint days 3..29)) (day index 2 in neither); both observed "
+    f"{FOLLOW_THROUGH_METRIC_VERSION}: X = ln(1 + max(0, stars on endpoint days 0..2)), "
+    "Y = ln(1 + max(0, stars on endpoint days 3..29)) (contiguous windows); both observed "
     "only after first day + window end + settle_lag (3 d), else pending; a missing day is "
     "unknown. Residual: closed-form OLS Y = a + bX on the view's population cases with both "
     "values observed (b = Sxy/Sxx, a = mean(Y) - b mean(X); sums in candidate_ref order), "
@@ -356,7 +356,7 @@ class Anchor:
 class Covariates:
     """Matching covariates (outcome-model §5.6), measured at or before T except LSM."""
 
-    lsm: float | None = None  # log10(1 + raw stars in the first 2 endpoint days of the window)
+    lsm: float | None = None  # log10(1 + raw stars on endpoint days 0..2 of the window, ADR-083)
     launch_quarter: int | None = None  # year * 4 + quarter index (UTC quarter of T)
     launch_half_year: str | None = None  # e.g. "2025H2"
     age_log10: float | None = None  # log10(days from repo creation to T)
@@ -600,7 +600,7 @@ def follow_through_fit(
     cases: Sequence[CaseInput],
 ) -> tuple[dict[str, dict[str, Value]], dict[str, Any]]:
     """View A's metrics (`FOLLOW_THROUGH_RULE`) for every case in `cases`: the OLS residual
-    (`FT_RESID`) of Y = ln(1 + stars on days 3..29) on X = ln(1 + stars on days 0..1), fitted
+    (`FT_RESID`) of Y = ln(1 + stars on days 3..29) on X = ln(1 + stars on days 0..2), fitted
     on the cases with both values observed, and the log-ratio Y - X (`FT_LOGRATIO`). Closed
     form, sums in `candidate_ref` order (`math.fsum`), so the result is deterministic. No fit
     (every residual unknown, hence no percentiles) below `MIN_POPULATION` fit cases or when
@@ -616,7 +616,7 @@ def follow_through_fit(
     fit: dict[str, Any] = {
         "metric_version": FOLLOW_THROUGH_METRIC_VERSION,
         "n": n,
-        "form": "OLS ln(1+stars d3..29) on ln(1+stars d0..1), closed form",
+        "form": "OLS ln(1+stars d3..29) on ln(1+stars d0..2), closed form",
         "status": "ok",
         "intercept": None,
         "slope": None,
