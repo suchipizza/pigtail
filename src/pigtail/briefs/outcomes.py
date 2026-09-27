@@ -1587,6 +1587,8 @@ ANCHOR_RULE_FUNCTIONS = (
     # the shared Product Hunt topic cache (ADR-085 addendum 4)
     "pigtail.briefs.ph_cache:ScanRow",
     "pigtail.briefs.ph_cache:gaps",
+    "pigtail.briefs.ph_cache:month_intervals",
+    "pigtail.briefs.ph_cache:ph_key_hash",
     "pigtail.briefs.ph_cache:usable_scans",
     "pigtail.briefs.ph_cache:start_scan",
     "pigtail.briefs.ph_cache:save_page",

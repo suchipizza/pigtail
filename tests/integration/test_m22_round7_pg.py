@@ -227,7 +227,8 @@ def test_product_hunt_slug_route_topic_scan_confirmation_and_storage(
     assert all(r["query"] in QUERIES for r in fake.requests)
     # slug lookups: 2 for the names that differ without hyphens, else 1; 2 topic pages
     assert sum(1 for r in fake.requests if "slug" in r["variables"]) == 5
-    assert sum(1 for r in fake.requests if "topic" in r["variables"]) == 2
+    # one topic page per calendar month of the window and topic (ADR-085 addendum 4)
+    assert sum(1 for r in fake.requests if "topic" in r["variables"]) == 2 * 19
     cs = {c.ref: c for c in CandidateStore(capture_db.conn, b.brief_id, 1).all()}
     (sig,) = [s for s in cs[f"gh:{P1}"].sources if s["source"] == PH_SOURCE]
     (rec,) = sig["posts"]

@@ -7,19 +7,27 @@ topic scan (`launch_sources.run_product_hunt`, route (b)) reads every page of
 for the two default topics. The listing is the same for every brief of the instance, so it is
 kept once per instance and reused:
 
-- `ph_topic_post`: one row per (topic, post id) with the project-level fields the matching needs
-  (name, its product-slot key `name_key`, slug, createdAt, featuredAt) and when it was first and
-  last seen. Never a tagline, description, count, maker or user.
+- `ph_topic_post`: one row per (topic, post id) with the minimum the matching needs: the SHA-256
+  of the post's product-slot key (`name_key_sha256` = sha256(`ph_name_key(name)`), lowercase
+  hex), createdAt, featuredAt, and when it was first and last seen. **Nothing readable of the
+  listing's content**: no name, slug, tagline, description, count, maker or user (Product Hunt's
+  site terms bar storing "any significant portion of the Content"; ADR-085 addendum 4). A repo is
+  matched by hashing its own key the same way (`ph_key_hash(ph_repo_key(...))`); the name,
+  tagline and description of a hit come from a fresh `post(id:)` read, in memory only.
 - `ph_topic_scan`: one row per scanned interval of one topic, with its status (`running`,
   `complete`, `truncated`, `failed`), the cursor after the last page read (resumable), the pages
-  read, when it started and finished, and the cache rule (`PH_TOPIC_CACHE_RULE`).
+  read, when it started and finished, and the cache rule (`PH_TOPIC_CACHE_RULE`). Every gap is
+  scanned as **calendar-month intervals** (UTC month boundaries, clipped to the gap;
+  `month_intervals`), each its own row with its own page cap, so a busy topic never truncates the
+  whole window and complete months are reused.
 
 **The gap rule** (`gaps`, `usable_scans`). For a brief's window [s, e] and a topic, an interval
 is covered by a scan row of the current cache rule whose status is `complete` and whose
 `finished_at` is at most `PH_TOPIC_CACHE_MAX_AGE_DAYS` (14) days before now; a scan covers its
 `[posted_after, min(posted_before, started_at)]` (a post created after the scan started can't
-have been listed by it). Only the parts of [s, e] no such row covers are scanned (the "gaps"),
-with postedAfter / postedBefore = the gap. `truncated` and `failed` rows never cover anything.
+have been listed by it). Coverage is the union of such rows. Only the parts of [s, e] no such row
+covers are scanned (the "gaps"), month by month (postedAfter / postedBefore = the gap's part in
+one calendar month). `truncated` and `failed` rows never cover anything.
 
 **The index** (`window_posts`). A brief's name index is built from the cached rows of the topic
 whose `created_at` lies in [s, e] (Product Hunt filters postedAfter / postedBefore on the
@@ -28,16 +36,18 @@ creation date, so this is the scan's own filter) and inside one of the scan rows
 newer scan no longer lists, or one only an expired scan saw, is left out.
 
 What changes between runs is the data fetched, not the rule: the rule (the maximum age, the gap
-rule, the cache rule label) is in the pre-registered parameters (`cache_params`), and the scan
-intervals a selection used (topic, interval, status, pages, finished_at) are recorded in the
-fetch result and the selection's summary, so a report can say which listing snapshot it used.
+rule, the month split, the cache rule label) is in the pre-registered parameters
+(`cache_params`), and the scan intervals a selection used (topic, interval, status, pages,
+finished_at) are recorded in the fetch result and the selection's summary, so a report can say
+which listing snapshot it used.
 """
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import psycopg
@@ -46,16 +56,19 @@ PH_TOPIC_CACHE_RULE = "ph-topic-cache-v1"
 PH_TOPIC_CACHE_MAX_AGE_DAYS = 14  # a complete scan is reused for 14 days after it finished
 PH_TOPIC_CACHE_RETENTION_DAYS = 90  # cached rows not seen (scans not started) for 90 days go
 GAP_RULE = (
-    "for the window [s, e] and each topic: the parts of [s, e] not covered by a scan row of this "
-    "cache rule whose status is complete and whose finished_at is at most max_age_days old; a "
-    "scan covers [posted_after, min(posted_before, started_at)]; truncated and failed scans "
-    "never cover; only those gaps are scanned (postedAfter/postedBefore = the gap), every post "
-    "of every page stored, the cursor stored after each page (resumable)"
+    "for the window [s, e] and each topic: the parts of [s, e] not covered by the union of the "
+    "scan rows of this cache rule whose status is complete and whose finished_at is at most "
+    "max_age_days old; a scan covers [posted_after, min(posted_before, started_at)]; truncated "
+    "and failed scans never cover; each gap is scanned as calendar-month intervals (UTC month "
+    "boundaries, clipped to the gap), one scan row each with its own page cap "
+    "(postedAfter/postedBefore = the interval), every post of every page stored, the cursor "
+    "stored after each page (resumable)"
 )
 INDEX_RULE = (
     "the cached posts of the topic whose created_at is in [s, e] and inside a scan row the run "
     "used (reused or scanned) with last_seen_at at or after that row's started_at, keyed by "
-    "name_key (the product-slot key); topic hits are then read fresh by post(id:)"
+    "name_key_sha256 (SHA-256 of the product-slot key, lowercase hex), looked up with the same "
+    "hash of each repo's key; topic hits are then read fresh by post(id:)"
 )
 
 Interval = tuple[datetime, datetime]
@@ -102,6 +115,27 @@ def _row(r: Sequence[Any]) -> ScanRow:
     return ScanRow(
         int(r[0]), str(r[1]), r[2], r[3], str(r[4]), r[5], int(r[6]), r[7], r[8], str(r[9])
     )
+
+
+def ph_key_hash(key: str) -> str:
+    """SHA-256 (lowercase hex) of a product-slot key (`launch_sources.ph_name_key` of a post's
+    name, `ph_repo_key` of a repo): the only form in which a listed name is stored."""
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
+def month_intervals(gap: Interval) -> list[Interval]:
+    """`gap` split at UTC calendar-month boundaries (each part clipped to the gap; neighbours
+    share their boundary instant, like the gaps themselves)."""
+
+    a, b = gap
+    out: list[Interval] = []
+    cur = a
+    while cur < b:
+        u = cur.astimezone(UTC)
+        nxt = datetime(u.year + (u.month == 12), u.month % 12 + 1, 1, tzinfo=UTC)
+        out.append((cur, min(nxt, b)))
+        cur = nxt
+    return out
 
 
 def gaps(window: Interval, covered: Iterable[Interval]) -> list[Interval]:
@@ -190,15 +224,14 @@ def save_page(
     from pigtail.briefs.launch_sources import ph_name_key
 
     with conn.transaction():
-        for p in posts:
+        for p in posts:  # the name is hashed here and never stored
             conn.execute(
-                "INSERT INTO ph_topic_post (topic, post_id, name, name_key, slug, created_at,"
-                " featured_at, first_seen_at, last_seen_at) VALUES (%s, %s, %s, %s, %s, %s, %s,"
-                " %s, %s) ON CONFLICT (topic, post_id) DO UPDATE SET name = EXCLUDED.name,"
-                " name_key = EXCLUDED.name_key, slug = EXCLUDED.slug,"
-                " created_at = EXCLUDED.created_at, featured_at = EXCLUDED.featured_at,"
-                " last_seen_at = EXCLUDED.last_seen_at",
-                (scan.topic, p.id, p.name, ph_name_key(p.name), p.slug, p.created_at,
+                "INSERT INTO ph_topic_post (topic, post_id, name_key_sha256, created_at,"
+                " featured_at, first_seen_at, last_seen_at) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+                " ON CONFLICT (topic, post_id) DO UPDATE SET"
+                " name_key_sha256 = EXCLUDED.name_key_sha256, created_at = EXCLUDED.created_at,"
+                " featured_at = EXCLUDED.featured_at, last_seen_at = EXCLUDED.last_seen_at",
+                (scan.topic, p.id, ph_key_hash(ph_name_key(p.name)), p.created_at,
                  p.featured_at, now, now),
             )  # fmt: skip
         r = conn.execute(
@@ -227,11 +260,11 @@ def end_scan(
 def window_posts(
     conn: psycopg.Connection[Any], topic: str, window: Interval, used: Sequence[ScanRow]
 ) -> list[tuple[str, str]]:
-    """(post id, name_key) of the cached posts the brief's index is built from (`INDEX_RULE`),
-    ordered by post id."""
+    """(post id, name_key_sha256) of the cached posts the brief's index is built from
+    (`INDEX_RULE`), ordered by post id."""
     s, e = window
     rows = conn.execute(
-        "SELECT post_id, name_key, created_at, last_seen_at FROM ph_topic_post"
+        "SELECT post_id, name_key_sha256, created_at, last_seen_at FROM ph_topic_post"
         " WHERE topic = %s AND created_at >= %s AND created_at <= %s ORDER BY post_id",
         (topic, s, e),
     ).fetchall()
@@ -254,13 +287,15 @@ def coverage(
     now: datetime,
     max_age_days: int = PH_TOPIC_CACHE_MAX_AGE_DAYS,
 ) -> dict[str, dict[str, Any]]:
-    """Per topic, for the estimate: the window's days, the days a usable scan covers, the gaps
-    (in days), the pages already read by unfinished scans of exactly those gaps, and the cached
-    density (pages per day of the complete scans of this rule, any age; None without one)."""
+    """Per topic, for the estimate: the window's days, the days a usable scan covers, the
+    month intervals of the gaps (in days: what would be scanned, one capped scan each), the pages
+    already read by unfinished scans of exactly those intervals, and the cached density (pages
+    per day of the complete scans of this rule, any age; None without one)."""
     out: dict[str, dict[str, Any]] = {}
     for t in topics:
         use = usable_scans(conn, t, now=now, max_age_days=max_age_days)
         gs = gaps(window, [u.covered for u in use])
+        parts = [m for g in gs for m in month_intervals(g)]
         done = conn.execute(
             "SELECT posted_after, posted_before, started_at, pages FROM ph_topic_scan"
             " WHERE topic = %s AND rule = %s AND status = 'complete'",
@@ -280,8 +315,8 @@ def coverage(
         out[t] = {
             "window_days": total,
             "reused_days": max(0.0, total - sum(days(a, b) for a, b in gs)),
-            "gaps_days": [days(a, b) for a, b in gs],
-            "gap_pages_done": [started.get(g, 0) for g in gs],
+            "gaps_days": [days(a, b) for a, b in parts],
+            "gap_pages_done": [started.get(m, 0) for m in parts],
             "pages_per_day": (pages / span) if span > 0 and pages > 0 else None,
         }
     return out
@@ -295,9 +330,11 @@ def cache_params() -> dict[str, Any]:
         "max_age_days": PH_TOPIC_CACHE_MAX_AGE_DAYS,
         "gap_rule": GAP_RULE,
         "index_rule": INDEX_RULE,
-        "stored": "per topic and post: id, name, name_key, slug, createdAt, featuredAt, first "
-        "and last seen; per scanned interval: topic, postedAfter, postedBefore, status, cursor, "
-        "pages, started and finished at, rule; never a tagline, description, count or person",
+        "stored": "per topic and post: id, name_key_sha256 (SHA-256 of the product-slot key), "
+        "createdAt, featuredAt, first and last seen; per scanned interval: topic, postedAfter, "
+        "postedBefore, status, cursor, pages, started and finished at, rule; nothing readable "
+        "of the listing's content (no name, slug, tagline, description, count or person)",
+        "scan_interval": "one calendar month (UTC), clipped to the gap, each with its own page cap",
         "provenance": "the intervals a selection used (topic, interval, status, pages, "
         "finished_at, reused or scanned) are recorded in the fetch result and the selection "
         "summary (product_hunt_listing)",

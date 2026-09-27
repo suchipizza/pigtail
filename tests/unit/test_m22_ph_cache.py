@@ -19,7 +19,7 @@ from pigtail.briefs import ph_cache
 from pigtail.briefs.estimate import SelectionState, estimate, ph_topic_scan_pages, render_text
 from pigtail.briefs.model import sha256_json
 from pigtail.briefs.outcomes import incomplete_source, view_b_anchor
-from pigtail.briefs.ph_cache import ScanRow, gaps
+from pigtail.briefs.ph_cache import ScanRow, gaps, month_intervals, ph_key_hash
 from pigtail.briefs.selection import ANCHOR_RULE_VERSION, SELECTION_VERSION, Context
 from tests.unit.test_m22_round6 import W0, W1, cand, show_hn
 from tests.unit.test_m22_round7 import d, ph_sig
@@ -41,6 +41,26 @@ def test_gaps_are_the_parts_of_the_window_no_interval_covers():
     assert gaps(w, [(day(0), day(95))]) == [(day(95), day(100))]  # a window shifted by 5 days
     assert gaps(w, [(day(200), day(300))]) == [w]  # outside the window: no cover
     assert gaps(w, [(day(50), day(40))]) == [w]  # an empty interval covers nothing
+
+
+def test_gaps_are_scanned_as_calendar_months_clipped_to_the_gap():
+    a, b = datetime(2025, 1, 20, 6, tzinfo=UTC), datetime(2025, 4, 3, 12, tzinfo=UTC)
+    m = [datetime(2025, k, 1, tzinfo=UTC) for k in (2, 3, 4)]
+    assert month_intervals((a, b)) == [(a, m[0]), (m[0], m[1]), (m[1], m[2]), (m[2], b)]
+    dec = datetime(2025, 12, 31, 23, 59, 59, tzinfo=UTC)
+    jan = datetime(2026, 1, 1, tzinfo=UTC)
+    assert month_intervals((dec, jan + timedelta(days=4))) == [
+        (dec, jan), (jan, jan + timedelta(days=4)),
+    ]  # fmt: skip
+    assert month_intervals((jan, jan)) == []
+    one = (datetime(2025, 5, 1, tzinfo=UTC), datetime(2025, 6, 1, tzinfo=UTC))
+    assert month_intervals(one) == [one]
+
+
+def test_names_are_stored_only_as_the_hash_of_their_slot_key():
+    assert ph_key_hash(ls.ph_name_key("Cache Lint!")) == ph_key_hash(ls.ph_repo_key("o/cache-lint"))
+    h = ph_key_hash("cachelint")
+    assert len(h) == 64 and h == h.lower() and "cachelint" not in h
 
 
 def test_a_scan_covers_its_interval_only_up_to_when_it_started():
@@ -71,7 +91,8 @@ def test_versions_and_the_cache_rule_in_the_params(launch_sources_on):
 
 def test_the_guard_covers_the_cache_rule(monkeypatch):
     names = set(out.ANCHOR_RULE_FUNCTIONS) | set(out.ANCHOR_RULE_CONSTANTS)
-    for n in ("gaps", "usable_scans", "start_scan", "save_page", "end_scan", "window_posts",
+    for n in ("gaps", "month_intervals", "ph_key_hash", "usable_scans", "start_scan",
+              "save_page", "end_scan", "window_posts",
               "ScanRow", "PH_TOPIC_CACHE_RULE", "PH_TOPIC_CACHE_MAX_AGE_DAYS", "GAP_RULE",
               "INDEX_RULE"):  # fmt: skip
         assert f"pigtail.briefs.ph_cache:{n}" in names, n
@@ -81,6 +102,7 @@ def test_the_guard_covers_the_cache_rule(monkeypatch):
     for mod, name, value in (
         (ph_cache, "PH_TOPIC_CACHE_MAX_AGE_DAYS", 30),
         (ph_cache, "gaps", lambda w, c: [w]),
+        (ph_cache, "month_intervals", lambda g: [g]),
         (ls, "PH_INCOMPLETE_MAX_SHARE", 0.5),
     ):
         monkeypatch.setattr(mod, name, value)
@@ -122,11 +144,16 @@ def test_the_estimate_counts_only_the_gaps_at_the_measured_rate(launch_sources_o
     # pages already read by an unfinished scan of that gap are not counted again
     cache["open-source"]["gap_pages_done"] = [4]
     assert ph_topic_scan_pages(B, 2, cache)[0] == 16
-    # a topic without a complete scan uses the planning density, capped per gap
-    cache["developer-tools"] |= {"pages_per_day": None, "gaps_days": [window_days],
+    # a topic without a complete scan uses the planning density, per month interval (each with
+    # its own cap, which a month doesn't reach)
+    months = B.window.months
+    cache["developer-tools"] |= {"pages_per_day": None,
+                                 "gaps_days": [est.DAYS_PER_MONTH] * months,
+                                 "gap_pages_done": [0] * months,
                                  "reused_days": 0.0}  # fmt: skip
     per_day = est.PH_TOPIC_POSTS_PER_MONTH / 20 / est.DAYS_PER_MONTH
-    capped = min(ls.PH_TOPIC_MAX_PAGES, math.ceil(window_days * per_day))
+    capped = months * min(ls.PH_TOPIC_MAX_PAGES, math.ceil(est.DAYS_PER_MONTH * per_day))
+    assert math.ceil(est.DAYS_PER_MONTH * per_day) < ls.PH_TOPIC_MAX_PAGES  # no cap hit
     pages, note = ph_topic_scan_pages(B, 2, cache)
     assert pages == 6 + capped and "(developer-tools)" in note and "(open-source)" in note
     assert ph_topic_scan_pages(B, 2, cache, done=True)[0] == 0

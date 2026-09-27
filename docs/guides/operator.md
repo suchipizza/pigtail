@@ -414,16 +414,19 @@ LLM cache need no approval.
   **Without `PH_API_TOKEN` the selection is refused with exit 8** (when Product Hunt applies).
   - **The topic listing is shared and reused (since `selection-v10`, ADR-085 addendum 4).**
     Product Hunt lets about **230 requests an hour** through (measured 2026-09-27), and
-    listing both topics over an 18-month window takes **about ten hours**. The listing (post
-    id, name, slug and dates; nothing else) is therefore kept once per instance, in the
-    database (`ph_topic_post`, `ph_topic_scan`), and reused: **the first run in an instance
+    listing both topics over an 18-month window takes **about ten hours**. The listing is
+    therefore kept once per instance, in the database (`ph_topic_post`, `ph_topic_scan`), as
+    little as matching needs: post ids, dates and a hash of each normalized name (no names,
+    slugs or descriptions), and reused. It is read one calendar month at a time, each month
+    with its own 1,000-page cap, so no topic is cut short and each complete month is reused: **the first run in an instance
     does the long scan once; later runs and other briefs within 14 days of it reuse it** and
     list only the days their window adds (for a window ending today, the rest of today). After
     14 days a scan is no longer reused and the window is listed again. The scan stores its
     cursor after every page, so an interrupted run resumes where it stopped (`pigtail run`
     again). The estimate shows "Product Hunt: cached listing reused for N of M days" and the
     Product Hunt hours at 230 requests an hour. A page Product Hunt answers with something
-    that can't be parsed fails the topic's scan: the repos not done yet have no view-B anchor
+    that can't be parsed (or a month over 1,000 pages) makes the topic incomplete: the repos not
+    done yet have no view-B anchor
     for now (counted), and when that is more than 10 % of the shortlist the selection stops
     with **exit 9** (resumable; run again later). The selection records which listing it used
     (`product_hunt_listing` in its summary). Cached rows unseen for 90 days are deleted by
@@ -1167,7 +1170,7 @@ source itself, since pigtail no longer stores who wrote what.
   commercial purposes" and ask businesses to contact hello@producthunt.com; attribute data to
   Product Hunt (TM-16). Personal, non-commercial use only unless Product Hunt agrees otherwise.
   Only project-level post fields are asked for; raw answers are dropped after parsing. The
-  topic listing (id, name, slug, createdAt, featuredAt per post) is cached per instance and
+  topic listing (per post: id, dates and a SHA-256 of the normalized name) is cached per instance and
   reused for 14 days (ADR-085 addendum 4; 90-day retention); the API lets about 230 requests an
   hour through (measured 2026-09-27).
 - **Bluesky search** (`bluesky_search`, on by default;

@@ -561,8 +561,8 @@ def test_estimate_counts_product_hunt_and_bluesky(launch_sources_on):
     # no cache known (no database): the whole window, at the planning density, capped per topic
     # (ADR-085 addendum 4)
     per_day = est.PH_TOPIC_POSTS_PER_MONTH / 20 / est.DAYS_PER_MONTH
-    pages = 2 * min(
-        ls.PH_TOPIC_MAX_PAGES, math.ceil(B.window.months * est.DAYS_PER_MONTH * per_day)
+    pages = (
+        2 * B.window.months * min(ls.PH_TOPIC_MAX_PAGES, math.ceil(est.DAYS_PER_MONTH * per_day))
     )
     assert s["producthunt_topic_pages"] == pages
     assert s["producthunt_requests"] == 2 * 114 + math.ceil(114 * 0.05) + pages

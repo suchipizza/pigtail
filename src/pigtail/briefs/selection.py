@@ -166,7 +166,7 @@ MATCHING_RULE = (
 # v8: the owner decisions after verifier round 7 (ADR-085 addendum 3)
 # v9: the shared Product Hunt topic cache and Product Hunt's incomplete state (addendum 4)
 ANCHOR_RULE_VERSION = "anchor-v9"
-ANCHOR_RULE_SOURCE_SHA256 = "9a37a2391debae296ad52e85d58411076e22b170a4791cfd84c070263df1633a"
+ANCHOR_RULE_SOURCE_SHA256 = "07a0c7166628027d5d2ed1509ca52798bf446775ffbc611f0824a6461b948871"
 ANCHOR_RULE = (
     "outcome-model §2.2 rules 1-6 as read by ADR-077.3; declared launches = Show HN or Launch HN "
     "posts from discovery and the per-repo launch lookup (current rule's records only), merged "

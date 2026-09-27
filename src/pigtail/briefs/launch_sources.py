@@ -20,14 +20,16 @@ routes:
   `ph_topic_post` and `ph_topic_scan`): only the gaps of the window that no complete scan of
   the last `PH_TOPIC_CACHE_MAX_AGE_DAYS` (14) days covers are read, every post of every page is
   cached (id, name, slug, createdAt, featuredAt), the cursor stored after each page
-  (resumable); the brief's name index is then built from the cached rows of the window. The
+  (resumable), each gap scanned as calendar-month intervals with their own page cap; only the
+  SHA-256 of a post's product-slot key is stored, never its name; the brief's name index is
+  then built from the cached rows of the window, looked up by the hash of each repo's key. The
   scan rows a run uses are fixed in its checkpoint (`ph_cache`) and recorded in the result
   (`topic_cache`). A topic hit is read again by `post(id:)` before it is confirmed. A page that
   can't be parsed fails the topic's scan: every repo not done yet is stored `incomplete`
   (`topic_scan_failed`: no view-B anchor, counted, retried), and more than
   `PH_INCOMPLETE_MAX_SHARE` (10 %) of the repos refuses the selection (exit 9, resumable from
-  the stored cursor). A scan cut at `PH_TOPIC_MAX_PAGES` is `truncated`: used by this run (a
-  warning), never reused by another.
+  the stored cursor). A month cut at `PH_TOPIC_MAX_PAGES` is `truncated`: never coverage, and it
+  makes the topic incomplete the same way (`topic_scan_truncated`).
 
 A post found either way is kept when its name fills the **product slot** (`ph_name_key(name)`
 equals the repo's)
@@ -252,6 +254,8 @@ def run_product_hunt(
     from pigtail.briefs.ph_cache import (
         end_scan,
         gaps,
+        month_intervals,
+        ph_key_hash,
         save_page,
         scan_rows,
         start_scan,
@@ -300,16 +304,17 @@ def run_product_hunt(
             drop(db, ph.store, f.evidence.id, f.content_hash, dlog)
 
     # (b) the topic scan (ADR-085 addendum 4): the shared, instance-level listing cache; only
-    # the gaps of the window no fresh complete scan covers are read, every post of every page is
-    # cached, the cursor stored after each page. The plan (the scan rows used per topic) is
+    # the gaps of the window no fresh complete scan covers are read, as calendar-month intervals
+    # (one scan row and page cap each), every post of every page cached (its name only as a
+    # hash), the cursor stored after each page. The plan (the scan rows used per topic) is
     # fixed in the checkpoint at the run's first invocation, so a resume uses the same snapshot
     plan: dict[str, dict[str, list[int]]] = checkpoint.setdefault("ph_cache", {})
     for topic in topics if pending else ():
         if topic not in plan:
             use = usable_scans(conn, topic, now=clock())
             s0 = [u for u in use if u.posted_after <= end and u.posted_before >= start]
-            todo_gaps = gaps(window, [u.covered for u in s0])
-            new_scans = [start_scan(conn, topic, g, now=clock()) for g in todo_gaps]
+            parts = [m for g in gaps(window, [u.covered for u in s0]) for m in month_intervals(g)]
+            new_scans = [start_scan(conn, topic, m, now=clock()) for m in parts]
             plan[topic] = {"reused": [u.id for u in s0], "scans": [x.id for x in new_scans]}
             save(checkpoint)
         for scan in scan_rows(conn, plan[topic]["scans"]):
@@ -324,7 +329,12 @@ def run_product_hunt(
                     posted_after=scan.posted_after,
                     posted_before=scan.posted_before,
                     after=scan.cursor,
-                    evidence_url=ph_evidence_url(f"topic:{topic}", page=scan.pages),
+                    evidence_url=ph_evidence_url(
+                        f"topic:{topic}",
+                        after=f"{scan.posted_after.astimezone(UTC):%Y%m%dT%H%M%SZ}",
+                        before=f"{scan.posted_before.astimezone(UTC):%Y%m%dT%H%M%SZ}",
+                        page=scan.pages,
+                    ),
                 )
                 res.topic_requests += 1
                 got = fetch_drop(f, parse_posts_page)
@@ -337,12 +347,14 @@ def run_product_hunt(
                     conn, scan, posts, cursor=cursor,
                     status="complete" if last else "running", now=clock(),
                 )  # fmt: skip
-    # the brief's name index, from the cache: the posts of the window the plan's rows saw
+    # the brief's name index, from the cache: the posts of the window the plan's rows saw, by
+    # the hash of the product-slot key (the cache stores no name)
     index: dict[str, list[str]] = {}
     for c in todo:
-        index.setdefault(ph_repo_key(str(c.repo_full_name)), []).append(c.ref)
+        index.setdefault(ph_key_hash(ph_repo_key(str(c.repo_full_name))), []).append(c.ref)
     hits: dict[str, list[str]] = {}
     failed_topics: list[str] = []
+    why = "topic_scan_truncated"
     for topic in topics:
         if topic not in plan:
             continue
@@ -363,19 +375,21 @@ def run_product_hunt(
             "window_days": round(total, 2),
             "reused_days": round(total - left, 2),
         }
-        if status != "complete" and status != "truncated":
+        if status != "complete":  # a failed or truncated month: the topic can't be complete
             failed_topics.append(topic)
+            if status != "truncated":
+                why = "topic_scan_failed"
             continue
         for pid, key in window_posts(conn, topic, window, [*reused, *scanned]):
             for ref in index.get(key, []):
                 lst = hits.setdefault(ref, [])
                 if pid not in lst:
                     lst.append(pid)
-    # a topic that could not be read completely leaves Product Hunt incomplete for every repo
-    # not done yet (ADR-085 item 8's rule, applied to Product Hunt; verifier round 7): stored
-    # `incomplete`, no view-B anchor, not checkpointed, retried by the next run
+    # a topic that could not be read completely (a month failed, or hit the page cap) leaves
+    # Product Hunt incomplete for every repo not done yet (ADR-085 item 8's rule, applied to
+    # Product Hunt; verifier round 7): stored `incomplete`, no view-B anchor, not checkpointed,
+    # retried by the next run
     if failed_topics and pending:
-        why = "topic_scan_failed"
         for c in pending:
             store.replace_signals(
                 c.ref, PH_SOURCE,
@@ -898,13 +912,15 @@ def launch_source_params(
             "topics": list(ph_topics),
             "topic_scan": "posts(topic, postedAfter, postedBefore, order NEWEST) over the gaps of "
             "the window the shared topic cache doesn't cover (topic_cache), every page (up to "
-            f"{PH_TOPIC_MAX_PAGES} per scanned interval: truncated, a warning, never reused), "
-            f"listing fields {', '.join(TOPIC_FIELDS)} only; the cached posts of the window "
-            "matched by normalized name (casefold, only a-z and 0-9 kept) equal to the repo "
-            "name; a topic hit read again by post(id:)",
+            f"{PH_TOPIC_MAX_PAGES} per calendar-month interval: a truncated month is never "
+            f"reused and makes the topic incomplete), listing fields {', '.join(TOPIC_FIELDS)} "
+            "only; the cached posts of the window matched by the SHA-256 of the normalized "
+            "name (casefold, only a-z and 0-9 kept) equal to that of the repo name; a topic hit "
+            "read again by post(id:)",
             "topic_cache": cache_params(),
-            "incomplete": "a topic page that can't be parsed fails that topic's scan: every repo "
-            "not done yet is stored incomplete (topic_scan_failed), has no view-B anchor "
+            "incomplete": "a topic page that can't be parsed, or a month cut at the page cap, "
+            "leaves that topic incomplete: every repo not done yet is stored incomplete "
+            "(topic_scan_failed | topic_scan_truncated), has no view-B anchor "
             "(launch_source_incomplete:product_hunt, counted) and is retried by the next run "
             "(the scan resumes from its stored cursor)",
             "incomplete_max_share": PH_INCOMPLETE_MAX_SHARE,

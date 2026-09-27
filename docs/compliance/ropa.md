@@ -143,7 +143,7 @@ Legal basis is not a RoPA field, but is given for convenience: all activities on
 | Source | Product Hunt API v2 (TM-16; the operator's developer token, personal non-commercial use); Bluesky AppView `searchPosts` with author and url filters (TM-34); GitHub API (TM-02) for the declared-account sources |
 | Recipients | Hosting and storage processors; Anthropic for the Product Hunt Haiku check of name-only matches (A3; project-level text, owner login replaced, redacted) |
 | Transfers | Anthropic (A3) only |
-| Retention | Raw answers: dropped right after parsing (CB-24). Stored facts: with the brief's candidates (`brief_candidate`), project-level and role-coded; a repo opt-out deletes them and their evidence rows (CB-13c). **Shared Product Hunt topic-listing cache** (ADR-085 addendum 4, `ph_topic_post` and `ph_topic_scan`: per listed post id, name, slug, dates; per scanned interval its bounds and progress): reused for 14 days after a scan, rows unseen for 90 days deleted by `pigtail retention purge`; project-level, instance-wide (not per brief), not linked to any person |
+| Retention | Raw answers: dropped right after parsing (CB-24). Stored facts: with the brief's candidates (`brief_candidate`), project-level and role-coded; a repo opt-out deletes them and their evidence rows (CB-13c). **Shared Product Hunt topic-listing cache** (ADR-085 addendum 4, `ph_topic_post` and `ph_topic_scan`: per listed post its id, dates and the SHA-256 of its normalized name, nothing readable of the listing's content; per scanned month interval its bounds and progress): reused for 14 days after a scan, rows unseen for 90 days deleted by `pigtail retention purge`; project-level, instance-wide (not per brief), not linked to any person |
 | Security | §2.3; handles never stored or logged (Directive §8.1); evidence URLs carry `[declared-account]`; errors carry the endpoint only; never a search of people by name (ADR-075.3) |
 | Status | I (M22, ADR-085). Both on by default through the selection's launch-source flags (`PIGTAIL_SELECTION_PRODUCT_HUNT`, `PIGTAIL_SELECTION_BLUESKY`); Product Hunt off without `PH_API_TOKEN` (the selection then refuses). The ADR-073.2 reading for Bluesky was accepted by the owner (ADR-085 addendum 3) |
 
@@ -218,7 +218,7 @@ Not active. Blocked until H2 and H4 ([lia.md](lia.md) §7). No personal data by 
 ---
 
 ## Changelog
-- 2026-09-27 — ADR-085 addendum 4: A2c retention gains the shared Product Hunt topic-listing cache (id, name, slug, dates per listed post; 14-day reuse, 90-day retention).
+- 2026-09-27 — ADR-085 addendum 4: A2c retention gains the shared Product Hunt topic-listing cache (id, dates and hashed normalized name per listed post; 14-day reuse, 90-day retention).
 - 2026-09-27 — ADR-085 addendum 3 (owner decisions after verifier M22 round 7): A2c updated (handles resolved in memory; post text in memory for the launch-wording test; README with exactly one account; the count of unworded posts; the ADR-073.2 reading accepted).
 - 2026-09-27 — ADR-085: A2c added (view B's Product Hunt launches and declared maintainers' Bluesky posts; handles in memory only, role stored).
 - 2026-09-25: v0.1 created (CB-15). Activities A1, A1b, A1c, A2a, A2b, A3, A7, A8, A9, A10, A11; each checked against `main`. Gaps recorded as CB-31 (alert-file rotation), CB-32 (cap on `GHARCHIVE_RAW_RETENTION_DAYS`) and CB-33 (UI audit-log purge without logins).

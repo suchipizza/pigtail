@@ -176,12 +176,13 @@ REPO_TABLES: tuple[RepoTable, ...] = (
 # `REPO_TABLES` (the CB-13c schema test reads this list). Each with the decision behind it.
 NOT_REPO_KEYED: dict[tuple[str, str], str] = {
     # ADR-085 addendum 4 (migration 0027): the shared Product Hunt topic-listing cache. A row is
-    # a Product Hunt product listed under a topic (id, name, slug, dates), not a repo; `name_key`
-    # is the product's normalized name. A repo opt-out doesn't delete it: the product may not be
-    # the repo at all (only a confirmed match links them, and that link lives on the repo's
-    # candidate signal, which the opt-out deletes), and deleting listing rows would leave holes
-    # in scans still marked complete. An opted-out repo is refused before any matching (CB-13).
-    ("ph_topic_post", "name_key"): "Product Hunt product name key, not a repo key",
+    # a Product Hunt product listed under a topic (id, dates), not a repo; `name_key_sha256` is
+    # the SHA-256 of the product's normalized name. A repo opt-out doesn't delete it: the product
+    # may not be the repo at all (only a confirmed match links them, and that link lives on the
+    # repo's candidate signal, which the opt-out deletes), and deleting listing rows would leave
+    # holes in scans still marked complete. An opted-out repo is refused before any matching
+    # (CB-13).
+    ("ph_topic_post", "name_key_sha256"): "hash of a Product Hunt product's name, not a repo key",
 }
 
 

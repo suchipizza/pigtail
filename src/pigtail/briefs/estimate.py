@@ -50,7 +50,8 @@ What it reports:
   the window, and from HN's epoch to the window's start). Since ADR-085 addendum 4
   (`estimate-v8`) the Product Hunt topic scan counts only the gaps of the window the shared
   topic cache doesn't cover (pages per day of gap from the cache's own density when it has a
-  complete scan, else the planning default; at most `PH_TOPIC_MAX_PAGES` per gap), shows
+  complete scan, else the planning default; each gap scanned as calendar-month intervals, at
+  most `PH_TOPIC_MAX_PAGES` per month, a cap a topic doesn't reach), shows
   "Product Hunt: cached listing reused for N of M days", and the Product Hunt time is computed
   at the measured ~230 requests an hour (`PH_REQUESTS_PER_HOUR`).
 """
@@ -556,10 +557,11 @@ def ph_topic_scan_pages(
 ) -> tuple[int, str | None]:
     """(topic-scan pages left, the "cached listing reused for N of M days" line) for the
     selection's Product Hunt step (ADR-085 addendum 4). With the shared cache's coverage
-    (`SelectionState.ph_cache`), only its gaps count: pages per day of gap from the cache's own
-    density when it has a complete scan, else the planning default, at most `PH_TOPIC_MAX_PAGES`
-    per gap, minus the pages unfinished scans of that gap already read. Without it (no database
-    at hand), the whole window, as for a first run."""
+    (`SelectionState.ph_cache`), only its gaps count, as the calendar-month intervals they are
+    scanned in: pages per day from the cache's own density when it has a complete scan, else the
+    planning default, at most `PH_TOPIC_MAX_PAGES` per month interval, minus the pages
+    unfinished scans of that interval already read. Without it (no database at hand), the whole
+    window, month by month, as for a first run."""
     from pigtail.briefs.launch_sources import PH_TOPIC_MAX_PAGES
 
     default = PH_TOPIC_POSTS_PER_MONTH / 20 / DAYS_PER_MONTH  # pages per day
@@ -580,7 +582,8 @@ def ph_topic_scan_pages(
             )
         return (0 if done else pages), note
     days = brief.window.months * DAYS_PER_MONTH
-    pages = topics * min(PH_TOPIC_MAX_PAGES, math.ceil(days * default))
+    per_month = min(PH_TOPIC_MAX_PAGES, math.ceil(DAYS_PER_MONTH * default))
+    pages = topics * brief.window.months * per_month
     note = f"Product Hunt: cached listing reused for 0 of {round(days)} days"
     return (0 if done else pages), note
 
