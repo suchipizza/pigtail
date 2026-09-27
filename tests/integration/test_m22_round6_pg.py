@@ -19,6 +19,7 @@ import pytest
 
 from pigtail.briefs.budget import BudgetStop
 from pigtail.briefs.candidates import Candidate, CandidateStore
+from pigtail.briefs.selection import PRE_WINDOW_LABELS
 from pigtail.briefs.selection_store import run_stage, view
 from pigtail.briefs.shortlist import Shortlist
 from pigtail.briefs.surface import SurfaceCoder, SurfaceCodingUnavailable
@@ -359,7 +360,8 @@ def test_view_b_anchors_on_launch_events_relaunches_and_undeclared_launches(capt
     assert roles[E] == uroles[E] == "no_anchor"
     counts = {"show_hn": 1, "launch_hn": 0, "product_hunt": 0, "release_launch": 1,
               "bluesky_maintainer_post": 0, "undeclared:first_mention": 1,
-              "undeclared:first_release": 1, "none": 1}  # fmt: skip
+              "undeclared:first_release": 1, "none": 1,
+              **dict.fromkeys(PRE_WINDOW_LABELS, 0)}  # fmt: skip
     sel = v["selection"]
     assert sel["summary"]["view_b_anchor_rules"] == counts
     assert sel["views"]["launch"]["summary"]["anchor_rules"] == counts

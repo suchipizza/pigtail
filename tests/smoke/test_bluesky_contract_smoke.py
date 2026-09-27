@@ -42,3 +42,5 @@ def test_bluesky_search_finds_a_known_post_live(tmp_path: Path) -> None:
     hits, _cursor = parse_search_page(f.data)
     assert hits, "the known positive returned no post: the request shape or the API changed"
     assert all(h.at is not None for h in hits)
+    # the launch-wording test reads the post's text (ADR-085 addendum 3): it must be served
+    assert any(h.text for h in hits), "posts came back without record.text"

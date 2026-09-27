@@ -124,7 +124,10 @@ from pigtail.briefs.model import DIMENSIONS, RANKABLE, THRESHOLD_PERCENTILE, Bri
 #     non-winners; anchor-v5, confirm-v2 (ADR-084)
 # v7: view B's launch events add Product Hunt launches and declared maintainers' Bluesky posts,
 #     with the incomplete-source rule and the launch-source flags; anchor-v7 (ADR-085)
-SELECTION_VERSION = "selection-v8"
+# v9: Bluesky posts need launch wording, the README declares only one account, a declared launch
+#     before the window leaves no view-B anchor, PH votes/comments from days 0-2 only; anchor-v8
+#     (ADR-085 addendum 3)
+SELECTION_VERSION = "selection-v9"
 # view A's metric: follow-through relative to launch size (ADR-083)
 FOLLOW_THROUGH_METRIC_VERSION = "follow-through-v1"
 OUTCOME_MODEL_VERSION = "2.1"
@@ -157,8 +160,9 @@ MATCHING_RULE = (
 # the guarded code changes `selection_params_sha256` and an existing pre-registration stops
 # passing the gate by itself; the pinned constant makes the developer bump the versions too.
 # v5: view B's launch-event anchor (ADR-084); v6: Product Hunt and Bluesky launch events (ADR-085)
-ANCHOR_RULE_VERSION = "anchor-v7"
-ANCHOR_RULE_SOURCE_SHA256 = "17a143a7aac66798c2dab8d4e2fb4cce4de63ff41c89826542edcda10a510027"
+# v8: the owner decisions after verifier round 7 (ADR-085 addendum 3)
+ANCHOR_RULE_VERSION = "anchor-v8"
+ANCHOR_RULE_SOURCE_SHA256 = "982418244b2b5aedbf8f3ad58f61d2f7c1c3048a95689c0a69442c3efe940202"
 ANCHOR_RULE = (
     "outcome-model §2.2 rules 1-6 as read by ADR-077.3; declared launches = Show HN or Launch HN "
     "posts from discovery and the per-repo launch lookup (current rule's records only), merged "
@@ -169,7 +173,9 @@ ANCHOR_RULE = (
 )
 LAUNCH_LOOKUP = (
     "HN Algolia per shortlisted repo, inside the brief's window: tags=show_hn search for "
-    "'github.com/<owner>/<name>' and for '<name>', tags=launch_hn search for '<name>'; the "
+    "'github.com/<owner>/<name>' and for '<name>', tags=launch_hn search for '<name>', then the "
+    "same three searches from HN's epoch to the window's start (view B's pre-window rule, "
+    "ADR-085 addendum 3; before-window posts are stored, never anchor view A); the "
     "lookup must run (the selection is refused without the Show HN connector); a hit is "
     "accepted by URL when it links the repo's github.com/owner/name (case-insensitive), or by "
     "title only when all hold: (a) the title matches '^(Show|Launch) HN:\\s*<name>' followed by "
@@ -199,7 +205,29 @@ DECLARED_RULES = (
 )
 UNDECLARED_RULES = ("undeclared:first_mention", "undeclared:first_release")
 ANCHOR_RULE_LABELS = (*DECLARED_RULES, *UNDECLARED_RULES, "none")
+# a declared launch before the window (ADR-085 addendum 3): no view-B anchor (rule none, reason
+# `launched_before_window`); the counts break these cases down by the kind of that first event
+# (`launched_before_window:<kind>`, a part of `none`)
+PRE_WINDOW_REASON = "launched_before_window"
+PRE_WINDOW_LABELS = tuple(f"{PRE_WINDOW_REASON}:{k}" for k in DECLARED_RULES)
+ANCHOR_COUNT_LABELS = (*ANCHOR_RULE_LABELS, *PRE_WINDOW_LABELS)
 RELEASE_LAUNCH_PATTERN = r"\b(?:launch|launching|introducing|announcing|first\s+public\s+release)\b"
+PRE_WINDOW_RULE = (
+    "a repo whose first declared launch event (Show HN, Launch HN, Product Hunt, a launch-worded "
+    "release, a launch-worded post of a declared maintainer's Bluesky account) precedes the "
+    "brief's window has no view-B anchor (rule none, reason launched_before_window), like the "
+    "undeclared rule's before-window case; later in-window events are not used as anchors or "
+    "relaunches; counted per kind of that first event (launched_before_window:<kind>, part of "
+    "none), and it takes precedence over an incomplete source (an unread source could only hold "
+    "an even earlier event). Sources that can see before the window: the HN launch lookup "
+    "(the same three searches from HN's epoch to the window's start) and discovery's recorded "
+    "Show HN posts; releases (fetched back to the earliest, newest first, up to 10 pages: a list "
+    "cut at the cap can miss older launch-worded releases); Product Hunt's slug route (no date "
+    "bound; posts of any date stored); Bluesky (no date filter; the window applied in memory, "
+    "every page read until the list ends or a launch-worded post before the window is found). "
+    "Not seen: a Product Hunt launch before the window that only the topic scan (bounded to "
+    "the window) would find"
+)
 VIEW_B_ANCHOR_RULE = (
     "view B (launch) has its own anchor, determined only from launch events, never from star "
     "data (bursts are never used): the earliest maintainer-initiated launch event inside the "
@@ -212,9 +240,13 @@ VIEW_B_ANCHOR_RULE = (
     f"{RELEASE_LAUNCH_PATTERN!r} (releases fetched via the GitHub API, newest first, 100 per "
     "page, up to 10 pages; stored: tag, published_at, prerelease, launch match; never the name "
     "or body), or (iv) a Bluesky post by an account the maintainer declared (a bsky.app profile "
-    "link or @name.bsky.social on the repo's homepage field, README, org page or GitHub profile "
-    "social accounts) that links the repo's GitHub URL or homepage (ADR-085; dated by the "
-    "API's sortAt; only kind, time, role and match stored). Rules show_hn, launch_hn, "
+    "link or @name.bsky.social in the owner's GitHub profile social accounts, the org page or "
+    "the repo's homepage field, or in a README that names exactly one account) that links the "
+    "repo's GitHub URL or homepage and whose text matches the same launch-wording pattern "
+    "(ADR-085 addendum 3; the text is read in memory only; posts without it are counted, never "
+    "events or relaunches; dated by the API's sortAt; only kind, time, role and match stored). "
+    "A declared launch event before the window leaves no anchor (PRE_WINDOW_RULE). "
+    "Rules show_hn, launch_hn, "
     "product_hunt, release_launch, bluesky_maintainer_post; a tie at the same instant in that "
     "order, then item id, post id, tag or post ordinal. Every later launch event in the window "
     "is a relaunch event (time, kind, ref), reported descriptively. A repo whose Bluesky source "
@@ -670,6 +702,9 @@ class CaseInput:
     launch_case: CaseInput | None = None
     # view B: every launch event after the anchoring one (time, kind, item id or tag)
     relaunch_events: tuple[Mapping[str, Any], ...] = ()
+    # view B: the first declared launch event before the window, when there is one (reason
+    # `launched_before_window`, ADR-085 addendum 3)
+    pre_window_launch: Mapping[str, Any] | None = None
 
     @property
     def is_reference(self) -> bool:
@@ -839,7 +874,10 @@ class Context:
             "view_b_anchor": {
                 "rule": VIEW_B_ANCHOR_RULE,
                 "rules": list(ANCHOR_RULE_LABELS),
+                "count_labels": list(ANCHOR_COUNT_LABELS),
+                "pre_window_rule": PRE_WINDOW_RULE,
                 "release_launch_pattern": RELEASE_LAUNCH_PATTERN,
+                "bluesky_launch_text": "the post's text (record.text), whole, in memory only",
                 "release_launch_text": "release name, and the first 300 characters of the body",
                 "tie_break": "same instant: " + " < ".join(DECLARED_RULES) + ", then ref",
                 "limitations": self.view_b_limitations(),
@@ -1965,6 +2003,8 @@ def _input_row(c: CaseInput) -> dict[str, Any]:
     }
     if c.relaunch_events:
         row["relaunch_events"] = [dict(e) for e in c.relaunch_events]
+    if c.pre_window_launch is not None:
+        row["pre_window_launch"] = dict(c.pre_window_launch)
     if c.launch_case is not None:
         row["launch_case"] = _input_row(c.launch_case)
     return row
@@ -1984,11 +2024,17 @@ def anchor_rule(c: CaseInput) -> str:
 
 
 def anchor_rule_counts(cases: Iterable[CaseInput]) -> dict[str, int]:
-    """How many cases each view-B anchor rule anchored (every label shown, zeros included)."""
-    counts = dict.fromkeys(ANCHOR_RULE_LABELS, 0)
+    """How many cases each view-B anchor rule anchored (every label shown, zeros included), and
+    of the cases without an anchor (`none`), those launched before the window, by the kind of
+    their first declared launch event (`launched_before_window:<kind>`, ADR-085 addendum 3)."""
+    counts = dict.fromkeys(ANCHOR_COUNT_LABELS, 0)
     for c in cases:
         r = anchor_rule(c)
         counts[r] = counts.get(r, 0) + 1
+        if c.anchor is None and c.anchor_reason == PRE_WINDOW_REASON:
+            kind = str((c.pre_window_launch or {}).get("kind") or "unknown")
+            k = f"{PRE_WINDOW_REASON}:{kind}"
+            counts[k] = counts.get(k, 0) + 1
     return counts
 
 
@@ -2197,6 +2243,11 @@ def select(
                         "anchor_rule": anchor_rule(c),
                         "undeclared_launch": c.anchor is not None and c.anchor.undeclared,
                         "relaunch_events": [dict(e) for e in c.relaunch_events],
+                        **(
+                            {"pre_window_launch": dict(c.pre_window_launch)}
+                            if c.pre_window_launch is not None
+                            else {}
+                        ),
                     }
                     if view.anchor == "launch_event"
                     else {}

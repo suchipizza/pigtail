@@ -101,19 +101,22 @@ def test_old_rule_records_are_replaced_and_title_only_candidates_counted(capture
         hit(8302, "Show HN: Nolaunch – a different tool", "https://github.com/org-x/other", T, 30,
             "show_hn"),  # links another repo
         hit(8303, "Launch HN: Nolaunch (YC S25) – before the repo existed", None,
-            datetime(2024, 12, 1, tzinfo=UTC), 30, "launch_hn"),  # outside the window anyway
+            datetime(2024, 12, 1, tzinfo=UTC), 30, "launch_hn"),  # before the window (read
+        # since anchor-v8) and before the repo's creation: rejected
         hit(8304, "Launch HN: Nolaunch (YC S25) – launch week", None, T, 44, "launch_hn"),
     ]  # fmt: skip
     hn = hn_connector(capture_db, FakeShowHN(hits), tmp_path)
     res = run_stage_with(capture_db.conn, b, hn, {})
     lk = res.fetch["launch_lookup"]
-    assert lk["title_rejected"] == {"links_other_repo": 1, "not_product_slot": 1}
-    assert lk["title_rejected_total"] == 2
+    assert lk["title_rejected"] == {
+        "before_creation": 1, "links_other_repo": 1, "not_product_slot": 1,
+    }  # fmt: skip
+    assert lk["title_rejected_total"] == 3
     nl = store.get(f"gh:{NL}")
     assert nl is not None
     lookups = [s for s in nl.sources if s["source"] == "hn_launch_lookup"]
     assert [(s["hn_item_id"], s["match"], s["rule"]) for s in lookups] == [
-        (8304, "title", "anchor-v7")
+        (8304, "title", "anchor-v8")
     ]  # the anchor-v2 record is gone
     # ADR-083 E: rules 1-3 don't confirm it (no homepage, no owner in the title, no
     # description) and no Haiku check can run here (no confirmer): excluded, fail closed
@@ -124,7 +127,7 @@ def test_old_rule_records_are_replaced_and_title_only_candidates_counted(capture
     for rows in v["cases_by_view"].values():
         assert {c["repo_full_name"]: c["detail"] for c in rows}[NL]["anchor"] is None
     warnings = v["selection"]["summary"]["warnings"]
-    assert any("2 title-only candidates rejected" in x for x in warnings)
+    assert any("3 title-only candidates rejected" in x for x in warnings)
     assert any("1 title-only matches not confirmed" in x for x in warnings)
     assert {KF, MK} <= {c["repo_full_name"] for c in v["cases"]}
 

@@ -159,12 +159,16 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
     hn = hn_connector(capture_db, fake, tmp_path)
     res = stage(capture_db.conn, b, hn, {})
     lk = res.fetch["launch_lookup"]
-    assert lk["repos"] == 3 and lk["looked_up"] == 3 and lk["requests"] == 9
-    assert lk["posts"] == 3 and lk["by_match"] == {"url": 2, "title": 1}
-    assert len(fake.lookup_requests) == 9
+    # three searches inside the window, three from HN's epoch to its start (anchor-v8)
+    assert lk["repos"] == 3 and lk["looked_up"] == 3 and lk["requests"] == 18
+    assert lk["posts"] == 4 and lk["by_match"] == {"url": 3, "title": 1}
+    assert len(fake.lookup_requests) == 18
     tags = sorted(r.url.params["tags"] for r in fake.lookup_requests)
-    assert tags == ["launch_hn"] * 3 + ["show_hn"] * 6  # ADR-082: the launch_hn tag
-    assert lk["title_rejected"] == {"not_product_slot": 1} and lk["rule"] == "anchor-v7"
+    assert tags == ["launch_hn"] * 6 + ["show_hn"] * 12  # ADR-082: the launch_hn tag
+    before = [r for r in fake.lookup_requests if "created_at_i>=1160418111" in
+              r.url.params["numericFilters"]]  # fmt: skip
+    assert len(before) == 9  # from HN's epoch (item 1)
+    assert lk["title_rejected"] == {"not_product_slot": 1} and lk["rule"] == "anchor-v8"
     # ADR-083 E: KubeForge has a URL-matched launch, so its title match is not considered
     assert lk["title_unconfirmed"] == {"has_url_launch": 1} and lk["haiku_checks"] == 0
 
@@ -172,7 +176,12 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
     kf = store.get(f"gh:{KF}")
     assert kf is not None
     got = sorted((s["hn_item_id"], s["kind"], s["match"], s["points"]) for s in kf.sources)
-    assert got == [(8101, "show_hn", "url", 40), (8103, "launch_hn", "title", 25)]
+    # 8106, its Show HN before the window, is stored too (view B's pre-window rule)
+    assert got == [
+        (8101, "show_hn", "url", 40),
+        (8103, "launch_hn", "title", 25),
+        (8106, "show_hn", "url", 99),
+    ]
     base = {"source", "hn_item_id", "time", "points", "kind", "match", "rule"}
     for s in kf.sources:  # project-level fields only: no author, no title, no text
         extra = {"confirmed", "confirmation"} if s["match"] == "title" else set()
@@ -194,8 +203,8 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
         "SELECT url, deletion_state, content_hash FROM evidence WHERE starts_with(url, %s)",
         (LAUNCH_LOOKUP_EVIDENCE,),
     ).fetchall()
-    # 9 lookup searches, and the first-mention search of the repo without a launch (ADR-084)
-    assert len(ev) == 10 and {r[1] for r in ev} == {"raw_dropped"}
+    # 18 lookup searches, and the first-mention search of the repo without a launch (ADR-084)
+    assert len(ev) == 19 and {r[1] for r in ev} == {"raw_dropped"}
     assert [u for u, _, _ in ev if "search=first_mention" in u] == [
         f"{LAUNCH_LOOKUP_EVIDENCE}{NL}&search=first_mention&tags=story,comment&page=0"
     ]
@@ -226,7 +235,8 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
     w = v["selection"]["summary"]["warnings"]
     assert "follow_through: no anchor: 1 of 3 shortlisted" in w
     # view B ranks on launch size (2 observed); view A's fit needs 20 cases (no residuals)
-    assert "launch: attention population 2 < 20 (minimum): no percentiles" in w
+    # (view B: 1 observed: KubeForge launched before the window, anchor-v8)
+    assert "launch: attention population 1 < 20 (minimum): no percentiles" in w
     assert any(x.startswith("follow_through: follow-through fit not made") for x in w)
     assert v["selection"]["summary"]["anchors"] == {"launch:lookup:url": 2, "none": 1}
     assert (
@@ -247,7 +257,7 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
     assert again.fetch["launch_lookup"]["already_done"] == 3 and fake.lookup_requests == []
     # progress recorded under another anchor rule is not reused (ADR-083)
     old = stage(capture_db.conn, b, hn, {"fetch": {"launch_lookup_done": done}})
-    assert old.fetch["launch_lookup"]["already_done"] == 0 and len(fake.lookup_requests) == 9
+    assert old.fetch["launch_lookup"]["already_done"] == 0 and len(fake.lookup_requests) == 18
     fake.requests.clear()
 
     # an opt-out of one repo removes its lookup evidence, not the others' (CB-13c)
@@ -266,15 +276,15 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
             "SELECT url FROM evidence WHERE starts_with(url, %s)", (LAUNCH_LOOKUP_EVIDENCE,)
         ).fetchall()
     ]
-    # the other two repos' 6 lookup searches and nolaunch's first-mention search (ADR-084)
-    assert len(left) == 7 and not any(KF in u for u in left)
+    # the other two repos' 12 lookup searches and nolaunch's first-mention search (ADR-084)
+    assert len(left) == 13 and not any(KF in u for u in left)
 
 
 def test_lookup_resumes_per_repo_after_a_failed_request(capture_db, tmp_path):
     b = seed(capture_db)
     prereg(capture_db.conn, b, tmp_path)
     fake = FakeShowHN(HITS)
-    fake.fail_after = 4  # the first repo's three searches pass, the second repo's first fails
+    fake.fail_after = 7  # the first repo's six searches pass, the second repo's first fails
     hn = hn_connector(capture_db, fake, tmp_path)
     cp: dict[str, Any] = {}
     with pytest.raises(FetchError):
@@ -285,13 +295,17 @@ def test_lookup_resumes_per_repo_after_a_failed_request(capture_db, tmp_path):
     fake.requests.clear()
     res = stage(capture_db.conn, b, hn, cp)
     lk = res.fetch["launch_lookup"]
-    assert lk["already_done"] == 1 and lk["looked_up"] == 2 and lk["requests"] == 6
-    assert len(fake.lookup_requests) == 6
+    assert lk["already_done"] == 1 and lk["looked_up"] == 2 and lk["requests"] == 12
+    assert len(fake.lookup_requests) == 12
     assert all(KF not in r.url.params["query"] for r in fake.lookup_requests)
     assert cp["fetch"]["launch_lookup_done"] == sorted(f"gh:{n}" for n in (KF, MK, NL))
     v = view(capture_db.conn, b.brief_id, 1)
     kf = {c["repo_full_name"]: c["detail"] for c in v["cases_by_view"]["launch"]}[KF]
-    assert kf["anchor"]["via"] == "lookup:url"
+    # view B: KubeForge's first Show HN (8106) precedes the window, so no anchor (anchor-v8)
+    assert kf["anchor"] is None and kf["anchor_reason"] == "launched_before_window"
+    assert kf["pre_window_launch"]["kind"] == "show_hn" and kf["pre_window_launch"]["ref"] == "8106"
+    fa = {c["repo_full_name"]: c["detail"] for c in v["cases_by_view"]["follow_through"]}[KF]
+    assert fa["anchor"]["via"] == "lookup:url"  # view A keeps its in-window launch
 
 
 def test_a_pre_registration_under_the_old_selection_params_is_refused(
@@ -310,7 +324,7 @@ def test_a_pre_registration_under_the_old_selection_params_is_refused(
     monkeypatch.setattr(selmod.Context, "params", old_params)
     prereg(capture_db.conn, b, tmp_path)
     monkeypatch.setattr(selmod.Context, "params", new_params)
-    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v8"):
+    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v9"):
         require(capture_db.conn, b)
     fake = FakeShowHN(HITS)
     with pytest.raises(PreregistrationMissing):

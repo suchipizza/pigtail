@@ -49,6 +49,12 @@ points; no identities):
    by declared maintainer accounts** that link the repo (`launch_sources.run_bluesky`), when the
    pre-registered parameters say they apply. Both are launch events of view B.
 
+   Since anchor-v8 (ADR-085 addendum 3): the launch lookup also runs its three searches from
+   HN's epoch to the window's start, Product Hunt posts of any date found by slug are stored,
+   and Bluesky is read past the window's start, so a **declared launch before the window** can
+   be seen: such a repo has no view-B anchor (`launched_before_window`). A Bluesky post is a
+   launch event only when its text is worded as a launch (the release pattern, in memory).
+
 2. **`load_inputs`** (database only): one `selection.CaseInput` per shortlisted repo, carrying
    the same repo as view B reads it (`launch_case`: anchored by `view_b_anchor` on launch
    events only, never on star data; its values, covariates and anomaly flag relative to that
@@ -125,6 +131,7 @@ from pigtail.briefs.selection import (
     PH_COMMENTS,
     PH_TOPICS,
     PH_VOTES,
+    PRE_WINDOW_REASON,
     REDDIT_REACH,
     RELEASE_LAUNCH_PATTERN,
     Anchor,
@@ -412,7 +419,9 @@ def fetch_outcome_data(
 
 # --- 1b. launch lookup (outcome-model §2.1, ADR-081, ADR-082) --------------------------------
 LAUNCH_LOOKUP_SOURCE = "hn_launch_lookup"
-LAUNCH_LOOKUP_REQUESTS = 3  # HN Algolia requests per shortlisted repo (estimate, ADR-082)
+# HN Algolia requests per shortlisted repo (estimate, ADR-082): the three searches inside the
+# window, and again from HN's epoch to the window's start (anchor-v8, ADR-085 addendum 3)
+LAUNCH_LOOKUP_REQUESTS = 6
 LAUNCH_LOOKUP_HITS = 50
 LOOKUP_GROUP = 25  # repos per checkpoint (and per Haiku batch of title checks, ADR-083 E)
 TITLE_MIN_CHARS = 5  # shorter repo names are matched by URL only (ADR-082 rule d)
@@ -708,15 +717,19 @@ def lookup_launches(
             found, rejected, stories_of = _lookup_repo(
                 hn, full, _created_at(c), start, end, res, db, dlog
             )
-            url_launch = any(r["match"] == "url" for r in found.values()) or bool(
-                _discovery_launches(c, start, end)
-            )
+            # the E rule's "URL-matched launch in the window", judged per period: a post before
+            # the window (view B's pre-window rule, anchor-v8) against the ones before it only,
+            # so view A's in-window matches are exactly as before
+            url_in = any(
+                r["match"] == "url" and not _before(r, start) for r in found.values()
+            ) or bool(_discovery_launches(c, start, end))
+            url_pre = any(r["match"] == "url" and _before(r, start) for r in found.values())
             mine: list[Check] = []
             for item, rec in found.items():
                 if rec["match"] != "title":
                     continue
                 st = stories_of[item]
-                if url_launch:
+                if url_pre if _before(rec, start) else url_in:
                     rec["confirmed"], rec["confirmation"] = False, "unconfirmed:has_url_launch"
                     continue
                 meta = c.metadata
@@ -761,6 +774,11 @@ def lookup_launches(
     return res
 
 
+def _before(rec: Mapping[str, Any], start: datetime) -> bool:
+    """Whether a stored launch record is dated before the window's start."""
+    return _t(rec["time"]) < start
+
+
 def _lookup_repo(
     hn: Any,
     full: str,
@@ -781,14 +799,22 @@ def _lookup_repo(
     found: dict[int, dict[str, Any]] = {}
     rejected: dict[int, str] = {}
     stories_of: dict[int, Any] = {}
-    for label, query, tags in lookup_queries(full):
+    # inside the window, then from HN's epoch to the window's start (anchor-v8: view B's
+    # pre-window rule): two ranges, so posts before the window never crowd the window's own
+    # relevance-ranked hits out
+    searches = [
+        (label, query, tags, lo, hi, suffix)
+        for lo, hi, suffix in ((start, end, ""), (None, start - timedelta(seconds=1), ":before"))
+        for label, query, tags in lookup_queries(full)
+    ]
+    for label, query, tags, lo, hi, suffix in searches:
         f = hn.search_show_hn(
             query,
-            since=start,
-            until=end,
+            since=lo,
+            until=hi,
             hits=LAUNCH_LOOKUP_HITS,
             tags=tags,
-            evidence_url=evidence_url(full, label, tags),
+            evidence_url=evidence_url(full, f"{label}{suffix}", tags),
         )
         res.requests += 1
         res.evidence_ids.append(f.evidence.id)
@@ -800,7 +826,7 @@ def _lookup_repo(
         drop(db, hn.store, f.evidence.id, f.content_hash, dlog)
         kind = "launch_hn" if tags == "launch_hn" else "show_hn"
         for st in stories:
-            if st.created_at is None or not start <= st.created_at <= end:
+            if st.created_at is None or st.created_at > end:
                 continue
             how, why = classify_launch_post(st, full, created=created)
             if how is None:
@@ -1054,7 +1080,7 @@ def _search_all_mentions(
         c = latest.get(ref)
         if c is None or not c.repo_full_name:
             continue
-        if launch_events(c, start, end):
+        if launch_events(c, start, end) or launch_events_before(c, start):
             out["not_needed"] += 1
             continue
         if ref in done:
@@ -1157,6 +1183,27 @@ def launch_events(
     return sorted(out, key=lambda e: (e.at, order[e.kind], e.ref))
 
 
+EARLIEST = datetime(1970, 1, 1, tzinfo=UTC)  # the lower bound of "before the window"
+LATEST = datetime(9999, 1, 1, tzinfo=UTC)
+
+
+def launch_events_before(
+    c: Candidate,
+    start: datetime,
+    drop: set[tuple[str, Any]] | frozenset[tuple[str, Any]] = frozenset(),
+) -> list[LaunchEvent]:
+    """The repo's declared launch events before the window's start (ADR-085 addendum 3), by
+    the same rules as `launch_events` (discovery's and the lookup's Show HN / Launch HN posts,
+    confirmed Product Hunt posts, launch-worded releases and launch-worded posts of declared
+    Bluesky accounts), in the same order. Any of them means the repo launched before the
+    window: it has no view-B anchor."""
+    return [
+        e
+        for e in launch_events(c, EARLIEST, start - timedelta(microseconds=1), drop)
+        if e.at < start
+    ]
+
+
 def incomplete_source(c: Candidate, sources: Sequence[str]) -> str | None:
     """The first launch source among `sources` (the ones the pre-registered parameters apply)
     whose data for this repo is missing or incomplete (ADR-085), else None. An unread source
@@ -1254,7 +1301,12 @@ def view_b_anchor(
     """View B's anchor of a candidate from its stored launch signals (`choose_launch_anchor`).
     `required`: the launch sources the pre-registered parameters apply (ADR-085); when one's
     data for this repo is missing or incomplete, there is no anchor (reason
-    `launch_source_incomplete:<source>`)."""
+    `launch_source_incomplete:<source>`). A declared launch event before the window's start
+    comes first (ADR-085 addendum 3): no anchor, reason `launched_before_window`, and no
+    relaunches (an unread source could only hold an even earlier event, so it can't change
+    this)."""
+    if launch_events_before(c, start, drop):
+        return None, PRE_WINDOW_REASON, []
     if (src := incomplete_source(c, required)) is not None:
         return None, f"{INCOMPLETE_PREFIX}{src}", []
     return choose_launch_anchor(
@@ -1511,6 +1563,8 @@ ANCHOR_RULE_FUNCTIONS = (
     "pigtail.briefs.selection:in_population",
     # Product Hunt and declared maintainers' Bluesky posts (ADR-085)
     "ph_launches",
+    "launch_events_before",
+    "_before",
     "incomplete_source",
     "ambiguous_ph_posts",
     "ph_values",
@@ -1527,6 +1581,8 @@ ANCHOR_RULE_FUNCTIONS = (
     "pigtail.briefs.launch_sources:homepage_search_url",
     "pigtail.briefs.launch_sources:default_readme",
     "pigtail.briefs.launch_sources:run_bluesky",
+    "pigtail.briefs.launch_sources:bsky_post_is_launch",
+    "pigtail.briefs.launch_sources:declared_account_sources",
     "pigtail.briefs.confirm:domain_in_text",
     "pigtail.briefs.confirm:ph_confirm_by_rules",
     "pigtail.briefs.confirm:ph_haiku_input",
@@ -1603,6 +1659,11 @@ ANCHOR_RULE_CONSTANTS = (
     "pigtail.briefs.launch_sources:BSKY_MAX_PAGES",
     "pigtail.briefs.launch_sources:BSKY_INCOMPLETE_MAX_SHARE",
     "pigtail.briefs.launch_sources:README_CHARS",
+    "pigtail.briefs.launch_sources:README_MAX_ACCOUNTS",
+    "pigtail.briefs.selection:PRE_WINDOW_REASON",
+    "EARLIEST",
+    "LATEST",
+    "LAUNCH_LOOKUP_HITS",
     "pigtail.briefs.confirm:PH_CONFIRMATION_VERSION",
     "pigtail.briefs.confirm:PH_JOB",
     "pigtail.briefs.confirm:PH_NAMESPACE",
@@ -1780,6 +1841,7 @@ def load_inputs(
         anchor, reason = choose_anchor(launches, bursts, bool(series))
         # view B (ADR-084): launch events only; the star series is not an input
         b_anchor, b_reason, relaunches = view_b_anchor(c, start, end, drop, required=launch_sources)
+        before = launch_events_before(c, start, drop) if b_reason == PRE_WINDOW_REASON else []
         prepared.append(
             {
                 "c": c,
@@ -1791,7 +1853,10 @@ def load_inputs(
                 "b_anchor": b_anchor,
                 "b_reason": b_reason,
                 "relaunches": relaunches,
-                "ph": ph_launches(c, start, end, drop)
+                "pre_window": before[0].to_dict() if before else None,
+                # every confirmed post, any date: the votes come from the one in the anchor's
+                # days 0..2 (`ph_values`), which may lie past the window's end
+                "ph": ph_launches(c, EARLIEST, LATEST, drop)
                 if "product_hunt" in launch_sources
                 else None,
             }
@@ -1806,7 +1871,9 @@ def load_inputs(
         b_case = _case_input(
             p, p["b_anchor"], p["b_reason"], b_reports, b_windows, as_of, surface, paths
         )
-        b_case = replace(b_case, relaunch_events=tuple(p["relaunches"]))
+        b_case = replace(
+            b_case, relaunch_events=tuple(p["relaunches"]), pre_window_launch=p["pre_window"]
+        )
         a_case = _case_input(
             p, p["anchor"], p["reason"], a_reports, a_windows, as_of, surface, paths
         )
@@ -1883,7 +1950,7 @@ def _case_input(
             if pts
             else Value("unknown", reason="no_matched_story_captured")
         )
-        values[PH_VOTES], values[PH_COMMENTS] = ph_values(p.get("ph"), a.at)
+        values[PH_VOTES], values[PH_COMMENTS] = ph_values(p.get("ph"), f)
         lsm = None
         launch_days = [f + DAY * i for i in range(*LAUNCH_DAYS)]
         if all(d in series for d in launch_days):
@@ -1957,17 +2024,21 @@ def _iso(d: date | None) -> str | None:
 
 
 def ph_values(
-    posts: Sequence[tuple[datetime, str, str, int | None, int | None]] | None, at: datetime
+    posts: Sequence[tuple[datetime, str, str, int | None, int | None]] | None, first: date
 ) -> tuple[Value, Value]:
-    """View B's secondary launch-size measures from Product Hunt (ADR-085; reported, never
-    ranked on): the votes and comments of the confirmed post at or after `at - 7 d` with the
-    most votes (earliest on a tie), as of fetch. `posts` None: the source is off."""
+    """View B's secondary launch-size measures from Product Hunt (ADR-085 as amended by its
+    addendum 3; reported, never ranked on): the votes and comments, as of fetch, of the
+    confirmed post whose launch time falls in the launch-size window, the endpoint days
+    `LAUNCH_DAYS` (0..2) from the anchor's first day `first` (the same day mapping as launch
+    size: `endpoint_day`, US Pacific), with the most votes (earliest on a tie). None there:
+    `unknown` (`no_ph_post_in_launch_window`). `posts` None: the source is off."""
     if posts is None:
         no = Value("unknown", reason="product_hunt_not_collected")
         return no, no
-    cand = [x for x in posts if x[0] >= at - timedelta(days=7) and x[3] is not None]
+    lo, hi = first + DAY * LAUNCH_DAYS[0], first + DAY * (LAUNCH_DAYS[1] - 1)
+    cand = [x for x in posts if lo <= endpoint_day(x[0]) <= hi and x[3] is not None]
     if not cand:
-        no = Value("unknown", reason="no_product_hunt_launch")
+        no = Value("unknown", reason="no_ph_post_in_launch_window")
         return no, no
     best = max(cand, key=lambda x: (x[3] or 0, -x[0].timestamp()))
     votes = Value("observed", float(best[3] or 0), "verified", "as of fetch")

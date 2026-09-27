@@ -42,9 +42,9 @@ Paste the output of `pigtail brief preregister <brief-id> --print-hashes`:
 | `brief_sha256` (the whole brief version's content hash) | `<64 hex>` |
 | `success_definition_sha256` (primary dimension, percentile thresholds and minimums, metrics, business minimum, weights, `if_not_applicable`, the no-measurable-adoption rule) | `<64 hex>` |
 | `selection_params_sha256` (N winners and losers, exact-match keys, SMD target, headline exclusion SMD, calipers, matching rule, widening steps allowed, fallback steps, exemplar matching, sensitivity alternatives, selection / outcome-model / analysis-params versions; since `selection-v5` also views A, B and C, the follow-through metric, the title-confirmation rule with the Haiku prompt's fingerprint and the hash of the guarded anchor-rule code, ADR-083; since `selection-v6` also view B's launch-event anchor rule and its limitations, the undeclared-launch sub-population, the language groups and the pattern rule, the numeric-only headline rule, the SD rule, the distribution-surface coding with its prompt fingerprint, and the resolved Haiku model id, ADR-084; since `selection-v7` also view B's launch sources: whether Product Hunt and Bluesky apply, the Product Hunt topics, slug rule, product slot and confirmation rule with its Haiku prompt fingerprint, the Bluesky declared-account sources, search calls and incomplete rule, ADR-085) | `<64 hex>` |
-| `selection_version` | `selection-v8` |
+| `selection_version` | `selection-v9` |
 | `outcome_model_version` | `2.1` |
-| `anchor_rule_version` / `anchor_rule_source_sha256` | `anchor-v7` / `<64 hex>` |
+| `anchor_rule_version` / `anchor_rule_source_sha256` | `anchor-v8` / `<64 hex>` |
 | `follow_through_metric_version` / `title_confirmation_version` | `follow-through-v1` / `confirm-v2` |
 | `distribution_surface` version / prompt fingerprint / Haiku model | `surface-v1` / `<12 hex>` / `<model id>` |
 | View B's launch sources: Product Hunt / Bluesky (applies: yes or no), Product Hunt topics, `ph_match_check` prompt fingerprint | `yes` / `yes` / `open-source, developer-tools` / `<12 hex>` |
@@ -150,6 +150,32 @@ Committed in `selection_params_sha256` (`launch_sources`); restate what applies 
   the maintainer did not declare (finding them would be cross-platform name matching, forbidden
   by ADR-075.3), Product Hunt launches under another name or that no rule confirms; a launch
   source turned off for this brief.
+
+## 1e. What `selection-v9` changes (ADR-085 addendum 3; owner decisions of 2026-09-27 after verifier round 7)
+
+Committed in `selection_params_sha256` (`view_b_anchor.pre_window_rule`,
+`launch_sources.bluesky.launch_wording` and `readme_rule`, `launch_sources.product_hunt.
+secondary_measures`); restate them.
+
+- **Bluesky posts need launch wording:** a declared maintainer's post that links the repo is a
+  launch event only when its text matches the release rule's pattern (`launch`, `launching`,
+  `introducing`, `announcing`, `first public release`, whole words). The text is read in
+  memory and never stored. The report states "N maintainer posts linked the repo without
+  launch wording" (they are neither launch events nor relaunches).
+- **Declared accounts:** the GitHub profile's social accounts, the org page and the repo's
+  homepage field always count; the README only when it names exactly one Bluesky account (two
+  or more: it declares none, counted `readme_ambiguous`). Declared handles are resolved to a
+  DID in memory (`resolveHandle`).
+- **A declared launch before the window leaves no view-B anchor** (`launched_before_window`,
+  counted per kind of that first event), as the undeclared rule does. Sources that can see
+  before the window: the HN launch lookup (also searched from HN's epoch to the window's
+  start), discovery's Show HN posts, releases (back to the earliest; a list cut at 1,000
+  releases can miss older ones), Product Hunt's slug route and Bluesky. **Not seen:** a
+  Product Hunt launch before the window that only the topic scan would find (state it with the
+  limitations).
+- **Product Hunt votes and comments** come only from a confirmed post launched on endpoint days
+  0..2 of the anchor (the launch-size day mapping); otherwise `unknown`
+  (`no_ph_post_in_launch_window`).
 
 ## 2. Hypotheses (codebook §7.2)
 

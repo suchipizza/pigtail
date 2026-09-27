@@ -399,7 +399,9 @@ def test_bluesky_declared_accounts_searches_and_view_b_anchor(capture_db, tmp_pa
     # stored per repo: status and kind/time/role/match only
     cs = {c.ref: c for c in CandidateStore(capture_db.conn, b.brief_id, 1).all()}
     (s1,) = [s for s in cs[f"gh:{B1}"].sources if s["source"] == BSKY_SOURCE]
-    assert set(s1) == {"source", "rule", "status", "posts"}
+    assert set(s1) == {"source", "rule", "status", "posts", "posts_without_launch_wording",
+                       "readme_ambiguous"}  # fmt: skip
+    assert s1["posts_without_launch_wording"] == 0 and s1["readme_ambiguous"] is False
     assert s1["posts"] == [
         {"kind": "bluesky_maintainer_post", "time": t(2025, 8, 1).isoformat(),
          "role": "maintainer", "match": "repo_url"},
