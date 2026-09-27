@@ -19,7 +19,7 @@ from pigtail.briefs.candidates import Candidate, CandidateStore
 from pigtail.briefs.discovery import window_bounds
 from pigtail.briefs.outcomes import load_inputs, shortlisted
 from pigtail.briefs.preregistration import record as preregister
-from pigtail.briefs.selection import Context, Definition, select
+from pigtail.briefs.selection import Context, Definition, select_views
 from pigtail.briefs.selection_store import run_stage, view
 from pigtail.briefs.shortlist import Shortlist
 from pigtail.capture.snapshots import LocalSnapshotStore
@@ -93,26 +93,41 @@ def test_selection_runs_after_finalize_on_the_same_run_and_stores_provenance(w, 
     assert sel["brief_hash"] == example().content_hash()
     assert sel["data_version"].startswith("dv1-") and sel["as_of"] == date(2026, 9, 25)
     assert sel["data_version"].endswith("@2026-09-25")  # as_of folded in (R4.8)
-    assert sel["selection_version"] == "selection-v4" and sel["outcome_model_version"] == "2.1"
+    assert sel["selection_version"] == "selection-v5" and sel["outcome_model_version"] == "2.1"
     assert sel["params_version"] == "1.1.0"
     assert sel["code_commit"] is None or re.fullmatch(r"[0-9a-f]{7,40}", sel["code_commit"])
     assert re.fullmatch(r"[0-9a-f]{64}", sel["result_hash"])
-    names = {c["repo_full_name"] for c in v["cases"]}
-    assert names == {c.repo_full_name for c in shortlisted(w.conn, example())}
-    by = {c["repo_full_name"]: c for c in v["cases"]}
-    assert by["org-z/schema-checker"]["is_reference"] is True
-    assert by["org-z/showcase-engine"]["role"] == "exemplar"
+    shortlist_names = {c.repo_full_name for c in shortlisted(w.conn, example())}
+    assert set(v["cases_by_view"]) == {"follow_through", "launch"}  # ADR-083
+    for rows in v["cases_by_view"].values():
+        assert {c["repo_full_name"] for c in rows} == shortlist_names
+        by = {c["repo_full_name"]: c for c in rows}
+        assert by["org-z/schema-checker"]["is_reference"] is True
+        assert by["org-z/showcase-engine"]["role"] == "exemplar"
     # the example brief ranks on attention (owner decision 2026-09-26): adoption and community
     # have no connector until M23b, so their values stay unknown and are never imputed
     for c in v["cases"]:
         d = c["detail"]
         if d["anchor"] is not None:
             assert d["values"]["adopt.downloads@90"]["reason"] == "no_connector"
+            assert d["values"]["att.reddit_reach"]["reason"] == "no_connector"
         assert d["star_anomaly"]["label"] == "unfiltered, anomaly-checked"
-    assert sel["summary"]["counts"]["winners"] == 0
-    assert any("fewer winners than the minimum" in x for x in sel["summary"]["warnings"])
-    assert sel["summary"]["final_definition"]["primary"] == "attention"
-    assert sel["summary"]["undetermined_by_dimension"]["adoption"] == 0  # not in the definition
+    for key, vv in sel["views"].items():
+        sm = vv["summary"]
+        assert sm["counts"]["winners"] == 0
+        assert any("fewer winners than the minimum" in x for x in sm["warnings"])
+        assert sm["final_definition"]["primary"] == "attention"
+        assert sm["undetermined_by_dimension"]["adoption"] == 0  # not in the definition
+        assert sm["brief_definition"]["metrics"]["attention"] == "att.stars@30"
+        assert vv["result_hash"] == sel["summary"]["views"][key]["result_hash"]
+    assert (
+        sel["views"]["follow_through"]["summary"]["final_definition"]["metrics"]["attention"]
+        == "att.stars_follow_resid@3-30"
+    )
+    assert (
+        sel["views"]["launch"]["summary"]["final_definition"]["metrics"]["attention"]
+        == "att.stars_launch@0-2"
+    )
     fetched = w.conn.execute("SELECT count(DISTINCT repo_host_id) FROM star_history_fetch")
     assert fetched.fetchone()[0] >= 6
     # star-history evidence is linked to the run for retention (R19.9)
@@ -220,19 +235,25 @@ def test_outcome_sort_matching_balance_sensitivity_on_stored_star_history(w, tmp
     res = stage(w, b)
     assert res.fetch["failed"] == {"no_github_connector": N}  # no network: stored data only
     v = view(w.conn, b.brief_id, 1)
-    sel, cases = v["selection"], v["cases"]
-    assert len(cases) == N
+    sel, cases = v["selection"], v["cases_by_view"]["follow_through"]
+    assert len(cases) == N and len(v["cases_by_view"]["launch"]) == N
     by = {c["repo_full_name"]: c for c in cases}
     c0 = by["org-q/repo-00"]["detail"]
     assert c0["anchor"]["type"] == "launch" and c0["anchor"]["source"] == "show_hn"
     stars = c0["values"]["att.stars@30"]
     assert stars["status"] == "observed" and stars["value"] == 2 * 3 + 28 * 1
     assert stars["tag"] == "verified" and stars["reason"] == "unfiltered, anomaly-checked"
+    # the views' windows (ADR-083): days 0..1 and 3..29 (day index 2 in neither)
+    assert c0["values"]["att.stars_launch@0-2"]["value"] == 2 * 3
+    assert c0["values"]["att.stars_follow@3-30"]["value"] == 27 * 1
+    assert c0["values"]["att.stars_follow_resid@3-30"]["status"] == "observed"
+    # stars before launch: 2 a day from the creation day (1 Jun 2025) to the day before launch
+    assert c0["covariates"]["prelaunch_stars"] == 2 * (date(2025, 10, 1) - date(2025, 5, 31)).days
     assert c0["covariates"]["lsm"] == pytest.approx(math.log10(1 + 6), abs=1e-6)
     assert c0["covariates"]["launch_half_year"] == "2025H2"
     assert c0["values"]["att.hn_points"]["value"] == 10
     # outcome sort (median floor, 32 observed values): 16 or so qualify, the top 20 are winners
-    counts = sel["summary"]["counts"]
+    counts = sel["views"]["follow_through"]["summary"]["counts"]
     assert counts["winners"] >= 15 and counts["matched_losers"] >= 1
     winners = [c for c in cases if c["role"] == "winner"]
     assert sorted(c["rank"] for c in winners) == list(range(1, len(winners) + 1))
@@ -244,30 +265,38 @@ def test_outcome_sort_matching_balance_sensitivity_on_stored_star_history(w, tmp
             == lo["detail"]["covariates"]["launch_half_year"]
         )
         assert lo["headline"] is (not lo["detail"]["pair"]["excluded_on"])
-    bal = sel["balance"]
+    bal = sel["balance"]["follow_through"]
     assert bal["exact_match"]["ok"] is True and "lsm" in bal["after_matching"]
     assert bal["pairs"] == len(losers)
-    assert {a["key"] for a in sel["sensitivity"]["alternatives"]} >= {
+    assert {a["key"] for a in sel["sensitivity"]["follow_through"]["alternatives"]} >= {
         "band_shift:attention:looser",
         "band_shift:attention:tighter",
         "exclude_anomaly_flagged",
+        "metric:attention:att.stars_follow_logratio@3-30",
+        "metric:attention:att.stars@30",
     }
-    # determinism: recomputing from the same stored data gives the same result hash
+    # view B balances on pre-launch covariates only: no LSM (ADR-083)
+    bal_b = sel["balance"]["launch"]
+    assert "lsm" not in bal_b["after_matching"] and "prelaunch_log" in bal_b["after_matching"]
+    assert "category" in bal_b["after_matching"]
+    # determinism: recomputing from the same stored data gives the same result hashes
     b2 = b
     window = window_bounds(b2, NOW.date())
     # the launch lookup ran and found nothing: it adds no note (ADR-082: without the connector
     # the stage is refused, never run with a warning)
     assert not [x for x in sel["summary"]["warnings"] if x.startswith("launch lookup")]
-    again = select(
+    again = select_views(
         load_inputs(w.conn, b2, shortlisted(w.conn, b2), window=window, as_of=NOW.date()),
         Context.from_brief(b2),
         Definition.from_brief(b2),
     )
     assert again.result_hash == sel["result_hash"] and again.inputs_hash == sel["inputs_hash"]
+    for key, vv in again.views.items():
+        assert vv.result_hash == sel["views"][key]["result_hash"]
     res2 = stage(w, b)
     assert res2.result_hash == res.result_hash and res2.selection_id != res.selection_id
     # a later as-of date with the same data is still the same selection (horizons all passed)
-    later = select(
+    later = select_views(
         load_inputs(w.conn, b2, shortlisted(w.conn, b2), window=window,
                     as_of=NOW.date() + timedelta(days=3)),
         Context.from_brief(b2),
@@ -298,7 +327,7 @@ def test_outcome_sort_matching_balance_sensitivity_on_stored_star_history(w, tmp
     dump = " ".join(
         str(r)
         for r in w.conn.execute(
-            "SELECT params, summary, balance, sensitivity FROM brief_selection"
+            "SELECT params, summary, balance, sensitivity, views, context FROM brief_selection"
         ).fetchall()
     )
     assert "org-q/" not in dump

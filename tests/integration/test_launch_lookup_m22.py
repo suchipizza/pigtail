@@ -162,15 +162,21 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
     assert len(fake.requests) == 9
     tags = sorted(r.url.params["tags"] for r in fake.requests)
     assert tags == ["launch_hn"] * 3 + ["show_hn"] * 6  # ADR-082: the launch_hn tag
-    assert lk["title_rejected"] == {"not_product_slot": 1} and lk["rule"] == "anchor-v3"
+    assert lk["title_rejected"] == {"not_product_slot": 1} and lk["rule"] == "anchor-v4"
+    # ADR-083 E: KubeForge has a URL-matched launch, so its title match is not considered
+    assert lk["title_unconfirmed"] == {"has_url_launch": 1} and lk["haiku_checks"] == 0
 
     store = CandidateStore(capture_db.conn, b.brief_id, b.version)
     kf = store.get(f"gh:{KF}")
     assert kf is not None
     got = sorted((s["hn_item_id"], s["kind"], s["match"], s["points"]) for s in kf.sources)
     assert got == [(8101, "show_hn", "url", 40), (8103, "launch_hn", "title", 25)]
+    base = {"source", "hn_item_id", "time", "points", "kind", "match", "rule"}
     for s in kf.sources:  # project-level fields only: no author, no title, no text
-        assert set(s) == {"source", "hn_item_id", "time", "points", "kind", "match", "rule"}
+        extra = {"confirmed", "confirmation"} if s["match"] == "title" else set()
+        assert set(s) == base | extra
+    (t,) = [s for s in kf.sources if s["match"] == "title"]
+    assert t["confirmed"] is False and t["confirmation"] == "unconfirmed:has_url_launch"
     nl = store.get(f"gh:{NL}")
     assert nl is not None and nl.sources == []
     dump = " ".join(
@@ -198,7 +204,7 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
 
     # the anchor uses the looked-up launch, on the burst's onset day (same-day rule)
     v = view(capture_db.conn, b.brief_id, 1)
-    by = {c["repo_full_name"]: c["detail"] for c in v["cases"]}
+    by = {c["repo_full_name"]: c["detail"] for c in v["cases_by_view"]["follow_through"]}
     a = by[KF]["anchor"]
     assert a["type"] == "launch" and a["via"] == "lookup:url" and a["source"] == "show_hn"
     assert datetime.fromisoformat(a["at"]) == SAME_DAY
@@ -209,19 +215,31 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
     assert by[MK]["values"]["att.hn_points"]["value"] == 70  # the lookup's fresher points
     assert by[NL]["anchor"] is None
     w = v["selection"]["summary"]["warnings"]
-    assert "no anchor: 1 of 3 shortlisted" in w
-    assert "attention population 2 < 20 (minimum): no percentiles" in w
+    assert "follow_through: no anchor: 1 of 3 shortlisted" in w
+    # view B ranks on launch size (2 observed); view A's fit needs 20 cases (no residuals)
+    assert "launch: attention population 2 < 20 (minimum): no percentiles" in w
+    assert any(x.startswith("follow_through: follow-through fit not made") for x in w)
     assert v["selection"]["summary"]["anchors"] == {"launch:lookup:url": 2, "none": 1}
     assert (
         "launch lookup: 1 title-only candidates rejected by the title rule "
         "(not_product_slot 1; ADR-082)"
     ) in w
+    assert (
+        "launch lookup: 1 title-only matches not confirmed and excluded (has_url_launch 1; "
+        "ADR-083 E)"
+    ) in w
 
     # a second stage run reuses the checkpoint: no new HN request
     fake.requests.clear()
-    cp: dict[str, Any] = {"fetch": {"launch_lookup_done": [f"gh:{n}" for n in (KF, MK, NL)]}}
+    done = [f"gh:{n}" for n in (KF, MK, NL)]
+    rule = selmod.ANCHOR_RULE_VERSION
+    cp: dict[str, Any] = {"fetch": {"launch_lookup_done": done, "launch_lookup_rule": rule}}
     again = stage(capture_db.conn, b, hn, cp)
     assert again.fetch["launch_lookup"]["already_done"] == 3 and fake.requests == []
+    # progress recorded under another anchor rule is not reused (ADR-083)
+    old = stage(capture_db.conn, b, hn, {"fetch": {"launch_lookup_done": done}})
+    assert old.fetch["launch_lookup"]["already_done"] == 0 and len(fake.requests) == 9
+    fake.requests.clear()
 
     # an opt-out of one repo removes its lookup evidence, not the others' (CB-13c)
     capture_db.conn.execute(
@@ -262,7 +280,7 @@ def test_lookup_resumes_per_repo_after_a_failed_request(capture_db, tmp_path):
     assert all(KF not in r.url.params["query"] for r in fake.requests)
     assert cp["fetch"]["launch_lookup_done"] == sorted(f"gh:{n}" for n in (KF, MK, NL))
     v = view(capture_db.conn, b.brief_id, 1)
-    kf = {c["repo_full_name"]: c["detail"] for c in v["cases"]}[KF]
+    kf = {c["repo_full_name"]: c["detail"] for c in v["cases_by_view"]["launch"]}[KF]
     assert kf["anchor"]["via"] == "lookup:url"
 
 
@@ -282,7 +300,7 @@ def test_a_pre_registration_under_the_old_selection_params_is_refused(
     monkeypatch.setattr(selmod.Context, "params", old_params)
     prereg(capture_db.conn, b, tmp_path)
     monkeypatch.setattr(selmod.Context, "params", new_params)
-    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v4"):
+    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v5"):
         require(capture_db.conn, b)
     fake = FakeShowHN(HITS)
     with pytest.raises(PreregistrationMissing):
@@ -295,5 +313,5 @@ def test_a_pre_registration_under_the_old_selection_params_is_refused(
     monkeypatch.setattr(selmod, "ANCHOR_RULE_VERSION", "anchor-v3")
     with pytest.raises(PreregistrationMissing):
         require(capture_db.conn, b)
-    prereg(capture_db.conn, b, tmp_path)  # pre-registered again under selection-v4
+    prereg(capture_db.conn, b, tmp_path)  # pre-registered again under the current rule
     assert require(capture_db.conn, b).selection_params_sha256

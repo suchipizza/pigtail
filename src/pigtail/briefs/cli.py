@@ -27,7 +27,8 @@
     pigtail brief preregister ID --print-hashes [--json]     SHA-256 values to paste into the
                                                              pre-registration (no brief content)
     pigtail brief preregister ID --file PATH [--commit SHA]  record the pre-registration (R8.2)
-    pigtail brief selection show ID [--version N] [--json]   winners, losers, balance, sensitivity
+    pigtail brief selection show ID [--version N] [--json]   views A, B (winners, losers, balance,
+                                                             sensitivity) and context view C
     pigtail brief schema                                     print schemas/brief/v1.2.json
     pigtail brief migrate-store --from DIR [--dry-run]       move briefs to PIGTAIL_BRIEFS_DIR
 
@@ -1177,14 +1178,47 @@ def _fmt(x: Any, nd: int = 2) -> str:
 
 
 def _print_selection(v: dict[str, Any]) -> None:
+    """Both headline views (A follow-through, B launch) and the context view C (ADR-083); a
+    selection made before selection-v5 has one `plain` view."""
     sel = v["selection"]
-    sm, bal, sens = sel["summary"], sel["balance"], sel["sensitivity"]
     print(
         f"Selection {sel['id']} of {v['brief_id']} v{v['brief_version']} "
         f"(as of {sel['as_of']}, data {sel['data_version']}, {sel['selection_version']}, "
         f"code {sel['code_commit'] or 'unknown'})"
     )
     print(f"  result hash {sel['result_hash'][:16]}…, inputs hash {sel['inputs_hash'][:16]}…")
+    views = sel.get("views") or {}
+    by_view = v.get("cases_by_view") or {}
+    if not views:  # before selection-v5: one view
+        _print_sel_view(sel["summary"], sel["balance"], sel["sensitivity"], v["cases"])
+        return
+    for key, vv in views.items():
+        print("")
+        print(f"=== View {vv['label']} [{key}] — result hash {vv['result_hash'][:16]}…")
+        _print_sel_view(
+            vv["summary"], sel["balance"][key], sel["sensitivity"][key], by_view.get(key, [])
+        )
+    ctx = sel.get("context") or {}
+    print("")
+    print(f"=== View C: winners against the whole loser pool ({ctx.get('label')})")
+    for key, cv in (ctx.get("views") or {}).items():
+        print(
+            f"  [{key}] winners {cv['winners']}, loser pool {cv['loser_pool']} (unmatched "
+            f"{cv['loser_pool_unmatched']}); {cv['comparison']}"
+        )
+        for m, rec in cv["outcomes"].items():
+            wv, pv = rec["winners"], rec["pool"]
+            print(
+                f"    {m:<34} median winners {_fmt(wv['median'])} (n {wv['n']}), "
+                f"pool {_fmt(pv['median'])} (n {pv['n']})"
+            )
+        for cov, rec in cv["covariates"].items():
+            print(f"    {cov:<34} SMD {_fmt(rec.get('smd'))} (no matching)")
+
+
+def _print_sel_view(
+    sm: dict[str, Any], bal: dict[str, Any], sens: dict[str, Any], rows: list[dict[str, Any]]
+) -> None:
     c = sm["counts"]
     print(
         f"Shortlist {sm['shortlist_n']}; reference population {sm['reference_population_n']}; "
@@ -1241,7 +1275,7 @@ def _print_selection(v: dict[str, Any]) -> None:
         else:
             print(f"  {alt['key']:<32} not run: {alt['reason']}")
     print("Cases (pair, role, rank, repo, anchor, star anomaly, flags):")
-    for r in v["cases"]:
+    for r in rows:
         d = r["detail"]
         a = d.get("anchor") or {}
         pair = (

@@ -12,7 +12,10 @@ exit code 7 before anything is fetched, computed or stored, and the run row is l
 Likewise the selection's launch lookup (ADR-081) is part of its pre-registered rule, so without
 the Show HN connector (`PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false`, or not configured) the run
 is refused with exit code 8, nothing changed and resumable once the connector is on (ADR-082).
-Later milestones append deep forensics.
+The selection's only model calls are the Haiku checks of title-only launch matches (ADR-083 E),
+through the same budget guard as relevance; refused or unapproved checks fail closed (the match
+is excluded), and a batch still running ends the run as `waiting_batch` (exit 5). Later
+milestones append deep forensics.
 
 **Checkpoints and resume.** A run is one `brief_runs` row (brief version and content hash,
 data version, code commit, prompt, rubric and model versions, estimate, approval, spend, and the
@@ -449,8 +452,22 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
                     result={"status": st["status"], **view["counts"]},
                 )
             elif name == "selection":
+                from pigtail.briefs.confirm import JOB as TITLE_CHECK_JOB
+                from pigtail.briefs.confirm import Confirmer
                 from pigtail.briefs.selection_store import run_stage
 
+                # ADR-083 E: the paid Haiku check of title-only launch matches goes through
+                # the budget guard like relevance (approval, both caps, no backend switch);
+                # refused or unapproved checks fail closed inside the stage
+                confirmer = Confirmer(
+                    deps.client,
+                    brief_run_id=run.id,
+                    before_submit=guard.before_submit,
+                    check_backend=lambda b: guard.check_backend(b, job=TITLE_CHECK_JOB),
+                    poll_seconds=opts.poll_seconds,
+                    timeout_seconds=opts.wait_seconds,
+                    sleep=deps.sleep,
+                )
                 sres = run_stage(
                     conn,
                     brief,
@@ -462,17 +479,21 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
                     clock=deps.clock,
                     recorder=deps.recorder,
                     hn=deps.hn,
+                    confirmer=confirmer,
                 )
                 _link(db, run.id, sres.evidence_ids)
                 run.stage(name, "done", finished_at=deps.clock().isoformat(), result=sres.to_dict())
         if run.done("selection"):
             status = "succeeded"
             sel_res = run.stages["selection"].get("result") or {}
+            per_view = "; ".join(
+                f"{k}: {v.get('winners', 0)} winners, {v.get('matched_losers', 0)} matched losers"
+                for k, v in (sel_res.get("views") or {}).items()
+            )
             msg = (
                 f"{brief.brief_id} v{brief.version}: selection {sel_res.get('selection_id')}: "
-                f"{sel_res.get('winners', 0)} winners, "
-                f"{sel_res.get('matched_losers', 0)} matched losers"
-                + (f", {sel_res['warnings']} warning(s)" if sel_res.get("warnings") else "")
+                + (per_view or "no view")
+                + (f"; {sel_res['warnings']} warning(s)" if sel_res.get("warnings") else "")
                 + f"; pigtail brief selection show {brief.brief_id}"
             )
         elif "shortlist" in opts.stages or run.done("shortlist"):

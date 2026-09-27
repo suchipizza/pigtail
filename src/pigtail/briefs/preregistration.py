@@ -63,18 +63,26 @@ def hashes(brief: Brief) -> dict[str, Any]:
     brief version's content hash, the SHA-256 of its success definition (primary, thresholds,
     metrics, minimums, weights, fallbacks' effect as `Definition`) and of its selection
     parameters (`Context.params()`: N, exact match, SMD target and headline rule, calipers,
-    matching rule, widening, fallback steps, exemplars, sensitivity alternatives, versions).
+    matching rule, widening, fallback steps, exemplars, sensitivity alternatives, versions, and
+    since selection-v5 views A, B and C, the title confirmation rule with the Haiku prompt's
+    fingerprint and the live hash of the guarded anchor-rule code, ADR-083).
     None of these reveal the brief's text."""
     if brief.version is None:
         raise PreregistrationError("pre-register a stored brief version")
+    params = Context.from_brief(brief).params()
     return {
         "brief_id": brief.brief_id,
         "brief_version": brief.version,
         "brief_sha256": brief.content_hash(),
         "success_definition_sha256": sha256_json(Definition.from_brief(brief).to_dict()),
-        "selection_params_sha256": sha256_json(Context.from_brief(brief).params()),
+        "selection_params_sha256": sha256_json(params),
         "selection_version": SELECTION_VERSION,
         "outcome_model_version": OUTCOME_MODEL_VERSION,
+        # informative copies of what the selection hash covers (ADR-083)
+        "anchor_rule_version": params.get("anchor_rule_version"),
+        "anchor_rule_source_sha256": params.get("anchor_rule_source_sha256"),
+        "follow_through_metric_version": (params.get("follow_through") or {}).get("metric_version"),
+        "title_confirmation_version": (params.get("title_confirmation") or {}).get("version"),
     }
 
 

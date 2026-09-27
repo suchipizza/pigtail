@@ -46,6 +46,30 @@ swap, band shift, weights, and D, exclude anomaly-flagged candidates, which the 
 still calls `fake_star_filter`), with the same N and eligible panel and without re-matching;
 the Jaccard overlap and each baseline winner's and matched loser's status are reported, with the
 flags `definition_sensitive`, `sensitive_to_star_anomaly` and `excluded_anomaly_flagged`.
+
+**Views (selection-v5, ADR-083; owner decision 2026-09-27).** Under attention primary, launch
+size (LSM, the matching caliper) and `att.stars@30` move together, so the 0.5 SD LSM caliper
+left almost no matchable losers. `select_views` therefore runs the selection twice, and adds a
+descriptive context view; the brief's success definition is unchanged, and each view reads
+"attention" in its own way (selection-version semantics, not a brief change):
+
+- **A, follow-through** (`VIEW_FOLLOW_THROUGH`): attention is follow-through relative to launch
+  size, the residual of `ln(1 + stars on endpoint days 3..29)` from the closed-form OLS line on
+  `ln(1 + stars on days 0..1)` fitted on the view's population (`follow_through_fit`; no fit,
+  so no percentiles, below `MIN_POPULATION` or with zero variance). Population: every anchored
+  field and reference case. Matching as before (LSM caliper 0.5 SD, exact keys, quarter).
+  Sensitivity adds the log-ratio and plain `att.stars@30`.
+- **B, launch** (`VIEW_LAUNCH`): attention is launch size (stars on days 0..1). Population:
+  launch-anchored cases only (a burst anchor is defined by star velocity, i.e. by launch size:
+  including it would select on the outcome). Matching only on characteristics that existed
+  before launch: the exact keys, quarter, repo age and stars before launch (calipers 0.5 SD),
+  language and category (core vs adjacent field) as distance terms; launch size is neither a
+  matching key nor a headline covariate.
+- **C, context** (`context_view`): per view, the winners against the whole loser pool without
+  matching, labelled "context, not a headline".
+
+`select` with the default `VIEW_PLAIN` keeps the selection-v4 behaviour (the brief's attention
+metric, every anchored case, LSM matching), for comparison and for the older tests only.
 """
 
 from __future__ import annotations
@@ -63,8 +87,11 @@ from pigtail.analysis.params import PARAMS_VERSION
 from pigtail.briefs.model import DIMENSIONS, RANKABLE, THRESHOLD_PERCENTILE, Brief, sha256_json
 
 # v2: headline-first matching, missing language (ADR-078); v3: anchor rule anchor-v2 (ADR-081);
-# v4: anchor rule anchor-v3, the conservative title rule and the launch_hn tag (ADR-082)
-SELECTION_VERSION = "selection-v4"
+# v4: anchor rule anchor-v3, the conservative title rule and the launch_hn tag (ADR-082);
+# v5: views A (follow-through), B (launch) and C (context); anchor-v4 (ADR-083)
+SELECTION_VERSION = "selection-v5"
+# view A's metric: follow-through relative to launch size (ADR-083)
+FOLLOW_THROUGH_METRIC_VERSION = "follow-through-v1"
 OUTCOME_MODEL_VERSION = "2.1"
 MIN_POPULATION = 20  # outcome-model §3 (v0 design choice; the brief schema has no field yet, O17)
 WINNERS_MIN = 15  # R4.8 range floor: below it the report says "fewer winners than the minimum"
@@ -73,6 +100,9 @@ MAX_WIDENING = 2  # distances 0-2 (the relevance filter labels at most two widen
 LADDER: tuple[float | None, ...] = (None, 25.0, 50.0, 75.0, 90.0, 95.0)  # §8.1 band ladder
 LSM_CALIPER_SD = 0.5
 QUARTER_CALIPER = 1
+# view B's calipers on pre-launch characteristics (ADR-083): the same width as the LSM caliper
+AGE_CALIPER_SD = 0.5
+PRELAUNCH_CALIPER_SD = 0.5
 BUSINESS_SIGNALS = ("pricing_page", "hiring_hn_posts", "careers_roles")
 BUSINESS_COUNT = "biz.verified_signal_count@365"
 BAND_ORDINAL: dict[str, int] = {"none": 0, "r1": 1, "r2": 2, "r3": 3, "r4": 4}
@@ -88,13 +118,18 @@ MATCHING_RULE = (
 # (`tests/unit/test_m22_round4.py::test_anchor_rule_source_is_pinned`) hashes the code of the
 # anchor and matching functions (`outcomes.anchor_rule_source_sha256`) and fails until
 # `ANCHOR_RULE_SOURCE_SHA256` is updated together with a new `ANCHOR_RULE_VERSION` (ADR-082).
-ANCHOR_RULE_VERSION = "anchor-v3"
-ANCHOR_RULE_SOURCE_SHA256 = "076da278a53d7615998a8c447dd7139cb7e54d32a57c0da4fdb1e6a3b49b9451"
+# Since selection-v5 the live hash is also part of `Context.params()` (ADR-083), so any change to
+# the guarded code changes `selection_params_sha256` and an existing pre-registration stops
+# passing the gate by itself; the pinned constant makes the developer bump the versions too.
+ANCHOR_RULE_VERSION = "anchor-v4"
+ANCHOR_RULE_SOURCE_SHA256 = "5bdc45af493c1f4e0ff788108bf71e334a3ef5b0a8392905da27ea5b5fc27147"
 ANCHOR_RULE = (
     "outcome-model §2.2 rules 1-6 as read by ADR-077.3; declared launches = Show HN or Launch HN "
     "posts from discovery and the per-repo launch lookup (current rule's records only), merged "
-    "by item id; a launch is compared with a day-precision burst onset on the onset's endpoint "
-    "day (US Pacific, §1.2), so a launch on the onset day precedes the burst (ADR-081, ADR-082)"
+    "by item id; a title-only lookup match counts only when the repo has no URL-matched launch "
+    "in the window (discovery or lookup) and it is confirmed (ADR-083 E); a launch is compared "
+    "with a day-precision burst onset on the onset's endpoint day (US Pacific, §1.2), so a "
+    "launch on the onset day precedes the burst (ADR-081, ADR-082, ADR-083)"
 )
 LAUNCH_LOOKUP = (
     "HN Algolia per shortlisted repo, inside the brief's window: tags=show_hn search for "
@@ -109,9 +144,138 @@ LAUNCH_LOOKUP = (
     "of stop-list words (common English or generic tech words, outcomes.TITLE_STOPLIST); (e) "
     "a title match claimed by two shortlisted repos, or linked by URL to another, is dropped; "
     "rejected title-only candidates are counted, not stored; stored: item id, time, points, "
-    "kind, match, rule (ADR-082)"
+    "kind, match, rule (ADR-082); a title match that passes (a)-(e) is then confirmed or "
+    "excluded by the ADR-083 E rule (`confirm.CONFIRMATION_RULE`), and the confirmation method "
+    "(or the reason it was not confirmed) is stored with it"
 )
 ROUND = 6
+
+# --- metrics of the views (ADR-083; outcome-model §1.2 day mapping) ------------------------------
+# Endpoint-day windows are half-open day-index ranges from the first day of the anchor window
+# (§1.2): "days 0-2" = indices 0 and 1 (the LSM days), "days 3-30" = indices 3..29 (27 days).
+# Day index 2 belongs to neither window.
+LAUNCH_SIZE = "att.stars_launch@0-2"  # view B's attention metric; view A's regressor
+FOLLOW_STARS = "att.stars_follow@3-30"  # view A's outcome count
+FT_RESID = "att.stars_follow_resid@3-30"  # view A's primary metric (derived, per population)
+FT_LOGRATIO = "att.stars_follow_logratio@3-30"  # view A's sensitivity alternative (derived)
+LAUNCH_DAYS = (0, 2)
+FOLLOW_DAYS = (3, 30)
+HN_POINTS = "att.hn_points"
+REDDIT_REACH = "att.reddit_reach"  # no Reddit connector (TM-05 is a GAP): always unknown
+PLAIN_STARS = "att.stars@30"
+FIT_EPS = 1e-12  # Sxx at or below this is zero variance
+FT_ROUND = 9  # derived values are rounded so float noise never splits a percentile tie
+FOLLOW_THROUGH_RULE = (
+    f"{FOLLOW_THROUGH_METRIC_VERSION}: X = ln(1 + max(0, stars on endpoint days 0..1)), "
+    "Y = ln(1 + max(0, stars on endpoint days 3..29)) (day index 2 in neither); both observed "
+    "only after first day + window end + settle_lag (3 d), else pending; a missing day is "
+    "unknown. Residual: closed-form OLS Y = a + bX on the view's population cases with both "
+    "values observed (b = Sxy/Sxx, a = mean(Y) - b mean(X); sums in candidate_ref order), "
+    "residual = Y - (a + bX), rounded to 9 decimals. Fewer than MIN_POPULATION (20) fit cases, "
+    "or Sxx <= 1e-12: no fit, every residual unknown (no percentiles). Log-ratio (sensitivity): "
+    "Y - X. Zero floor: a threshold is met only when stars on days 3..29 > 0. The fit is redone "
+    "on each population it is used on (sensitivity D refits without the flagged cases)"
+)
+CONTEXT_LABEL = "context, not a headline"
+
+
+@dataclass(frozen=True)
+class View:
+    """How one headline view reads the brief's success definition (ADR-083): which metric
+    stands for attention, which anchored cases form the population, and how losers are
+    matched. Selection-version semantics: the brief itself is unchanged."""
+
+    key: str  # plain | follow_through | launch
+    label: str
+    attention_metric: str | None  # None: the brief's own attention metric
+    population: Literal["anchored", "launch_anchored"]
+    matching: Literal["lsm", "pre_launch"]
+    extra_alternatives: tuple[str, ...] = ()  # attention metrics tried as sensitivity checks
+    secondary: tuple[str, ...] = ()  # reported next to the view's outcome, never ranked on
+
+    def definition(self, d: Definition) -> Definition:
+        if self.attention_metric is None:
+            return d
+        return replace(d, metrics={**d.metrics, "attention": self.attention_metric})
+
+    @property
+    def caliper_covariates(self) -> tuple[tuple[str, float], ...]:
+        if self.matching == "lsm":
+            return (("lsm", LSM_CALIPER_SD),)
+        return (("age_log10", AGE_CALIPER_SD), ("prelaunch_log", PRELAUNCH_CALIPER_SD))
+
+    @property
+    def distance_numeric(self) -> tuple[str, ...]:
+        return ("lsm", "age_log10") if self.matching == "lsm" else ("age_log10", "prelaunch_log")
+
+    @property
+    def categorical(self) -> tuple[str, ...]:
+        return ("language",) if self.matching == "lsm" else ("language", "category")
+
+    @property
+    def exemplar_order(self) -> str:
+        return "lsm" if self.matching == "lsm" else "prelaunch_log"
+
+    def params(self, ctx: Context) -> dict[str, Any]:
+        numeric = list(self.distance_numeric)
+        if "founder_audience_bucket" not in ctx.exact_match:
+            numeric.append("audience_band")
+        balance = [*numeric]
+        if "launch_half_year" not in ctx.exact_match:
+            balance.append("launch_quarter")
+        return {
+            "label": self.label,
+            "attention_metric": self.attention_metric or "brief's attention metric",
+            "population": {
+                "anchored": "anchored field and reference cases (outcome-model §3)",
+                "launch_anchored": "anchored field and reference cases whose anchor is a "
+                "declared launch (Show HN / Launch HN); burst anchors are left out because a "
+                "burst is defined by star velocity, i.e. by launch size (selection on the "
+                "outcome)",
+            }[self.population],
+            "matching": {
+                "exact": list(ctx.exact_match),
+                "calipers": {
+                    **{f"{c}_sd": w for c, w in self.caliper_covariates},
+                    "quarter": QUARTER_CALIPER,
+                },
+                "distance": [*(f"|d{c}|/SD" for c in numeric), "|dquarter|"]
+                + [f"1[{c} differs or missing]" for c in self.categorical],
+                "balance_covariates": [*balance, *self.categorical],
+                "headline_exclusion": "SMD > headline_exclusion_smd on any balance covariate",
+                "missing_caliper_value": "not eligible",
+                "exemplar_order": f"nearest {self.exemplar_order}",
+            },
+            "sensitivity_extra": [f"metric:attention:{m}" for m in self.extra_alternatives],
+            "secondary": list(self.secondary),
+        }
+
+
+VIEW_PLAIN = View(
+    "plain",
+    "attention as the brief defines it, LSM matching (selection-v4 semantics; comparison only)",
+    None,
+    "anchored",
+    "lsm",
+)
+VIEW_FOLLOW_THROUGH = View(
+    "follow_through",
+    "A: follow-through relative to launch size (headline view 1)",
+    FT_RESID,
+    "anchored",
+    "lsm",
+    extra_alternatives=(FT_LOGRATIO, PLAIN_STARS),
+    secondary=(PLAIN_STARS, LAUNCH_SIZE, FOLLOW_STARS),
+)
+VIEW_LAUNCH = View(
+    "launch",
+    "B: launch size among declared launches (headline view 2)",
+    LAUNCH_SIZE,
+    "launch_anchored",
+    "pre_launch",
+    secondary=(HN_POINTS, REDDIT_REACH),
+)
+HEADLINE_VIEWS = (VIEW_FOLLOW_THROUGH, VIEW_LAUNCH)
 
 Status = Literal["observed", "pending", "unknown", "not_applicable"]
 CasePanel = Literal["field", "reference", "exemplar"]
@@ -128,6 +292,7 @@ Role = Literal[
     "outside_widening",
     "exemplar",
     "exemplar_matched_loser",
+    "not_in_view",  # anchored, but outside this view's population (view B: a burst anchor)
 ]
 ROLES: tuple[str, ...] = Role.__args__  # type: ignore[attr-defined]
 
@@ -147,15 +312,21 @@ class Value:
     tag: str = "unknown"  # verified | estimated | self_reported | unknown (ADR-014)
     reason: str | None = None
     group: str | None = None
+    # the count the zero floor (§3) checks when the value itself is not a count (view A's
+    # residual and log-ratio: stars on days 3..29, ADR-083); None: the value itself
+    floor_basis: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d = {
             "value": _r(self.value),
             "status": self.status,
             "tag": self.tag,
             "reason": self.reason,
             "group": self.group,
         }
+        if self.floor_basis is not None:
+            d["floor_basis"] = _r(self.floor_basis)
+        return d
 
 
 NO_SOURCE = Value("unknown", reason="no_source")
@@ -192,6 +363,12 @@ class Covariates:
     audience_band: str = "unknown"  # CB-10 reach band; "unknown" is its own level (O14)
     language: str | None = None
     launch_type: str | None = None  # show_hn | launch_hn | burst (ADR-057.1 exemplar matching)
+    # stars before launch (view B, ADR-083): net stars on the endpoint days from the repo's
+    # creation day to the day before the anchor's first day; None (unknown) when the stored
+    # series doesn't reach the creation day, has a gap, or the creation date is unknown
+    prelaunch_stars: int | None = None
+    prelaunch_log: float | None = None  # log10(1 + max(0, prelaunch_stars))
+    prelaunch_reason: str | None = None  # why it is unknown
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -202,6 +379,9 @@ class Covariates:
             "audience_band": self.audience_band,
             "language": self.language,
             "launch_type": self.launch_type,
+            "prelaunch_stars": self.prelaunch_stars,
+            "prelaunch_log": _r(self.prelaunch_log),
+            "prelaunch_reason": self.prelaunch_reason,
         }
 
 
@@ -294,6 +474,7 @@ class Context:
     losers_per_exemplar: int = 2
     exemplar_match_on: tuple[str, ...] = ("launch_type", "launch_period", "audience_bucket")
     sensitivity: tuple[str, ...] = ("primary_swap", "band_shift", "weights", "fake_star_filter")
+    view: View = VIEW_PLAIN  # the view `select` computes (ADR-083); not a brief setting
 
     @classmethod
     def from_brief(cls, brief: Brief) -> Context:
@@ -321,8 +502,30 @@ class Context:
         return hashlib.sha256(f"{self.brief_id}:{self.brief_version}:{ref}".encode()).hexdigest()
 
     def params(self) -> dict[str, Any]:
+        """Everything that defines the selection, hashed into `selection_params_sha256` (R8.2):
+        the brief's panel settings, the anchor rule (with the live hash of its code, ADR-083),
+        the launch lookup and its title confirmation rule (with the Haiku prompt's fingerprint)
+        and views A, B and C. The same for every view of one selection."""
+        from pigtail.briefs.confirm import confirmation_params
+        from pigtail.briefs.outcomes import anchor_rule_source_sha256
+
         return {
             "selection_version": SELECTION_VERSION,
+            "anchor_rule_source_sha256": anchor_rule_source_sha256(),
+            "title_confirmation": confirmation_params(),
+            "follow_through": {
+                "metric_version": FOLLOW_THROUGH_METRIC_VERSION,
+                "rule": FOLLOW_THROUGH_RULE,
+                "launch_days": list(LAUNCH_DAYS),
+                "follow_days": list(FOLLOW_DAYS),
+            },
+            "views": {v.key: v.params(self) for v in HEADLINE_VIEWS},
+            "context_view": {
+                "label": CONTEXT_LABEL,
+                "rule": "per headline view: its final winners against its whole loser pool "
+                "(no matching): counts, outcome medians and means, covariate SMDs before "
+                "matching",
+            },
             "outcome_model_version": OUTCOME_MODEL_VERSION,
             "analysis_params_version": PARAMS_VERSION,
             "min_population": MIN_POPULATION,
@@ -368,6 +571,89 @@ class Evaluation:
     pct: dict[str, dict[str, float | None]]  # metric -> ref -> percentile
     populations: dict[str, dict[str, Any]]  # metric -> counts (n per group, statuses)
     qual: dict[str, Qual]  # ref -> qualification (population cases only)
+    # values derived from the population (view A's residual and log-ratio), per case
+    derived: dict[str, dict[str, Value]] = field(default_factory=dict)
+    fit: dict[str, Any] | None = None  # view A's OLS fit, when a derived metric is used
+
+    def value(self, c: CaseInput, metric: str) -> Value:
+        v = self.derived.get(c.ref, {}).get(metric)
+        return v if v is not None else c.values.get(metric, NO_SOURCE)
+
+
+# --- view A's follow-through metric (ADR-083) ----------------------------------------------------
+def _ln1p0(x: float) -> float:
+    return math.log1p(max(0.0, x))
+
+
+def _pending_or_unknown(a: Value, b: Value) -> Value:
+    """The status of a value derived from `a` and `b` when either isn't observed."""
+    for v in (a, b):
+        if v.status == "pending":
+            return Value("pending", reason=v.reason or "horizon_not_reached")
+    for v in (a, b):
+        if v.status != "observed" or v.value is None:
+            return Value("unknown", reason=f"{v.status}:{v.reason}" if v.reason else v.status)
+    raise AssertionError("both observed")
+
+
+def follow_through_fit(
+    cases: Sequence[CaseInput],
+) -> tuple[dict[str, dict[str, Value]], dict[str, Any]]:
+    """View A's metrics (`FOLLOW_THROUGH_RULE`) for every case in `cases`: the OLS residual
+    (`FT_RESID`) of Y = ln(1 + stars on days 3..29) on X = ln(1 + stars on days 0..1), fitted
+    on the cases with both values observed, and the log-ratio Y - X (`FT_LOGRATIO`). Closed
+    form, sums in `candidate_ref` order (`math.fsum`), so the result is deterministic. No fit
+    (every residual unknown, hence no percentiles) below `MIN_POPULATION` fit cases or when
+    the launch sizes have zero variance."""
+    ordered = sorted(cases, key=lambda c: c.ref)
+    pts: list[tuple[str, float, float]] = []
+    for c in ordered:
+        lv, fv = c.values.get(LAUNCH_SIZE, NO_SOURCE), c.values.get(FOLLOW_STARS, NO_SOURCE)
+        ok = lv.status == "observed" and fv.status == "observed"
+        if ok and lv.value is not None and fv.value is not None:
+            pts.append((c.ref, _ln1p0(lv.value), _ln1p0(fv.value)))
+    n = len(pts)
+    fit: dict[str, Any] = {
+        "metric_version": FOLLOW_THROUGH_METRIC_VERSION,
+        "n": n,
+        "form": "OLS ln(1+stars d3..29) on ln(1+stars d0..1), closed form",
+        "status": "ok",
+        "intercept": None,
+        "slope": None,
+    }
+    a = b = None
+    if n < MIN_POPULATION:
+        fit["status"] = "small_population"
+    else:
+        mx = math.fsum(p[1] for p in pts) / n
+        my = math.fsum(p[2] for p in pts) / n
+        sxx = math.fsum((p[1] - mx) ** 2 for p in pts)
+        sxy = math.fsum((p[1] - mx) * (p[2] - my) for p in pts)
+        if sxx <= FIT_EPS:
+            fit["status"] = "zero_variance"
+        else:
+            b = sxy / sxx
+            a = my - b * mx
+            fit["intercept"], fit["slope"] = _r(a), _r(b)
+    out: dict[str, dict[str, Value]] = {}
+    label = "derived from raw star-history (unfiltered, anomaly-checked)"
+    for c in ordered:
+        xv, yv = c.values.get(LAUNCH_SIZE, NO_SOURCE), c.values.get(FOLLOW_STARS, NO_SOURCE)
+        if not (xv.status == "observed" and yv.status == "observed"):
+            miss = _pending_or_unknown(xv, yv)
+            out[c.ref] = {FT_RESID: miss, FT_LOGRATIO: miss}
+            continue
+        assert xv.value is not None and yv.value is not None
+        x, y = _ln1p0(xv.value), _ln1p0(yv.value)
+        ratio = Value("observed", round(y - x, FT_ROUND), "verified", label, None, yv.value)
+        if a is None or b is None:
+            resid = Value("unknown", reason=f"no_fit:{fit['status']}")
+        else:
+            resid = Value(
+                "observed", round(y - (a + b * x), FT_ROUND), "verified", label, None, yv.value
+            )
+        out[c.ref] = {FT_RESID: resid, FT_LOGRATIO: ratio}
+    return out, fit
 
 
 def percentiles(
@@ -445,7 +731,7 @@ def _check(
     if p is None:
         rec["result"] = "undetermined"
         rec["reason"] = "small_population"
-    elif v.value <= 0:
+    elif (v.value if v.floor_basis is None else v.floor_basis) <= 0:
         rec["result"] = "fail"
         rec["reason"] = "zero_floor"
     else:
@@ -495,7 +781,15 @@ def _score(
 
 
 def evaluate(d: Definition, population: Sequence[CaseInput]) -> Evaluation:
-    """Percentiles over `population` and each population case's qualification and score."""
+    """Percentiles over `population` and each population case's qualification and score. When
+    the definition uses view A's derived metrics, they are computed from this population first
+    (`follow_through_fit`), so every population the definition is evaluated on gets its own
+    fit (ADR-083)."""
+    derived: dict[str, dict[str, Value]] = {}
+    fit: dict[str, Any] | None = None
+    if {FT_RESID, FT_LOGRATIO} & set(d.metrics.values()):
+        derived, fit = follow_through_fit(population)
+        population = [replace(c, values={**c.values, **derived[c.ref]}) for c in population]
     pct: dict[str, dict[str, float | None]] = {}
     pops: dict[str, dict[str, Any]] = {}
     for dim in sorted(d.metrics):
@@ -503,6 +797,8 @@ def evaluate(d: Definition, population: Sequence[CaseInput]) -> Evaluation:
         if dim == "business":
             continue
         pct[metric], pops[metric] = percentiles(population, metric)
+        if fit is not None and metric in (FT_RESID, FT_LOGRATIO):
+            pops[metric]["fit"] = fit
     qual: dict[str, Qual] = {}
     for c in population:
         checks = [
@@ -524,7 +820,7 @@ def evaluate(d: Definition, population: Sequence[CaseInput]) -> Evaluation:
             flags.append("threshold_waived_not_applicable")
         score, basis = _score(c, d, pct)
         qual[c.ref] = Qual(outcome, checks, score, basis, flags)
-    return Evaluation(d, pct, pops, qual)
+    return Evaluation(d, pct, pops, qual, derived, fit)
 
 
 # --- selection at one widening level ------------------------------------------------------------
@@ -571,7 +867,10 @@ class Level:
 
 
 def _numeric_covariates(ctx: Context) -> list[str]:
-    covs = ["lsm", "age_log10"]
+    """The view's numeric balance covariates: LSM and repo age (views plain and A), or repo
+    age and stars before launch (view B: pre-launch characteristics only, ADR-083); plus the
+    audience band and quarter when they are not exact-matched."""
+    covs = list(ctx.view.distance_numeric)
     if "founder_audience_bucket" not in ctx.exact_match:
         covs.append("audience_band")
     if "launch_half_year" not in ctx.exact_match:
@@ -579,8 +878,8 @@ def _numeric_covariates(ctx: Context) -> list[str]:
     return covs
 
 
-CATEGORICAL = ("language",)
-NUMERIC_ALL = ("lsm", "age_log10", "audience_band", "launch_quarter")
+CATEGORICAL = ("language",)  # view plain and A; view B adds "category" (`View.categorical`)
+NUMERIC_ALL = ("lsm", "age_log10", "audience_band", "launch_quarter", "prelaunch_log")
 
 
 def _num(c: CaseInput, cov: str) -> float | None:
@@ -590,6 +889,16 @@ def _num(c: CaseInput, cov: str) -> float | None:
         return None if b is None else float(b)
     v = getattr(x, cov)
     return None if v is None else float(v)
+
+
+def _cat(c: CaseInput, cov: str) -> str | None:
+    """A categorical covariate: the primary language, or the category (view B): `core` for the
+    core field (relevance distance 0), `adjacent` for a widening step (ADR-083; the only
+    category pigtail has for every candidate)."""
+    if cov == "category":
+        return "core" if c.distance == 0 else "adjacent"
+    v = getattr(c.covariates, cov)
+    return None if v is None else str(v)
 
 
 def _exact_key(c: CaseInput, key: str) -> Any:
@@ -622,12 +931,12 @@ def _pair_diffs(
 ) -> tuple[dict[str, float | None], tuple[str, ...]]:
     """Standardized difference of one pair per balance covariate, and the covariates on which it
     exceeds `headline_exclusion_smd` (ADR-054.1; a language mismatch, or a language missing on
-    either side, counts as 1, ADR-078)."""
+    either side, counts as 1, ADR-078; view B's category likewise, ADR-083)."""
     diffs: dict[str, float | None] = {}
     for cov in _numeric_covariates(ctx):
         diffs[cov] = _std_diff(_num(w, cov), _num(lo, cov), sds.get(cov))
-    for cov in CATEGORICAL:  # a missing value on either side is a mismatch (ADR-078)
-        a, b = getattr(w.covariates, cov), getattr(lo.covariates, cov)
+    for cov in ctx.view.categorical:  # a missing value on either side is a mismatch (ADR-078)
+        a, b = _cat(w, cov), _cat(lo, cov)
         diffs[cov] = 0.0 if a is not None and a == b else 1.0
     excluded = tuple(
         k for k, v in sorted(diffs.items()) if v is not None and v > ctx.headline_exclusion_smd
@@ -635,23 +944,28 @@ def _pair_diffs(
     return diffs, excluded
 
 
-def _caliper_ok(w: CaseInput, lo: CaseInput, sds: Mapping[str, float | None]) -> bool:
-    a, b = w.covariates.lsm, lo.covariates.lsm
-    if a is None or b is None:
-        return False
-    sd = sds.get("lsm")
-    if abs(a - b) > (LSM_CALIPER_SD * sd if sd else 0.0) + 1e-12:
-        return False
+def _caliper_ok(w: CaseInput, lo: CaseInput, sds: Mapping[str, float | None], ctx: Context) -> bool:
+    """The view's calipers (`View.caliper_covariates`: LSM for views plain and A; repo age and
+    stars before launch for view B) and `|Δquarter| <= 1`. A value missing on either side
+    fails the caliper (it can't be checked)."""
+    for cov, width in ctx.view.caliper_covariates:
+        a, b = _num(w, cov), _num(lo, cov)
+        if a is None or b is None:
+            return False
+        sd = sds.get(cov)
+        if abs(a - b) > (width * sd if sd else 0.0) + 1e-12:
+            return False
     qa, qb = w.covariates.launch_quarter, lo.covariates.launch_quarter
     return qa is not None and qb is not None and abs(qa - qb) <= QUARTER_CALIPER
 
 
 def _distance(w: CaseInput, lo: CaseInput, ctx: Context, sds: Mapping[str, float | None]) -> float:
-    """outcome-model §5.6: standardized |Δ| per numeric covariate (a missing value costs one
-    SD), + |Δquarter| + 1 if the languages differ or one is missing. Repo age at T
-    (`age_log10`) is one of the numeric terms."""
+    """outcome-model §5.6: standardized |Δ| per numeric covariate of the view (a missing value
+    costs one SD), + |Δquarter| + 1 per categorical covariate that differs or is missing
+    (language; view B also the category). Repo age at T (`age_log10`) is a numeric term in
+    every view; LSM only in views plain and A, stars before launch only in view B."""
     d = 0.0
-    covs = ["lsm", "age_log10"]
+    covs = list(ctx.view.distance_numeric)
     if "founder_audience_bucket" not in ctx.exact_match:
         covs.append("audience_band")
     for cov in covs:
@@ -659,8 +973,9 @@ def _distance(w: CaseInput, lo: CaseInput, ctx: Context, sds: Mapping[str, float
         d += 1.0 if s is None or math.isinf(s) else s
     qa, qb = w.covariates.launch_quarter, lo.covariates.launch_quarter
     d += abs(qa - qb) if qa is not None and qb is not None else 1.0
-    la, lb = w.covariates.language, lo.covariates.language
-    d += 0.0 if la is not None and la == lb else 1.0  # missing counts as different (ADR-078)
+    for cov in ctx.view.categorical:  # missing counts as different (ADR-078)
+        a, b = _cat(w, cov), _cat(lo, cov)
+        d += 0.0 if a is not None and a == b else 1.0
     return d
 
 
@@ -700,7 +1015,7 @@ def match_losers(
                     continue
                 if any(_exact_key(w, k) != _exact_key(cand, k) for k in ctx.exact_match):
                     continue
-                if not _caliper_ok(w, cand, sds):
+                if not _caliper_ok(w, cand, sds, ctx):
                     continue
                 _, excl = _pair_diffs(w, cand, ctx, sds)
                 if headline_only and excl:
@@ -768,7 +1083,9 @@ def match_exemplars(
     exemplars: Sequence[CaseInput], pool: Sequence[CaseInput], ctx: Context, first_id: int
 ) -> tuple[list[Pair], list[dict[str, Any]]]:
     """1-2 losers per exemplar, exactly matched on `match_on` (never on field), nearest LSM
-    first, ties by the hash; losers are not reused."""
+    first (view B: nearest stars before launch, since launch size is its outcome, ADR-083),
+    ties by the hash; losers are not reused."""
+    order = ctx.view.exemplar_order
     used: set[str] = set()
     pairs: list[Pair] = []
     log: list[dict[str, Any]] = []
@@ -788,7 +1105,7 @@ def match_exemplars(
         ]
 
         def gap(c: CaseInput, ex: CaseInput = ex) -> float:
-            a, b = ex.covariates.lsm, c.covariates.lsm
+            a, b = _num(ex, order), _num(c, order)
             return math.inf if a is None or b is None else abs(a - b)
 
         options.sort(key=lambda c: (gap(c), ctx.tie(c.ref)))
@@ -804,7 +1121,7 @@ def match_exemplars(
                     c.ref,
                     1,
                     None if math.isinf(g) else g,
-                    {"lsm_abs": None if math.isinf(g) else g},
+                    {f"{order}_abs": None if math.isinf(g) else g},
                     (),
                 )
             )
@@ -863,9 +1180,9 @@ def _cov_balance(ws: Sequence[CaseInput], ls: Sequence[CaseInput], ctx: Context)
         wv = [v for c in ws if (v := _num(c, cov)) is not None]
         lv = [v for c in ls if (v := _num(c, cov)) is not None]
         out[cov] = smd_numeric(wv, lv)
-    for cov in CATEGORICAL:
-        wc = [str(getattr(c.covariates, cov)) for c in ws if getattr(c.covariates, cov)]
-        lc = [str(getattr(c.covariates, cov)) for c in ls if getattr(c.covariates, cov)]
+    for cov in ctx.view.categorical:
+        wc = [s for c in ws if (s := _cat(c, cov))]
+        lc = [s for c in ls if (s := _cat(c, cov))]
         out[cov] = smd_categorical(wc, lc)
     for rec in out.values():
         s = rec["smd"]
@@ -889,6 +1206,8 @@ def balance(lvl: Level, by_ref: Mapping[str, CaseInput], ctx: Context) -> dict[s
             excluded_by[k] = excluded_by.get(k, 0) + 1
     after = _cov_balance(matched_w, matched_l, ctx)
     return {
+        "view": ctx.view.key,
+        "covariates": [*_numeric_covariates(ctx), *ctx.view.categorical],
         "form": "standardized mean difference, pooled SD; variance ratio; no p-values",
         "winner_counting": "after matching, each matched winner counts once, even when it has "
         "two losers (unweighted, ADR-078)",
@@ -999,6 +1318,21 @@ def alternatives(
                     "reason": "not applicable: the brief uses no weights",
                 }
             )
+    # the view's own metric alternatives (ADR-083: view A, log-ratio and plain att.stars@30);
+    # part of the selection version, so they run whatever the brief's sensitivity list says
+    attention_used = "attention" in {d.primary, *d.floors, *(d.weights or {})}
+    for m in ctx.view.extra_alternatives:
+        key = f"metric:attention:{m}"
+        if attention_used:
+            runs.append((key, replace(d, metrics={**d.metrics, "attention": m}), False))
+        else:
+            notes.append(
+                {
+                    "key": key,
+                    "ran": False,
+                    "reason": "not applicable: attention is not in the final definition",
+                }
+            )
     if "fake_star_filter" in ctx.sensitivity:
         if d.star_metric_used():
             runs.append(("exclude_anomaly_flagged", d, True))
@@ -1050,18 +1384,6 @@ def sensitivity(
     overlaps: list[float] = []
     stable = set(base_w)
     for key, d, exclude in runs:
-        if d.rank_by is not None and d.rank_by != "business":
-            metric = d.metrics[d.rank_by]
-            if not any(c.values.get(metric, NO_SOURCE).status == "observed" for c in population):
-                results.append(
-                    {
-                        "key": key,
-                        "ran": False,
-                        "reason": f"not applicable: no observed {metric} value in the "
-                        "population (no connector or no data)",
-                    }
-                )
-                continue
         excluded = {c.ref for c in population if exclude and c.star_anomaly_flag == "true"}
         if exclude and not excluded:
             results.append(
@@ -1070,6 +1392,23 @@ def sensitivity(
             continue
         pop = [c for c in population if c.ref not in excluded]
         ev = evaluate(d, pop)
+        checked = None
+        if d.rank_by is not None and d.rank_by != "business":
+            checked = d.metrics[d.rank_by]
+        elif key.startswith("metric:attention:"):
+            checked = d.metrics["attention"]
+        if checked is not None:
+            observed = ev.populations.get(checked, {}).get("statuses", {}).get("observed", 0)
+            if not observed:
+                results.append(
+                    {
+                        "key": key,
+                        "ran": False,
+                        "reason": f"not applicable: no observed {checked} value in the "
+                        "population (no connector or no data)",
+                    }
+                )
+                continue
         alt = select_level(pop, ev, lvl.distance, replace(ctx, losers=0))
         wins = {c.ref for c in alt.winners}
         j = jaccard(base_w, wins)
@@ -1205,15 +1544,23 @@ def select(
     *,
     notes: Sequence[str] = (),
 ) -> Selection:
-    """Outcome sort, winners, matched losers, exemplar losers, balance and sensitivity.
-    `notes` are warnings from the input stage (for example a launch lookup that could not run),
-    reported with the selection's own."""
+    """Outcome sort, winners, matched losers, exemplar losers, balance and sensitivity of one
+    view (`ctx.view`, ADR-083; default `VIEW_PLAIN`). `base` is the brief's own definition; the
+    view replaces its attention metric (`View.definition`). `notes` are warnings from the input
+    stage (for example launch-lookup counts), reported with the selection's own."""
+    view = ctx.view
+    brief_def = base
+    base = view.definition(base)
     cases = sorted(cases_in, key=lambda c: c.ref)
     refs = [c.ref for c in cases]
     if len(set(refs)) != len(refs):
         raise SelectionError("a candidate appears twice in the selection input")
     by_ref = {c.ref: c for c in cases}
-    population = [c for c in cases if c.panel in ("field", "reference") and c.anchor is not None]
+    anchored = [c for c in cases if c.panel in ("field", "reference") and c.anchor is not None]
+    population = anchored
+    if view.population == "launch_anchored":
+        population = [c for c in anchored if c.anchor is not None and c.anchor.type == "launch"]
+    in_pop = {c.ref for c in population}
 
     # R4.10 then ADR-053.2: every step is logged with its counts (R4.10, ADR-055.5)
     d = base
@@ -1316,6 +1663,8 @@ def select(
             role = "exemplar"
         elif c.anchor is None:
             role = "no_anchor"
+        elif c.ref not in in_pop:
+            role = "not_in_view"
         elif c.ref in winners:
             role = "winner"
         elif c.ref in field_losers:
@@ -1394,6 +1743,17 @@ def select(
             "the panel was widened or the thresholds relaxed (see steps); core-field findings "
             "are reported separately (R4.10)"
         )
+    left_out = len(anchored) - len(population)
+    if left_out:
+        warnings.append(
+            f"{left_out} burst-anchored cases left out of the {view.key} view: a burst is "
+            "defined by star velocity, i.e. by launch size (ADR-083)"
+        )
+    if ev.fit is not None and ev.fit["status"] != "ok":
+        warnings.append(
+            f"follow-through fit not made ({ev.fit['status']}, n = {ev.fit['n']}): no "
+            "residuals, so no percentiles on the follow-through metric (ADR-083)"
+        )
     affected = {
         dim: sum(
             1
@@ -1408,7 +1768,10 @@ def select(
     summary = {
         "brief_id": ctx.brief_id,
         "brief_version": ctx.brief_version,
+        "view": view.key,
+        "view_label": view.label,
         "shortlist_n": len(cases),
+        "anchored_n": len(anchored),
         "reference_population_n": len(population),
         "no_anchor": no_anchor,
         "anchors": _count(
@@ -1428,6 +1791,7 @@ def select(
         "roles": {k: v for k, v in roles.items() if v},
         "final_distance": lvl.distance,
         "core_field_only": all(by_ref[r].distance == 0 for r in winners | field_losers),
+        "brief_definition": brief_def.to_dict(),
         "base_definition": base.to_dict(),
         "final_definition": lvl.definition.to_dict(),
         "steps": steps,
@@ -1476,7 +1840,7 @@ def _count(items: Iterable[str]) -> dict[str, int]:
 
 def _values_out(c: CaseInput, ev: Evaluation) -> dict[str, Any]:
     out: dict[str, Any] = {}
-    for metric, v in sorted(c.values.items()):
+    for metric, v in sorted({**c.values, **ev.derived.get(c.ref, {})}.items()):
         rec = v.to_dict()
         if metric in ev.pct:
             rec["percentile"] = _r(ev.pct[metric].get(c.ref))
@@ -1484,3 +1848,137 @@ def _values_out(c: CaseInput, ev: Evaluation) -> dict[str, Any]:
     for s, v in sorted(c.business.items()):
         out[f"biz.{s}"] = v.to_dict()
     return out
+
+
+# --- views A, B and C together (ADR-083) ---------------------------------------------------------
+def _stats(xs: Sequence[float]) -> dict[str, Any]:
+    if not xs:
+        return {"n": 0, "median": None, "mean": None}
+    return {"n": len(xs), "median": _r(statistics.median(xs)), "mean": _r(statistics.fmean(xs))}
+
+
+def context_view(sel: Selection) -> dict[str, Any]:
+    """View C for one headline view: its final winners against its **whole** loser pool, with
+    no matching (descriptive context, never a headline, ADR-083): counts, the median and mean
+    of the view's outcome and of the star measures on each side (observed values only), and
+    the covariate SMDs before matching."""
+    lvl = sel.level
+    ev = lvl.evaluation
+    matched = {p.loser for p in lvl.pairs if p.panel == "field"}
+    primary_metric = lvl.definition.metrics.get(lvl.definition.primary)
+    metrics = list(
+        dict.fromkeys(
+            m
+            for m in (primary_metric, LAUNCH_SIZE, FOLLOW_STARS, PLAIN_STARS, HN_POINTS)
+            if m is not None
+        )
+    )
+
+    def observed(cs: Sequence[CaseInput], m: str) -> list[float]:
+        out = []
+        for c in cs:
+            v = ev.value(c, m)
+            if v.status == "observed" and v.value is not None:
+                out.append(float(v.value))
+        return out
+
+    return {
+        "label": CONTEXT_LABEL,
+        "view": sel.summary["view"],
+        "comparison": "final winners vs the whole loser pool of the final level, no matching",
+        "winners": len(lvl.winners),
+        "loser_pool": len(lvl.loser_pool),
+        "loser_pool_unmatched": sum(1 for c in lvl.loser_pool if c.ref not in matched),
+        "outcomes": {
+            m: {
+                "winners": _stats(observed(lvl.winners, m)),
+                "pool": _stats(observed(lvl.loser_pool, m)),
+            }
+            for m in metrics
+        },
+        "covariates": sel.balance["before_matching"],
+        "note": "descriptive; the pool is not matched, so differences mix the outcome with "
+        "launch timing, audience, age and field",
+    }
+
+
+@dataclass
+class Selections:
+    """Views A and B (headline) and C (context) of one brief version (ADR-083). Each headline
+    view has its own result hash; `result_hash` covers the parameters, the inputs, both view
+    hashes and the context view."""
+
+    params: dict[str, Any]
+    views: dict[str, Selection]
+    context: dict[str, Any]
+    summary: dict[str, Any]
+    inputs_hash: str
+    result_hash: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "params": self.params,
+            "summary": self.summary,
+            "views": {k: v.to_dict() for k, v in self.views.items()},
+            "context": self.context,
+            "inputs_hash": self.inputs_hash,
+            "result_hash": self.result_hash,
+        }
+
+
+def select_views(
+    cases_in: Iterable[CaseInput],
+    ctx: Context,
+    base: Definition,
+    *,
+    notes: Sequence[str] = (),
+) -> Selections:
+    """The selection-v5 result (ADR-083): view A (follow-through), view B (launch) and the
+    context view C. `notes` (input-stage warnings, e.g. the launch lookup's counts) go into the
+    overall summary and each view's warnings."""
+    cases = sorted(cases_in, key=lambda c: c.ref)
+    views = {v.key: select(cases, replace(ctx, view=v), base, notes=notes) for v in HEADLINE_VIEWS}
+    context = {
+        "label": CONTEXT_LABEL,
+        "views": {k: context_view(s) for k, s in views.items()},
+    }
+    params = next(iter(views.values())).params
+    field_cases = [c for c in cases if c.panel != "exemplar"]
+    view_warnings = [
+        f"{k}: {w}" for k, s in views.items() for w in s.summary["warnings"] if w not in notes
+    ]
+    summary: dict[str, Any] = {
+        "brief_id": ctx.brief_id,
+        "brief_version": ctx.brief_version,
+        "selection_version": SELECTION_VERSION,
+        "shortlist_n": len(cases),
+        "no_anchor": sum(1 for c in field_cases if c.anchor is None),
+        "anchors": _count(
+            "none" if c.anchor is None else f"{c.anchor.type}:{c.anchor.via or c.anchor.source}"
+            for c in field_cases
+        ),
+        "views": {
+            k: {
+                "label": s.summary["view_label"],
+                "result_hash": s.result_hash,
+                "population_n": s.summary["reference_population_n"],
+                "winners": s.summary["counts"]["winners"],
+                "matched_losers": s.summary["counts"]["matched_losers"],
+                "headline_pairs": s.balance["headline_pairs"],
+                "final_distance": s.summary["final_distance"],
+            }
+            for k, s in views.items()
+        },
+        "context_label": CONTEXT_LABEL,
+        "warnings": [*notes, *view_warnings],
+    }
+    sels = Selections(params, views, context, summary, inputs_hash(cases))
+    sels.result_hash = sha256_json(
+        {
+            "params": params,
+            "views": {k: s.result_hash for k, s in views.items()},
+            "context": context,
+            "inputs_hash": sels.inputs_hash,
+        }
+    )
+    return sels

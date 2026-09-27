@@ -169,7 +169,7 @@ default 70 % caps, the LLM calls, tokens and **USD per stage and model** (batch 
 cached prefix priced at the cache rates), and the total against the brief's cap (minus what the
 brief has already spent) and the monthly cap (minus this month's spend). Prices come from a dated
 table in `src/pigtail/llm/pricing.py` (list prices as of 2026-06-24; check the pricing page before
-a large run). **Every figure is an estimate** from the `estimate-v3` planning model; the pilot's
+a large run). **Every figure is an estimate** from the `estimate-v4` planning model; the pilot's
 measured cost per case replaces the per-unit placeholders (M23). For the synthetic example brief
 on `api`, expect roughly 7,700 GitHub requests (about 2 hours of API time), about 12M LLM tokens
 and about USD 17 at list price with batching (about USD 30 without); of that, a `pigtail run`
@@ -197,7 +197,7 @@ uv run pigtail run --brief my-project --approve-paid    # run (or resume) discov
 uv run pigtail brief preregister my-project --print-hashes   # after finalize: hashes to pre-register
 uv run pigtail brief preregister my-project --file docs/preregistration/<file> --commit <sha>
 uv run pigtail run --brief my-project                   # after finalize + pre-registration: the selection
-uv run pigtail brief selection show my-project [--json] # winners, losers, balance, sensitivity
+uv run pigtail brief selection show my-project [--json] # views A, B and C
 uv run pigtail run --brief my-project --stage discovery # only some stages (repeatable)
 uv run pigtail run --brief my-project --incremental     # refresh a completed run
 uv run pigtail run --brief my-project --wait-minutes 30 # leave a batch running after 30 min
@@ -282,16 +282,41 @@ code 7, before anything is fetched, computed or stored. A file that quotes brief
 refused; so is a pre-registration once the version already has a selection. Editing the brief
 (a new version) or a new selection rule needs a new pre-registration. The selection rule
 includes the anchor rule (`anchor_rule_version`) and the launch lookup (ADR-081, ADR-082):
-since `selection-v4` (anchor rule `anchor-v3`) a pre-registration recorded under an earlier
-selection version is refused, so pre-register the version again (a new file or amendment; the
-old one stays as it is). `brief preregister` warns when the Show HN connector is off, because
-the selection will then be refused (exit 8, below).
+since `selection-v5` (anchor rule `anchor-v4`, ADR-083) a pre-registration recorded under an
+earlier selection version is refused, so pre-register the version again (a new file or
+amendment; the old one stays as it is; the brief itself needs no new version). The selection
+parameters also hold the hash of the code that implements the anchor rule, the launch lookup,
+the title confirmation and the views' star windows, so any change to that code makes the gate
+refuse an existing pre-registration by itself. `brief preregister --print-hashes` shows the
+versions (`anchor_rule_version`, `anchor_rule_source_sha256`, `follow_through_metric_version`,
+`title_confirmation_version`) next to the hashes. `brief preregister` warns when the Show HN
+connector is off, because the selection will then be refused (exit 8, below).
 
-**5. Selection (R4.8, R4.3, R4.9, R4.10, R4.11; ADR-077, ADR-078, ADR-081, ADR-082).** It runs
-only on a **final**, **pre-registered** shortlist, with the **Show HN connector on**: after
-`shortlist finalize` and `brief preregister`, run `pigtail run --brief my-project` again (or
-with `--stage selection`) and it continues the same run with this stage alone. It makes no
-model call.
+**5. Selection (R4.8, R4.3, R4.9, R4.10, R4.11; ADR-077, ADR-078, ADR-081, ADR-082, ADR-083).**
+It runs only on a **final**, **pre-registered** shortlist, with the **Show HN connector on**:
+after `shortlist finalize` and `brief preregister`, run `pigtail run --brief my-project` again
+(or with `--stage selection`) and it continues the same run with this stage alone. Its only
+model calls are a few Haiku checks of title-only launch matches (below): a paid step on the
+`api` backend, so pass `--approve-paid` (an approval recorded for the run counts). Without
+approval those matches are simply excluded, never accepted.
+
+- **Two headline views and a context view** (ADR-083). The brief's success definition is
+  used twice, reading "attention" in two ways; the brief itself is unchanged.
+  - **View A, follow-through**: attention = stars on endpoint days 3..29 after the anchor
+    relative to launch size (stars on days 0..1): the residual from a straight line fitted on
+    the log scale over the brief's anchored repos (at least 20, else no percentiles and a
+    warning). Losers are matched as below (launch-signal caliper included), so pairs launched
+    alike and differ in what followed. Sensitivity adds the log-ratio and plain
+    `att.stars@30`.
+  - **View B, launch**: attention = launch size (days 0..1), with HN points next to it
+    (Reddit reach is `unknown`: no connector). Only **launch-anchored** repos take part (a
+    burst anchor is itself a large launch). Losers are matched only on what existed before
+    launch: audience bucket and half-year (exact), quarter, repo age and **stars before launch**
+    (stars from the repo's creation to the day before its launch; calipers 0.5 SD), language
+    and core vs adjacent field. Launch size is not a matching key.
+  - **View C, context**: per view, winners against the whole loser pool without matching,
+    labelled "context, not a headline".
+  Write each hypothesis of the pre-registration for one view (`TEMPLATE-brief.md`).
 - **Launch lookup** (ADR-081, ADR-082). It first looks up every shortlisted repo's own **Show
   HN and Launch HN posts** in the brief's window, whether discovery found them or not: 3 HN
   Algolia requests per repo (Show HN by the repo URL and by the repo name, Launch HN by the
@@ -305,11 +330,18 @@ model call.
   word (a short stop-list in `pigtail.briefs.outcomes`). So "Show HN: Screen Studio" never
   anchors a repo named `studio`, and "Show HN: I built KubeForge" doesn't anchor `kubeforge`
   either: pigtail prefers missing a launch to taking someone else's. Title-only candidates the
-  rule rejects are counted in the selection's warnings ("N title-only candidates rejected");
-  title-matched anchors are labelled `lookup:title`, so check them. Only the item id, time,
-  points, how it matched and the rule version are kept; the raw page is dropped. It is
-  checkpointed per repo: after a failed request (exit 1) run again and it continues with the
-  next repo. **With the Show HN connector off** (`PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false`;
+  rule rejects are counted in the selection's warnings ("N title-only candidates rejected").
+  **A title match must then be confirmed** (ADR-083): it is ignored when the repo already has
+  a post that links it (from discovery or the lookup); otherwise it counts only when the post
+  links the repo's homepage domain, or names the repo owner, or shares two distinctive words
+  with the repo description, or, failing those, a Haiku check says it is the same project.
+  Unconfirmed matches are excluded and counted by reason in the warnings ("N title-only
+  matches not confirmed and excluded (…)"). Title-matched anchors are labelled
+  `lookup:title`, so check them. Only the item id, time, points, how it matched, how it was
+  confirmed (or why not) and the rule version are kept; never the title; the raw page is
+  dropped. It is checkpointed per repo: after a failed request (exit 1) run again and it
+  continues with the next repo not done; a Haiku batch still running ends the run with exit 5
+  (run the same command again to collect it). **With the Show HN connector off** (`PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false`;
   it is on by default, and `PIGTAIL_ENABLE_HN` doesn't affect it) the selection is **refused**
   with exit code 8 before anything is fetched or stored, because the pre-registered rule
   includes the lookup; turn it on and run the same command again. `brief estimate` and the
@@ -317,8 +349,9 @@ model call.
   shortlisted repo not yet looked up) while the selection is pending.
 - **Outcome data.** With `GITHUB_TOKEN` set, it then fetches each shortlisted repo's **star
   history** (daily net stars, back to 60 days before the brief's window; 1–3 core requests per
-  repo, conditional) and fills missing metadata (creation date, language) for repos you added by
-  URL. Without a token it uses what is already stored. The GitHub budget pauses it like
+  repo, conditional; for a repo with a declared launch, back to its creation, about 1 more
+  request per 30 weeks of age, for "stars before launch") and fills missing metadata (creation
+  date, language, homepage domain) for shortlisted repos that lack it. Without a token it uses what is already stored. The GitHub budget pauses it like
   discovery (exit 4; run again to continue). **Only star-based metrics exist so far**:
   `att.stars@30/@90` (raw net stars over 30 or 90 endpoint days from the anchor, labelled
   "unfiltered, anomaly-checked") and `att.hn_points` (from the declared launch posts).
@@ -331,7 +364,7 @@ model call.
   (ADR-080); until then rank on attention, as the example brief does.
 - **Anchor T** per candidate: its first declared launch (Show HN or Launch HN post, from
   discovery or the lookup), or the first star burst (`velocity-v0`) in the window, by the
-  outcome model's rule (§2.2, rule `anchor-v3`). A launch on the burst's onset day (US Pacific
+  outcome model's rule (§2.2, rule `anchor-v4`). A launch on the burst's onset day (US Pacific
   endpoint day) counts as preceding the burst. A value whose horizon hasn't passed
   (`T + k + 3 days`) is `pending`. A candidate without an anchor can't be sorted. The result
   counts anchors by type and source (`anchors`) and pairs by the anchor type of each side
@@ -372,9 +405,11 @@ model call.
   baseline.
 - **Stored** in `brief_selection` (one row per selection: brief version and content hash, run,
   data version after the fetch with the as-of date folded in (`dv1-…@YYYY-MM-DD`), as-of date,
-  selection, outcome-model and analysis-params versions, code commit, inputs and result hashes)
-  and `brief_selection_case` (one row per repo). The same brief version and data version give
-  the same result hash. A repo opt-out removes its rows.
+  selection, outcome-model and analysis-params versions, code commit, inputs hash, each view's
+  summary, balance, sensitivity and result hash, the context view, and one overall result hash)
+  and `brief_selection_case` (one row per repo **per view**). The same brief version and data
+  version give the same hashes. A repo opt-out removes its rows of every view.
+  `pigtail brief selection show` prints view A, view B and view C.
 
 **Resuming and exit codes.** A run is resumable after anything: a crash, a budget stop
 (`paused_budget`, exit 4; exit 3 when approval is missing), the GitHub request budget (exit 4), a

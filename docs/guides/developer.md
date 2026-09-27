@@ -75,7 +75,7 @@ file with `uv run pigtail brief schema > schemas/brief/v1.2.json`, a test fails 
 briefs onto v1.2 when they load), `store` (private, immutable versions under
 `PIGTAIL_BRIEFS_DIR`, default `~/.pigtail/briefs`; stale edits are refused; `migrate_store`),
 `backup` (the briefs archive in `pigtail backup create/restore/prune`),
-`diff`, `estimate` (`estimate-v3` planning model: USD per stage and model against the brief's
+`diff`, `estimate` (`estimate-v4` planning model: USD per stage and model against the brief's
 and the monthly cap), `expansion` (R18.7: the versioned
 `brief_expansion` prompt, `propose_expansion` and `apply_expansion`; tests use the fake backend
 from `tests/conftest.py`), `budget` and `cache`. M22 adds `candidates` (the `brief_candidate` store),

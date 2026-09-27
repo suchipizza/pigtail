@@ -78,18 +78,18 @@ def test_launches_merge_discovery_and_lookup_by_item_id():
             {"source": LAUNCH_LOOKUP_SOURCE, "hn_item_id": 11, "points": 9, "kind": "show_hn",
              "match": "url", "time": t1.isoformat(), "rule": ANCHOR_RULE_VERSION},
             {"source": LAUNCH_LOOKUP_SOURCE, "hn_item_id": 12, "points": 3, "kind": "launch_hn",
-             "match": "title", "time": t2.isoformat(), "rule": ANCHOR_RULE_VERSION},
+             "match": "title", "time": t2.isoformat(), "rule": ANCHOR_RULE_VERSION,
+             "confirmed": True, "confirmation": "owner_login"},
             {"source": "github_keyword", "term": "t"},
         ],
     )  # fmt: skip
     start, end = datetime(2025, 3, 1, tzinfo=UTC), datetime(2026, 9, 1, tzinfo=UTC)
     got = _launches(c, start, end)
-    assert got == [
-        Launch(t1, 11, 9, "show_hn", "lookup:url"),
-        Launch(t2, 12, 3, "launch_hn", "lookup:title"),
-    ]
-    assert _launches(c, start, end, {(c.ref, 12)}) == got[:1]
-    assert _launches(c, t2, end) == got[1:]  # outside the window: not a launch
+    # ADR-083 E: a (confirmed) title match counts only without a URL-matched launch in window
+    assert got == [Launch(t1, 11, 9, "show_hn", "lookup:url")]
+    assert _launches(c, start, end, {(c.ref, 12)}) == got
+    # with the URL-matched launch outside the window, the confirmed title match counts
+    assert _launches(c, t2, end) == [Launch(t2, 12, 3, "launch_hn", "lookup:title")]
 
 
 def test_ambiguous_title_matches_are_dropped():
@@ -98,7 +98,7 @@ def test_ambiguous_title_matches_are_dropped():
 
     def lk(item: int, match: str) -> dict:
         return {"source": LAUNCH_LOOKUP_SOURCE, "hn_item_id": item, "match": match,
-                "rule": ANCHOR_RULE_VERSION}  # fmt: skip
+                "rule": ANCHOR_RULE_VERSION, "confirmed": True}  # fmt: skip
 
     a = cand("org-a/kubeforge", lk(1, "title"), lk(2, "title"), lk(3, "title"))
     b = cand("org-b/kubeforge", lk(1, "title"))  # same item named by title for two repos
@@ -151,12 +151,12 @@ def test_hour_precision_onsets_still_compare_instants():
 def test_anchor_rule_is_part_of_the_selection_params_hash(monkeypatch):
     ctx = Context.from_brief(brief())
     p = ctx.params()
-    assert p["selection_version"] == "selection-v4"
-    assert p["anchor_rule_version"] == "anchor-v3"
+    assert p["selection_version"] == "selection-v5"  # current (ADR-083)
+    assert p["anchor_rule_version"] == "anchor-v4"
     assert "day precision" in p["anchor_rule"] or "endpoint day" in p["anchor_rule"]
     assert "Launch" in p["launch_lookup"] and "tags=launch_hn" in p["launch_lookup"]
     h = sha256_json(p)
-    monkeypatch.setattr(selmod, "ANCHOR_RULE_VERSION", "anchor-v4")
+    monkeypatch.setattr(selmod, "ANCHOR_RULE_VERSION", "anchor-v99")
     assert sha256_json(ctx.params()) != h
 
 

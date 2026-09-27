@@ -241,14 +241,16 @@ def test_target_runs_only_the_selection_behind_its_preregistration_gate(w, tmp_p
     assert fb.submitted == []  # no discovery, no relevance: no model call at all
     assert count(w, "SELECT count(*) FROM brief_candidate WHERE brief_version = 2") == n_cands
     sel = w.conn.execute(
-        "SELECT brief_version, brief_run_id, summary FROM brief_selection"
+        "SELECT brief_version, brief_run_id, views FROM brief_selection"
     ).fetchall()
     assert len(sel) == 1 and sel[0][0] == 2 and sel[0][1] == res.brief_run_id
-    # v2 ranks on adoption, which has no connector until M23b: no winners, and it says so
-    summary = sel[0][2]
-    assert summary["final_definition"]["primary"] == "adoption"
-    assert summary["counts"]["winners"] == 0
-    assert summary["undetermined_by_dimension"]["adoption"] >= 1
+    # v2 ranks on adoption, which has no connector until M23b: no winners in either view, and
+    # each says so (ADR-083: the views reinterpret attention only)
+    for key in ("follow_through", "launch"):
+        summary = sel[0][2][key]["summary"]
+        assert summary["final_definition"]["primary"] == "adoption"
+        assert summary["counts"]["winners"] == 0
+        assert summary["undetermined_by_dimension"]["adoption"] >= 1
 
 
 def rows_of(w: World, version: int) -> str:

@@ -112,13 +112,19 @@ def test_old_rule_records_are_replaced_and_title_only_candidates_counted(capture
     nl = store.get(f"gh:{NL}")
     assert nl is not None
     assert [(s["hn_item_id"], s["match"], s["rule"]) for s in nl.sources] == [
-        (8304, "title", "anchor-v3")
+        (8304, "title", "anchor-v4")
     ]  # the anchor-v2 record is gone
+    # ADR-083 E: rules 1-3 don't confirm it (no homepage, no owner in the title, no
+    # description) and no Haiku check can run here (no confirmer): excluded, fail closed
+    (rec,) = nl.sources
+    assert rec["confirmed"] is False and rec["confirmation"] == "unconfirmed:haiku_unavailable"
+    assert lk["title_unconfirmed"] == {"haiku_unavailable": 1}
     v = view(capture_db.conn, b.brief_id, 1)
-    a = {c["repo_full_name"]: c["detail"] for c in v["cases"]}[NL]["anchor"]
-    assert a["type"] == "launch" and a["via"] == "lookup:title" and a["source"] == "launch_hn"
+    for rows in v["cases_by_view"].values():
+        assert {c["repo_full_name"]: c["detail"] for c in rows}[NL]["anchor"] is None
     warnings = v["selection"]["summary"]["warnings"]
     assert any("2 title-only candidates rejected" in x for x in warnings)
+    assert any("1 title-only matches not confirmed" in x for x in warnings)
     assert {KF, MK} <= {c["repo_full_name"] for c in v["cases"]}
 
 

@@ -22,6 +22,7 @@ from pigtail.briefs.estimate import (
     CACHED_PREFIX,
     ESTIMATE_MODEL,
     TOKENS,
+    SelectionState,
     estimate,
     price_stage,
     render_text,
@@ -51,7 +52,7 @@ def test_r18_5_estimate_on_subscription_reports_calls_tokens_and_zero_money():
     b = brief(budget__llm_backend="subscription", budget__money_usd=0)
     e = estimate(b)
     d = e.to_dict()
-    assert d["label"] == "estimate" and d["model"] == ESTIMATE_MODEL == "estimate-v3"
+    assert d["label"] == "estimate" and d["model"] == ESTIMATE_MODEL == "estimate-v4"
     assert set(d["github"]["requests"]) == {"core", "graphql", "search"}
     assert all(v > 0 for v in d["github"]["requests"].values())
     assert d["llm"]["calls"] > 0 and d["llm"]["tokens"] > 0
@@ -138,11 +139,17 @@ def test_adr_053_api_backend_is_a_paid_step():
 def test_r18_4_unchanged_rerun_estimates_no_new_llm_calls():
     b = brief()
     plan = plan_rerun(b, edited(b, 2))
-    e = estimate(edited(b, 2), plan=plan)
+    done = SelectionState(pending=False)  # the new version's selection already ran
+    e = estimate(edited(b, 2), plan=plan, selection=done)
     assert e.llm_calls == 0 and e.tokens == 0 and e.llm_api_usd == 0
     assert e.github_requests == {"core": 0, "graphql": 0, "search": 0}
     assert e.to_dict()["reuse"]["changed_fields"] == []
     assert not e.requires_approval
+    # while the version's selection is pending, only its own work is counted (ADR-082, ADR-083):
+    # the Haiku title-match checks and the star-history pages back to launched repos' creation
+    p = estimate(edited(b, 2), plan=plan)
+    assert {s.stage for s in p.stages if s.llm_calls and not s.reused} == {"title_match_check"}
+    assert p.github_requests["core"] == p.selection["prelaunch_extra_core_requests"] > 0
 
 
 def test_r18_4_success_edit_reestimates_only_downstream_stages():

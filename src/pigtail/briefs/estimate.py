@@ -32,7 +32,11 @@ What it reports:
   reuse plan says (the lookup belongs to the selection of this version, not to a reusable
   stage). `SelectionState` carries the final shortlist's size and the run's checkpoint when a
   database is at hand. With the Show HN connector off the estimate warns that the selection
-  will be refused.
+  will be refused. Since ADR-083 the pending selection also counts the extra star-history
+  pages that reach launched repos' creation week (stars before launch, view B) and the Haiku
+  checks of title-only launch matches (`title_match_check`, relevance stage, a paid step),
+  from the planning assumptions `LAUNCHED_SHARE`, `CREATION_EXTRA_PAGES` and
+  `TITLE_CHECKS_PER_SHORTLISTED`.
 """
 
 from __future__ import annotations
@@ -54,11 +58,12 @@ from pigtail.connectors.github_budget import DEFAULT_CAP_FRACTION, GITHUB_LIMITS
 from pigtail.llm.pricing import TokenUsage, canonical_model, cost_usd, pricing_table
 from pigtail.llm.stages import stage_for, time_sensitive
 
+# v4 (ADR-083): the selection's stars-before-launch pages and Haiku title-match checks.
 # v3 (M22): the relevance filter sends ~20 candidates per request; discovery fetches one README
 # per candidate (core bucket). v2 (M21b): per-stage models, Batch API discount, prompt caching,
 # the brief's total money cap and the monthly cap. v1 (ADR-058.4): expansion is an
 # on-demand call, not a run stage.
-ESTIMATE_MODEL = "estimate-v3"
+ESTIMATE_MODEL = "estimate-v4"
 
 # --- planning assumptions (placeholders until the pilot measures them, M23) ---------------
 SEARCH_PAGES_PER_QUERY = 2  # 100 results per page
@@ -75,6 +80,16 @@ HN_QUERIES_PER_TERM_SLICE = 1
 # selection-stage launch lookup (ADR-081, ADR-082): Show HN by repo URL, Show HN by name,
 # Launch HN (`tags=launch_hn`) by name; an upper bound per repo not yet looked up
 HN_LAUNCH_LOOKUP_PER_SHORTLISTED = 3
+# ADR-083 (planning assumptions until the pilot measures them, M23): the share of shortlisted
+# repos with a declared launch (their star history is fetched back to creation for "stars
+# before launch"; the live acceptance run had 26 anchored of 114, most by launch), the extra
+# 30-week pages such a repo needs beyond the window (about 3.5 years of age), and the title-only
+# matches per shortlisted repo that rules 1-3 don't confirm, so go to the Haiku check (the
+# acceptance run accepted 7 title matches for 114 repos under anchor-v3)
+LAUNCHED_SHARE = 0.25
+CREATION_EXTRA_PAGES = 4
+TITLE_CHECKS_PER_SHORTLISTED = 0.1
+TITLE_CHECK = "title_match_check"  # the job and the estimate stage (relevance stage, Haiku)
 LAUNCH_LOOKUP_OFF_WARNING = (
     "the Show HN connector is off (PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false): the selection's "
     "launch lookup can't run, so `pigtail run` will refuse the selection (exit 8) until it is "
@@ -128,6 +143,7 @@ RELEVANCE_PER_REQUEST = 20
 TOKENS = {
     "expansion": EXPANSION_TOKENS,
     "relevance": (1_000 + RELEVANCE_PER_REQUEST * 350, RELEVANCE_PER_REQUEST * 70),
+    TITLE_CHECK: (350, 60),  # one title match per request (ADR-083 E)
     "extraction": (8_000, 1_500),
     "adjudication": (6_000, 1_000),
     "patterns": (20_000, 3_000),
@@ -138,6 +154,7 @@ TOKENS = {
 CACHED_PREFIX = {
     "expansion": 0,
     "relevance": 1_000,
+    TITLE_CHECK: 0,  # far below Haiku's minimum cacheable prefix
     "extraction": 6_000,
     "adjudication": 5_000,
     "patterns": 3_000,
@@ -444,16 +461,20 @@ def estimate(
     )
     graphql = gh("discovery", math.ceil(candidates / GRAPHQL_BATCH) * GRAPHQL_POINTS_PER_BATCH)
     requests = {"core": core, "graphql": graphql, "search": gh("discovery", search)}
-    hours = max(
-        requests[r] / (GITHUB_LIMITS_PER_HOUR[r] * DEFAULT_CAP_FRACTION)  # type: ignore[index]
-        for r in requests
-    )
     # ADR-082: the launch lookup runs with this version's selection, so the reuse plan doesn't
     # waive it; it covers the repos the run's checkpoint hasn't looked up yet
     sel = selection or SelectionState()
     sel_n = sel.shortlisted if sel.shortlisted is not None else shortlisted
-    lookups = (
-        HN_LAUNCH_LOOKUP_PER_SHORTLISTED * max(0, sel_n - sel.lookup_done) if sel.pending else 0
+    not_looked_up = max(0, sel_n - sel.lookup_done) if sel.pending else 0
+    lookups = HN_LAUNCH_LOOKUP_PER_SHORTLISTED * not_looked_up
+    # ADR-083: stars before launch need the history back to creation for launched repos, and
+    # title-only matches that rules 1-3 don't confirm get one Haiku check each
+    prelaunch_pages = math.ceil(sel_n * LAUNCHED_SHARE) * CREATION_EXTRA_PAGES if sel.pending else 0
+    title_checks = math.ceil(not_looked_up * TITLE_CHECKS_PER_SHORTLISTED)
+    requests["core"] += prelaunch_pages
+    hours = max(
+        requests[r] / (GITHUB_LIMITS_PER_HOUR[r] * DEFAULT_CAP_FRACTION)  # type: ignore[index]
+        for r in requests
     )
     other = {
         "hn_algolia": gh("discovery", terms * slices * HN_QUERIES_PER_TERM_SLICE),
@@ -494,6 +515,9 @@ def estimate(
         cost("patterns", PATTERN_CALLS),
         cost("report", REPORT_CALLS, reused_by="patterns"),
         cost("plan", PLAN_CALLS, reused_by="patterns"),
+        # the selection's Haiku check of title-only launch matches (ADR-083 E): like the launch
+        # lookup, it belongs to this version's pending selection, whatever the reuse plan says
+        cost(TITLE_CHECK, title_checks),
     ]
 
     paid: list[PaidStep] = []
@@ -558,6 +582,16 @@ def estimate(
             "shortlisted_used": sel_n,
             "hn_launch_lookup_requests": lookups,
             "hn_connector_enabled": hn_enabled,
+            "prelaunch_extra_core_requests": prelaunch_pages,
+            "title_match_checks": title_checks,
+            "title_match_usd": next(
+                (
+                    None if s.usd is None else round(s.usd, 4)
+                    for s in stages
+                    if s.stage == TITLE_CHECK
+                ),
+                0.0,
+            ),
         },
         warnings=warnings,
     )
@@ -689,9 +723,10 @@ def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any
     """The part of the estimate that `pigtail run` will spend with these stages (R18.5): GitHub
     and HN requests of discovery (plus one README per candidate for relevance), and the relevance
     filter's LLM calls and USD, against the brief's remaining cap and the monthly cap. The
-    shortlist stage makes no paid call; the selection stage (only on a final shortlist) makes no
-    model call and only GitHub requests for star history (ADR-077). Later milestones add their
-    stages here."""
+    shortlist stage makes no paid call; the selection stage (only on a final shortlist) makes
+    GitHub requests for star history (ADR-077; back to creation for launched repos, ADR-083),
+    HN lookups, and a few Haiku checks of title-only launch matches (ADR-083 E), which need
+    approval like relevance. Later milestones add their stages here."""
     st = set(stages)
     by = {s.stage: s for s in e.stages}
     rel = by["relevance"]
@@ -701,9 +736,14 @@ def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any
         "core": e.candidates if "relevance" in st and not rel.reused else 0,
     }
     llm = rel.to_dict() if "relevance" in st and not rel.reused else None
+    tc = by[TITLE_CHECK]
     usd: float | None = 0.0
     if llm is not None and e.llm_backend == "api":
         usd = rel.usd
+    sel_usd: float | None = 0.0
+    if "selection" in st and e.llm_backend == "api":
+        sel_usd = tc.usd
+        usd = None if usd is None or sel_usd is None else usd + sel_usd
     brief_left = max(0.0, e.brief_cap_usd - e.brief_spent_usd)
     month_left = max(0.0, e.month_cap_usd - e.month_spent_usd)
     within = None if usd is None else (usd <= brief_left + 1e-9 and usd <= month_left + 1e-9)
@@ -723,9 +763,16 @@ def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any
                 "hn": f"launch lookup: up to {HN_LAUNCH_LOOKUP_PER_SHORTLISTED} HN Algolia "
                 "requests per shortlisted repo not yet looked up (Show HN by URL and by name, "
                 "Launch HN by name; ADR-082)",
+                "prelaunch": f"stars before launch (ADR-083): about {CREATION_EXTRA_PAGES} extra "
+                "core requests per repo with a declared launch, to reach its creation week "
+                f"(~{e.selection.get('prelaunch_extra_core_requests', 0):,} in total)",
                 "warnings": list(e.warnings),
-                "llm_calls": 0,
-                "api_usd": 0.0,
+                "llm_calls": tc.llm_calls,
+                "llm_model": tc.model,
+                "llm_mode": tc.mode,
+                "llm_job": "Haiku check of title-only launch matches rules 1-3 don't confirm "
+                "(ADR-083 E; fails closed without --approve-paid)",
+                "api_usd": None if sel_usd is None else round(sel_usd, 4),
                 "runs_only_when": "the shortlist is final and the brief version is pre-registered",
             }
             if "selection" in st
@@ -756,10 +803,13 @@ def render_scope_text(scope: dict[str, Any]) -> str:
             f"tokens, {_usd(scope['api_usd'])}"
         )
     if scope.get("selection"):
+        s = scope["selection"]
         lines.append(
-            "  selection (once the shortlist is final): no model call; "
-            + scope["selection"]["github"]
-            + f"; {scope['selection']['hn']} (~{scope['selection']['hn_algolia_requests']:,})"
+            "  selection (once the shortlist is final): "
+            + s["github"]
+            + f"; {s['prelaunch']}; {s['hn']} (~{s['hn_algolia_requests']:,}); ~{s['llm_calls']:,} "
+            f"Haiku title-match checks on {s['llm_model']} ({s['llm_mode']}), "
+            f"{_usd(s['api_usd'])}"
         )
         lines += [f"  warning: {w}" for w in scope["selection"].get("warnings") or []]
     fits = {True: "fits", False: "EXCEEDS a cap: the run will stop there", None: "unknown"}

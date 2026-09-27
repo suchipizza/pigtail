@@ -41,9 +41,11 @@ Paste the output of `pigtail brief preregister <brief-id> --print-hashes`:
 | `brief_version` | `<n>` |
 | `brief_sha256` (the whole brief version's content hash) | `<64 hex>` |
 | `success_definition_sha256` (primary dimension, percentile thresholds and minimums, metrics, business minimum, weights, `if_not_applicable`, the no-measurable-adoption rule) | `<64 hex>` |
-| `selection_params_sha256` (N winners and losers, exact-match keys, SMD target, headline exclusion SMD, calipers, matching rule, widening steps allowed, fallback steps, exemplar matching, sensitivity alternatives, selection / outcome-model / analysis-params versions) | `<64 hex>` |
-| `selection_version` | `selection-v2` |
+| `selection_params_sha256` (N winners and losers, exact-match keys, SMD target, headline exclusion SMD, calipers, matching rule, widening steps allowed, fallback steps, exemplar matching, sensitivity alternatives, selection / outcome-model / analysis-params versions; since `selection-v5` also views A, B and C, the follow-through metric, the title-confirmation rule with the Haiku prompt's fingerprint and the hash of the guarded anchor-rule code, ADR-083) | `<64 hex>` |
+| `selection_version` | `selection-v5` |
 | `outcome_model_version` | `2.1` |
+| `anchor_rule_version` / `anchor_rule_source_sha256` | `anchor-v4` / `<64 hex>` |
+| `follow_through_metric_version` / `title_confirmation_version` | `follow-through-v1` / `confirm-v1` |
 | Codebook version | `<x.y.z>` |
 
 How the two partial hashes are computed (anyone holding the private brief can re-check them):
@@ -52,21 +54,57 @@ How the two partial hashes are computed (anyone holding the private brief can re
 `canonical_json` is JSON with sorted keys, no spaces and UTF-8 (`pigtail.briefs.model.sha256_json`;
 `pigtail.briefs.preregistration.hashes`). Neither contains brief text.
 
+## 1b. The two headline views and the context view (selection-v5, ADR-083)
+
+The brief's success definition is unchanged (`success_definition_sha256`). Since
+`selection-v5` the selection reads the brief's **attention** dimension in two ways and reports
+both (selection-version semantics, not a brief change):
+
+| View | Attention means | Population | Winners and losers are paired on |
+|---|---|---|---|
+| **A, follow-through** (headline 1) | stars on endpoint days 3..29 after the anchor relative to launch size: the residual of `ln(1 + stars d3..29)` on `ln(1 + stars d0..1)` (OLS on the brief's anchored cases); sensitivity: the log-ratio and plain `att.stars@30` | every anchored field and reference case | launch size (LSM caliper 0.5 SD), audience bucket and half-year (exact), quarter (±1), repo age and language (distance) |
+| **B, launch** (headline 2) | launch size: stars on endpoint days 0..1; `att.hn_points` (and Reddit reach, `unknown`: no connector) reported next to it | launch-anchored cases only (a burst anchor is defined by launch size) | only what existed before launch: audience bucket and half-year (exact), quarter (±1), repo age and stars before launch (calipers 0.5 SD), language and core/adjacent field (distance). Launch size is **not** a key |
+| **C, context** | per view, winners against the whole loser pool, no matching | as A or B | nothing: labelled "context, not a headline" |
+
+The brief's threshold (for example top quartile), its fallback steps (for example top third),
+minimums, N and the headline exclusion (ADR-054.1) apply to each headline view on that view's
+covariates. A hypothesis is written for one view (§2).
+
 ## 2. Hypotheses (codebook §7.2)
 
-List the pattern hypotheses this brief checks, before the outcome sort. Use the seed ids
-(`MC-01` … `MC-13`, `docs/methodology/mechanisms/candidates.md`) where a seed fits; write brief-specific ones
-in the same form without brief content (describe the mechanism, not the project).
+List the pattern hypotheses this brief checks, before the outcome sort, **per view** (A or B;
+a hypothesis for both is listed twice). Use the seed ids (`MC-01` … `MC-13`,
+`docs/methodology/mechanisms/candidates.md`) where a seed fits; write brief-specific ones in
+the same form without brief content (describe the mechanism, not the project).
 
-| id | seed | Pattern (present / absent, coded field) | Expected direction among winners vs matched losers | Coded fields it rests on |
-|---|---|---|---|---|
-| H1 | MC-xx | … | … | … |
+| id | view | seed | Pattern (present / absent, coded field) | Expected direction among winners vs matched losers | Coded fields it rests on |
+|---|---|---|---|---|---|
+| H1 | B | MC-xx | … | … | … |
+| H2 | A | MC-xx | … | … | … |
+
+**View B (what makes a launch large)** asks about the launch itself, so its hypotheses map to
+seeds MC-01 to MC-11:
+
+| Theme | Seeds |
+|---|---|
+| channel | MC-01 (first-party HN post: its preconditions and reception, since every view-B case has a declared launch), MC-02 (front page), MC-04 (social posts), MC-07 (multi-channel), MC-08 (cross-community breadth) |
+| timing | MC-03 (posting window), MC-05 (launch week), MC-10 (release-driven) |
+| title / message | MC-09 (novelty positioning) |
+| assets | MC-11 ("try it now" asset) |
+| maintainer posting | MC-06 (disclosed paid promotion alongside the launch), MC-07 (active first-party promotion) |
+
+**View A (what follows a launch of a given size)** asks what differs after launches of similar
+size: post-launch activity (releases, MC-10), community channels, sustained multi-channel
+promotion (MC-07, MC-08). In view A, H1-type contrasts on the presence of a launch post
+(MC-01) are restricted to launch-anchored pairs (ADR-081.6).
 
 ## 3. Tests and decision rules
 
-- **Contrast:** per hypothesis, n present among winners vs among matched losers, with the
-  counterexamples (PRD §5.2, F20), per outcome dimension. Headline patterns use headline pairs
-  only (ADR-054.1, ADR-078); every other pair is shown in the case-level view.
+- **Contrast:** per hypothesis, n present among winners vs among matched losers **of the
+  hypothesis's view**, with the counterexamples (PRD §5.2, F20), per outcome dimension.
+  Headline patterns use that view's headline pairs only (ADR-054.1, ADR-078); every other pair
+  is shown in the case-level view. View C (winners against the unmatched pool) is context,
+  never a headline.
 - **Minimum evidence:** "insufficient evidence in this neighbourhood" below 10 known cases per
   side or 3 cases where the pattern is present (ADR-050.3).
 - **Reliability:** per-field Krippendorff's α; findings resting on a field with α < 0.70 are

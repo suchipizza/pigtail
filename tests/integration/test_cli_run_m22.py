@@ -56,8 +56,11 @@ def test_r19_1_r18_5_run_shows_estimate_first_dry_run_and_approval(cli_env, caps
     }
     assert d["run_scope"]["requires_approval"] is True and d["run_scope"]["api_usd"] > 0
     assert d["run_scope"]["llm"]["mode"] == "batch"
-    # the selection stage (ADR-077) makes no model call and runs only on a final shortlist
-    assert d["run_scope"]["selection"]["llm_calls"] == 0
+    # the selection stage runs only on a final shortlist; its only model calls are the Haiku
+    # checks of title-only launch matches (ADR-083 E), a paid step in the scope
+    sel_scope = d["run_scope"]["selection"]
+    assert sel_scope["llm_calls"] > 0 and "claude-haiku-4-5" in sel_scope["llm_model"]
+    assert sel_scope["api_usd"] > 0 and "stars before launch" in sel_scope["prelaunch"]
     assert d["run_scope"]["selection"]["runs_only_when"] == (
         "the shortlist is final and the brief version is pre-registered"
     )
@@ -226,9 +229,17 @@ def test_r4_8_selection_show_cli(cli_env, capsys, tmp_path):
     assert "Selection sel_" in out and "no_anchor 2" in out and "baseline" in out
     assert "fewer winners than the minimum (15)" in out and "Sensitivity (R4.9)" in out
     assert "org-s/lint-a" in out and "unfiltered, anomaly-checked" in out
+    # both headline views and the context view (ADR-083)
+    assert "[follow_through]" in out and "[launch]" in out
+    assert "View C" in out and "context, not a headline" in out
     assert main(["brief", "selection", "show", BID, "--json"]) == 0
     d = json.loads(capsys.readouterr().out)
-    assert d["selection"]["summary"]["roles"] == {"no_anchor": 2} and len(d["cases"]) == 2
+    views = d["selection"]["views"]
+    assert set(views) == {"follow_through", "launch"}
+    for k in views:
+        assert views[k]["summary"]["roles"] == {"no_anchor": 2}
+        assert len(d["cases_by_view"][k]) == 2
+    assert len(d["cases"]) == 4 and d["selection"]["context"]["label"] == "context, not a headline"
 
 
 def test_adr_082_cli_warns_when_the_show_hn_connector_is_off(cli_env, capsys, monkeypatch):

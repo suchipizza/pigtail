@@ -45,6 +45,7 @@ from pigtail.briefs.candidates import (
     gh_ref,
     named_ref,
 )
+from pigtail.briefs.confirm import url_domain
 from pigtail.briefs.model import Brief, NamedProject
 from pigtail.capture.db import CaptureDB
 from pigtail.capture.github_search import search_repos
@@ -188,6 +189,8 @@ def _meta_from_search(r: SearchRepo) -> dict[str, Any]:
         "owner_type": r.owner_type,
         "archived": r.archived,
         "fork": r.fork,
+        # ADR-083 E rule 1: only the homepage's domain, "" when the repo sets none
+        "homepage_domain": url_domain(r.homepage) or "",
     }
 
 
@@ -203,6 +206,7 @@ def _meta_from_graphql(m: RepoMeta) -> dict[str, Any]:
         "owner_type": m.owner_type,
         "archived": m.archived,
         "fork": m.fork,
+        "homepage_domain": url_domain(m.homepage) or "",  # ADR-083 E rule 1
     }
 
 

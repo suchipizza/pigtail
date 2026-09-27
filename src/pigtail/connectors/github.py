@@ -433,6 +433,8 @@ class SearchRepo:
     description: str | None = None
     topics: tuple[str, ...] = ()
     language: str | None = None
+    # the repo's homepage URL (project-level; pigtail stores only its domain, ADR-083 E)
+    homepage: str | None = None
 
 
 @dataclass(frozen=True)
@@ -522,6 +524,7 @@ def parse_search_page(data: bytes) -> SearchPage:
                 description=_opt_str(it.get("description")),
                 topics=tuple(t for t in it.get("topics") or [] if isinstance(t, str)),
                 language=_opt_str(it.get("language")),
+                homepage=_opt_str(it.get("homepage")),
             )
         )
     return SearchPage(
@@ -552,12 +555,13 @@ class RepoMeta:
     description: str | None = None
     topics: tuple[str, ...] = ()
     language: str | None = None
+    homepage: str | None = None  # homepageUrl (project-level; only its domain is stored)
 
 
 REPO_META_FIELDS = (
     "databaseId nameWithOwner stargazerCount forkCount createdAt pushedAt description"
     " isArchived isFork primaryLanguage { name } repositoryTopics(first: 20) { nodes { topic"
-    " { name } } } owner { __typename }"
+    " { name } } } owner { __typename } homepageUrl"
 )
 
 
@@ -598,6 +602,7 @@ def parse_repo_node(node: Any) -> RepoMeta | None:
         description=_opt_str(node.get("description")),
         topics=tuple(t for t in topics if isinstance(t, str)),
         language=_opt_str(lang.get("name") if isinstance(lang, dict) else None),
+        homepage=_opt_str(node.get("homepageUrl")),
     )
 
 

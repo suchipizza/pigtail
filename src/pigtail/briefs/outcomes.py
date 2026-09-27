@@ -18,10 +18,16 @@ points; no identities):
    has 5+ characters and is not a common or generic word (`classify_launch_post`). Only item
    id, time, points, kind, match and rule are stored (as candidate signals, replacing a repo's
    earlier lookup records); rejected title-only candidates are counted by reason, never
-   stored; the raw page is dropped at parse (CB-24); the step is checkpointed per repo. Then,
+   stored; the raw page is dropped at parse (CB-24); the step is checkpointed per repo. Since
+   anchor-v4 (ADR-083 E) a title-only match counts only when the repo has no URL-matched launch
+   in the window and it is confirmed (`pigtail.briefs.confirm`: homepage domain, owner login,
+   two description keywords, else a paid Haiku check that fails closed); unconfirmed matches
+   are stored with the reason and never anchor. Then,
    for every repo on the final shortlist, fetch its **star history**
    (`pigtail.capture.star_history`, ETag-conditional, 30 weeks per page, back to 60 days before
-   the brief's window or the repo's creation week). Progress is checkpointed per repo; the GitHub
+   the brief's window or the repo's creation week; for a repo with a declared launch in the
+   window, back to its creation week, for "stars before launch", ADR-083; the same 100-page
+   cap). Progress is checkpointed per repo; the GitHub
    request budget pauses the stage (resumable), and a repo the API can't serve (deleted,
    renamed) is recorded and left `unknown`. The refusal list (CB-13) is checked again before
    any fetch, and once more with the GitHub id the metadata query returns: a repo refused by id
@@ -43,12 +49,17 @@ points; no identities):
      first day (§1.2 day mapping), `pending` until `T + k + settle_lag (3 d)` has passed,
      `unknown` when a day is missing, labelled "unfiltered, anomaly-checked";
      `att.hn_points` = the highest points of a declared launch post from `T − 7 d` on (as of
-     fetch). **Every other metric is `unknown` with reason `no_connector`**: registry downloads,
+     fetch). The views' windows (ADR-083): `att.stars_launch@0-2` (endpoint days 0 and 1, the
+     LSM days) and `att.stars_follow@3-30` (days 3..29), with the same pending/unknown rules;
+     `att.reddit_reach` is `unknown` (`no_connector`: TM-05 is a GAP, pigtail has no Reddit
+     connector). **Every other metric is `unknown` with reason `no_connector`**: registry downloads,
      dependents, PR-based community metrics and the business signals have no connector yet
      (outcome-model §7), and nothing is imputed (R18.8).
    - **Covariates** (§5.6): LSM from the first 2 endpoint days, launch quarter and half-year of
      T (UTC), repo age at T from the creation date, primary language (current, not at T),
-     launch type (`show_hn`, `launch_hn` or `burst`), and the founder audience band, which is
+     launch type (`show_hn`, `launch_hn` or `burst`), stars before launch (net stars from the
+     repo's creation day to the day before the anchor window's first day; `unknown` when the
+     stored series doesn't reach creation, ADR-083), and the founder audience band, which is
      `unknown` for every candidate until the audience proxy is built and cleared (O14;
      `unknown` is matched as its own level).
    - **Star anomaly flag** (§4.3): `pigtail.analysis.anomaly.check_population` over the
@@ -74,11 +85,17 @@ from pigtail.analysis.anomaly import check_population
 from pigtail.analysis.bursts import Onset, segment
 from pigtail.analysis.params import ANOMALY, STAR_HISTORY_DAY_TZ
 from pigtail.briefs.candidates import Candidate, CandidateStore
+from pigtail.briefs.confirm import Check, Confirmer, confirm_by_rules, haiku_input
 from pigtail.briefs.model import METRICS, Brief
 from pigtail.briefs.selection import (
     ANCHOR_RULE_VERSION,
     BUSINESS_COUNT,
     BUSINESS_SIGNALS,
+    FOLLOW_DAYS,
+    FOLLOW_STARS,
+    LAUNCH_DAYS,
+    LAUNCH_SIZE,
+    REDDIT_REACH,
     Anchor,
     AnomalyFlag,
     CaseInput,
@@ -125,6 +142,7 @@ class FetchResult:
     metadata_filled: int = 0
     failed: dict[str, int] = field(default_factory=dict)  # reason -> count (no names)
     pages: int = 0
+    to_creation: int = 0  # repos with a declared launch: history fetched back to creation
     launch_lookup: dict[str, Any] | None = None
     evidence_ids: list[str] = field(default_factory=list)
 
@@ -137,7 +155,25 @@ class FetchResult:
 def star_pages(window_start: date, as_of: date) -> int:
     """Pages of 30 weeks that reach 60 days before the window's start (the anomaly baseline)."""
     weeks = (as_of - (window_start - timedelta(days=BASELINE_BEFORE_DAYS + 1))).days // 7 + 2
-    return max(1, min(100, math.ceil(weeks / STAR_WEEKS_PER_PAGE)))
+    return max(1, min(STAR_MAX_PAGES, math.ceil(weeks / STAR_WEEKS_PER_PAGE)))
+
+
+STAR_MAX_PAGES = 100  # the endpoint's page cap (GitHub docs); 100 x 30 weeks = 57 years
+STAR_PAGES_RULE = "window-60d+creation-for-launched-v1"  # ADR-083 (checkpoint key)
+
+
+def creation_pages(created: date, as_of: date) -> int:
+    """Pages of 30 weeks that reach the repo's creation week (stars before launch, view B,
+    ADR-083), under the same page cap."""
+    weeks = (as_of - created).days // 7 + 2
+    return max(1, min(STAR_MAX_PAGES, math.ceil(weeks / STAR_WEEKS_PER_PAGE)))
+
+
+def has_declared_launch(c: Candidate, start: datetime, end: datetime) -> bool:
+    """Whether the candidate has a declared launch in the window that can anchor it (a
+    discovery Show HN post, a URL-matched lookup post, or a confirmed title match, current
+    rule): its star history is then fetched back to creation (ADR-083)."""
+    return bool(_launches(c, start, end))
 
 
 def fetch_outcome_data(
@@ -155,11 +191,14 @@ def fetch_outcome_data(
     recorder: Any = None,
     hn: Any = None,
     window: tuple[datetime, datetime] | None = None,
+    confirmer: Confirmer | None = None,
 ) -> FetchResult:
     """Step 1 (module docstring). `BudgetExhausted` propagates: the stage pauses, resumable.
     With `window`, the launch lookup (step 1b) runs after the metadata fill and before the star
-    history, checkpointed per repo; it needs `hn` (`LaunchLookupUnavailable` otherwise, raised
-    before anything is written; ADR-082)."""
+    history, checkpointed per repo group; it needs `hn` (`LaunchLookupUnavailable` otherwise,
+    raised before anything is written; ADR-082), and `confirmer` runs the Haiku check of title
+    matches (ADR-083 E; without it they fail closed). A repo with a declared launch in the
+    window gets its star history back to its creation week (stars before launch, ADR-083)."""
     from pigtail.briefs.discovery import _meta_from_graphql
     from pigtail.capture.db import CaptureDB
     from pigtail.capture.star_history import fetch_star_history
@@ -184,15 +223,24 @@ def fetch_outcome_data(
         res.failed["refused"] = len(refused)
     gh_on = github is not None and getattr(github, "enabled", True)
     store = CandidateStore(conn, brief.brief_id, brief.version)
+    if checkpoint.get("star_pages_rule") != STAR_PAGES_RULE:  # fetched under an older rule
+        checkpoint.pop("star_history_done", None)
+        checkpoint.pop("star_history_failed", None)
+        checkpoint["star_pages_rule"] = STAR_PAGES_RULE
     done: set[str] = set(checkpoint.get("star_history_done") or [])
     failed: dict[str, str] = dict(checkpoint.get("star_history_failed") or {})
     # metadata first: the launch lookup's title rule needs each repo's creation date (ADR-082)
+    # and its confirmation rule 1 the homepage domain (ADR-083 E; "" when there is none)
     need = sorted(
         c.repo_full_name
         for c in cands
         if c.repo_full_name
         and c.ref not in done
-        and (c.repo_host_id is None or not c.metadata.get("created_at"))
+        and (
+            c.repo_host_id is None
+            or not c.metadata.get("created_at")
+            or "homepage_domain" not in c.metadata
+        )
     )
     if gh_on and need and not checkpoint.get("metadata_done"):
         meta = github.repos_metadata(need)
@@ -228,6 +276,7 @@ def fetch_outcome_data(
             checkpoint=checkpoint,
             save=save,
             recorder=recorder,
+            confirmer=confirmer,
         )
         res.launch_lookup = lk.to_dict()
         res.evidence_ids.extend(lk.evidence_ids)
@@ -236,7 +285,7 @@ def fetch_outcome_data(
         return res
     db = CaptureDB(conn)
     fresh = {c.ref: c for c in store.all()}
-    pages = star_pages(window_start, as_of)
+    base_pages = star_pages(window_start, as_of)
     for ref in sorted(c.ref for c in cands):
         if ref in refused:
             continue
@@ -251,6 +300,11 @@ def fetch_outcome_data(
         if c is None or c.repo_host_id is None or c.repo_full_name is None:
             failed[ref] = "no_repo_id"
         else:
+            pages = base_pages
+            created = _created(c)
+            if window is not None and created is not None and has_declared_launch(c, *window):
+                pages = max(pages, creation_pages(created, as_of))  # stars before launch
+                res.to_creation += 1
             try:
                 r = fetch_star_history(
                     github,
@@ -281,6 +335,7 @@ def fetch_outcome_data(
 LAUNCH_LOOKUP_SOURCE = "hn_launch_lookup"
 LAUNCH_LOOKUP_REQUESTS = 3  # HN Algolia requests per shortlisted repo (estimate, ADR-082)
 LAUNCH_LOOKUP_HITS = 50
+LOOKUP_GROUP = 25  # repos per checkpoint (and per Haiku batch of title checks, ADR-083 E)
 TITLE_MIN_CHARS = 5  # shorter repo names are matched by URL only (ADR-082 rule d)
 CREATION_TOLERANCE = timedelta(days=1)  # a post may precede the repo's creation by <= 1 day
 # ADR-082 rule (d): repo names that are common English words or generic tech words never match
@@ -439,6 +494,11 @@ class LookupResult:
     # title-only candidates rejected by the ADR-082 rule, by first failed rule; counts only
     # (no titles), cumulative over the run (kept in the checkpoint across resumes)
     title_rejected: dict[str, int] = field(default_factory=dict)
+    # title matches that passed ADR-082 and then the E rule (ADR-083): confirmed, by method;
+    # unconfirmed (stored with the reason, excluded from anchors and hn_points), by reason
+    title_confirmed: dict[str, int] = field(default_factory=dict)
+    title_unconfirmed: dict[str, int] = field(default_factory=dict)
+    haiku_checks: int = 0
     failed: dict[str, int] = field(default_factory=dict)
     rule: str = ANCHOR_RULE_VERSION
     evidence_ids: list[str] = field(default_factory=list)
@@ -447,10 +507,15 @@ class LookupResult:
     def title_rejected_total(self) -> int:
         return sum(self.title_rejected.values())
 
+    @property
+    def title_unconfirmed_total(self) -> int:
+        return sum(self.title_unconfirmed.values())
+
     def to_dict(self) -> dict[str, Any]:
         d = dict(self.__dict__)
         d.pop("evidence_ids")
         d["title_rejected_total"] = self.title_rejected_total
+        d["title_unconfirmed_total"] = self.title_unconfirmed_total
         return d
 
 
@@ -474,23 +539,47 @@ def lookup_launches(
     checkpoint: dict[str, Any],
     save: Callable[[dict[str, Any]], None],
     recorder: Any = None,
+    confirmer: Confirmer | None = None,
+    group_size: int = LOOKUP_GROUP,
 ) -> LookupResult:
-    """Step 1b (ADR-081, ADR-082): find each shortlisted repo's Show HN / Launch HN posts in the
-    window, whether discovery found them or not. Project-level fields only (item id, time,
-    points, kind, match, rule): `parse_show_hn_page` never reads the author, and the raw page is
-    dropped right after parsing (CB-24). The evidence record names the repo, not the query. The
-    connector's rate limiter paces the requests. A repo's lookup records replace the ones an
-    earlier rule stored (for example rows carried forward from another brief version). Title-only
-    candidates the rule rejects are counted by reason, never stored. Checkpointed per repo
-    (`launch_lookup_done`); a failed request propagates and the stage resumes from the next repo
-    not done. Raises `LaunchLookupUnavailable` when the connector is off (ADR-082)."""
+    """Step 1b (ADR-081, ADR-082, ADR-083): find each shortlisted repo's Show HN / Launch HN
+    posts in the window, whether discovery found them or not. Project-level fields only (item
+    id, time, points, kind, match, rule, and for title matches the confirmation):
+    `parse_show_hn_page` never reads the author, and the raw page is dropped right after parsing
+    (CB-24). The evidence record names the repo, not the query. The connector's rate limiter
+    paces the requests. A repo's lookup records replace the ones an earlier rule stored (for
+    example rows carried forward from another brief version). Title-only candidates the ADR-082
+    rule rejects are counted by reason, never stored.
+
+    Title matches that pass it go through the E rule (`pigtail.briefs.confirm`, ADR-083):
+    excluded when the repo has a URL-matched launch in the window (discovery or this lookup),
+    else confirmed by rules 1-3 or, failing those, by the Haiku check (`confirmer`, batched per
+    group of `group_size` repos; without a confirmer they fail closed). Unconfirmed matches
+    are stored with `confirmed: false` and the reason, and counted. The titles are held in
+    memory only while their group is processed.
+
+    Checkpointed per repo (`launch_lookup_done`); a repo with a title match waiting for the
+    Haiku check is checkpointed after its group's batch. A failed request, or a Haiku batch
+    still running (`BatchPending`), propagates, and the stage resumes with the repos not done
+    (their free HN requests are made again; answered Haiku checks come from the LLM cache and a
+    running batch is collected, not resubmitted). Raises `LaunchLookupUnavailable` when the
+    connector is off (ADR-082)."""
     from pigtail.capture.db import CaptureDB
-    from pigtail.connectors.hn import launch_lookup_evidence_url, parse_show_hn_page
-    from pigtail.privacy.deletion import PARSE_ERRORS, DeletionLog, drop_after_parse
+    from pigtail.privacy.deletion import DeletionLog
 
     assert brief.version is not None
     if (why := launch_lookup_blocked(hn)) is not None:
         raise LaunchLookupUnavailable(why)
+    if checkpoint.get("launch_lookup_rule") != ANCHOR_RULE_VERSION:  # an older rule's progress
+        for k in (
+            "launch_lookup_done",
+            "launch_lookup_title_rejected",
+            "launch_lookup_title_confirmed",
+            "launch_lookup_title_unconfirmed",
+            "launch_lookup_haiku_checks",
+        ):
+            checkpoint.pop(k, None)
+        checkpoint["launch_lookup_rule"] = ANCHOR_RULE_VERSION
     todo = sorted((c for c in cands if c.repo_full_name), key=lambda c: c.ref)
     res = LookupResult(repos=len(todo))
     db = CaptureDB(conn)
@@ -498,56 +587,26 @@ def lookup_launches(
     dlog = DeletionLog(db, "retention", run_id=getattr(recorder, "id", None))
     done: set[str] = set(checkpoint.get("launch_lookup_done") or [])
     rejected_all: dict[str, int] = dict(checkpoint.get("launch_lookup_title_rejected") or {})
+    confirmed_all: dict[str, int] = dict(checkpoint.get("launch_lookup_title_confirmed") or {})
+    unconf_all: dict[str, int] = dict(checkpoint.get("launch_lookup_title_unconfirmed") or {})
+    haiku_n = int(checkpoint.get("launch_lookup_haiku_checks") or 0)
     start, end = window
-    for c in todo:
-        if c.ref in done:
-            res.already_done += 1
-            continue
-        full = str(c.repo_full_name)
-        created = _created_at(c)
-        found: dict[int, dict[str, Any]] = {}
-        rejected: dict[int, str] = {}
-        for label, query, tags in lookup_queries(full):
-            f = hn.search_show_hn(
-                query,
-                since=start,
-                until=end,
-                hits=LAUNCH_LOOKUP_HITS,
-                tags=tags,
-                evidence_url=launch_lookup_evidence_url(full, label, tags),
-            )
-            res.requests += 1
-            res.evidence_ids.append(f.evidence.id)
-            try:
-                stories, _ = parse_show_hn_page(f.data)
-            except PARSE_ERRORS:
-                stories = []
-                res.failed["parse_failed"] = res.failed.get("parse_failed", 0) + 1
-            drop_after_parse(db, hn.store, f.evidence.id, f.content_hash, dlog)
-            kind = "launch_hn" if tags == "launch_hn" else "show_hn"
-            for st in stories:
-                if st.created_at is None or not start <= st.created_at <= end:
-                    continue
-                how, why = classify_launch_post(st, full, created=created)
-                if how is None:
-                    if why is not None:
-                        rejected.setdefault(st.item_id, why)
-                    continue
-                prev = found.get(st.item_id)
-                if prev is not None and (prev["match"] == "url" or how == "title"):
-                    continue
-                found[st.item_id] = {
-                    "source": LAUNCH_LOOKUP_SOURCE,
-                    "hn_item_id": st.item_id,
-                    "time": st.created_at.isoformat(),
-                    "points": st.points,
-                    "kind": kind,
-                    "match": how,
-                    "rule": ANCHOR_RULE_VERSION,
-                }
+    pending = [c for c in todo if c.ref not in done]
+    res.already_done = len(todo) - len(pending)
+
+    def finish(c: Candidate, found: dict[int, dict[str, Any]], rejected: dict[int, str]) -> None:
+        """Store one repo's records, count them and checkpoint it."""
         store.replace_signals(c.ref, LAUNCH_LOOKUP_SOURCE, [found[k] for k in sorted(found)])
         for rec in found.values():
             res.by_match[rec["match"]] = res.by_match.get(rec["match"], 0) + 1
+            if rec["match"] != "title":
+                continue
+            if rec["confirmed"]:
+                k = str(rec["confirmation"])
+                confirmed_all[k] = confirmed_all.get(k, 0) + 1
+            else:
+                k = str(rec["confirmation"]).removeprefix("unconfirmed:")
+                unconf_all[k] = unconf_all.get(k, 0) + 1
         res.posts += len(found)
         for item, why in rejected.items():
             if item not in found:
@@ -556,9 +615,133 @@ def lookup_launches(
         done.add(c.ref)
         checkpoint["launch_lookup_done"] = sorted(done)
         checkpoint["launch_lookup_title_rejected"] = dict(sorted(rejected_all.items()))
+        checkpoint["launch_lookup_title_confirmed"] = dict(sorted(confirmed_all.items()))
+        checkpoint["launch_lookup_title_unconfirmed"] = dict(sorted(unconf_all.items()))
+        checkpoint["launch_lookup_haiku_checks"] = haiku_n
         save(checkpoint)
+
+    for g in range(0, len(pending), group_size):
+        group = pending[g : g + group_size]
+        deferred: list[tuple[Candidate, dict[int, dict[str, Any]], dict[int, str]]] = []
+        checks: list[Check] = []
+        for c in group:
+            full = str(c.repo_full_name)
+            found, rejected, stories_of = _lookup_repo(
+                hn, full, _created_at(c), start, end, res, db, dlog
+            )
+            url_launch = any(r["match"] == "url" for r in found.values()) or bool(
+                _discovery_launches(c, start, end)
+            )
+            mine: list[Check] = []
+            for item, rec in found.items():
+                if rec["match"] != "title":
+                    continue
+                st = stories_of[item]
+                if url_launch:
+                    rec["confirmed"], rec["confirmation"] = False, "unconfirmed:has_url_launch"
+                    continue
+                meta = c.metadata
+                how = confirm_by_rules(
+                    full_name=full,
+                    description=meta.get("description"),
+                    homepage_domain=meta.get("homepage_domain") or None,
+                    title=st.title,
+                    url=st.url,
+                )
+                if how is not None:
+                    rec["confirmed"], rec["confirmation"] = True, how
+                    continue
+                text = haiku_input(
+                    full, meta.get("description"), meta.get("homepage_domain"), st.title, st.url
+                )
+                mine.append(Check((c.ref, item), text))
+            if mine:  # waits for the group's Haiku batch
+                checks += mine
+                deferred.append((c, found, rejected))
+            else:
+                finish(c, found, rejected)
+        if not checks:
+            continue
+        # rule 4, one batch for the group's title matches (BatchPending propagates: the
+        # deferred repos aren't done, so a resume looks them up again and collects the batch)
+        outcomes = (confirmer or Confirmer(None)).run(checks)
+        haiku_n += len(checks)
+        for c, found, rejected in deferred:
+            for item, rec in found.items():
+                o = outcomes.get((c.ref, item))
+                if o is None:
+                    continue
+                rec["confirmed"], rec["confirmation"] = o.confirmed, o.confirmation
+                if o.provenance is not None:
+                    rec["confirmation_provenance"] = o.provenance
+            finish(c, found, rejected)
     res.title_rejected = dict(sorted(rejected_all.items()))
+    res.title_confirmed = dict(sorted(confirmed_all.items()))
+    res.title_unconfirmed = dict(sorted(unconf_all.items()))
+    res.haiku_checks = haiku_n
     return res
+
+
+def _lookup_repo(
+    hn: Any,
+    full: str,
+    created: datetime | None,
+    start: datetime,
+    end: datetime,
+    res: LookupResult,
+    db: Any,
+    dlog: Any,
+) -> tuple[dict[int, dict[str, Any]], dict[int, str], dict[int, Any]]:
+    """The three searches of one repo: (records by item id, title-only rejections by item id,
+    the parsed stories by item id, held in memory for the confirmation only)."""
+    from pigtail.connectors.hn import launch_lookup_evidence_url as evidence_url
+    from pigtail.connectors.hn import parse_show_hn_page as parse
+    from pigtail.privacy.deletion import PARSE_ERRORS as parse_errors
+    from pigtail.privacy.deletion import drop_after_parse as drop
+
+    found: dict[int, dict[str, Any]] = {}
+    rejected: dict[int, str] = {}
+    stories_of: dict[int, Any] = {}
+    for label, query, tags in lookup_queries(full):
+        f = hn.search_show_hn(
+            query,
+            since=start,
+            until=end,
+            hits=LAUNCH_LOOKUP_HITS,
+            tags=tags,
+            evidence_url=evidence_url(full, label, tags),
+        )
+        res.requests += 1
+        res.evidence_ids.append(f.evidence.id)
+        try:
+            stories, _ = parse(f.data)
+        except parse_errors:
+            stories = []
+            res.failed["parse_failed"] = res.failed.get("parse_failed", 0) + 1
+        drop(db, hn.store, f.evidence.id, f.content_hash, dlog)
+        kind = "launch_hn" if tags == "launch_hn" else "show_hn"
+        for st in stories:
+            if st.created_at is None or not start <= st.created_at <= end:
+                continue
+            how, why = classify_launch_post(st, full, created=created)
+            if how is None:
+                if why is not None:
+                    rejected.setdefault(st.item_id, why)
+                continue
+            prev = found.get(st.item_id)
+            if prev is not None and (prev["match"] == "url" or how == "title"):
+                continue
+            stories_of[st.item_id] = st
+            found[st.item_id] = {
+                "source": LAUNCH_LOOKUP_SOURCE,
+                "hn_item_id": st.item_id,
+                "time": st.created_at.isoformat(),
+                "points": st.points,
+                "kind": kind,
+                "match": how,
+                "rule": ANCHOR_RULE_VERSION,
+            }
+    return found, rejected, stories_of
 
 
 # --- 2. load -----------------------------------------------------------------------------------
@@ -626,6 +809,8 @@ def ambiguous_title_matches(cands: Sequence[Candidate]) -> set[tuple[str, int]]:
             if s.get("source") == "show_hn" and s.get("hn_item_id"):
                 url.setdefault(int(s["hn_item_id"]), set()).add(c.ref)
             elif _current_lookup(s) and s.get("hn_item_id"):
+                if s.get("match") == "title" and s.get("confirmed") is not True:
+                    continue  # never a launch (ADR-083 E), so it claims nothing
                 d = title if s.get("match") == "title" else url
                 d.setdefault(int(s["hn_item_id"]), set()).add(c.ref)
     out: set[tuple[str, int]] = set()
@@ -643,8 +828,10 @@ def _launches(
 ) -> list[Launch]:
     """The candidate's declared launches inside the window (outcome-model §2.1, ADR-081): the
     Show HN posts discovery recorded (linked by URL) merged with the launch lookup's posts, one
-    per HN item id (the lookup's record wins: fresher points, and it says how it matched). In
-    time order, then item id (§2.2 rule 5)."""
+    per HN item id (the lookup's record wins: fresher points, and it says how it matched). A
+    title match counts only when it is confirmed and the repo has no URL-matched launch in the
+    window (ADR-083 E; checked here again, so records of any origin obey it). In time order,
+    then item id (§2.2 rule 5)."""
     by_item: dict[int, Launch] = {}
     for s in c.sources:
         src = s.get("source")
@@ -653,6 +840,9 @@ def _launches(
         item = int(s.get("hn_item_id") or 0)
         if src == LAUNCH_LOOKUP_SOURCE and (not _current_lookup(s) or (c.ref, item) in drop):
             continue  # a record of an earlier anchor rule, or an ambiguous title match
+        title = src == LAUNCH_LOOKUP_SOURCE and s.get("match") == "title"
+        if title and s.get("confirmed") is not True:
+            continue  # an unconfirmed title-only match (ADR-083 E)
         t = _t(s["time"])
         if not start <= t <= end:
             continue
@@ -667,7 +857,18 @@ def _launches(
         prev = by_item.get(item)
         if prev is None or (prev.via == "discovery" and rec.via != "discovery"):
             by_item[item] = rec
+    if any(x.via != "lookup:title" for x in by_item.values()):  # a URL-matched launch exists
+        by_item = {k: x for k, x in by_item.items() if x.via != "lookup:title"}
     return sorted(by_item.values(), key=lambda x: (x.at, x.item_id))
+
+
+def _discovery_launches(c: Candidate, start: datetime, end: datetime) -> list[int]:
+    """Item ids of the Show HN posts discovery linked to the repo by URL, inside the window."""
+    out = []
+    for s in c.sources:
+        if s.get("source") == "show_hn" and s.get("time") and start <= _t(s["time"]) <= end:
+            out.append(int(s.get("hn_item_id") or 0))
+    return out
 
 
 def _precedes(t: datetime, b: Onset) -> bool:
@@ -720,11 +921,37 @@ def choose_anchor(
     return None, "no_anchor" if has_series else "no_anchor: no launch post and no star history"
 
 
-# The code whose behaviour is the anchor rule (ADR-082 guard): the matching of lookup hits, the
-# merge of launches, the ambiguity drop and `choose_anchor` with its comparisons, plus the
-# constants they read. Their hash is pinned next to `ANCHOR_RULE_VERSION`
-# (`selection.ANCHOR_RULE_SOURCE_SHA256`).
+# The code whose behaviour is the anchor rule (ADR-082 guard, extended by ADR-083): the lookup
+# loop, the matching of lookup hits, the GitHub-URL normalizer, the title confirmation (E rule
+# and the Haiku check), the merge of launches, the ambiguity drop and `choose_anchor` with its
+# comparisons, and the star windows the views read (launch size, follow-through, stars before
+# launch, view A's fit), plus the constants they read. Names without a module are in this
+# module; `module:name` elsewhere. Their hash is pinned next to `ANCHOR_RULE_VERSION`
+# (`selection.ANCHOR_RULE_SOURCE_SHA256`) and, since selection-v5, is part of the
+# pre-registered parameters (`Context.params()["anchor_rule_source_sha256"]`).
 ANCHOR_RULE_FUNCTIONS = (
+    "lookup_launches",
+    "_lookup_repo",
+    "_discovery_launches",
+    "has_declared_launch",
+    "creation_pages",
+    "pigtail.connectors.hn:normalize_github_repo",
+    "pigtail.briefs.confirm:url_domain",
+    "pigtail.briefs.confirm:_owner",
+    "pigtail.briefs.confirm:_norm",
+    "pigtail.briefs.confirm:keywords",
+    "pigtail.briefs.confirm:owner_named",
+    "pigtail.briefs.confirm:confirm_by_rules",
+    "pigtail.briefs.confirm:haiku_input",
+    "pigtail.briefs.confirm:Confirmer",
+    "pigtail.briefs.confirm:_outcome",
+    "pigtail.briefs.confirm:_fail",
+    "pigtail.briefs.selection:follow_through_fit",
+    "pigtail.briefs.selection:_ln1p0",
+    "pigtail.briefs.selection:_pending_or_unknown",
+    "star_window",
+    "stars_before_launch",
+    "first_day",
     "lookup_queries",
     "_name_parts",
     "_mentions_name",
@@ -749,22 +976,57 @@ ANCHOR_RULE_CONSTANTS = (
     "_SLOT_END",
     "_NAME_SEP",
     "LAUNCH_LOOKUP_SOURCE",
+    "SETTLE_LAG_DAYS",
+    "LOOKUP_GROUP",
+    "STAR_MAX_PAGES",
+    "STAR_WEEKS_PER_PAGE",
+    "pigtail.connectors.hn:_GH_NOT_OWNER",
+    "pigtail.connectors.hn:_GH_OWNER",
+    "pigtail.connectors.hn:_GH_REPO",
+    "pigtail.briefs.confirm:CONFIRMATION_VERSION",
+    "pigtail.briefs.confirm:OWNER_MIN_CHARS",
+    "pigtail.briefs.confirm:KEYWORD_MIN_CHARS",
+    "pigtail.briefs.confirm:KEYWORD_MIN_SHARED",
+    "pigtail.briefs.confirm:SHARED_HOSTS",
+    "pigtail.briefs.confirm:KEYWORD_STOPWORDS",
+    "pigtail.briefs.confirm:_YC_BATCH",
+    "pigtail.briefs.confirm:_TOKEN",
+    "pigtail.briefs.confirm:_URL_TOKEN",
+    "pigtail.briefs.confirm:JOB",
+    "pigtail.briefs.confirm:NAMESPACE",
+    "pigtail.briefs.confirm:SYSTEM",
+    "pigtail.briefs.confirm:TEMPLATE",
+    "pigtail.briefs.selection:LAUNCH_DAYS",
+    "pigtail.briefs.selection:FOLLOW_DAYS",
+    "pigtail.briefs.selection:FIT_EPS",
+    "pigtail.briefs.selection:FT_ROUND",
+    "pigtail.briefs.selection:MIN_POPULATION",
 )
+
+
+def _guarded(name: str) -> Any:
+    """The object a guard entry names (`name` in this module, or `module:name`)."""
+    import importlib
+
+    if ":" in name:
+        mod, attr = name.split(":", 1)
+        return getattr(importlib.import_module(mod), attr)
+    return globals()[name]
 
 
 def anchor_rule_source_sha256() -> str:
     """SHA-256 of the anchor rule's code (`ANCHOR_RULE_FUNCTIONS`, parsed, docstrings dropped,
     so comments, docstrings and formatting don't count) and constants (`ANCHOR_RULE_CONSTANTS`,
-    sorted where they are sets). Pinned as `selection.ANCHOR_RULE_SOURCE_SHA256` (ADR-082)."""
+    sorted where they are sets). Pinned as `selection.ANCHOR_RULE_SOURCE_SHA256` (ADR-082) and
+    part of the pre-registered selection parameters (ADR-083)."""
     import ast
     import hashlib
     import inspect
     import textwrap
 
-    g = globals()
     parts: list[str] = []
     for name in ANCHOR_RULE_FUNCTIONS:
-        tree = ast.parse(textwrap.dedent(inspect.getsource(g[name])))
+        tree = ast.parse(textwrap.dedent(inspect.getsource(_guarded(name))))
         for node in ast.walk(tree):
             body = getattr(node, "body", None)
             if (
@@ -778,21 +1040,53 @@ def anchor_rule_source_sha256() -> str:
                 node.body = body[1:] or [ast.Pass()]
         parts.append(f"{name}={ast.dump(tree, annotate_fields=False)}")
     for name in ANCHOR_RULE_CONSTANTS:
-        v = g[name]
+        v = _guarded(name)
         parts.append(f"{name}={sorted(v) if isinstance(v, frozenset | set) else v!r}")
     return hashlib.sha256("\n".join(parts).encode()).hexdigest()
 
 
 def star_value(series: Mapping[date, int], first: date, k: int, as_of: date) -> Value:
     """`att.stars@k` (outcome-model §1.2): raw net stars over k endpoint days."""
-    if as_of < first + timedelta(days=k + SETTLE_LAG_DAYS):
+    return star_window(series, first, 0, k, as_of)
+
+
+def star_window(series: Mapping[date, int], first: date, lo: int, hi: int, as_of: date) -> Value:
+    """Raw net stars on the endpoint days with index `lo <= i < hi` from the anchor window's
+    first day (§1.2 day mapping; ADR-083: launch size `[0, 2)`, follow-through `[3, 30)`).
+    `pending` until `first + hi + settle_lag` (the horizon rule of `att.stars@k`, with k = hi),
+    `unknown` without a series or with a missing day; labelled "unfiltered, anomaly-checked"."""
+    if as_of < first + timedelta(days=hi + SETTLE_LAG_DAYS):
         return Value("pending", reason="horizon_not_reached", tag="unknown")
-    days = [first + timedelta(days=i) for i in range(k)]
+    days = [first + timedelta(days=i) for i in range(lo, hi)]
     if not series:
         return Value("unknown", reason="no_star_history")
     if any(d not in series for d in days):
         return Value("unknown", reason="incomplete_series")
     return Value("observed", float(sum(series[d] for d in days)), "verified", STAR_LABEL)
+
+
+def stars_before_launch(
+    series: Mapping[date, int], created: datetime | None, first: date
+) -> tuple[int | None, str | None]:
+    """(net stars, None) on the endpoint days from the repo's creation day `D(created)` (§1.2
+    day mapping) to the day before the anchor window's first day, or (None, reason): no
+    creation date, no series, a series that doesn't reach the creation day (older pages not
+    fetched), or a missing day in between (ADR-083, view B). A launch on or before the
+    creation day has 0 stars before it."""
+    if created is None:
+        return None, "no_creation_date"
+    if not series:
+        return None, "no_star_history"
+    day0 = endpoint_day(created)
+    if day0 >= first:
+        return 0, None
+    if min(series) > day0:
+        return None, "series_does_not_reach_creation"
+    n = (first - day0).days
+    days = [day0 + timedelta(days=i) for i in range(n)]
+    if any(d not in series for d in days):
+        return None, "incomplete_series"
+    return sum(series[d] for d in days), None
 
 
 def _star_horizon_max(d: Definition) -> int:
@@ -893,6 +1187,12 @@ def load_inputs(
             values[BUSINESS_COUNT] = NO_CONNECTOR
             for k in (30, 90):
                 values[f"att.stars@{k}"] = star_value(series, f, k, as_of)
+            # the views' star windows (ADR-083): launch size (days 0..1, the LSM days) and
+            # follow-through (days 3..29); Reddit reach has no connector (TM-05 is a GAP)
+            values[LAUNCH_SIZE] = star_window(series, f, *LAUNCH_DAYS, as_of)
+            values[FOLLOW_STARS] = star_window(series, f, *FOLLOW_DAYS, as_of)
+            values[REDDIT_REACH] = NO_CONNECTOR
+            pre, pre_why = stars_before_launch(series, _created_at(c), f)
             pts = [
                 x.points
                 for x in p["launches"]
@@ -917,6 +1217,9 @@ def load_inputs(
                 audience_band="unknown",
                 language=c.metadata.get("language"),
                 launch_type=a.source if a.type == "launch" else "burst",
+                prelaunch_stars=pre,
+                prelaunch_log=None if pre is None else math.log10(1 + max(0, pre)),
+                prelaunch_reason=pre_why,
             )
             rep = reports.get(c.ref)
             if rep is not None:

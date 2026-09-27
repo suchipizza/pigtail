@@ -132,12 +132,13 @@ def seed(db: Any, store: LocalSnapshotStore, repo: tuple[int, str]) -> dict[str,
         " %s, 'selection-v1', '2.1', '1.1.0', %s, %s, '{}', '{}', '{}', '{}')",
         (sel, t.date(), "0" * 64, "0" * 64),
     )
-    q(
-        "INSERT INTO brief_selection_case (selection_id, candidate_ref, repo_full_name,"
-        " repo_host_id, repo_id, panel, role, detail) VALUES (%s, %s, %s, %s, %s, 'field',"
-        " 'winner', '{}')",
-        (sel, "gh:" + name.lower(), name.lower(), hid, key),
-    )
+    for view in ("follow_through", "launch"):  # selection-v5 (0025): one row per view
+        q(
+            "INSERT INTO brief_selection_case (selection_id, view, candidate_ref,"
+            " repo_full_name, repo_host_id, repo_id, panel, role, detail) VALUES (%s, %s, %s,"
+            " %s, %s, %s, 'field', 'winner', '{}')",
+            (sel, view, "gh:" + name.lower(), name.lower(), hid, key),
+        )
     q(
         "INSERT INTO repo_event_poll (repo_host_id, polled_at, status, pages)"
         " VALUES (%s, %s, 200, 1)",
