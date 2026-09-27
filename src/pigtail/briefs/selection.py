@@ -61,15 +61,45 @@ descriptive context view; the brief's success definition is unchanged, and each 
   Sensitivity adds the log-ratio and plain `att.stars@30`.
 - **B, launch** (`VIEW_LAUNCH`): attention is launch size (stars on days 0..2). Population:
   launch-anchored cases only (a burst anchor is defined by star velocity, i.e. by launch size:
-  including it would select on the outcome). Matching only on characteristics that existed
-  before launch: the exact keys, quarter, repo age and stars before launch (calipers 0.5 SD),
-  language and category (core vs adjacent field) as distance terms; launch size is neither a
-  matching key nor a headline covariate.
+  including it would select on the outcome); since selection-v6 view B reads its own
+  launch-event anchor and declared launches only (below). Matching only on characteristics
+  that existed before launch: the exact keys, quarter, repo age and stars before launch
+  (calipers 0.5 SD), language and category (core vs adjacent field) as distance terms; launch
+  size is neither a matching key nor a headline covariate.
 - **C, context** (`context_view`): per view, the winners against the whole loser pool without
   matching, labelled "context, not a headline".
 
 `select` with the default `VIEW_PLAIN` keeps the selection-v4 behaviour (the brief's attention
 metric, every anchored case, LSM matching), for comparison and for the older tests only.
+
+**selection-v6 (ADR-084; owner decisions 2026-09-27 after verifier round 6).**
+
+- **Headline exclusion on numeric differences only** (owner option 1): a pair is left out of
+  the headline patterns only when its standardized difference exceeds `headline_exclusion_smd`
+  on a numeric covariate of its view (LSM and repo age in view A; repo age and stars before
+  launch in view B; audience band and quarter when not exact-matched). Language, language
+  group, category, distribution surface and install paths stay in the balance table (SMD per
+  level, `balance_limited` when they miss the target) and never exclude a pair.
+- **Language groups** (`language_group`, fixed): `js_ts` (JavaScript, TypeScript), `python`,
+  `go`, `rust`, `other` (anything else, a missing language included), from GitHub's primary
+  language names exactly. Each pair stores `same_language_group`; each headline view reports
+  the sensitivity alternative "same-language-group pairs only" (its headline pairs, counts and
+  balance on that subset). The later pattern step compares every headline pattern on all
+  headline pairs against this subset (`PATTERN_LANGUAGE_RULE`).
+- **Distribution surface** (`pigtail.briefs.surface`, coded before any outcome): `surface` and
+  `install_path` are balance rows next to language; never a matching key or an exclusion.
+- **View B's anchor** is its own (`CaseInput.launch_case`, built by
+  `outcomes.choose_launch_anchor` from launch events only, never star data): the earliest
+  maintainer-initiated launch event in the window (Show HN / Launch HN, or a GitHub release
+  worded as a launch); later ones are relaunch events. A repo without one is anchored on the
+  earlier of its first external mention (HN) and its first public release (GitHub), flagged
+  `undeclared_launch` and reported in its own sub-population (`VIEW_LAUNCH_UNDECLARED`), not in
+  the declared-launch headline. Burst anchors are never used in view B.
+- **Calipers on log10 scale with the SD from the full shortlisted pool**: the SD of each
+  covariate is computed over every shortlisted field and reference repo with an observed
+  value (not just the view's winners and pool), at sort time, and stored with the selection.
+- **View C** compares the winners with every shortlisted non-winner of the view (no-anchor and
+  undetermined repos included), with counts of those with and without a value.
 """
 
 from __future__ import annotations
@@ -89,7 +119,10 @@ from pigtail.briefs.model import DIMENSIONS, RANKABLE, THRESHOLD_PERCENTILE, Bri
 # v2: headline-first matching, missing language (ADR-078); v3: anchor rule anchor-v2 (ADR-081);
 # v4: anchor rule anchor-v3, the conservative title rule and the launch_hn tag (ADR-082);
 # v5: views A (follow-through), B (launch) and C (context); anchor-v4 (ADR-083)
-SELECTION_VERSION = "selection-v5"
+# v6: numeric-only headline exclusion, language groups, distribution surface, view B's own
+#     launch-event anchor with the undeclared sub-population, full-pool SDs, view C over all
+#     non-winners; anchor-v5, confirm-v2 (ADR-084)
+SELECTION_VERSION = "selection-v6"
 # view A's metric: follow-through relative to launch size (ADR-083)
 FOLLOW_THROUGH_METRIC_VERSION = "follow-through-v1"
 OUTCOME_MODEL_VERSION = "2.1"
@@ -121,8 +154,8 @@ MATCHING_RULE = (
 # Since selection-v5 the live hash is also part of `Context.params()` (ADR-083), so any change to
 # the guarded code changes `selection_params_sha256` and an existing pre-registration stops
 # passing the gate by itself; the pinned constant makes the developer bump the versions too.
-ANCHOR_RULE_VERSION = "anchor-v4"
-ANCHOR_RULE_SOURCE_SHA256 = "467117e3178d4b036582617698f9baacd5bc966c6f664d80127e2cce75757a66"
+ANCHOR_RULE_VERSION = "anchor-v5"  # v5: view B's launch-event anchor (ADR-084)
+ANCHOR_RULE_SOURCE_SHA256 = "fc33500e34dd756e6cd3d8696e11ebfe35c6664c2fcaf57327a0b3d6428da4d0"
 ANCHOR_RULE = (
     "outcome-model §2.2 rules 1-6 as read by ADR-077.3; declared launches = Show HN or Launch HN "
     "posts from discovery and the per-repo launch lookup (current rule's records only), merged "
@@ -149,6 +182,82 @@ LAUNCH_LOOKUP = (
     "(or the reason it was not confirmed) is stored with it"
 )
 ROUND = 6
+
+# --- view B's anchor (ADR-084; owner decision (2) of 2026-09-27) ---------------------------------
+# rule labels, in the order a tie between launch events at the same instant is broken
+DECLARED_RULES = ("show_hn", "launch_hn", "release_launch")
+UNDECLARED_RULES = ("undeclared:first_mention", "undeclared:first_release")
+ANCHOR_RULE_LABELS = (*DECLARED_RULES, *UNDECLARED_RULES, "none")
+RELEASE_LAUNCH_PATTERN = r"\b(?:launch|launching|introducing|announcing|first\s+public\s+release)\b"
+VIEW_B_ANCHOR_RULE = (
+    "view B (launch) has its own anchor, determined only from launch events, never from star "
+    "data (bursts are never used): the earliest maintainer-initiated launch event inside the "
+    "brief's window, i.e. (i) a Show HN or Launch HN post from discovery or the launch lookup "
+    "(URL-matched, or a confirmed title match; Show HN is 'something you made' by HN's rules; "
+    "no author is stored or compared) or (ii) a GitHub release announced as a launch: its name, "
+    "or the first 300 characters of its body, matches the whole-word, case-insensitive pattern "
+    f"{RELEASE_LAUNCH_PATTERN!r} (releases fetched via the GitHub API, newest first, 100 per "
+    "page, up to 10 pages; stored: tag, published_at, prerelease, launch match; never the name "
+    "or body). Rules show_hn, launch_hn, release_launch; a tie at the same instant in that "
+    "order, then item id or tag. Every later launch event in the window is a relaunch event "
+    "(time, kind, item id or tag), reported descriptively. No launch event in the window: the "
+    "earlier of (a) the first external mention, the earliest HN story or comment up to the "
+    "window's end whose URL or text links the repo's github.com/owner/name (HN Algolia "
+    "search_by_date over all item types, typo tolerance off, walked from the oldest page, "
+    "up to 5 requests; stored: item id, time, kind) and (b) the first public release, the "
+    "earliest GitHub release's published_at (prereleases included; tags are not used: their "
+    "dates are not cheaply available); a tie goes to the mention. Rules undeclared:first_mention "
+    "and undeclared:first_release, flagged undeclared_launch and reported as their own "
+    "sub-population of view B (own winners, losers and balance), never mixed into the "
+    "declared-launch headline. No anchor (rule none) when neither exists, when the earlier one "
+    "is outside the window, or when either source is incomplete (a release list cut at the "
+    "page cap, a mention search that hit its cap or failed): the earlier one can't be known"
+)
+VIEW_B_LIMITATIONS = (
+    "Product Hunt: no connector",
+    "X: paid API, and the owner's cap for paid services other than the API is USD 0",
+    "Reddit: no API approval",
+    "blogs: no source",
+    "maintainer posts on Bluesky: identifying the maintainer across platforms would be "
+    "cross-platform name matching, which ADR-075.3 forbids",
+)
+VIEW_B_BIAS = (
+    "a case whose real first launch was on an unobserved channel (Product Hunt, X, Reddit, a "
+    "blog, Bluesky) is dated by its first observable event: its view-B anchor can be later "
+    "than the real launch, so launch size may be measured on a relaunch or follow-up, and a "
+    "case with no observable launch event is counted as an undeclared launch"
+)
+
+# --- language groups (ADR-084; owner decision (1): "groups fixed now: JS+TS, Python, Go, Rust,
+# other"). Exact GitHub primary-language names (linguist); anything else, a missing language
+# included, is `other`.
+LANGUAGE_GROUPS: dict[str, str] = {
+    "JavaScript": "js_ts",
+    "TypeScript": "js_ts",
+    "Python": "python",
+    "Go": "go",
+    "Rust": "rust",
+}
+LANGUAGE_GROUP_LABELS = ("js_ts", "python", "go", "rust", "other")
+PATTERN_LANGUAGE_RULE = (
+    "for every headline pattern of a view, the pattern step (a later milestone) computes the "
+    "contrast d = share present among the view's headline winners - share among their matched "
+    "losers, on all headline pairs (d_all) and on the same-language-group headline pairs only "
+    "(d_same); holds: d_same has the sign of d_all and |d_same| >= 0.5 |d_all|; weakens: the "
+    "same sign but |d_same| < 0.5 |d_all|, or d_same = 0; reverses: the opposite sign, and the "
+    "pattern is labelled 'language-dependent'; not assessable when the subset falls below the "
+    "minimum evidence (ADR-050.3); a pattern with d_all = 0 is not a pattern"
+)
+SD_RULE = (
+    "calipers and standardized differences use, per covariate, the SD over the brief's full "
+    "shortlisted pool at sort time: every shortlisted field and reference repo with an observed "
+    "value of it (anchored or not in this view, whatever its role), on the log10 scale: "
+    "LSM = log10(1 + stars on endpoint days 0..2), repo age = log10(max(1, days from creation "
+    "to the anchor)), stars before launch = log10(1 + max(0, net stars from creation to the "
+    "day before the anchor's first day)); each value is relative to the view's own anchor "
+    "(view B: its launch-event anchor); the SDs are computed when the selection runs and "
+    "stored with it (the rule is pre-registered, the values can't be)"
+)
 
 # --- metrics of the views (ADR-083; outcome-model §1.2 day mapping) ------------------------------
 # Endpoint-day windows are half-open day-index ranges from the first day of the anchor window
@@ -185,13 +294,23 @@ class View:
     stands for attention, which anchored cases form the population, and how losers are
     matched. Selection-version semantics: the brief itself is unchanged."""
 
-    key: str  # plain | follow_through | launch
+    key: str  # plain | follow_through | launch | launch_undeclared
     label: str
     attention_metric: str | None  # None: the brief's own attention metric
-    population: Literal["anchored", "launch_anchored"]
+    population: Literal["anchored", "declared_launch", "undeclared_launch"]
     matching: Literal["lsm", "pre_launch"]
     extra_alternatives: tuple[str, ...] = ()  # attention metrics tried as sensitivity checks
     secondary: tuple[str, ...] = ()  # reported next to the view's outcome, never ranked on
+    # which anchor the view reads: the case's §2.2 anchor, or view B's launch-event anchor
+    # (`CaseInput.launch_case`, ADR-084)
+    anchor: Literal["case", "launch_event"] = "case"
+    # the SD of the calipers and standardized differences: the full shortlisted pool (ADR-084)
+    # or, for the selection-v4 comparison view only, the level's winners and loser pool
+    sd_basis: Literal["full_pool", "winners_and_pool"] = "full_pool"
+    # only numeric differences exclude a pair from the headline (ADR-084); the plain
+    # comparison view keeps the selection-v5 rule (a language mismatch counts as 1)
+    categorical_excludes: bool = False
+    headline: bool = True
 
     def definition(self, d: Definition) -> Definition:
         if self.attention_metric is None:
@@ -210,7 +329,20 @@ class View:
 
     @property
     def categorical(self) -> tuple[str, ...]:
+        """Categorical distance terms (a mismatch or a missing value costs 1)."""
         return ("language",) if self.matching == "lsm" else ("language", "category")
+
+    @property
+    def balance_categorical(self) -> tuple[str, ...]:
+        """Categorical balance rows (SMD per level): the distance terms, the language group
+        and the distribution surface (ADR-084); `install_path` is a multi-label row."""
+        if self.key == "plain":
+            return self.categorical
+        return (*self.categorical, "language_group", "surface")
+
+    @property
+    def balance_multilabel(self) -> tuple[str, ...]:
+        return () if self.key == "plain" else ("install_path",)
 
     @property
     def exemplar_order(self) -> str:
@@ -225,13 +357,21 @@ class View:
             balance.append("launch_quarter")
         return {
             "label": self.label,
+            "headline": self.headline,
             "attention_metric": self.attention_metric or "brief's attention metric",
+            "anchor": {
+                "case": "the case's outcome-model §2.2 anchor (launch or burst, ADR-077.3, "
+                "ADR-081)",
+                "launch_event": "view B's launch-event anchor (VIEW_B_ANCHOR_RULE, ADR-084)",
+            }[self.anchor],
             "population": {
                 "anchored": "anchored field and reference cases (outcome-model §3)",
-                "launch_anchored": "anchored field and reference cases whose anchor is a "
-                "declared launch (Show HN / Launch HN); burst anchors are left out because a "
-                "burst is defined by star velocity, i.e. by launch size (selection on the "
-                "outcome)",
+                "declared_launch": "field and reference cases whose view-B anchor is a declared "
+                "launch event (rules show_hn, launch_hn, release_launch)",
+                "undeclared_launch": "field and reference cases without a declared launch event, "
+                "anchored on the first external mention or the first public release "
+                "(rules undeclared:first_mention, undeclared:first_release; flagged "
+                "undeclared_launch, reported separately, never in the declared-launch headline)",
             }[self.population],
             "matching": {
                 "exact": list(ctx.exact_match),
@@ -239,14 +379,31 @@ class View:
                     **{f"{c}_sd": w for c, w in self.caliper_covariates},
                     "quarter": QUARTER_CALIPER,
                 },
+                "sd_basis": self.sd_basis,
+                "sd_rule": SD_RULE if self.sd_basis == "full_pool" else "winners and loser pool",
                 "distance": [*(f"|d{c}|/SD" for c in numeric), "|dquarter|"]
                 + [f"1[{c} differs or missing]" for c in self.categorical],
-                "balance_covariates": [*balance, *self.categorical],
-                "headline_exclusion": "SMD > headline_exclusion_smd on any balance covariate",
+                "balance_covariates": [
+                    *balance,
+                    *self.balance_categorical,
+                    *self.balance_multilabel,
+                ],
+                "headline_exclusion": (
+                    "a pair is excluded from the headline only when its standardized "
+                    "difference exceeds headline_exclusion_smd on a numeric covariate ("
+                    + ", ".join(balance)
+                    + "); categorical rows (language, language group, category, surface, "
+                    "install path) never exclude and are labelled balance_limited when they "
+                    "miss the target"
+                    if not self.categorical_excludes
+                    else "SMD > headline_exclusion_smd on any balance covariate (a language "
+                    "mismatch or missing language counts as 1)"
+                ),
                 "missing_caliper_value": "not eligible",
                 "exemplar_order": f"nearest {self.exemplar_order}",
             },
-            "sensitivity_extra": [f"metric:attention:{m}" for m in self.extra_alternatives],
+            "sensitivity_extra": [f"metric:attention:{m}" for m in self.extra_alternatives]
+            + (["pairs:same_language_group"] if self.key != "plain" else []),
             "secondary": list(self.secondary),
         }
 
@@ -257,6 +414,9 @@ VIEW_PLAIN = View(
     None,
     "anchored",
     "lsm",
+    sd_basis="winners_and_pool",
+    categorical_excludes=True,
+    headline=False,
 )
 VIEW_FOLLOW_THROUGH = View(
     "follow_through",
@@ -271,11 +431,24 @@ VIEW_LAUNCH = View(
     "launch",
     "B: launch size among declared launches (headline view 2)",
     LAUNCH_SIZE,
-    "launch_anchored",
+    "declared_launch",
     "pre_launch",
     secondary=(HN_POINTS, REDDIT_REACH),
+    anchor="launch_event",
+)
+VIEW_LAUNCH_UNDECLARED = View(
+    "launch_undeclared",
+    "B, undeclared launches: launch size among repos anchored on their first external mention "
+    "or first public release (reported separately, not a headline)",
+    LAUNCH_SIZE,
+    "undeclared_launch",
+    "pre_launch",
+    secondary=(HN_POINTS, REDDIT_REACH),
+    anchor="launch_event",
+    headline=False,
 )
 HEADLINE_VIEWS = (VIEW_FOLLOW_THROUGH, VIEW_LAUNCH)
+VIEWS = (VIEW_FOLLOW_THROUGH, VIEW_LAUNCH, VIEW_LAUNCH_UNDECLARED)
 
 Status = Literal["observed", "pending", "unknown", "not_applicable"]
 CasePanel = Literal["field", "reference", "exemplar"]
@@ -339,17 +512,32 @@ class Anchor:
     type: Literal["launch", "burst"]
     at: datetime
     precision: Literal["hour", "day"]
-    source: str  # show_hn | launch_hn | velocity-v0
-    via: str | None = None  # launches: discovery | lookup:url | lookup:title (ADR-081)
+    # show_hn | launch_hn | velocity-v0; view B also release_launch | first_mention |
+    # first_release (ADR-084)
+    source: str
+    # launches: discovery | lookup:url | lookup:title (ADR-081); view B also github_release |
+    # hn_story | hn_comment
+    via: str | None = None
+    rule: str | None = None  # view B's anchor rule (`ANCHOR_RULE_LABELS`); None: §2.2 anchor
+    ref: str | None = None  # view B: the HN item id or the release tag of the anchoring event
+
+    @property
+    def undeclared(self) -> bool:
+        return self.rule is not None and self.rule.startswith("undeclared:")
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "type": self.type,
             "at": self.at.isoformat(),
             "precision": self.precision,
             "source": self.source,
             "via": self.via,
         }
+        if self.rule is not None:
+            d["rule"] = self.rule
+            d["ref"] = self.ref
+            d["undeclared_launch"] = self.undeclared
+        return d
 
 
 @dataclass(frozen=True)
@@ -369,6 +557,13 @@ class Covariates:
     prelaunch_stars: int | None = None
     prelaunch_log: float | None = None  # log10(1 + max(0, prelaunch_stars))
     prelaunch_reason: str | None = None  # why it is unknown
+    # distribution surface (ADR-084, coded before any outcome; `pigtail.briefs.surface`)
+    surface: str = "unknown"
+    install_paths: tuple[str, ...] = ("unknown",)
+
+    @property
+    def language_group(self) -> str:
+        return language_group(self.language)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -378,11 +573,20 @@ class Covariates:
             "age_log10": _r(self.age_log10),
             "audience_band": self.audience_band,
             "language": self.language,
+            "language_group": self.language_group,
             "launch_type": self.launch_type,
             "prelaunch_stars": self.prelaunch_stars,
             "prelaunch_log": _r(self.prelaunch_log),
             "prelaunch_reason": self.prelaunch_reason,
+            "surface": self.surface,
+            "install_paths": list(self.install_paths),
         }
+
+
+def language_group(language: str | None) -> str:
+    """The fixed language group of a GitHub primary language (`LANGUAGE_GROUPS`, exact names):
+    `js_ts`, `python`, `go`, `rust`, else `other` (a missing language included)."""
+    return LANGUAGE_GROUPS.get(language or "", "other")
 
 
 @dataclass(frozen=True)
@@ -398,10 +602,31 @@ class CaseInput:
     covariates: Covariates = field(default_factory=Covariates)
     star_anomaly_flag: AnomalyFlag = "unknown"
     anomaly: Mapping[str, Any] = field(default_factory=dict)
+    # the same repo as view B sees it (ADR-084): anchored on its launch-event anchor, with its
+    # values and covariates relative to that anchor; None: derived from `anchor` (a Show HN /
+    # Launch HN anchor is a declared launch, a burst is none), for inputs built by hand
+    launch_case: CaseInput | None = None
+    # view B: every launch event after the anchoring one (time, kind, item id or tag)
+    relaunch_events: tuple[Mapping[str, Any], ...] = ()
 
     @property
     def is_reference(self) -> bool:
         return self.panel == "reference"
+
+    def for_view_b(self) -> CaseInput:
+        """This case as view B reads it (`launch_case`, else derived from the §2.2 anchor:
+        a declared Show HN / Launch HN anchor keeps its rule, a burst anchor is dropped)."""
+        if self.launch_case is not None:
+            return self.launch_case
+        a = self.anchor
+        if a is not None and a.type == "launch":
+            rule = a.rule or (a.source if a.source in DECLARED_RULES else "show_hn")
+            return replace(self, anchor=replace(a, rule=rule))
+        reason = "burst anchor: never used in view B" if a is not None else self.anchor_reason
+        no = Value("unknown", reason="no_anchor")
+        return replace(
+            self, anchor=None, anchor_reason=reason, values=dict.fromkeys(self.values, no)
+        )
 
 
 # --- the success definition ---------------------------------------------------------------------
@@ -503,11 +728,15 @@ class Context:
 
     def params(self) -> dict[str, Any]:
         """Everything that defines the selection, hashed into `selection_params_sha256` (R8.2):
-        the brief's panel settings, the anchor rule (with the live hash of its code, ADR-083),
-        the launch lookup and its title confirmation rule (with the Haiku prompt's fingerprint)
-        and views A, B and C. The same for every view of one selection."""
+        the brief's panel settings, the anchor rules (with the live hash of their code,
+        ADR-083), the launch lookup and its title confirmation rule (with the Haiku prompt's
+        fingerprint and the resolved model id), view B's launch-event anchor and its
+        limitations, the distribution-surface coding, the language groups and the pattern
+        rule, the SD rule and views A, B (declared and undeclared) and C (ADR-084). The same
+        for every view of one selection."""
         from pigtail.briefs.confirm import confirmation_params
         from pigtail.briefs.outcomes import anchor_rule_source_sha256
+        from pigtail.briefs.surface import surface_params
 
         return {
             "selection_version": SELECTION_VERSION,
@@ -519,12 +748,37 @@ class Context:
                 "launch_days": list(LAUNCH_DAYS),
                 "follow_days": list(FOLLOW_DAYS),
             },
-            "views": {v.key: v.params(self) for v in HEADLINE_VIEWS},
+            "views": {v.key: v.params(self) for v in VIEWS},
+            "view_b_anchor": {
+                "rule": VIEW_B_ANCHOR_RULE,
+                "rules": list(ANCHOR_RULE_LABELS),
+                "release_launch_pattern": RELEASE_LAUNCH_PATTERN,
+                "release_launch_text": "release name, and the first 300 characters of the body",
+                "limitations": list(VIEW_B_LIMITATIONS),
+                "known_bias": VIEW_B_BIAS,
+            },
+            "distribution_surface": surface_params(),
+            "language_groups": {
+                "mapping": dict(sorted(LANGUAGE_GROUPS.items())),
+                "labels": list(LANGUAGE_GROUP_LABELS),
+                "else": "other (any other GitHub primary language, or none)",
+                "sensitivity": "per headline view, the headline pairs restricted to pairs whose "
+                "two sides share a language group: counts and balance on that subset",
+                "pattern_rule": PATTERN_LANGUAGE_RULE,
+            },
+            "headline_exclusion_rule": "numeric standardized differences only (owner option 1, "
+            "ADR-084): language, language group, category, surface and install paths stay in "
+            "the balance table, labelled balance_limited when they miss the target, and never "
+            "exclude a pair",
+            "sd_rule": SD_RULE,
             "context_view": {
                 "label": CONTEXT_LABEL,
-                "rule": "per headline view: its final winners against its whole loser pool "
-                "(no matching): counts, outcome medians and means, covariate SMDs before "
-                "matching",
+                "rule": "per view: its final winners against every shortlisted non-winner of "
+                "the brief (field and reference repos: the unmatched pool, matched losers, "
+                "undetermined, unrankable, outside-widening, not-in-view and no-anchor repos; "
+                "exemplars are outside the field), no matching; statistics over those with an "
+                "observed value, with the counts with and without one; covariate SMDs of the "
+                "winners against those non-winners",
             },
             "outcome_model_version": OUTCOME_MODEL_VERSION,
             "analysis_params_version": PARAMS_VERSION,
@@ -834,6 +1088,7 @@ class Pair:
     distance: float | None
     diffs: Mapping[str, float | None]  # standardized difference per balance covariate
     excluded_on: tuple[str, ...]
+    same_language_group: bool | None = None  # both sides in one language group (ADR-084)
 
     @property
     def headline(self) -> bool:
@@ -897,6 +1152,8 @@ def _cat(c: CaseInput, cov: str) -> str | None:
     category pigtail has for every candidate)."""
     if cov == "category":
         return "core" if c.distance == 0 else "adjacent"
+    if cov == "language_group":
+        return c.covariates.language_group
     v = getattr(c.covariates, cov)
     return None if v is None else str(v)
 
@@ -930,16 +1187,23 @@ def _pair_diffs(
     w: CaseInput, lo: CaseInput, ctx: Context, sds: Mapping[str, float | None]
 ) -> tuple[dict[str, float | None], tuple[str, ...]]:
     """Standardized difference of one pair per balance covariate, and the covariates on which it
-    exceeds `headline_exclusion_smd` (ADR-054.1; a language mismatch, or a language missing on
-    either side, counts as 1, ADR-078; view B's category likewise, ADR-083)."""
+    exceeds `headline_exclusion_smd` (ADR-054.1). Since selection-v6 (ADR-084, owner option 1)
+    only the numeric covariates can exclude a pair; categorical ones (language, language group,
+    category, surface) are recorded as 0 (same) or 1 (different or missing) for the case-level
+    view and never exclude. The plain comparison view keeps the selection-v5 rule, where a
+    language (or category) mismatch counts as 1 and excludes (ADR-078)."""
     diffs: dict[str, float | None] = {}
-    for cov in _numeric_covariates(ctx):
+    numeric = _numeric_covariates(ctx)
+    for cov in numeric:
         diffs[cov] = _std_diff(_num(w, cov), _num(lo, cov), sds.get(cov))
-    for cov in ctx.view.categorical:  # a missing value on either side is a mismatch (ADR-078)
+    for cov in ctx.view.balance_categorical:  # missing on either side: a mismatch (ADR-078)
         a, b = _cat(w, cov), _cat(lo, cov)
         diffs[cov] = 0.0 if a is not None and a == b else 1.0
+    can_exclude = set(diffs) if ctx.view.categorical_excludes else set(numeric)
     excluded = tuple(
-        k for k, v in sorted(diffs.items()) if v is not None and v > ctx.headline_exclusion_smd
+        k
+        for k, v in sorted(diffs.items())
+        if k in can_exclude and v is not None and v > ctx.headline_exclusion_smd
     )
     return diffs, excluded
 
@@ -985,6 +1249,7 @@ def match_losers(
     ctx: Context,
     *,
     prefer_headline: bool = True,
+    sds: Mapping[str, float | None] | None = None,
 ) -> tuple[list[Pair], dict[str, float | None]]:
     """R4.3 / ADR-054.1 nearest-neighbour matching without replacement, refined by ADR-078
     (before any outcome sort; outcome-model §5.6 allows it).
@@ -995,9 +1260,14 @@ def match_losers(
     fewer than `panel.losers` are matched) first hand out only headline-passing losers, then any
     eligible loser, so extra losers don't crowd out pairs that can be reported in the headline
     and every matchable winner still gets one loser first. `prefer_headline=False` is the
-    selection-v1 rule (nearest only, every round), kept for the ADR-078 comparison."""
-    everyone = [*winners, *pool]
-    sds = {cov: _sd(_num(c, cov) for c in everyone) for cov in NUMERIC_ALL}
+    selection-v1 rule (nearest only, every round), kept for the ADR-078 comparison.
+
+    `sds` are the SDs of the calipers and standardized differences: since selection-v6 the full
+    shortlisted pool's (`pool_sds`, ADR-084); None computes them over winners and pool (the
+    selection-v5 rule, kept for the plain comparison view)."""
+    if sds is None:
+        sds = pool_sds([*winners, *pool])
+    sds = dict(sds)
     available = sorted(pool, key=lambda c: c.ref)
     used: set[str] = set()
     pairs: list[Pair] = []
@@ -1030,7 +1300,8 @@ def match_losers(
             used.add(loser.ref)
             diffs, excluded = _pair_diffs(w, loser, ctx, sds)
             gid = groups.setdefault(w.ref, len(groups) + 1)  # a winner and its losers
-            pairs.append(Pair(gid, "field", w.ref, loser.ref, rnd, dist, diffs, excluded))
+            same = w.covariates.language_group == loser.covariates.language_group
+            pairs.append(Pair(gid, "field", w.ref, loser.ref, rnd, dist, diffs, excluded, same))
             progress = True
         return progress
 
@@ -1044,7 +1315,21 @@ def match_losers(
     return pairs, sds
 
 
-def select_level(cases: Sequence[CaseInput], ev: Evaluation, distance: int, ctx: Context) -> Level:
+def pool_sds(cases: Iterable[CaseInput]) -> dict[str, float | None]:
+    """SD per numeric covariate over `cases` with an observed value (sample SD; None below 2
+    values). With the brief's full shortlisted pool (field and reference repos) this is the
+    selection-v6 caliper basis (`SD_RULE`, ADR-084)."""
+    cs = list(cases)
+    return {cov: _sd(_num(c, cov) for c in cs) for cov in NUMERIC_ALL}
+
+
+def select_level(
+    cases: Sequence[CaseInput],
+    ev: Evaluation,
+    distance: int,
+    ctx: Context,
+    sds: Mapping[str, float | None] | None = None,
+) -> Level:
     q = ev.qual
     eligible = [
         c
@@ -1059,9 +1344,9 @@ def select_level(cases: Sequence[CaseInput], ev: Evaluation, distance: int, ctx:
     unrankable = [c for c in quals if q[c.ref].score is None]
     winners = ranked[: ctx.winners]
     pool = [c for c in eligible if q[c.ref].outcome == "fails"]
-    pairs, sds = match_losers(winners, pool, ctx)
+    pairs, used_sds = match_losers(winners, pool, ctx, sds=sds)
     return Level(
-        distance, ev.definition, ev, eligible, ranked, unrankable, pool, winners, pairs, sds
+        distance, ev.definition, ev, eligible, ranked, unrankable, pool, winners, pairs, used_sds
     )
 
 
@@ -1174,21 +1459,77 @@ def smd_categorical(w: Sequence[str], lo: Sequence[str]) -> dict[str, Any]:
     }
 
 
+def smd_multilabel(w: Sequence[tuple[str, ...]], lo: Sequence[tuple[str, ...]]) -> dict[str, Any]:
+    """Per-level SMD of a set-valued covariate (install paths, ADR-084): each level is the
+    share of units whose set contains it, compared like a binary covariate; the row's SMD is
+    the largest |SMD| over the levels."""
+    if not w or not lo:
+        return {"smd": None, "levels": {}, "n_winners": len(w), "n_losers": len(lo)}
+    levels: dict[str, Any] = {}
+    worst = 0.0
+    for lv in sorted({x for s in [*w, *lo] for x in s}):
+        pw = sum(1 for s in w if lv in s) / len(w)
+        pl = sum(1 for s in lo if lv in s) / len(lo)
+        den = math.sqrt((pw * (1 - pw) + pl * (1 - pl)) / 2)
+        s_ = (pw - pl) / den if den > 0 else (0.0 if pw == pl else None)
+        levels[lv] = {"p_winners": _r(pw), "p_losers": _r(pl), "smd": _r(s_)}
+        worst = math.inf if s_ is None else max(worst, abs(s_))
+    return {
+        "smd": None if math.isinf(worst) else _r(worst),
+        "levels": levels,
+        "n_winners": len(w),
+        "n_losers": len(lo),
+        "form": "max |SMD| over levels; a level is 'the set contains it'",
+    }
+
+
 def _cov_balance(ws: Sequence[CaseInput], ls: Sequence[CaseInput], ctx: Context) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for cov in _numeric_covariates(ctx):
         wv = [v for c in ws if (v := _num(c, cov)) is not None]
         lv = [v for c in ls if (v := _num(c, cov)) is not None]
         out[cov] = smd_numeric(wv, lv)
-    for cov in ctx.view.categorical:
+    for cov in ctx.view.balance_categorical:
         wc = [s for c in ws if (s := _cat(c, cov))]
         lc = [s for c in ls if (s := _cat(c, cov))]
         out[cov] = smd_categorical(wc, lc)
-    for rec in out.values():
+    for cov in ctx.view.balance_multilabel:  # install_path
+        out[cov] = smd_multilabel(
+            [c.covariates.install_paths for c in ws], [c.covariates.install_paths for c in ls]
+        )
+    numeric = set(_numeric_covariates(ctx))
+    for k, rec in out.items():
         s = rec["smd"]
         rec["meets_target"] = None if s is None else abs(s) < ctx.smd_target
         rec["label"] = "balance_limited" if rec["meets_target"] is False else None
+        rec["kind"] = "numeric" if k in numeric else "categorical"
+        rec["excludes_pairs"] = k in numeric or ctx.view.categorical_excludes
     return out
+
+
+def same_language_group_subset(
+    lvl: Level, by_ref: Mapping[str, CaseInput], ctx: Context
+) -> dict[str, Any]:
+    """The per-view sensitivity alternative "same-language-group pairs only" (ADR-084): the
+    view's headline pairs restricted to pairs whose two sides share a language group, with
+    their counts and balance (each matched winner counted once, as in `balance`)."""
+    head = [p for p in lvl.pairs if p.panel == "field" and p.headline]
+    same = [p for p in head if p.same_language_group]
+    ws = [by_ref[r] for r in sorted({p.winner for p in same})]
+    ls = [by_ref[p.loser] for p in same]
+    return {
+        "key": "pairs:same_language_group",
+        "kind": "pair_subset",
+        "ran": True,
+        "rule": "headline pairs whose winner and loser share a language group (js_ts, python, "
+        "go, rust, other)",
+        "headline_pairs": len(head),
+        "same_group_headline_pairs": len(same),
+        "matched_winners": len(ws),
+        "by_group": _count(by_ref[p.winner].covariates.language_group for p in same),
+        "balance": _cov_balance(ws, ls, ctx) if same else {},
+        "pattern_rule": PATTERN_LANGUAGE_RULE,
+    }
 
 
 def balance(lvl: Level, by_ref: Mapping[str, CaseInput], ctx: Context) -> dict[str, Any]:
@@ -1205,9 +1546,22 @@ def balance(lvl: Level, by_ref: Mapping[str, CaseInput], ctx: Context) -> dict[s
         for k in p.excluded_on:
             excluded_by[k] = excluded_by.get(k, 0) + 1
     after = _cov_balance(matched_w, matched_l, ctx)
-    return {
+    rule = (
+        f"a pair differing by > {ctx.headline_exclusion_smd:g} SD on a numeric covariate is "
+        "shown only in the case-level view; categorical covariates never exclude (ADR-054.1, "
+        "ADR-084)"
+        if not ctx.view.categorical_excludes
+        else f"a pair differing by > {ctx.headline_exclusion_smd:g} SD on any covariate "
+        "(a language mismatch or a missing language counts as 1) is shown only in the "
+        "case-level view (ADR-054.1, ADR-078)"
+    )
+    out: dict[str, Any] = {
         "view": ctx.view.key,
-        "covariates": [*_numeric_covariates(ctx), *ctx.view.categorical],
+        "covariates": [
+            *_numeric_covariates(ctx),
+            *ctx.view.balance_categorical,
+            *ctx.view.balance_multilabel,
+        ],
         "form": "standardized mean difference, pooled SD; variance ratio; no p-values",
         "winner_counting": "after matching, each matched winner counts once, even when it has "
         "two losers (unweighted, ADR-078)",
@@ -1225,15 +1579,17 @@ def balance(lvl: Level, by_ref: Mapping[str, CaseInput], ctx: Context) -> dict[s
         "pairs": len(pairs),
         "headline_pairs": sum(1 for p in pairs if p.headline),
         "headline_excluded": {
-            "rule": f"a pair differing by > {ctx.headline_exclusion_smd:g} SD on any covariate "
-            "(a language mismatch or a missing language counts as 1) is shown only in the "
-            "case-level view (ADR-054.1, ADR-078)",
+            "rule": rule,
             "pairs": sum(1 for p in pairs if not p.headline),
             "by_covariate": dict(sorted(excluded_by.items())),
         },
         "unmatched_winners": sum(1 for c in lvl.winners if c.ref not in {p.winner for p in pairs}),
         "sd": {k: _r(v) for k, v in sorted(lvl.sds.items())},
+        "sd_basis": ctx.view.sd_basis,
     }
+    if ctx.view.key != "plain":
+        out["same_language_group"] = same_language_group_subset(lvl, by_ref, ctx)
+    return out
 
 
 # --- sensitivity (§8, R4.9) ---------------------------------------------------------------------
@@ -1480,6 +1836,7 @@ class Selection:
     sensitivity: dict[str, Any]
     inputs_hash: str
     result_hash: str = ""
+    view_cases: list[CaseInput] = field(default_factory=list)  # the inputs as this view read them
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -1501,25 +1858,57 @@ def _r(x: float | None) -> float | None:
     return round(float(x), ROUND)
 
 
+def _input_row(c: CaseInput) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "ref": c.ref,
+        "panel": c.panel,
+        "distance": c.distance,
+        "named_index": c.named_index,
+        "anchor": None if c.anchor is None else c.anchor.to_dict(),
+        "anchor_reason": c.anchor_reason,
+        "values": {k: v.to_dict() for k, v in sorted(c.values.items())},
+        "business": {k: v.to_dict() for k, v in sorted(c.business.items())},
+        "covariates": c.covariates.to_dict(),
+        "star_anomaly_flag": c.star_anomaly_flag,
+    }
+    if c.relaunch_events:
+        row["relaunch_events"] = [dict(e) for e in c.relaunch_events]
+    if c.launch_case is not None:
+        row["launch_case"] = _input_row(c.launch_case)
+    return row
+
+
 def inputs_hash(cases: Sequence[CaseInput]) -> str:
-    """SHA-256 of the canonical inputs (order-independent)."""
-    rows = []
-    for c in sorted(cases, key=lambda c: c.ref):
-        rows.append(
-            {
-                "ref": c.ref,
-                "panel": c.panel,
-                "distance": c.distance,
-                "named_index": c.named_index,
-                "anchor": None if c.anchor is None else c.anchor.to_dict(),
-                "anchor_reason": c.anchor_reason,
-                "values": {k: v.to_dict() for k, v in sorted(c.values.items())},
-                "business": {k: v.to_dict() for k, v in sorted(c.business.items())},
-                "covariates": c.covariates.to_dict(),
-                "star_anomaly_flag": c.star_anomaly_flag,
-            }
-        )
-    return sha256_json(rows)
+    """SHA-256 of the canonical inputs (order-independent), view B's launch-event cases
+    included (ADR-084)."""
+    return sha256_json([_input_row(c) for c in sorted(cases, key=lambda c: c.ref)])
+
+
+def anchor_rule(c: CaseInput) -> str:
+    """View B's anchor rule label of a case (`ANCHOR_RULE_LABELS`; `none` without an anchor)."""
+    if c.anchor is None:
+        return "none"
+    return c.anchor.rule or c.anchor.source
+
+
+def anchor_rule_counts(cases: Iterable[CaseInput]) -> dict[str, int]:
+    """How many cases each view-B anchor rule anchored (every label shown, zeros included)."""
+    counts = dict.fromkeys(ANCHOR_RULE_LABELS, 0)
+    for c in cases:
+        r = anchor_rule(c)
+        counts[r] = counts.get(r, 0) + 1
+    return counts
+
+
+def in_population(c: CaseInput, view: View) -> bool:
+    """Whether an anchored field or reference case belongs to the view's population."""
+    if c.anchor is None:
+        return False
+    if view.population == "declared_launch":
+        return anchor_rule(c) in DECLARED_RULES
+    if view.population == "undeclared_launch":
+        return c.anchor.undeclared
+    return True
 
 
 def _step_entry(step: str, lvl: Level, **extra: Any) -> dict[str, Any]:
@@ -1555,16 +1944,22 @@ def select(
     refs = [c.ref for c in cases]
     if len(set(refs)) != len(refs):
         raise SelectionError("a candidate appears twice in the selection input")
+    if view.anchor == "launch_event":  # view B reads its own launch-event anchor (ADR-084)
+        cases = [c.for_view_b() for c in cases]
     by_ref = {c.ref: c for c in cases}
     anchored = [c for c in cases if c.panel in ("field", "reference") and c.anchor is not None]
-    population = anchored
-    if view.population == "launch_anchored":
-        population = [c for c in anchored if c.anchor is not None and c.anchor.type == "launch"]
+    population = [c for c in anchored if in_population(c, view)]
     in_pop = {c.ref for c in population}
+    # SD basis (ADR-084): the brief's full shortlisted pool, every field and reference repo
+    # with an observed value, whatever its anchor or role; the plain view keeps winners + pool
+    field_pool = [c for c in cases if c.panel in ("field", "reference")]
+    sds: dict[str, float | None] | None = None
+    if view.sd_basis == "full_pool":
+        sds = pool_sds(field_pool)
 
     # R4.10 then ADR-053.2: every step is logged with its counts (R4.10, ADR-055.5)
     d = base
-    lvl = select_level(population, evaluate(d, population), 0, ctx)
+    lvl = select_level(population, evaluate(d, population), 0, ctx, sds)
     steps = [_step_entry("baseline", lvl, rule="brief success definition, core field (R4.8)")]
 
     def short(level: Level) -> bool:
@@ -1587,7 +1982,7 @@ def select(
             f"({len(lvl.winners)}, {len(lvl.pairs)})"
         )
         before = len(lvl.eligible)
-        lvl = select_level(population, lvl.evaluation, lvl.distance + 1, ctx)
+        lvl = select_level(population, lvl.evaluation, lvl.distance + 1, ctx, sds)
         added = len(lvl.eligible) - before
         steps.append(
             _step_entry(
@@ -1604,7 +1999,7 @@ def select(
         step = pending.pop(0)
         reason = f"fewer than {ctx.min_winners} rankable qualifiers ({len(lvl.ranked)})"
         d = apply_step(lvl.definition, step)
-        lvl = select_level(population, evaluate(d, population), lvl.distance, ctx)
+        lvl = select_level(population, evaluate(d, population), lvl.distance, ctx, sds)
         steps.append(_step_entry(step, lvl, rule="ADR-053.2", reason=reason))
 
     winners = {c.ref for c in lvl.winners}
@@ -1653,6 +2048,7 @@ def select(
             "diffs": {k: _r(v) for k, v in sorted(p.diffs.items())},
             "headline": p.headline if p.panel == "field" else None,
             "excluded_on": list(p.excluded_on),
+            "same_language_group": p.same_language_group,
         }
     ex_losers = {p.loser for p in ex_pairs}
     out_cases: list[dict[str, Any]] = []
@@ -1704,6 +2100,15 @@ def select(
                 "star_anomaly": {"flag": c.star_anomaly_flag, **dict(c.anomaly)},
                 "pair": pair_of.get(c.ref),
                 "sensitivity": sens_cases.get(c.ref),
+                **(
+                    {
+                        "anchor_rule": anchor_rule(c),
+                        "undeclared_launch": c.anchor is not None and c.anchor.undeclared,
+                        "relaunch_events": [dict(e) for e in c.relaunch_events],
+                    }
+                    if view.anchor == "launch_event"
+                    else {}
+                ),
             }
         )
 
@@ -1745,10 +2150,13 @@ def select(
         )
     left_out = len(anchored) - len(population)
     if left_out:
-        warnings.append(
-            f"{left_out} burst-anchored cases left out of the {view.key} view: a burst is "
-            "defined by star velocity, i.e. by launch size (ADR-083)"
-        )
+        why = {
+            "declared_launch": "their view-B anchor is an undeclared launch (first mention or "
+            "first release), reported in launch_undeclared (ADR-084)",
+            "undeclared_launch": "their view-B anchor is a declared launch, reported in the "
+            "launch view (ADR-084)",
+        }.get(view.population, "outside the view's population")
+        warnings.append(f"{left_out} anchored cases left out of the {view.key} view: {why}")
     if ev.fit is not None and ev.fit["status"] != "ok":
         warnings.append(
             f"follow-through fit not made ({ev.fit['status']}, n = {ev.fit['n']}): no "
@@ -1789,6 +2197,24 @@ def select(
             and _anchor_type(by_ref[p.loser]) == "launch"
         ),
         "roles": {k: v for k, v in roles.items() if v},
+        "sd_basis": view.sd_basis,
+        "sd_n": {
+            cov: sum(1 for c in field_pool if _num(c, cov) is not None)
+            if view.sd_basis == "full_pool"
+            else None
+            for cov in NUMERIC_ALL
+        },
+        **(
+            {
+                "anchor_rules": anchor_rule_counts(field_cases),
+                "relaunch_events": sum(len(c.relaunch_events) for c in field_cases),
+                "cases_with_relaunch": sum(1 for c in field_cases if c.relaunch_events),
+                "limitations": list(VIEW_B_LIMITATIONS),
+                "known_bias": VIEW_B_BIAS,
+            }
+            if view.anchor == "launch_event"
+            else {}
+        ),
         "final_distance": lvl.distance,
         "core_field_only": all(by_ref[r].distance == 0 for r in winners | field_losers),
         "brief_definition": brief_def.to_dict(),
@@ -1814,6 +2240,12 @@ def select(
         },
         "warnings": warnings,
     }
+    bal = balance(lvl, by_ref, ctx)
+    if "same_language_group" in bal:  # the per-view pair-subset alternative (ADR-084)
+        sub = bal["same_language_group"]
+        sens_summary["alternatives"].append(
+            {k: v for k, v in sub.items() if k not in ("balance", "pattern_rule")}
+        )
     sel = Selection(
         params=ctx.params(),
         base_definition=base,
@@ -1823,9 +2255,10 @@ def select(
         exemplar_log=ex_log,
         cases=out_cases,
         summary=summary,
-        balance=balance(lvl, by_ref, ctx),
+        balance=bal,
         sensitivity=sens_summary,
         inputs_hash=inputs_hash(cases),
+        view_cases=cases,
     )
     # the result hash covers the selection, not the input-stage notes (e.g. launch-lookup counts,
     # which are not stored): a recompute from stored data reproduces it (R4.8)
@@ -1864,14 +2297,20 @@ def _stats(xs: Sequence[float]) -> dict[str, Any]:
     return {"n": len(xs), "median": _r(statistics.median(xs)), "mean": _r(statistics.fmean(xs))}
 
 
-def context_view(sel: Selection) -> dict[str, Any]:
-    """View C for one headline view: its final winners against its **whole** loser pool, with
-    no matching (descriptive context, never a headline, ADR-083): counts, the median and mean
-    of the view's outcome and of the star measures on each side (observed values only), and
-    the covariate SMDs before matching."""
+def context_view(sel: Selection, ctx: Context | None = None) -> dict[str, Any]:
+    """View C for one view: its final winners against **every shortlisted non-winner** of the
+    brief (ADR-084: field and reference repos that are not winners of this view, whatever
+    their role, no-anchor and undetermined repos included; exemplars are outside the field),
+    with no matching (descriptive context, never a headline): counts, the median and mean of
+    the view's outcome and of the star measures on each side over the observed values, the
+    number of non-winners with and without a value per measure, and the covariate SMDs of the
+    winners against the non-winners."""
     lvl = sel.level
     ev = lvl.evaluation
     matched = {p.loser for p in lvl.pairs if p.panel == "field"}
+    winners = {c.ref for c in lvl.winners}
+    field_cases = [c for c in sel.view_cases if c.panel in ("field", "reference")]
+    non_winners = [c for c in field_cases if c.ref not in winners]
     primary_metric = lvl.definition.metrics.get(lvl.definition.primary)
     metrics = list(
         dict.fromkeys(
@@ -1889,24 +2328,43 @@ def context_view(sel: Selection) -> dict[str, Any]:
                 out.append(float(v.value))
         return out
 
+    covs = (
+        _cov_balance(lvl.winners, non_winners, replace(ctx, view=_view_of(sel)))
+        if ctx is not None
+        else sel.balance["before_matching"]
+    )
     return {
         "label": CONTEXT_LABEL,
         "view": sel.summary["view"],
-        "comparison": "final winners vs the whole loser pool of the final level, no matching",
+        "comparison": "final winners vs every shortlisted non-winner of the brief (field and "
+        "reference repos, no-anchor and undetermined included), no matching",
         "winners": len(lvl.winners),
+        "non_winners": len(non_winners),
+        "non_winners_by_role": _count(
+            r["role"]
+            for r in sel.cases
+            if r["panel"] in ("field", "reference") and r["candidate_ref"] not in winners
+        ),
         "loser_pool": len(lvl.loser_pool),
         "loser_pool_unmatched": sum(1 for c in lvl.loser_pool if c.ref not in matched),
         "outcomes": {
             m: {
                 "winners": _stats(observed(lvl.winners, m)),
-                "pool": _stats(observed(lvl.loser_pool, m)),
+                "non_winners": _stats(observed(non_winners, m)),
+                "non_winners_with_value": len(observed(non_winners, m)),
+                "non_winners_without_value": len(non_winners) - len(observed(non_winners, m)),
             }
             for m in metrics
         },
-        "covariates": sel.balance["before_matching"],
-        "note": "descriptive; the pool is not matched, so differences mix the outcome with "
-        "launch timing, audience, age and field",
+        "covariates": covs,
+        "note": "descriptive; the non-winners are not matched, so differences mix the outcome "
+        "with launch timing, audience, age and field",
     }
+
+
+def _view_of(sel: Selection) -> View:
+    key = sel.summary["view"]
+    return next((v for v in (*VIEWS, VIEW_PLAIN) if v.key == key), VIEW_PLAIN)
 
 
 @dataclass
@@ -1940,17 +2398,19 @@ def select_views(
     *,
     notes: Sequence[str] = (),
 ) -> Selections:
-    """The selection-v5 result (ADR-083): view A (follow-through), view B (launch) and the
-    context view C. `notes` (input-stage warnings, e.g. the launch lookup's counts) go into the
-    overall summary and each view's warnings."""
+    """The selection-v6 result (ADR-083, ADR-084): view A (follow-through), view B (launch,
+    declared launches: the headline) with its undeclared-launch sub-population (reported
+    separately), and the context view C for each. `notes` (input-stage warnings, e.g. the
+    launch lookup's counts) go into the overall summary and each view's warnings."""
     cases = sorted(cases_in, key=lambda c: c.ref)
-    views = {v.key: select(cases, replace(ctx, view=v), base, notes=notes) for v in HEADLINE_VIEWS}
+    views = {v.key: select(cases, replace(ctx, view=v), base, notes=notes) for v in VIEWS}
     context = {
         "label": CONTEXT_LABEL,
-        "views": {k: context_view(s) for k, s in views.items()},
+        "views": {v.key: context_view(views[v.key], replace(ctx, view=v)) for v in VIEWS},
     }
     params = next(iter(views.values())).params
     field_cases = [c for c in cases if c.panel != "exemplar"]
+    b_cases = [c.for_view_b() for c in field_cases]
     view_warnings = [
         f"{k}: {w}" for k, s in views.items() for w in s.summary["warnings"] if w not in notes
     ]
@@ -1964,9 +2424,14 @@ def select_views(
             "none" if c.anchor is None else f"{c.anchor.type}:{c.anchor.via or c.anchor.source}"
             for c in field_cases
         ),
+        "view_b_anchor_rules": anchor_rule_counts(b_cases),
+        "undeclared_launch": sum(
+            1 for c in b_cases if c.anchor is not None and c.anchor.undeclared
+        ),
         "views": {
             k: {
                 "label": s.summary["view_label"],
+                "headline": s.params["views"].get(k, {}).get("headline", True),
                 "result_hash": s.result_hash,
                 "population_n": s.summary["reference_population_n"],
                 "winners": s.summary["counts"]["winners"],

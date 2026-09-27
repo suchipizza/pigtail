@@ -14,8 +14,11 @@ title-only match counts only when:
 2. `owner_login`: the post's title or URL names the repo owner's login as a whole word
    (title: not preceded or followed by a letter, digit, `_` or `-`; URL: one of the tokens of
    host and path split on anything but letters, digits and `-`), case-insensitive; only for
-   logins of at least `OWNER_MIN_CHARS` characters that are not on `KEYWORD_STOPWORDS`. The
-   login is already public in the stored repo name; nothing new is stored;
+   logins of at least `OWNER_MIN_CHARS` characters that are not on `KEYWORD_STOPWORDS`, and
+   never when the casefolded login equals, contains or is contained in the repo name or one of
+   its name parts (`preflight/preflight`, `kubeforge/kubeforge`, `acme/acme-cli`: a namesake
+   post names the login too, so it says nothing; confirm-v2, verifier round 6). The login is
+   already public in the stored repo name; nothing new is stored;
 3. `description_keywords`: the title and the repo description share at least
    `KEYWORD_MIN_SHARED` (2) distinctive keywords (`keywords`: casefolded `[a-z0-9]+` tokens of
    at least 3 characters, not all digits, not a YC batch like `w24`, not on
@@ -55,7 +58,7 @@ from pigtail.llm import BatchItem, BatchPending, LLMClient, LLMError, PromptSpec
 from pigtail.llm.pricing import TokenUsage, cost_usd
 from pigtail.llm.types import schema_hash, sha256_text
 
-CONFIRMATION_VERSION = "confirm-v1"
+CONFIRMATION_VERSION = "confirm-v2"  # v2: rule 2 skips logins that overlap the repo name
 JOB = "title_match_check"
 NAMESPACE = "hn"
 OWNER_MIN_CHARS = 4
@@ -108,7 +111,9 @@ CONFIRMATION_RULE = (
     "shared host (SHARED_HOSTS); (2) owner_login: the title names the owner login as a whole "
     "word (no letter, digit, _ or - on either side) or the login is a token of the URL's host "
     f"and path (split on anything but [a-z0-9-]), case-insensitive, login >= {OWNER_MIN_CHARS} "
-    "characters and not a stop-word; (3) description_keywords: title and description share "
+    "characters and not a stop-word, and never when the casefolded login equals, contains or is "
+    "contained in the repo name or one of its name parts (split on -, _, . and spaces; such "
+    "matches fall through to rules 3 and 4); (3) description_keywords: title and description share "
     f">= {KEYWORD_MIN_SHARED} keywords (casefolded [a-z0-9]+ tokens, >= {KEYWORD_MIN_CHARS} "
     "characters, not all digits, not a YC batch, not a stop-word (KEYWORD_STOPWORDS), not a "
     "repo-name part or the owner login; a trailing s dropped from tokens of 5+ characters not "
@@ -179,10 +184,30 @@ def keywords(text: str | None, *, exclude: Sequence[str] = ()) -> set[str]:
     return out
 
 
+def _repo_name_parts(full_name: str) -> list[str]:
+    name = full_name.split("/", 1)[-1]
+    return [name, *(p for p in re.split(r"[-_.\s]+", name) if p)]
+
+
+def owner_overlaps_name(full_name: str) -> bool:
+    """Whether the casefolded owner login equals, contains or is contained in the repo name or
+    one of its name parts (rule 2 then never confirms: a post about a namesake product names
+    the login as well; verifier round 6)."""
+    owner = _owner(full_name).casefold()
+    for part in _repo_name_parts(full_name):
+        p = part.casefold()
+        if p and (owner == p or owner in p or p in owner):
+            return True
+    return False
+
+
 def owner_named(title: str | None, url: str | None, full_name: str) -> bool:
-    """Rule 2: the title or the URL names the owner login as a whole word."""
+    """Rule 2: the title or the URL names the owner login as a whole word (never for a login
+    that overlaps the repo name, `owner_overlaps_name`)."""
     owner = _owner(full_name)
     if len(owner) < OWNER_MIN_CHARS or owner.casefold() in KEYWORD_STOPWORDS:
+        return False
+    if owner_overlaps_name(full_name):
         return False
     if title:
         pat = r"(?<![A-Za-z0-9_-])" + re.escape(owner) + r"(?![A-Za-z0-9_-])"
@@ -383,8 +408,21 @@ def _sha(words: frozenset[str]) -> str:
     return hashlib.sha256(" ".join(sorted(words)).encode()).hexdigest()
 
 
+def resolved_model(job: str) -> str:
+    """The model this instance resolves for `job` (its LLM stage's model from the settings:
+    `LLM_MODEL_<STAGE>` > `LLM_MODEL` > the code default, R15.8). It goes into the
+    pre-registered parameters (verifier round 6), so a pre-registration binds the model id and
+    a changed model changes `selection_params_sha256`."""
+    import os
+
+    from pigtail.config import stage_models
+    from pigtail.llm.stages import stage_for
+
+    return stage_models(dict(os.environ))[stage_for(job)]
+
+
 def confirmation_params() -> dict[str, Any]:
-    """The E rule as it goes into the pre-registered selection parameters (ADR-083)."""
+    """The E rule as it goes into the pre-registered selection parameters (ADR-083, ADR-084)."""
     return {
         "version": CONFIRMATION_VERSION,
         "rule": CONFIRMATION_RULE,
@@ -397,6 +435,7 @@ def confirmation_params() -> dict[str, Any]:
             "job": JOB,
             "stage": "relevance",
             "default_model": "claude-haiku-4-5-20251001",
+            "model": resolved_model(JOB),
             "prompt_id": PROMPT.id,
             "prompt_version": PROMPT.version,
             "prompt_fingerprint": PROMPT.fingerprint,

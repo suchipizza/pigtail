@@ -26,6 +26,7 @@ from pigtail.privacy import requests
 from pigtail.privacy.deletion import DeletionLog
 from tests.discovery_fake import FakeShowHN
 from tests.selection_fake import brief as synthetic_brief
+from tests.surface_fake import default_coder
 
 pytestmark = pytest.mark.db
 
@@ -145,6 +146,7 @@ def stage(conn: Any, b: Any, hn: Any, cp: dict[str, Any]) -> Any:
         run_date=NOW.date(),
         clock=lambda: NOW,
         hn=hn,
+        coder=default_coder(),  # ADR-084: the stage's first step
     )
 
 
@@ -159,10 +161,10 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
     lk = res.fetch["launch_lookup"]
     assert lk["repos"] == 3 and lk["looked_up"] == 3 and lk["requests"] == 9
     assert lk["posts"] == 3 and lk["by_match"] == {"url": 2, "title": 1}
-    assert len(fake.requests) == 9
-    tags = sorted(r.url.params["tags"] for r in fake.requests)
+    assert len(fake.lookup_requests) == 9
+    tags = sorted(r.url.params["tags"] for r in fake.lookup_requests)
     assert tags == ["launch_hn"] * 3 + ["show_hn"] * 6  # ADR-082: the launch_hn tag
-    assert lk["title_rejected"] == {"not_product_slot": 1} and lk["rule"] == "anchor-v4"
+    assert lk["title_rejected"] == {"not_product_slot": 1} and lk["rule"] == "anchor-v5"
     # ADR-083 E: KubeForge has a URL-matched launch, so its title match is not considered
     assert lk["title_unconfirmed"] == {"has_url_launch": 1} and lk["haiku_checks"] == 0
 
@@ -178,7 +180,10 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
     (t,) = [s for s in kf.sources if s["match"] == "title"]
     assert t["confirmed"] is False and t["confirmation"] == "unconfirmed:has_url_launch"
     nl = store.get(f"gh:{NL}")
-    assert nl is not None and nl.sources == []
+    assert nl is not None and [s for s in nl.sources if s["source"] == "hn_launch_lookup"] == []
+    # no launch event: its first external mention was searched (ADR-084), none links it
+    (m,) = nl.sources
+    assert m["source"] == "hn_first_mention" and m["status"] == "none"
     dump = " ".join(
         str(r) for r in capture_db.conn.execute("SELECT * FROM brief_candidate").fetchall()
     )
@@ -189,7 +194,11 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
         "SELECT url, deletion_state, content_hash FROM evidence WHERE starts_with(url, %s)",
         (LAUNCH_LOOKUP_EVIDENCE,),
     ).fetchall()
-    assert len(ev) == 9 and {r[1] for r in ev} == {"raw_dropped"}
+    # 9 lookup searches, and the first-mention search of the repo without a launch (ADR-084)
+    assert len(ev) == 10 and {r[1] for r in ev} == {"raw_dropped"}
+    assert [u for u, _, _ in ev if "search=first_mention" in u] == [
+        f"{LAUNCH_LOOKUP_EVIDENCE}{NL}&search=first_mention&tags=story,comment&page=0"
+    ]
     for url, _, _ in ev:
         assert "numericFilters" not in url and "created_at" not in url
         assert any(f"{LAUNCH_LOOKUP_EVIDENCE}{n}&" in url for n in (KF, MK, NL))
@@ -235,10 +244,10 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
     rule = selmod.ANCHOR_RULE_VERSION
     cp: dict[str, Any] = {"fetch": {"launch_lookup_done": done, "launch_lookup_rule": rule}}
     again = stage(capture_db.conn, b, hn, cp)
-    assert again.fetch["launch_lookup"]["already_done"] == 3 and fake.requests == []
+    assert again.fetch["launch_lookup"]["already_done"] == 3 and fake.lookup_requests == []
     # progress recorded under another anchor rule is not reused (ADR-083)
     old = stage(capture_db.conn, b, hn, {"fetch": {"launch_lookup_done": done}})
-    assert old.fetch["launch_lookup"]["already_done"] == 0 and len(fake.requests) == 9
+    assert old.fetch["launch_lookup"]["already_done"] == 0 and len(fake.lookup_requests) == 9
     fake.requests.clear()
 
     # an opt-out of one repo removes its lookup evidence, not the others' (CB-13c)
@@ -257,7 +266,8 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
             "SELECT url FROM evidence WHERE starts_with(url, %s)", (LAUNCH_LOOKUP_EVIDENCE,)
         ).fetchall()
     ]
-    assert len(left) == 6 and not any(KF in u for u in left)
+    # the other two repos' 6 lookup searches and nolaunch's first-mention search (ADR-084)
+    assert len(left) == 7 and not any(KF in u for u in left)
 
 
 def test_lookup_resumes_per_repo_after_a_failed_request(capture_db, tmp_path):
@@ -276,8 +286,8 @@ def test_lookup_resumes_per_repo_after_a_failed_request(capture_db, tmp_path):
     res = stage(capture_db.conn, b, hn, cp)
     lk = res.fetch["launch_lookup"]
     assert lk["already_done"] == 1 and lk["looked_up"] == 2 and lk["requests"] == 6
-    assert len(fake.requests) == 6
-    assert all(KF not in r.url.params["query"] for r in fake.requests)
+    assert len(fake.lookup_requests) == 6
+    assert all(KF not in r.url.params["query"] for r in fake.lookup_requests)
     assert cp["fetch"]["launch_lookup_done"] == sorted(f"gh:{n}" for n in (KF, MK, NL))
     v = view(capture_db.conn, b.brief_id, 1)
     kf = {c["repo_full_name"]: c["detail"] for c in v["cases_by_view"]["launch"]}[KF]
@@ -300,7 +310,7 @@ def test_a_pre_registration_under_the_old_selection_params_is_refused(
     monkeypatch.setattr(selmod.Context, "params", old_params)
     prereg(capture_db.conn, b, tmp_path)
     monkeypatch.setattr(selmod.Context, "params", new_params)
-    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v5"):
+    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v6"):
         require(capture_db.conn, b)
     fake = FakeShowHN(HITS)
     with pytest.raises(PreregistrationMissing):

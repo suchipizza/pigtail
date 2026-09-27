@@ -244,22 +244,27 @@ def test_view_a_pairs_on_launch_size_where_plain_stars_at_30_got_none():
         w, lo = by[p.winner], by[p.loser]
         assert abs((w.covariates.lsm or 0) - (lo.covariates.lsm or 0)) <= LSM_CALIPER_SD * sd
         assert w.covariates.launch_half_year == lo.covariates.launch_half_year
-    # balance on the plain covariates, LSM included
-    assert set(a.balance["after_matching"]) == {"lsm", "age_log10", "language"}
+    # balance on the plain covariates, LSM included, plus the language group and the
+    # distribution surface rows (ADR-084)
+    assert set(a.balance["after_matching"]) == {
+        "lsm", "age_log10", "language", "language_group", "surface", "install_path",
+    }  # fmt: skip
     # burst-anchored cases are in view A's population
     with_bursts = select(split_field(), ctx(VIEW_FOLLOW_THROUGH), base)
     assert with_bursts.summary["reference_population_n"] == 44
     assert "not_in_view" not in with_bursts.summary["roles"]
 
 
-def test_view_b_excludes_bursts_ignores_launch_size_and_balances_pre_launch_covariates():
+def test_view_b_never_uses_bursts_ignores_launch_size_and_balances_pre_launch_covariates():
     cases = split_field()
     b = select(cases, ctx(VIEW_LAUNCH), Definition.from_brief(B))
     roles = {c["candidate_ref"]: c["role"] for c in b.cases}
     bursts = [c.ref for c in cases if c.anchor and c.anchor.type == "burst"]
-    assert {roles[r] for r in bursts} == {"not_in_view"} and len(bursts) == 4
+    # a burst anchor is never a view-B anchor (ADR-084): without a launch event they have none
+    assert {roles[r] for r in bursts} == {"no_anchor"} and len(bursts) == 4
     assert b.summary["reference_population_n"] == 40
-    assert any("4 burst-anchored cases left out" in w for w in b.summary["warnings"])
+    assert "no anchor: 4 of 44 shortlisted" in b.summary["warnings"]
+    assert b.summary["anchor_rules"]["show_hn"] == 40 and b.summary["anchor_rules"]["none"] == 4
     assert b.summary["final_definition"]["metrics"]["attention"] == LAUNCH_SIZE
     winners = {c.ref for c in b.level.winners}
     assert winners == {c.ref for c in cases[:10]}  # the largest launches
@@ -275,20 +280,21 @@ def test_view_b_excludes_bursts_ignores_launch_size_and_balances_pre_launch_cova
         assert "lsm" not in p.diffs
     assert max(lsm_gaps) > LSM_CALIPER_SD * (sds["lsm"] or 0)  # launch size is no key in B
     bal = b.balance
-    assert set(bal["after_matching"]) == {"age_log10", "prelaunch_log", "language", "category"}
-    assert bal["covariates"] == ["age_log10", "prelaunch_log", "language", "category"]
+    covs = ["age_log10", "prelaunch_log", "language", "category", "language_group", "surface",
+            "install_path"]  # fmt: skip
+    assert set(bal["after_matching"]) == set(covs) and bal["covariates"] == covs
     # a case with unknown stars before launch fails view B's caliper (can't be checked)
     unk = [replace(c, covariates=replace(c.covariates, prelaunch_log=None)) for c in cases]
     assert select(unk, ctx(VIEW_LAUNCH), Definition.from_brief(B)).level.pairs == []
 
 
-def test_view_b_category_is_a_distance_term_and_a_headline_covariate():
+def test_view_b_category_is_a_distance_term_and_a_balance_row_that_never_excludes():
     cases = split_field(0)
     cases = [replace(c, distance=1) if i % 2 else c for i, c in enumerate(cases)]
     b = select(cases, ctx(VIEW_LAUNCH), Definition.from_brief(B))
+    assert b.level.pairs
     for p in b.level.pairs:
-        assert "category" in p.diffs
-        assert ("category" in p.excluded_on) == (p.diffs["category"] == 1.0)
+        assert "category" in p.diffs and "category" not in p.excluded_on  # ADR-084
 
 
 def test_sensitivity_per_view():
@@ -321,10 +327,10 @@ def test_context_view_compares_winners_with_the_whole_pool_per_view():
         assert cv["winners"] == len(s.level.winners)
         assert cv["loser_pool"] == len(s.level.loser_pool)
         assert cv["loser_pool_unmatched"] == len(s.level.loser_pool) - len(s.level.pairs)
-        assert cv["covariates"] == s.balance["before_matching"]
+        assert cv["non_winners"] == 44 - len(s.level.winners)  # every shortlisted non-winner
         assert cv["outcomes"][LAUNCH_SIZE]["winners"]["n"] == len(s.level.winners)
     a = sels.context["views"]["follow_through"]["outcomes"]
-    assert a[FT_RESID]["winners"]["median"] > a[FT_RESID]["pool"]["median"]
+    assert a[FT_RESID]["winners"]["median"] > a[FT_RESID]["non_winners"]["median"]
 
 
 def test_recompute_is_deterministic_and_each_view_has_its_own_hash():
@@ -336,7 +342,7 @@ def test_recompute_is_deterministic_and_each_view_has_its_own_hash():
     assert s1.result_hash == s2.result_hash and s1.inputs_hash == s2.inputs_hash
     h = {k: v.result_hash for k, v in s1.views.items()}
     assert h == {k: v.result_hash for k, v in s2.views.items()}
-    assert len(set(h.values())) == 2 and s1.result_hash not in h.values()
+    assert len(set(h.values())) == 3 and s1.result_hash not in h.values()
     assert s1.summary["views"]["follow_through"]["result_hash"] == h["follow_through"]
 
 
@@ -629,15 +635,16 @@ def test_guard_hash_is_in_the_params_and_any_guarded_change_changes_the_params_h
 
 def test_params_define_the_views_the_confirmation_rule_and_the_prompt():
     p = Context.from_brief(B).params()
-    assert p["selection_version"] == "selection-v5" and p["anchor_rule_version"] == "anchor-v4"
-    assert set(p["views"]) == {"follow_through", "launch"}
+    assert p["selection_version"] == "selection-v6" and p["anchor_rule_version"] == "anchor-v5"
+    assert set(p["views"]) == {"follow_through", "launch", "launch_undeclared"}
     a, b = p["views"]["follow_through"], p["views"]["launch"]
     assert a["attention_metric"] == FT_RESID and a["matching"]["calipers"]["lsm_sd"] == 0.5
     assert a["sensitivity_extra"] == [f"metric:attention:{FT_LOGRATIO}",
-                                      "metric:attention:att.stars@30"]  # fmt: skip
+                                      "metric:attention:att.stars@30",
+                                      "pairs:same_language_group"]  # fmt: skip
     assert b["attention_metric"] == LAUNCH_SIZE and "lsm_sd" not in b["matching"]["calipers"]
     assert b["matching"]["calipers"]["prelaunch_log_sd"] == 0.5
-    assert "burst" in b["population"]
+    assert "declared launch" in b["population"] and b["anchor"].startswith("view B")
     assert p["follow_through"]["follow_days"] == [3, 30]
     assert p["context_view"]["label"] == CONTEXT_LABEL
     tc = p["title_confirmation"]
@@ -665,12 +672,16 @@ def test_the_brief_success_definition_hash_is_unchanged_by_the_views():
 def test_estimate_counts_prelaunch_pages_and_haiku_checks_while_the_selection_is_pending():
     e = estimate(B, selection=SelectionState(pending=True, shortlisted=114))
     assert e.selection["title_match_checks"] == math.ceil(114 * 0.1) == 12
-    assert e.selection["prelaunch_extra_core_requests"] == math.ceil(114 * 0.25) * 4
+    assert (
+        e.selection["prelaunch_extra_core_requests"] == math.ceil(114 * 0.8) * 4
+    )  # ADR-084: view-B anchors too
     tc = {s.stage: s for s in e.stages}["title_match_check"]
     assert tc.model == "claude-haiku-4-5-20251001" and tc.llm_calls == 12
     scope = run_scope(e, ("selection",))
     assert scope["selection"]["llm_calls"] == 12 and scope["requires_approval"] is True
-    assert scope["selection"]["api_usd"] == pytest.approx(tc.usd, abs=1e-4)
+    sc = {s.stage: s for s in e.stages}["distribution_surface"]  # ADR-084
+    assert sc.llm_calls == math.ceil(114 / 20) and sc.model == tc.model
+    assert scope["selection"]["api_usd"] == pytest.approx(tc.usd + sc.usd, abs=1e-4)
     done = estimate(B, selection=SelectionState(pending=False))
     assert done.selection["title_match_checks"] == 0
     assert done.selection["prelaunch_extra_core_requests"] == 0

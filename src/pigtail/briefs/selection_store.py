@@ -11,6 +11,11 @@ outcome-model and analysis-params versions, code commit, inputs and result hashe
 pre-registration (R8.2, `preregistration.require`) and the Show HN connector for the launch
 lookup (ADR-082: without it the selection is refused before anything is fetched or stored).
 
+Since selection-v6 (ADR-084, migration 0026) the stage's **first step** is the
+distribution-surface coding (`pigtail.briefs.surface`, a paid Haiku step coded before any star,
+anchor or outcome data; without it the selection is refused), and one selection holds a third
+view, `launch_undeclared` (view B's undeclared-launch sub-population).
+
 Since selection-v5 (ADR-083, migration 0025) one selection holds **views A and B** and the
 context view C (`selection.select_views`): `brief_selection` keeps the overall result hash and
 summary, `balance` and `sensitivity` per view (keyed by view), `views` (each view's summary,
@@ -34,17 +39,22 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from pigtail.analysis.params import PARAMS_VERSION
-from pigtail.briefs.candidates import Candidate
-from pigtail.briefs.confirm import Confirmer
+from pigtail.briefs.candidates import Candidate, CandidateStore
+from pigtail.briefs.confirm import JOB as TITLE_CHECK_JOB
+from pigtail.briefs.confirm import Confirmer, resolved_model
 from pigtail.briefs.model import Brief
 from pigtail.briefs.selection import (
     OUTCOME_MODEL_VERSION,
     SELECTION_VERSION,
     Context,
     Definition,
+    SelectionError,
     Selections,
     select_views,
 )
+from pigtail.briefs.surface import JOB as SURFACE_JOB
+from pigtail.briefs.surface import UNAVAILABLE as SURFACE_UNAVAILABLE
+from pigtail.briefs.surface import SurfaceCoder, SurfaceCodingUnavailable
 
 
 def new_selection_id() -> str:
@@ -176,6 +186,7 @@ def run_stage(
     recorder: Any = None,
     hn: Any = None,
     confirmer: Confirmer | None = None,
+    coder: SurfaceCoder | None = None,
 ) -> StageResult:
     """The selection stage (module docstring). Raises `PreregistrationMissing` before anything
     is fetched or computed when the brief version has no recorded pre-registration (R8.2,
@@ -184,7 +195,13 @@ def run_stage(
     shortlist isn't final; `BudgetExhausted` from the GitHub
     budget pauses it (the checkpoint keeps the repos done). `confirmer` runs the paid Haiku
     check of title-only launch matches (ADR-083 E); without it, or without approval, they are
-    excluded (fail closed); a Haiku batch still running raises `BatchPending` (resumable)."""
+    excluded (fail closed); a Haiku batch still running raises `BatchPending` (resumable).
+
+    `coder` codes the distribution surface, the stage's first step (ADR-084): before the launch
+    lookup, the releases, the mention search and the star history, from the shortlist's own
+    metadata and README excerpts. Without a coder (`SurfaceCodingUnavailable`), without
+    approval or over a cap (`BudgetStop`) the selection is refused before any of those runs.
+    A client whose model differs from the pre-registered one is refused as well."""
     from pigtail.briefs.cache import data_version
     from pigtail.briefs.discovery import window_bounds
     from pigtail.briefs.outcomes import (
@@ -202,11 +219,20 @@ def run_stage(
     require(conn, brief)  # outcome-model §5.8: the point of no return needs a pre-registration
     if (why := launch_lookup_blocked(hn)) is not None:  # ADR-082: the lookup is pre-registered
         raise LaunchLookupUnavailable(why)
+    if coder is None or (why := coder.blocked()) is not None:  # ADR-084: never without it
+        raise SurfaceCodingUnavailable(why or SURFACE_UNAVAILABLE)
+    _check_models(coder, confirmer)
     if "as_of" not in checkpoint:  # fixed for the whole run, so a resume judges `pending` alike
         checkpoint["as_of"] = clock().date().isoformat()
         save_checkpoint(checkpoint)
     as_of = date.fromisoformat(checkpoint["as_of"])
     window = window_bounds(brief, run_date)
+    # step 0 (ADR-084): the distribution surface, before any star, anchor or outcome data
+    surface_cp = checkpoint.setdefault("surface", {})
+    store = CandidateStore(conn, brief.brief_id, brief.version or 0)
+    surf = coder.run(
+        store, cands, checkpoint=surface_cp, save=lambda _cp: save_checkpoint(checkpoint)
+    )
     fetch_cp = checkpoint.setdefault("fetch", {})
     fetch = fetch_outcome_data(
         conn,
@@ -227,6 +253,7 @@ def run_stage(
     cands = shortlisted(conn, brief)  # metadata and looked-up launches may have been added
     inputs = load_inputs(conn, brief, cands, window=window, as_of=as_of)
     notes = lookup_notes(fetch.launch_lookup or {})
+    notes += view_b_notes(fetch.releases, fetch.mentions)
     if shared := ambiguous_title_matches(cands):
         notes.append(
             f"launch lookup: {len(shared)} title matches dropped as claimed by more than one "
@@ -262,9 +289,53 @@ def run_stage(
             }
             for k, v in sel.views.items()
         },
+        "view_b_anchor_rules": sel.summary["view_b_anchor_rules"],
+        "surface": surf.to_dict(),
         "warnings": len(sel.summary["warnings"]),
     }
-    return StageResult(sid, fetch.to_dict(), counts, dv, sel.result_hash, fetch.evidence_ids)
+    return StageResult(
+        sid,
+        fetch.to_dict(),
+        counts,
+        dv,
+        sel.result_hash,
+        [*surf.readme_evidence, *fetch.evidence_ids],
+    )
+
+
+def _check_models(coder: SurfaceCoder, confirmer: Confirmer | None) -> None:
+    """The pre-registered parameters hold the resolved Haiku model id (ADR-084): a client that
+    would call another model is refused before anything runs."""
+    for job, llm in ((SURFACE_JOB, coder.llm), (TITLE_CHECK_JOB, getattr(confirmer, "llm", None))):
+        if llm is None:
+            continue
+        want, got = resolved_model(job), llm.model_for(job)
+        if got != want:
+            raise SelectionError(
+                f"the {job} step would call {got!r} but the pre-registered parameters name "
+                f"{want!r} (LLM_MODEL_RELEVANCE / LLM_MODEL): align the settings, or "
+                "pre-register again"
+            )
+
+
+def view_b_notes(releases: dict[str, Any], mentions: dict[str, Any]) -> list[str]:
+    """Selection warnings from view B's launch-event steps (ADR-084; counts only)."""
+    notes: list[str] = []
+    bad = {k: v for k, v in (releases.get("status") or {}).items() if k != "complete"}
+    if bad:
+        why = ", ".join(f"{k} {v}" for k, v in sorted(bad.items()))
+        notes.append(
+            f"view B: {sum(bad.values())} repos' release lists incomplete ({why}): their first "
+            "release is unknown (ADR-084)"
+        )
+    ms = {k: v for k, v in (mentions.get("status") or {}).items() if k not in ("found", "none")}
+    if ms:
+        why = ", ".join(f"{k} {v}" for k, v in sorted(ms.items()))
+        notes.append(
+            f"view B: {sum(ms.values())} first-mention searches incomplete ({why}): no "
+            "undeclared-launch anchor for them (ADR-084)"
+        )
+    return notes
 
 
 def lookup_notes(lk: dict[str, Any]) -> list[str]:
@@ -330,8 +401,9 @@ def cases(
 
 def view(conn: psycopg.Connection[Any], brief_id: str, brief_version: int) -> dict[str, Any]:
     """The latest stored selection of a brief version, with its cases (CLI `show`): `cases`
-    holds every row, `cases_by_view` the rows per view (`follow_through`, `launch`; `plain`
-    for a selection made before selection-v5)."""
+    holds every row, `cases_by_view` the rows per view (`follow_through`, `launch`,
+    `launch_undeclared` since selection-v6; `plain` for a selection made before
+    selection-v5)."""
     sel = latest(conn, brief_id, brief_version)
     if sel is None:
         return {"brief_id": brief_id, "brief_version": brief_version, "selection": None}

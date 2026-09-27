@@ -31,6 +31,7 @@ from tests.discovery_fake import FakeShowHN
 from tests.integration.test_launch_lookup_m22 import NOW, hit, hn_connector, prereg
 from tests.integration.test_launch_lookup_m22 import seed as seed_three
 from tests.selection_fake import brief as synthetic_brief
+from tests.surface_fake import default_coder
 from tests.unit.test_m22_views import VerdictBackend, confirmer, guard, llm
 
 pytestmark = pytest.mark.db
@@ -92,6 +93,7 @@ def stage(conn: Any, b: Any, hn: Any, cp: dict[str, Any], c: Any = None) -> Any:
         clock=lambda: NOW,
         hn=hn,
         confirmer=c,
+        coder=default_coder(),  # ADR-084: the stage's first step
     )
 
 
@@ -192,7 +194,7 @@ def test_the_gate_refuses_an_old_pre_registration_and_one_before_a_guarded_code_
     monkeypatch.setattr(selmod.Context, "params", v4_params)
     prereg(capture_db.conn, b, tmp_path)
     monkeypatch.setattr(selmod.Context, "params", new_params)
-    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v5"):
+    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v6"):
         require(capture_db.conn, b)
     fake = FakeShowHN([])
     with pytest.raises(PreregistrationMissing):
@@ -218,18 +220,22 @@ def test_both_views_rows_are_exported_counted_and_purged(capture_db, pg_url, tmp
     rows = conn.execute(
         "SELECT view, count(*) FROM brief_selection_case GROUP BY view ORDER BY view"
     ).fetchall()
-    assert rows == [("follow_through", 3), ("launch", 3)]
+    assert rows == [("follow_through", 3), ("launch", 3), ("launch_undeclared", 3)]
     sel = conn.execute("SELECT views, context, balance FROM brief_selection").fetchone()
-    assert set(sel[0]) == set(sel[2]) == {"follow_through", "launch"}
+    assert set(sel[0]) == set(sel[2]) == {"follow_through", "launch", "launch_undeclared"}
     assert sel[1]["label"] == "context, not a headline"
     # export (project level): both views' rows with their view
     res = export_jsonl(pg_url, tmp_path / "export", tables=["brief_selection_case"])
-    assert res.tables["brief_selection_case"]["rows"] == 6
+    assert res.tables["brief_selection_case"]["rows"] == 9
     text = (tmp_path / "export" / "brief_selection_case.jsonl").read_text()
     assert text.count('"view":"follow_through"') + text.count('"view": "follow_through"') == 3
+    undeclared = text.count('"view":"launch_undeclared"') + text.count(
+        '"view": "launch_undeclared"'
+    )
+    assert undeclared == 3  # view B's undeclared-launch sub-population (ADR-084)
     # inventory: rows per view, repos once
     inv = {t.table: t for t in inventory(conn).tables}
-    assert inv["brief_selection_case"].rows == 6
+    assert inv["brief_selection_case"].rows == 9
     assert inv["brief_selection_case"].distinct_repos == 3
     # a repo opt-out removes its rows of every view
     kf = "org-k/kubeforge"
@@ -246,4 +252,4 @@ def test_both_views_rows_are_exported_counted_and_purged(capture_db, pg_url, tmp
         "SELECT count(*) FROM brief_selection_case WHERE repo_full_name = %s", (kf,)
     ).fetchone()
     assert left == (0,)
-    assert conn.execute("SELECT count(*) FROM brief_selection_case").fetchone() == (4,)
+    assert conn.execute("SELECT count(*) FROM brief_selection_case").fetchone() == (6,)

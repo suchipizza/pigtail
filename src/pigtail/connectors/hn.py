@@ -508,13 +508,62 @@ def parse_show_hn_page(data: bytes) -> tuple[list[ShowHNStory], int]:
     return out, int(body.get("nbHits") or 0)
 
 
+# --- first external mention (ADR-084, view B's undeclared-launch anchor) ----------------------
+# Only these attributes are asked for; `author`, `_tags` and highlights are never requested or
+# read. `comment_text` / `story_text` are read in memory only, to check that the item really
+# links the repo (Algolia's match is fuzzy), and dropped with the raw page.
+MENTION_FIELDS = ("url", "created_at_i", "comment_text", "story_text", "parent_id")
+
+
+@dataclass(frozen=True)
+class Mention:
+    """One HN item matching a repo's URL: item id, time, kind and whether it really links the
+    repo."""
+
+    item_id: int
+    created_at: datetime | None
+    kind: str  # comment (has comment text or a parent) | story (any other item: story, poll, job)
+    links_repo: bool
+
+
+def parse_mention_page(data: bytes, full_name: str) -> tuple[list[Mention], int, int]:
+    """(hits, nbHits, nbPages) of one `search_by_date` page for `full_name`. A hit links the
+    repo when its URL is the repo's `github.com/owner/name` or its text links it
+    (`github_repos_in_text` after HTML unescaping). Never reads `author` or `_tags`."""
+    body = json.loads(data)
+    want = full_name.lower()
+    out: list[Mention] = []
+    for hit in body.get("hits") or []:
+        try:
+            item_id = int(hit["objectID"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        ts = hit.get("created_at_i")
+        comment = hit.get("comment_text")
+        is_comment = isinstance(comment, str) or hit.get("parent_id") is not None
+        text = comment if isinstance(comment, str) else hit.get("story_text")
+        url = hit.get("url") if isinstance(hit.get("url"), str) else None
+        in_text = github_repos_in_text(html.unescape(text) if isinstance(text, str) else None)
+        out.append(
+            Mention(
+                item_id=item_id,
+                created_at=datetime.fromtimestamp(ts, UTC) if isinstance(ts, int) else None,
+                kind="comment" if is_comment else "story",
+                links_repo=normalize_github_repo(url) == want or want in in_text,
+            )
+        )
+    return out, int(body.get("nbHits") or 0), int(body.get("nbPages") or 0)
+
+
 class HNShowDiscoveryConnector(Connector):
     """Show HN stories matching a brief's keywords in its time window (M22 discovery, R4.5).
 
     **Why this runs before CB-12 (ADR-022 as amended by ADR-073.2).** The hold covers
     *person-level* sources (HN mentions and comments, Bluesky, per-repo events). This connector
     collects **project-level story metadata only** (title, url, points, time) of `show_hn`
-    stories (and, for the selection's launch lookup, `launch_hn` stories; ADR-082): it asks
+    stories (and, for the selection's launch lookup, `launch_hn` stories; ADR-082; and, for a
+    repo without a declared launch, the item id, time and kind of the first story or comment
+    linking it, ADR-084, whose text is read in memory only to check the link): it asks
     Algolia for those attributes only (`attributesToRetrieve`, no highlight), never reads
     `author`, `_tags`, story text or comments, never searches for a person, and the raw page
     is dropped right after parsing (`pigtail.privacy.deletion.drop_after_parse`, the CB-24
@@ -562,6 +611,35 @@ class HNShowDiscoveryConnector(Connector):
                 "numericFilters": f"created_at_i>={lo},created_at_i<{hi}",
                 "hitsPerPage": max(1, min(hits, HITS_PER_PAGE)),
                 "attributesToRetrieve": ",".join(SHOW_HN_FIELDS),
+                "attributesToHighlight": "",
+            },
+            evidence_url=evidence_url,
+        )
+
+    def search_mentions(
+        self,
+        query: str,
+        *,
+        until: datetime,
+        page: int = 0,
+        hits: int = HITS_PER_PAGE,
+        evidence_url: str | None = None,
+    ) -> Fetched:
+        """One page of HN items of every type (stories, comments, polls, jobs; no `tags`
+        filter) matching `query` up to `until`, newest first (`search_by_date`, typo tolerance
+        off; ADR-084: the first external mention of a repo without a declared launch). Asks
+        only for `MENTION_FIELDS`; the caller parses with `parse_mention_page` and drops the
+        raw page (CB-24)."""
+        hi = int(until.timestamp()) + 1
+        return self.fetch(
+            f"{ALGOLIA_BASE}/search_by_date",
+            params={
+                "query": query,
+                "numericFilters": f"created_at_i<{hi}",
+                "hitsPerPage": max(1, min(hits, HITS_PER_PAGE)),
+                "page": max(0, page),
+                "typoTolerance": "false",
+                "attributesToRetrieve": ",".join(MENTION_FIELDS),
                 "attributesToHighlight": "",
             },
             evidence_url=evidence_url,

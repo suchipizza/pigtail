@@ -111,12 +111,13 @@ def test_old_rule_records_are_replaced_and_title_only_candidates_counted(capture
     assert lk["title_rejected_total"] == 2
     nl = store.get(f"gh:{NL}")
     assert nl is not None
-    assert [(s["hn_item_id"], s["match"], s["rule"]) for s in nl.sources] == [
-        (8304, "title", "anchor-v4")
+    lookups = [s for s in nl.sources if s["source"] == "hn_launch_lookup"]
+    assert [(s["hn_item_id"], s["match"], s["rule"]) for s in lookups] == [
+        (8304, "title", "anchor-v5")
     ]  # the anchor-v2 record is gone
     # ADR-083 E: rules 1-3 don't confirm it (no homepage, no owner in the title, no
     # description) and no Haiku check can run here (no confirmer): excluded, fail closed
-    (rec,) = nl.sources
+    (rec,) = lookups
     assert rec["confirmed"] is False and rec["confirmation"] == "unconfirmed:haiku_unavailable"
     assert lk["title_unconfirmed"] == {"haiku_unavailable": 1}
     v = view(capture_db.conn, b.brief_id, 1)

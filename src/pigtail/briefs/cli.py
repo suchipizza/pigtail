@@ -1178,8 +1178,9 @@ def _fmt(x: Any, nd: int = 2) -> str:
 
 
 def _print_selection(v: dict[str, Any]) -> None:
-    """Both headline views (A follow-through, B launch) and the context view C (ADR-083); a
-    selection made before selection-v5 has one `plain` view."""
+    """Both headline views (A follow-through, B launch), view B's undeclared-launch
+    sub-population (selection-v6, ADR-084) and the context view C (ADR-083); a selection made
+    before selection-v5 has one `plain` view."""
     sel = v["selection"]
     print(
         f"Selection {sel['id']} of {v['brief_id']} v{v['brief_version']} "
@@ -1200,17 +1201,24 @@ def _print_selection(v: dict[str, Any]) -> None:
         )
     ctx = sel.get("context") or {}
     print("")
-    print(f"=== View C: winners against the whole loser pool ({ctx.get('label')})")
+    print(f"=== View C: winners against every shortlisted non-winner ({ctx.get('label')})")
     for key, cv in (ctx.get("views") or {}).items():
+        nw = cv.get("non_winners", cv.get("loser_pool"))
         print(
-            f"  [{key}] winners {cv['winners']}, loser pool {cv['loser_pool']} (unmatched "
-            f"{cv['loser_pool_unmatched']}); {cv['comparison']}"
+            f"  [{key}] winners {cv['winners']}, non-winners {nw} (loser pool "
+            f"{cv['loser_pool']}, unmatched {cv['loser_pool_unmatched']}); {cv['comparison']}"
         )
         for m, rec in cv["outcomes"].items():
-            wv, pv = rec["winners"], rec["pool"]
+            wv = rec["winners"]
+            pv = rec.get("non_winners", rec.get("pool", {}))
+            extra = (
+                f", without a value {rec['non_winners_without_value']}"
+                if "non_winners_without_value" in rec
+                else ""
+            )
             print(
                 f"    {m:<34} median winners {_fmt(wv['median'])} (n {wv['n']}), "
-                f"pool {_fmt(pv['median'])} (n {pv['n']})"
+                f"non-winners {_fmt(pv.get('median'))} (n {pv.get('n')}{extra})"
             )
         for cov, rec in cv["covariates"].items():
             print(f"    {cov:<34} SMD {_fmt(rec.get('smd'))} (no matching)")
@@ -1226,6 +1234,13 @@ def _print_sel_view(
         f"{c['matched_losers']}, loser pool {c['loser_pool']}, undetermined {c['undetermined']}"
     )
     print("Roles: " + ", ".join(f"{k} {n}" for k, n in sm["roles"].items()))
+    if "anchor_rules" in sm:  # view B (ADR-084)
+        print(
+            "View-B anchor rules: "
+            + ", ".join(f"{k} {n}" for k, n in sm["anchor_rules"].items())
+            + f"; relaunch events {sm.get('relaunch_events', 0)}"
+        )
+        print("Not observable (limitations): " + "; ".join(sm.get("limitations") or []))
     print("Steps (R4.10, ADR-053.2):")
     for st in sm["steps"]:
         if st.get("applied") is False:
@@ -1267,7 +1282,12 @@ def _print_sel_view(
         f"{sens['sensitive_to_star_anomaly']}"
     )
     for alt in sens["alternatives"]:
-        if alt.get("ran"):
+        if alt.get("kind") == "pair_subset":  # same-language-group pairs only (ADR-084)
+            print(
+                f"  {alt['key']:<32} headline pairs {alt['same_group_headline_pairs']} of "
+                f"{alt['headline_pairs']} share a language group {alt.get('by_group') or {}}"
+            )
+        elif alt.get("ran"):
             print(
                 f"  {alt['key']:<32} qualifiers {alt['rankable_qualifiers']}, winners "
                 f"{alt['winners']}, Jaccard {_fmt(alt['jaccard'])}"

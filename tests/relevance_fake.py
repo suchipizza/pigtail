@@ -3,7 +3,8 @@
 It reads the candidates JSON of each request and answers per candidate: a name with
 `framework` is `not_relevant`, one with `maybe` is `uncertain`, anything else `relevant`; the
 panel echoes `named_in_brief`. `long_reason` names get a reason longer than 30 words. Every
-request's parameters are kept, so tests can check what reached the "model".
+request's parameters are kept, so tests can check what reached the "model". A request of the
+selection's distribution-surface coding (ADR-084) is answered by `tests.surface_fake`.
 """
 
 from __future__ import annotations
@@ -18,6 +19,10 @@ from pigtail.llm.types import BackendResponse
 
 
 def answer(prompt_text: str) -> dict[str, Any]:
+    from tests.surface_fake import is_surface_prompt, surface_answer
+
+    if is_surface_prompt(prompt_text):
+        return surface_answer(prompt_text)
     start, end = prompt_text.index("["), prompt_text.rindex("]") + 1
     cands = json.loads(prompt_text[start:end])
     out = []
@@ -52,6 +57,7 @@ class RelevanceBatchBackend:
     polls: dict[str, int] = field(default_factory=dict)
     standard_calls: list[dict[str, Any]] = field(default_factory=list)
     drop_ids: set[str] = field(default_factory=set)  # local ids the "model" forgets once
+    prefix: str = "msgbatch_fake"  # batch ids (a second backend in one test needs its own)
 
     def params(self, **kw: Any) -> dict[str, Any]:
         return build_params(max_tokens=4000, **kw)
@@ -71,7 +77,7 @@ class RelevanceBatchBackend:
 
     def submit_batch(self, requests: list[tuple[str, dict[str, Any]]]) -> str:
         self.submitted.append(list(requests))
-        return f"msgbatch_fake{len(self.submitted)}"
+        return f"{self.prefix}{len(self.submitted)}"
 
     def batch_status(self, batch_id: str) -> BatchStatus:
         self.polls[batch_id] = self.polls.get(batch_id, 0) + 1
@@ -79,10 +85,10 @@ class RelevanceBatchBackend:
         return BatchStatus(batch_id, "ended" if ended else "in_progress", {"succeeded": 1})
 
     def batch_results(self, batch_id: str) -> Iterator[BatchItemResult]:
-        n = int(batch_id.removeprefix("msgbatch_fake"))
+        n = int(batch_id.removeprefix(self.prefix))
         for cid, params in reversed(self.submitted[n - 1]):
             data = answer(params["messages"][0]["content"])
-            if self.drop_ids:
+            if self.drop_ids and "verdicts" in data:
                 data["verdicts"] = [v for v in data["verdicts"] if v["id"] not in self.drop_ids]
                 self.drop_ids = set()
             yield BatchItemResult(

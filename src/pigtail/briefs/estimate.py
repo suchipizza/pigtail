@@ -35,8 +35,12 @@ What it reports:
   will be refused. Since ADR-083 the pending selection also counts the extra star-history
   pages that reach launched repos' creation week (stars before launch, view B) and the Haiku
   checks of title-only launch matches (`title_match_check`, relevance stage, a paid step),
-  from the planning assumptions `LAUNCHED_SHARE`, `CREATION_EXTRA_PAGES` and
-  `TITLE_CHECKS_PER_SHORTLISTED`.
+  from the planning assumptions `CREATION_SHARE`, `CREATION_EXTRA_PAGES` and
+  `TITLE_CHECKS_PER_SHORTLISTED`. Since ADR-084 it also counts the distribution-surface coding
+  (`distribution_surface`, relevance stage, 20 repos per request, a paid step), the GitHub
+  releases of every shortlisted repo (`RELEASE_PAGES_PER_REPO`, core bucket) and the
+  first-mention search of repos without a launch event (`MENTION_SEARCH_SHARE`,
+  `MENTION_REQUESTS_PER_SEARCH`, HN Algolia).
 """
 
 from __future__ import annotations
@@ -58,12 +62,13 @@ from pigtail.connectors.github_budget import DEFAULT_CAP_FRACTION, GITHUB_LIMITS
 from pigtail.llm.pricing import TokenUsage, canonical_model, cost_usd, pricing_table
 from pigtail.llm.stages import stage_for, time_sensitive
 
+# v5 (ADR-084): the distribution-surface coding, GitHub releases and the first-mention search.
 # v4 (ADR-083): the selection's stars-before-launch pages and Haiku title-match checks.
 # v3 (M22): the relevance filter sends ~20 candidates per request; discovery fetches one README
 # per candidate (core bucket). v2 (M21b): per-stage models, Batch API discount, prompt caching,
 # the brief's total money cap and the monthly cap. v1 (ADR-058.4): expansion is an
 # on-demand call, not a run stage.
-ESTIMATE_MODEL = "estimate-v4"
+ESTIMATE_MODEL = "estimate-v5"
 
 # --- planning assumptions (placeholders until the pilot measures them, M23) ---------------
 SEARCH_PAGES_PER_QUERY = 2  # 100 results per page
@@ -87,9 +92,24 @@ HN_LAUNCH_LOOKUP_PER_SHORTLISTED = 3
 # matches per shortlisted repo that rules 1-3 don't confirm, so go to the Haiku check (the
 # acceptance run accepted 7 title matches for 114 repos under anchor-v3)
 LAUNCHED_SHARE = 0.25
+# ADR-084: every repo with a view-B anchor (a launch event, or an undeclared launch inside the
+# window) needs its history back to creation too; planning share, an upper-side guess until
+# M23 measures it
+VIEW_B_ANCHORED_SHARE = 0.8
+CREATION_SHARE = max(LAUNCHED_SHARE, VIEW_B_ANCHORED_SHARE)
 CREATION_EXTRA_PAGES = 4
 TITLE_CHECKS_PER_SHORTLISTED = 0.1
 TITLE_CHECK = "title_match_check"  # the job and the estimate stage (relevance stage, Haiku)
+# ADR-084 (planning assumptions until the pilot measures them, M23): one page of 100 releases
+# per repo (the cap is 10 pages); the share of shortlisted repos without a launch event, whose
+# first external mention is searched (the acceptance run anchored 26 of 114 on a launch), and
+# the HN requests per search (page 0, then the oldest page; the cap is 5); the surface coding
+# sends 20 repos per request, like the relevance filter
+RELEASE_PAGES_PER_REPO = 1
+MENTION_SEARCH_SHARE = 0.75
+MENTION_REQUESTS_PER_SEARCH = 2
+SURFACE = "distribution_surface"  # the job and the estimate stage (relevance stage, Haiku)
+SURFACE_PER_REQUEST = 20
 LAUNCH_LOOKUP_OFF_WARNING = (
     "the Show HN connector is off (PIGTAIL_CONNECTOR_HN_SHOWHN_ENABLED=false): the selection's "
     "launch lookup can't run, so `pigtail run` will refuse the selection (exit 8) until it is "
@@ -113,6 +133,9 @@ class SelectionState:
     pending: bool = True
     shortlisted: int | None = None
     lookup_done: int = 0
+    surface_done: bool = False  # the surface coding finished (ADR-084)
+    releases_done: int = 0
+    mentions_done: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return dict(self.__dict__)
@@ -130,10 +153,18 @@ def selection_state(conn: Any, brief: Brief) -> SelectionState:
     if (stages.get("selection") or {}).get("status") == "done":
         return SelectionState(pending=False)
     cp = ((row or {}).get("checkpoint") or {}).get("selection") or {}
-    done = len((cp.get("fetch") or {}).get("launch_lookup_done") or [])
+    fetch = cp.get("fetch") or {}
+    done = len(fetch.get("launch_lookup_done") or [])
     st = Shortlist(conn, brief).status()
     n = len(shortlisted(conn, brief)) if st is not None and st["status"] == "final" else None
-    return SelectionState(pending=True, shortlisted=n, lookup_done=done)
+    return SelectionState(
+        pending=True,
+        shortlisted=n,
+        lookup_done=done,
+        surface_done=bool((cp.get("surface") or {}).get("surface_done")),
+        releases_done=len(fetch.get("releases_done") or []),
+        mentions_done=len(fetch.get("mentions_done") or []),
+    )
 
 
 # Relevance filter (M22, R4.6): about 20 candidates per request, each ~350 input tokens
@@ -144,6 +175,9 @@ TOKENS = {
     "expansion": EXPANSION_TOKENS,
     "relevance": (1_000 + RELEVANCE_PER_REQUEST * 350, RELEVANCE_PER_REQUEST * 70),
     TITLE_CHECK: (350, 60),  # one title match per request (ADR-083 E)
+    # 20 repos per request (ADR-084): ~300 tokens of instructions, ~350 per repo (name,
+    # description, topics, language, README excerpt of <= 1,200 chars), ~25 out per repo
+    SURFACE: (300 + SURFACE_PER_REQUEST * 350, SURFACE_PER_REQUEST * 25),
     "extraction": (8_000, 1_500),
     "adjudication": (6_000, 1_000),
     "patterns": (20_000, 3_000),
@@ -155,6 +189,7 @@ CACHED_PREFIX = {
     "expansion": 0,
     "relevance": 1_000,
     TITLE_CHECK: 0,  # far below Haiku's minimum cacheable prefix
+    SURFACE: 0,  # likewise
     "extraction": 6_000,
     "adjudication": 5_000,
     "patterns": 3_000,
@@ -469,9 +504,20 @@ def estimate(
     lookups = HN_LAUNCH_LOOKUP_PER_SHORTLISTED * not_looked_up
     # ADR-083: stars before launch need the history back to creation for launched repos, and
     # title-only matches that rules 1-3 don't confirm get one Haiku check each
-    prelaunch_pages = math.ceil(sel_n * LAUNCHED_SHARE) * CREATION_EXTRA_PAGES if sel.pending else 0
+    prelaunch_pages = math.ceil(sel_n * CREATION_SHARE) * CREATION_EXTRA_PAGES if sel.pending else 0
     title_checks = math.ceil(not_looked_up * TITLE_CHECKS_PER_SHORTLISTED)
-    requests["core"] += prelaunch_pages
+    # ADR-084: GitHub releases of every repo, the first-mention search of repos without a
+    # launch event, and the surface coding (20 repos per request) while the selection is pending
+    release_pages = 0
+    mention_requests = 0
+    surface_calls = 0
+    if sel.pending:
+        release_pages = RELEASE_PAGES_PER_REPO * max(0, sel_n - sel.releases_done)
+        searches = math.ceil(max(0, sel_n - sel.mentions_done) * MENTION_SEARCH_SHARE)
+        mention_requests = MENTION_REQUESTS_PER_SEARCH * searches
+        if not sel.surface_done:
+            surface_calls = math.ceil(sel_n / SURFACE_PER_REQUEST)
+    requests["core"] += prelaunch_pages + release_pages
     hours = max(
         requests[r] / (GITHUB_LIMITS_PER_HOUR[r] * DEFAULT_CAP_FRACTION)  # type: ignore[index]
         for r in requests
@@ -479,6 +525,7 @@ def estimate(
     other = {
         "hn_algolia": gh("discovery", terms * slices * HN_QUERIES_PER_TERM_SLICE),
         "hn_launch_lookup": lookups,
+        "hn_first_mention": mention_requests,
     }
     api = brief.budget.llm_backend == "api"
 
@@ -518,6 +565,8 @@ def estimate(
         # the selection's Haiku check of title-only launch matches (ADR-083 E): like the launch
         # lookup, it belongs to this version's pending selection, whatever the reuse plan says
         cost(TITLE_CHECK, title_checks),
+        # the selection's distribution-surface coding (ADR-084), likewise this version's
+        cost(SURFACE, surface_calls),
     ]
 
     paid: list[PaidStep] = []
@@ -584,6 +633,13 @@ def estimate(
             "hn_connector_enabled": hn_enabled,
             "prelaunch_extra_core_requests": prelaunch_pages,
             "title_match_checks": title_checks,
+            "release_core_requests": release_pages,
+            "hn_first_mention_requests": mention_requests,
+            "surface_coding_requests": surface_calls,
+            "surface_coding_usd": next(
+                (None if s.usd is None else round(s.usd, 4) for s in stages if s.stage == SURFACE),
+                0.0,
+            ),
             "title_match_usd": next(
                 (
                     None if s.usd is None else round(s.usd, 4)
@@ -737,12 +793,13 @@ def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any
     }
     llm = rel.to_dict() if "relevance" in st and not rel.reused else None
     tc = by[TITLE_CHECK]
+    sc = by[SURFACE]
     usd: float | None = 0.0
     if llm is not None and e.llm_backend == "api":
         usd = rel.usd
     sel_usd: float | None = 0.0
     if "selection" in st and e.llm_backend == "api":
-        sel_usd = tc.usd
+        sel_usd = None if tc.usd is None or sc.usd is None else tc.usd + sc.usd
         usd = None if usd is None or sel_usd is None else usd + sel_usd
     brief_left = max(0.0, e.brief_cap_usd - e.brief_spent_usd)
     month_left = max(0.0, e.month_cap_usd - e.month_spent_usd)
@@ -766,6 +823,17 @@ def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any
                 "prelaunch": f"stars before launch (ADR-083): about {CREATION_EXTRA_PAGES} extra "
                 "core requests per repo with a declared launch, to reach its creation week "
                 f"(~{e.selection.get('prelaunch_extra_core_requests', 0):,} in total)",
+                "view_b": "view B's launch events (ADR-084): GitHub releases, "
+                f"~{RELEASE_PAGES_PER_REPO} core request per shortlisted repo (up to 10), "
+                f"~{e.selection.get('release_core_requests', 0):,} in total; the first "
+                "external mention of repos without a launch event, "
+                f"~{MENTION_REQUESTS_PER_SEARCH} HN Algolia requests each (up to 5), "
+                f"~{e.other_requests.get('hn_first_mention', 0):,} in total",
+                "surface_calls": sc.llm_calls,
+                "surface_model": sc.model,
+                "surface_job": "Haiku distribution-surface coding, 20 repos per request, the "
+                "selection's first step (ADR-084; without --approve-paid the selection is "
+                "refused)",
                 "warnings": list(e.warnings),
                 "llm_calls": tc.llm_calls,
                 "llm_model": tc.model,
@@ -807,7 +875,8 @@ def render_scope_text(scope: dict[str, Any]) -> str:
         lines.append(
             "  selection (once the shortlist is final): "
             + s["github"]
-            + f"; {s['prelaunch']}; {s['hn']} (~{s['hn_algolia_requests']:,}); ~{s['llm_calls']:,} "
+            + f"; {s['prelaunch']}; {s['hn']} (~{s['hn_algolia_requests']:,}); {s['view_b']}; "
+            f"~{s['surface_calls']:,} Haiku surface-coding requests and ~{s['llm_calls']:,} "
             f"Haiku title-match checks on {s['llm_model']} ({s['llm_mode']}), "
             f"{_usd(s['api_usd'])}"
         )

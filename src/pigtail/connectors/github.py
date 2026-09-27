@@ -606,6 +606,51 @@ def parse_repo_node(node: Any) -> RepoMeta | None:
     )
 
 
+@dataclass(frozen=True)
+class Release:
+    """One GitHub release as the selection reads it (ADR-084). `name` and `body_head` (the
+    body's first 300 characters) are held in memory only, for the launch-wording test; they
+    are never stored. The `author` object of the API response is never read."""
+
+    tag: str
+    published_at: datetime | None  # None: a draft (never public)
+    prerelease: bool
+    name: str | None
+    body_head: str | None
+
+
+RELEASE_BODY_CHARS = 300
+RELEASES_PER_PAGE = 100
+
+
+def parse_releases(data: bytes) -> list[Release]:
+    """Releases from one `GET /repos/{owner}/{repo}/releases` page. Reads only `tag_name`,
+    `published_at`, `prerelease`, `name` and the first 300 characters of `body`."""
+    body = json.loads(data)
+    out: list[Release] = []
+    for it in body if isinstance(body, list) else []:
+        if not isinstance(it, dict):
+            continue
+        tag = it.get("tag_name")
+        if not isinstance(tag, str):
+            continue
+        text = it.get("body")
+        out.append(
+            Release(
+                tag=tag[:200],
+                published_at=_dt(it.get("published_at")),
+                prerelease=bool(it.get("prerelease")),
+                name=_opt_str(it.get("name")),
+                body_head=text[:RELEASE_BODY_CHARS] if isinstance(text, str) else None,
+            )
+        )
+    return out
+
+
+def releases_url(full_name: str) -> str:
+    return f"{API}/repos/{full_name}/releases"
+
+
 def readme_url(full_name: str) -> str:
     return f"{API}/repos/{full_name}/readme"
 
@@ -715,6 +760,22 @@ class GitHubConnector(GitHubAPI):
             )
         except NotFound:
             return None
+
+    def releases_page(
+        self, full_name: str, *, page: int = 1, repo_id: str | None = None
+    ) -> Fetched:
+        """One page of `GET /repos/{owner}/{repo}/releases` (core bucket, newest first,
+        100 per page), not parsed (ADR-084, the view-B anchor). The items embed the author's
+        account object, so the snapshot is classed `person_level_24m` and the caller drops the
+        raw bytes right after `parse_releases` (CB-24), which never reads the author."""
+        if page < 1:
+            raise ValueError("releases: page >= 1")
+        return self.fetch(
+            releases_url(full_name),
+            params={"per_page": RELEASES_PER_PAGE, "page": page},
+            repo_id=repo_id,
+            retention_class="person_level_24m",
+        )
 
     def repos_metadata(self, names: Sequence[str]) -> dict[str, RepoMeta]:
         """Project-level metadata for `owner/name` repos, 50 per GraphQL query (M22 discovery).

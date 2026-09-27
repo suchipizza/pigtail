@@ -52,7 +52,7 @@ def test_r18_5_estimate_on_subscription_reports_calls_tokens_and_zero_money():
     b = brief(budget__llm_backend="subscription", budget__money_usd=0)
     e = estimate(b)
     d = e.to_dict()
-    assert d["label"] == "estimate" and d["model"] == ESTIMATE_MODEL == "estimate-v4"
+    assert d["label"] == "estimate" and d["model"] == ESTIMATE_MODEL == "estimate-v5"
     assert set(d["github"]["requests"]) == {"core", "graphql", "search"}
     assert all(v > 0 for v in d["github"]["requests"].values())
     assert d["llm"]["calls"] > 0 and d["llm"]["tokens"] > 0
@@ -145,11 +145,18 @@ def test_r18_4_unchanged_rerun_estimates_no_new_llm_calls():
     assert e.github_requests == {"core": 0, "graphql": 0, "search": 0}
     assert e.to_dict()["reuse"]["changed_fields"] == []
     assert not e.requires_approval
-    # while the version's selection is pending, only its own work is counted (ADR-082, ADR-083):
-    # the Haiku title-match checks and the star-history pages back to launched repos' creation
+    # while the version's selection is pending, only its own work is counted (ADR-082, ADR-083,
+    # ADR-084): the Haiku title-match checks and surface coding, the star-history pages back to
+    # launched repos' creation and the GitHub releases
     p = estimate(edited(b, 2), plan=plan)
-    assert {s.stage for s in p.stages if s.llm_calls and not s.reused} == {"title_match_check"}
-    assert p.github_requests["core"] == p.selection["prelaunch_extra_core_requests"] > 0
+    assert {s.stage for s in p.stages if s.llm_calls and not s.reused} == {
+        "title_match_check",
+        "distribution_surface",
+    }
+    assert p.github_requests["core"] == (
+        p.selection["prelaunch_extra_core_requests"] + p.selection["release_core_requests"]
+    )
+    assert p.selection["release_core_requests"] > 0
 
 
 def test_r18_4_success_edit_reestimates_only_downstream_stages():

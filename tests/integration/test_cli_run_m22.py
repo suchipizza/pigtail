@@ -15,6 +15,7 @@ from pigtail.briefs.candidates import Candidate, CandidateStore
 from pigtail.briefs.shortlist import Shortlist
 from pigtail.briefs.store import BriefStore
 from pigtail.cli import main
+from tests.surface_fake import default_coder
 
 pytestmark = pytest.mark.db
 
@@ -222,6 +223,7 @@ def test_r4_8_selection_show_cli(cli_env, capsys, tmp_path):
         run_date=NOW.date(),
         clock=lambda: NOW,
         hn=hn_connector(db, FakeShowHN([]), tmp_path),  # the launch lookup finds nothing
+        coder=default_coder(),  # ADR-084: the stage's first step
     )
     capsys.readouterr()
     assert main(["brief", "selection", "show", BID]) == 0
@@ -235,11 +237,11 @@ def test_r4_8_selection_show_cli(cli_env, capsys, tmp_path):
     assert main(["brief", "selection", "show", BID, "--json"]) == 0
     d = json.loads(capsys.readouterr().out)
     views = d["selection"]["views"]
-    assert set(views) == {"follow_through", "launch"}
+    assert set(views) == {"follow_through", "launch", "launch_undeclared"}  # ADR-084
     for k in views:
         assert views[k]["summary"]["roles"] == {"no_anchor": 2}
         assert len(d["cases_by_view"][k]) == 2
-    assert len(d["cases"]) == 4 and d["selection"]["context"]["label"] == "context, not a headline"
+    assert len(d["cases"]) == 6 and d["selection"]["context"]["label"] == "context, not a headline"
 
 
 def test_adr_082_cli_warns_when_the_show_hn_connector_is_off(cli_env, capsys, monkeypatch):

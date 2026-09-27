@@ -10,6 +10,7 @@ story text, and READMEs quote handles, profile URLs and e-mail addresses.
 
 from __future__ import annotations
 
+import html
 import json
 import re
 from datetime import UTC, datetime
@@ -342,6 +343,8 @@ class FakeShowHN:
         if self.fail_after is not None and len(self.requests) >= self.fail_after:
             return httpx.Response(500, json={"message": "unavailable"})
         self.requests.append(req)
+        if req.url.path == "/api/v1/search_by_date":
+            return self._mentions(req)
         assert req.url.host == "hn.algolia.com" and req.url.path == "/api/v1/search", req.url
         p = {k: v[0] for k, v in parse_qs(req.url.query.decode()).items()}
         assert p["tags"] in ("show_hn", "launch_hn")
@@ -355,6 +358,49 @@ class FakeShowHN:
             and self._matches(h, p.get("query", ""))
         ][: int(p.get("hitsPerPage", "20"))]
         body = {"hits": hits, "nbHits": len(hits), "nbPages": 1, "page": 0}
+        return httpx.Response(
+            200, content=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+        )
+
+    @property
+    def mention_requests(self) -> list[httpx.Request]:
+        return [r for r in self.requests if r.url.path == "/api/v1/search_by_date"]
+
+    @property
+    def lookup_requests(self) -> list[httpx.Request]:
+        return [r for r in self.requests if r.url.path == "/api/v1/search"]
+
+    def _mentions(self, req: httpx.Request) -> httpx.Response:
+        """`search_by_date` over every item type (ADR-084's first-mention search): a hit
+        matches when the query's `github.com/...` path is in its URL or text (Algolia's own
+        match is fuzzy; the parser re-checks the link), newest first, paginated."""
+        p = {k: v[0] for k, v in parse_qs(req.url.query.decode()).items()}
+        assert "tags" not in p and p.get("typoTolerance") == "false"
+        assert "author" not in p.get("attributesToRetrieve", "")
+        (hi,) = (int(x) for x in re.findall(r"created_at_i<(\d+)", p["numericFilters"]))
+        path = p["query"].lower().split("github.com", 1)[1]
+        hits = sorted(
+            (
+                h
+                for h in self.hits
+                if h["created_at_i"] < hi
+                and path
+                in " ".join(
+                    html.unescape(str(h.get(k) or ""))  # Algolia indexes the text, not HTML
+                    for k in ("url", "comment_text", "story_text")
+                ).lower()
+            ),
+            key=lambda h: -h["created_at_i"],
+        )
+        per = int(p.get("hitsPerPage", "20"))
+        page = int(p.get("page", "0"))
+        pages = max(1, -(-len(hits) // per))
+        body = {
+            "hits": hits[page * per : (page + 1) * per],
+            "nbHits": len(hits),
+            "nbPages": pages,
+            "page": page,
+        }
         return httpx.Response(
             200, content=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
         )

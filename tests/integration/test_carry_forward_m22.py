@@ -225,7 +225,7 @@ def test_target_runs_only_the_selection_behind_its_preregistration_gate(w, tmp_p
         r = w.gh.by_name(c.repo_full_name or "")
         if r is not None:
             w.gh.daily[r["id"]] = series("burst", days=700)
-    fb = RelevanceBatchBackend()
+    fb = RelevanceBatchBackend(prefix="msgbatch_v2_")
     run2 = [r for r in runs(w) if r["brief_version"] == 2]
     n_cands = count(w, "SELECT count(*) FROM brief_candidate WHERE brief_version = 2")
 
@@ -238,7 +238,10 @@ def test_target_runs_only_the_selection_behind_its_preregistration_gate(w, tmp_p
     ok = run(w, fb, b2)
     assert ok.exit_code == 0 and ok.status == "succeeded", ok.message
     assert ok.brief_run_id == res.brief_run_id  # the carried run row, resumed for the selection
-    assert fb.submitted == []  # no discovery, no relevance: no model call at all
+    # no discovery, no relevance: the only model calls are the selection's surface coding
+    # (ADR-084: its first step, before any star, anchor or outcome data)
+    prompts = [p["messages"][0]["content"] for batch in fb.submitted for _, p in batch]
+    assert prompts and all("Classify every project." in p for p in prompts)
     assert count(w, "SELECT count(*) FROM brief_candidate WHERE brief_version = 2") == n_cands
     sel = w.conn.execute(
         "SELECT brief_version, brief_run_id, views FROM brief_selection"

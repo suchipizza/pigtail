@@ -31,6 +31,7 @@ from tests.integration.test_brief_run_m22 import World, example, make_world, run
 from tests.integration.test_github_per_repo_m1t24 import connector
 from tests.relevance_fake import RelevanceBatchBackend
 from tests.selection_fake import brief as synthetic_brief
+from tests.surface_fake import default_coder
 
 pytestmark = pytest.mark.db
 
@@ -85,7 +86,13 @@ def test_selection_runs_after_finalize_on_the_same_run_and_stores_provenance(w, 
     (r,) = runs(w)
     st = r["stages"]["selection"]
     assert st["status"] == "done" and st["result"]["fetch"]["fetched"] >= 6
-    assert len(fb.submitted) == 1  # nothing re-run, no model call in the selection
+    # nothing re-run; the selection's only model call is its first step, the surface coding
+    assert len(fb.submitted) == 2
+    (surface_batch,) = fb.submitted[1:]
+    assert all("Classify every project." in p["messages"][0]["content"] for _, p in surface_batch)
+    all_c = CandidateStore(w.conn, "example-config-linter", 1).all()
+    coded = [c.metadata.get("distribution_surface") for c in all_c]
+    assert sum(1 for x in coded if x) >= 6  # every shortlisted repo, coded before the fetch
 
     v = view(w.conn, "example-config-linter", 1)
     sel = v["selection"]
@@ -93,12 +100,12 @@ def test_selection_runs_after_finalize_on_the_same_run_and_stores_provenance(w, 
     assert sel["brief_hash"] == example().content_hash()
     assert sel["data_version"].startswith("dv1-") and sel["as_of"] == date(2026, 9, 25)
     assert sel["data_version"].endswith("@2026-09-25")  # as_of folded in (R4.8)
-    assert sel["selection_version"] == "selection-v5" and sel["outcome_model_version"] == "2.1"
+    assert sel["selection_version"] == "selection-v6" and sel["outcome_model_version"] == "2.1"
     assert sel["params_version"] == "1.1.0"
     assert sel["code_commit"] is None or re.fullmatch(r"[0-9a-f]{7,40}", sel["code_commit"])
     assert re.fullmatch(r"[0-9a-f]{64}", sel["result_hash"])
     shortlist_names = {c.repo_full_name for c in shortlisted(w.conn, example())}
-    assert set(v["cases_by_view"]) == {"follow_through", "launch"}  # ADR-083
+    assert set(v["cases_by_view"]) == {"follow_through", "launch", "launch_undeclared"}
     for rows in v["cases_by_view"].values():
         assert {c["repo_full_name"] for c in rows} == shortlist_names
         by = {c["repo_full_name"]: c for c in rows}
@@ -152,13 +159,16 @@ def test_selection_fetch_pauses_on_the_github_budget_and_resumes(w, tmp_path):
     out = run(w, fb, github=small, stages=("selection",))
     assert out.exit_code == 4 and out.status == "paused_budget", out.message
     (r,) = runs(w)
-    done = r["checkpoint"]["selection"]["fetch"]["star_history_done"]
+    # ADR-084: the releases (view B's launch events) are the first core requests after the
+    # lookup, so the small budget pauses them; the checkpoint keeps the repos done
+    done = r["checkpoint"]["selection"]["fetch"]["releases_done"]
     assert r["stages"]["selection"]["status"] == "paused_budget" and 0 < len(done) < 7
     out2 = run(w, fb)
     assert out2.exit_code == 0 and out2.status == "succeeded" and out2.brief_run_id == r["id"]
     (r2,) = runs(w)
-    assert len(r2["checkpoint"]["selection"]["fetch"]["star_history_done"]) == 7
-    assert r2["stages"]["selection"]["result"]["fetch"]["already_done"] == len(done)
+    fetch = r2["checkpoint"]["selection"]["fetch"]
+    assert len(fetch["releases_done"]) == len(fetch["star_history_done"]) == 7
+    assert r2["stages"]["selection"]["result"]["fetch"]["releases"]["already_done"] == len(done)
 
 
 # --- a real outcome sort on stored star history ------------------------------------------------
@@ -225,6 +235,7 @@ def stage(w: World, b: Any, cp: dict[str, Any] | None = None) -> Any:
         run_date=NOW.date(),
         clock=lambda: NOW,
         hn=hn_connector(w.db, FakeShowHN([]), w.tmp),  # the launch lookup finds nothing
+        coder=default_coder(),  # ADR-084: the stage's first step
     )
 
 

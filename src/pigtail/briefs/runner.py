@@ -468,6 +468,27 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
                     timeout_seconds=opts.wait_seconds,
                     sleep=deps.sleep,
                 )
+                # ADR-084: the distribution-surface coding, the stage's first step, is a paid
+                # Haiku step through the same guard; unlike the title check it fails closed by
+                # refusing the selection (BudgetStop propagates: exit 3 or 4, resumable)
+                from pigtail.briefs.surface import JOB as SURFACE_JOB
+                from pigtail.briefs.surface import SurfaceCoder
+
+                coder = SurfaceCoder(
+                    deps.client,
+                    brief_run_id=run.id,
+                    before_submit=guard.before_submit,
+                    check_backend=lambda b: guard.check_backend(b, job=SURFACE_JOB),
+                    readme=_readme_loader(deps, store),
+                    terms=[
+                        *(brief.expansion.keywords if brief.expansion else []),
+                        brief.field.core_field,
+                    ],
+                    poll_seconds=opts.poll_seconds,
+                    timeout_seconds=opts.wait_seconds,
+                    sleep=deps.sleep,
+                    clock=deps.clock,
+                )
                 sres = run_stage(
                     conn,
                     brief,
@@ -480,6 +501,7 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
                     recorder=deps.recorder,
                     hn=deps.hn,
                     confirmer=confirmer,
+                    coder=coder,
                 )
                 _link(db, run.id, sres.evidence_ids)
                 run.stage(name, "done", finished_at=deps.clock().isoformat(), result=sres.to_dict())

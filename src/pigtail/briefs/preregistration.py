@@ -65,7 +65,9 @@ def hashes(brief: Brief) -> dict[str, Any]:
     parameters (`Context.params()`: N, exact match, SMD target and headline rule, calipers,
     matching rule, widening, fallback steps, exemplars, sensitivity alternatives, versions, and
     since selection-v5 views A, B and C, the title confirmation rule with the Haiku prompt's
-    fingerprint and the live hash of the guarded anchor-rule code, ADR-083).
+    fingerprint and the live hash of the guarded anchor-rule code, ADR-083; since selection-v6
+    view B's launch-event anchor, the language groups, the numeric-only headline rule, the SD
+    rule, the distribution-surface coding and the resolved Haiku model id, ADR-084).
     None of these reveal the brief's text."""
     if brief.version is None:
         raise PreregistrationError("pre-register a stored brief version")
@@ -83,6 +85,12 @@ def hashes(brief: Brief) -> dict[str, Any]:
         "anchor_rule_source_sha256": params.get("anchor_rule_source_sha256"),
         "follow_through_metric_version": (params.get("follow_through") or {}).get("metric_version"),
         "title_confirmation_version": (params.get("title_confirmation") or {}).get("version"),
+        # ADR-084: the distribution-surface coding and the resolved Haiku model
+        "distribution_surface_version": (params.get("distribution_surface") or {}).get("version"),
+        "distribution_surface_prompt_fingerprint": (params.get("distribution_surface") or {}).get(
+            "prompt_fingerprint"
+        ),
+        "haiku_model": (params.get("distribution_surface") or {}).get("model"),
     }
 
 

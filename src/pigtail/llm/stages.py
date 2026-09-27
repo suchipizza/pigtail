@@ -3,7 +3,7 @@ Directive §6.3, ADR-064.3).
 
 | Stage        | Default model               | Jobs                                              |
 |--------------|-----------------------------|---------------------------------------------------|
-| `relevance`  | `claude-haiku-4-5-20251001` | relevance filter; title-match check; `smoke`      |
+| `relevance`  | `claude-haiku-4-5-20251001` | relevance filter; title-match check; surface; smoke |
 | `extraction` | `claude-sonnet-5`           | extraction, coding (double coding), adjudication  |
 | `synthesis`  | `claude-opus-5-5`           | patterns, report, plan, assets, brief expansion   |
 
@@ -30,6 +30,8 @@ JOB_STAGES: dict[str, LLMStageName] = {
     "smoke": "relevance",
     # the selection's check of title-only launch matches (ADR-083 E)
     "title_match_check": "relevance",
+    # the selection's distribution-surface coding, a balance variable (ADR-084)
+    "distribution_surface": "relevance",
     # extraction and coding (Sonnet)
     "extraction": "extraction",
     "tier2_extraction": "extraction",

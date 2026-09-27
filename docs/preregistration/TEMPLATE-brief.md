@@ -41,11 +41,12 @@ Paste the output of `pigtail brief preregister <brief-id> --print-hashes`:
 | `brief_version` | `<n>` |
 | `brief_sha256` (the whole brief version's content hash) | `<64 hex>` |
 | `success_definition_sha256` (primary dimension, percentile thresholds and minimums, metrics, business minimum, weights, `if_not_applicable`, the no-measurable-adoption rule) | `<64 hex>` |
-| `selection_params_sha256` (N winners and losers, exact-match keys, SMD target, headline exclusion SMD, calipers, matching rule, widening steps allowed, fallback steps, exemplar matching, sensitivity alternatives, selection / outcome-model / analysis-params versions; since `selection-v5` also views A, B and C, the follow-through metric, the title-confirmation rule with the Haiku prompt's fingerprint and the hash of the guarded anchor-rule code, ADR-083) | `<64 hex>` |
-| `selection_version` | `selection-v5` |
+| `selection_params_sha256` (N winners and losers, exact-match keys, SMD target, headline exclusion SMD, calipers, matching rule, widening steps allowed, fallback steps, exemplar matching, sensitivity alternatives, selection / outcome-model / analysis-params versions; since `selection-v5` also views A, B and C, the follow-through metric, the title-confirmation rule with the Haiku prompt's fingerprint and the hash of the guarded anchor-rule code, ADR-083; since `selection-v6` also view B's launch-event anchor rule and its limitations, the undeclared-launch sub-population, the language groups and the pattern rule, the numeric-only headline rule, the SD rule, the distribution-surface coding with its prompt fingerprint, and the resolved Haiku model id, ADR-084) | `<64 hex>` |
+| `selection_version` | `selection-v6` |
 | `outcome_model_version` | `2.1` |
-| `anchor_rule_version` / `anchor_rule_source_sha256` | `anchor-v4` / `<64 hex>` |
-| `follow_through_metric_version` / `title_confirmation_version` | `follow-through-v1` / `confirm-v1` |
+| `anchor_rule_version` / `anchor_rule_source_sha256` | `anchor-v5` / `<64 hex>` |
+| `follow_through_metric_version` / `title_confirmation_version` | `follow-through-v1` / `confirm-v2` |
+| `distribution_surface` version / prompt fingerprint / Haiku model | `surface-v1` / `<12 hex>` / `<model id>` |
 | Codebook version | `<x.y.z>` |
 
 How the two partial hashes are computed (anyone holding the private brief can re-check them):
@@ -63,12 +64,59 @@ both (selection-version semantics, not a brief change):
 | View | Attention means | Population | Winners and losers are paired on |
 |---|---|---|---|
 | **A, follow-through** (headline 1) | stars on endpoint days 3..29 after the anchor relative to launch size: the residual of `ln(1 + stars d3..29)` on `ln(1 + stars d0..2)` (OLS on the brief's anchored cases); sensitivity: the log-ratio and plain `att.stars@30` | every anchored field and reference case | launch size (LSM caliper 0.5 SD), audience bucket and half-year (exact), quarter (±1), repo age and language (distance) |
-| **B, launch** (headline 2) | launch size: stars on endpoint days 0..2; `att.hn_points` (and Reddit reach, `unknown`: no connector) reported next to it | launch-anchored cases only (a burst anchor is defined by launch size) | only what existed before launch: audience bucket and half-year (exact), quarter (±1), repo age and stars before launch (calipers 0.5 SD), language and core/adjacent field (distance). Launch size is **not** a key |
-| **C, context** | per view, winners against the whole loser pool, no matching | as A or B | nothing: labelled "context, not a headline" |
+| **B, launch** (headline 2) | launch size: stars on endpoint days 0..2 after view B's own anchor (§1c); `att.hn_points` (and Reddit reach, `unknown`: no connector) reported next to it | cases whose view-B anchor is a declared launch event (§1c); repos anchored on an undeclared launch form the separate sub-population `launch_undeclared` | only what existed before launch: audience bucket and half-year (exact), quarter (±1), repo age and stars before launch (calipers 0.5 SD), language and core/adjacent field (distance). Launch size is **not** a key |
+| **C, context** | per view, winners against every shortlisted non-winner, no matching | as A or B | nothing: labelled "context, not a headline" |
 
 The brief's threshold (for example top quartile), its fallback steps (for example top third),
 minimums, N and the headline exclusion (ADR-054.1) apply to each headline view on that view's
 covariates. A hypothesis is written for one view (§2).
+
+## 1c. What `selection-v6` adds (ADR-084; owner decisions of 2026-09-27 after verifier round 6)
+
+These rules are committed in `selection_params_sha256`; restate them here so a reader of this
+file knows what was fixed before the outcome sort.
+
+- **View B's anchor** (view A keeps its outcome-model §2.2 anchor). The earliest
+  maintainer-initiated launch event in the brief's window, from launch events only, never from
+  star data: a Show HN or Launch HN post (discovery or the launch lookup; URL-matched, or a
+  confirmed title match) or a GitHub release whose name or first 300 body characters match
+  `\b(?:launch|launching|introducing|announcing|first\s+public\s+release)\b`
+  (case-insensitive). Ties: show_hn, launch_hn, release_launch, then item id or tag. Every
+  later launch event is a **relaunch event**, reported descriptively. Without a launch event:
+  the earlier of the **first external mention** (the earliest HN item of any type linking the
+  repo's GitHub URL) and the **first public release** (earliest release, prereleases
+  included), flagged `undeclared_launch`: these repos form their own view-B sub-population
+  (`launch_undeclared`, own winners, losers and balance), never part of the declared-launch
+  headline. Bursts never anchor view B. The report shows the count per anchor rule
+  (`show_hn`, `launch_hn`, `release_launch`, `undeclared:first_mention`,
+  `undeclared:first_release`, `none`).
+- **Limitations of view B's anchor (state them in the report):** Product Hunt (no connector),
+  X (paid API; USD 0 cap for other paid services), Reddit (no API approval), blogs (no source)
+  and maintainer posts on Bluesky (cross-platform name matching, forbidden by ADR-075.3) are
+  not observed. **Known bias:** a case whose real first launch was on one of these channels is
+  dated by its first observable event.
+- **Headline exclusion:** only numeric standardized differences > 0.5 exclude a pair (LSM and
+  repo age in A; repo age and stars before launch in B). Language, language group, category
+  and the distribution surface stay in the balance table (`balance_limited` when they miss the
+  target) and never exclude.
+- **Language groups** (fixed): `js_ts` (JavaScript, TypeScript), `python`, `go`, `rust`,
+  `other` (any other GitHub primary language, or none). Sensitivity per headline view:
+  "same-language-group pairs only". For every headline pattern the report states whether it
+  **holds** (same sign, at least half the contrast), **weakens** (same sign, less than half,
+  or zero) or **reverses** (opposite sign: labelled "language-dependent") on that subset.
+- **Distribution surface**, coded by Haiku before any outcome from public project-level text
+  (the selection's first step): `surface` (`mcp_server`, `cli`, `library`,
+  `editor_or_agent_plugin`, `hosted_app`, `other`, `unknown`) and `install_paths` (`npx`,
+  `pip`, `brew`, `binary`, `marketplace`, `other`, `unknown`); a balance row next to language
+  (SMD per level); never a matching key or an exclusion.
+- **Calipers:** 0.5 SD on the log10 scale of 1 + stars before launch, repo age in days and
+  1 + launch size, each **SD computed over the brief's full shortlisted pool** (every field
+  and reference repo with an observed value) at sort time. The rule is fixed here; the values
+  need the star data (outcome data), so they are computed when the selection runs and stored
+  with it, never written in this file.
+- **View C** ("all losers"): every shortlisted non-winner of the brief, no-anchor and
+  undetermined repos included; statistics over those with a value, with the counts with and
+  without one.
 
 ## 2. Hypotheses (codebook §7.2)
 
@@ -103,17 +151,22 @@ promotion (MC-07, MC-08). In view A, H1-type contrasts on the presence of a laun
 - **Contrast:** per hypothesis, n present among winners vs among matched losers **of the
   hypothesis's view**, with the counterexamples (PRD §5.2, F20), per outcome dimension.
   Headline patterns use that view's headline pairs only (ADR-054.1, ADR-078); every other pair
-  is shown in the case-level view. View C (winners against the unmatched pool) is context,
-  never a headline.
+  is shown in the case-level view. View C (winners against every shortlisted non-winner) is
+  context, never a headline; so is view B's undeclared-launch sub-population.
 - **Minimum evidence:** "insufficient evidence in this neighbourhood" below 10 known cases per
   side or 3 cases where the pattern is present (ADR-050.3).
 - **Reliability:** per-field Krippendorff's α; findings resting on a field with α < 0.70 are
   labelled "low reliability" (ADR-065).
 - **Balance:** SMD per covariate after matching, target |SMD| < 0.25; contrasts depending on a
-  covariate that misses it are labelled `balance_limited` (outcome-model §5.6). No re-matching.
+  covariate that misses it are labelled `balance_limited` (outcome-model §5.6). The balance
+  table includes language, language group, category, distribution surface and install path
+  (SMD per level); only numeric differences exclude a pair from the headline (§1c, ADR-084).
+  No re-matching.
 - **Sensitivity:** the alternatives fixed in the brief (committed in `selection_params_sha256`)
   are reported; a pattern that holds only under the baseline definition is labelled
-  definition-sensitive (outcome-model §8).
+  definition-sensitive (outcome-model §8). Each headline pattern is also checked on the
+  same-language-group pairs only: holds, weakens or reverses; a reversing pattern is labelled
+  "language-dependent" (§1c).
 - Anything else, or anything changed after the outcome sort, is **exploratory** (README rule 3).
 
 ## 4. Deviations

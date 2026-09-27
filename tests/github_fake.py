@@ -94,6 +94,7 @@ class FakeGitHub:
             r["id"]: series(r["series"]) for r in self.repos.values()
         }
         self.events: dict[str, list[dict[str, Any]]] = {}
+        self.releases: dict[str, list[dict[str, Any]]] = {}  # lowercase full name -> releases
         self.search_pool: list[dict[str, Any]] = []
         self.script: list[Any] = []
         self.requests: list[httpx.Request] = []
@@ -158,7 +159,28 @@ class FakeGitHub:
         m = re.fullmatch(r"/repos/([^/]+/[^/]+)/events", path)
         if m:
             return self._events(req, m.group(1))
+        m = re.fullmatch(r"/repos/([^/]+/[^/]+)/releases", path)
+        if m:
+            return self._releases(req, m.group(1))
         return httpx.Response(404, json={"message": "Not Found"})
+
+    # --- releases (ADR-084) ---------------------------------------------------------------------
+    def _releases(self, req: httpx.Request, full_name: str) -> httpx.Response:
+        """`GET /repos/{o}/{r}/releases`, newest first; `self.releases[name]` holds dicts with
+        `tag_name`, `published_at`, `prerelease`, `name`, `body` (none: an empty list). Each
+        item embeds an author object on purpose (the parser must never read it)."""
+        rels = sorted(
+            self.releases.get(full_name.lower(), []),
+            key=lambda x: x.get("published_at") or "",
+            reverse=True,
+        )
+        per_page = int(req.url.params.get("per_page", "30"))
+        page = int(req.url.params.get("page", "1"))
+        items = [
+            {**x, "author": {"login": "someone-synthetic", "type": "User"}}
+            for x in rels[(page - 1) * per_page : page * per_page]
+        ]
+        return self._json(req, "core", items)
 
     # --- GraphQL --------------------------------------------------------------------------------
     def _node(self, r: dict[str, Any]) -> dict[str, Any]:

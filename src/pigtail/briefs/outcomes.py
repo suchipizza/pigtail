@@ -34,7 +34,20 @@ points; no identities):
    only that was added by URL is removed from the brief version (`Shortlist.forget`), its
    metadata is not stored and its star history is never fetched (M22 verifier round 2).
 
-2. **`load_inputs`** (database only): one `selection.CaseInput` per shortlisted repo.
+   Since anchor-v5 (ADR-084), between the lookup and the star history: **view B's launch
+   events**. Every shortlisted repo's GitHub releases (`fetch_releases`: newest first, 100 per
+   page, up to 10 pages; stored: tag, published_at, prerelease and whether its name or the
+   first 300 characters of its body are worded as a launch, `release_is_launch`; never the
+   name or body; raw pages dropped), then, for repos with no launch event in the window, the
+   **first external mention** (`first_mention`: HN Algolia `search_by_date` over every item
+   type for the repo's `github.com/owner/name`, the text read in memory only to check the link;
+   stored: item id, time, kind). Both checkpointed per repo. The star history of every repo
+   with a view-B anchor is fetched back to its creation week (stars before launch).
+
+2. **`load_inputs`** (database only): one `selection.CaseInput` per shortlisted repo, carrying
+   the same repo as view B reads it (`launch_case`: anchored by `view_b_anchor` on launch
+   events only, never on star data; its values, covariates and anomaly flag relative to that
+   anchor; its relaunch events) and the distribution surface coded before any outcome.
    - **Anchor T** (§2.2, `choose_anchor`, rule `anchor-v3`): the declared launches (Show HN and
      Launch HN posts from discovery and the lookup under the current rule, one per item id;
      hour precision) and the first `velocity-v0` burst on the star-history days inside the
@@ -74,7 +87,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -91,11 +104,13 @@ from pigtail.briefs.selection import (
     ANCHOR_RULE_VERSION,
     BUSINESS_COUNT,
     BUSINESS_SIGNALS,
+    DECLARED_RULES,
     FOLLOW_DAYS,
     FOLLOW_STARS,
     LAUNCH_DAYS,
     LAUNCH_SIZE,
     REDDIT_REACH,
+    RELEASE_LAUNCH_PATTERN,
     Anchor,
     AnomalyFlag,
     CaseInput,
@@ -142,8 +157,11 @@ class FetchResult:
     metadata_filled: int = 0
     failed: dict[str, int] = field(default_factory=dict)  # reason -> count (no names)
     pages: int = 0
-    to_creation: int = 0  # repos with a declared launch: history fetched back to creation
+    to_creation: int = 0  # repos with a view-B anchor: history fetched back to creation
     launch_lookup: dict[str, Any] | None = None
+    # view B's launch events (ADR-084): GitHub releases and the first external mention
+    releases: dict[str, Any] = field(default_factory=dict)
+    mentions: dict[str, Any] = field(default_factory=dict)
     evidence_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -159,7 +177,9 @@ def star_pages(window_start: date, as_of: date) -> int:
 
 
 STAR_MAX_PAGES = 100  # the endpoint's page cap (GitHub docs); 100 x 30 weeks = 57 years
-STAR_PAGES_RULE = "window-60d+creation-for-launched-v1"  # ADR-083 (checkpoint key)
+# ADR-083, extended by ADR-084 (checkpoint key): back to creation for every repo with a
+# declared launch or a view-B anchor
+STAR_PAGES_RULE = "window-60d+creation-for-launched-or-view-b-v2"
 
 
 def creation_pages(created: date, as_of: date) -> int:
@@ -170,10 +190,11 @@ def creation_pages(created: date, as_of: date) -> int:
 
 
 def has_declared_launch(c: Candidate, start: datetime, end: datetime) -> bool:
-    """Whether the candidate has a declared launch in the window that can anchor it (a
-    discovery Show HN post, a URL-matched lookup post, or a confirmed title match, current
-    rule): its star history is then fetched back to creation (ADR-083)."""
-    return bool(_launches(c, start, end))
+    """Whether the candidate's star history is fetched back to creation (stars before launch):
+    it has a declared launch in the window that can anchor it (a discovery Show HN post, a
+    URL-matched lookup post, or a confirmed title match, current rule; ADR-083), or a view-B
+    anchor (a launch event, or an undeclared launch inside the window; ADR-084)."""
+    return bool(_launches(c, start, end)) or view_b_anchor(c, start, end)[0] is not None
 
 
 def fetch_outcome_data(
@@ -280,6 +301,19 @@ def fetch_outcome_data(
         )
         res.launch_lookup = lk.to_dict()
         res.evidence_ids.extend(lk.evidence_ids)
+        # view B's launch events (ADR-084): releases (GitHub), then the first external mention
+        # (HN) of repos with no launch event; project-level, checkpointed per repo
+        keep = [c.ref for c in cands if c.ref not in refused]
+        if gh_on:
+            res.releases, ev = _fetch_all_releases(
+                conn, brief, github, keep, checkpoint=checkpoint, save=save, recorder=recorder
+            )
+            res.evidence_ids.extend(ev)
+        res.mentions, ev = _search_all_mentions(
+            conn, brief, hn, keep, window=window, checkpoint=checkpoint, save=save,
+            recorder=recorder,
+        )  # fmt: skip
+        res.evidence_ids.extend(ev)
     if not gh_on:
         res.failed["no_github_connector"] = len(cands)
         return res
@@ -744,6 +778,375 @@ def _lookup_repo(
     return found, rejected, stories_of
 
 
+# --- 1c. view B's launch events: GitHub releases and the first external mention (ADR-084) -----
+RELEASE_SOURCE = "gh_releases"
+RELEASE_MAX_PAGES = 10  # 100 releases per page, newest first: up to 1,000 releases per repo
+RELEASE_LAUNCH_RE = re.compile(RELEASE_LAUNCH_PATTERN, re.IGNORECASE)
+RELEASE_TEXT_CHARS = 300
+MENTION_SOURCE = "hn_first_mention"
+MENTION_MAX_REQUESTS = 5  # HN Algolia requests per repo (page 0, then from the oldest page back)
+MENTION_HITS_CAP = 1000  # Algolia serves at most ~1,000 hits per query (source-matrix §2.3)
+
+
+def release_is_launch(name: str | None, body: str | None) -> bool:
+    """ADR-084 (ii): a release is announced as a launch when its name, or the first 300
+    characters of its body, contain `launch`, `launching`, `introducing`, `announcing` or
+    `first public release` as whole words, case-insensitive (each text is tested on its own)."""
+    return any(
+        RELEASE_LAUNCH_RE.search(t) is not None
+        for t in (name or "", (body or "")[:RELEASE_TEXT_CHARS])
+    )
+
+
+def fetch_releases(
+    github: Any,
+    db: Any,
+    dlog: Any,
+    full: str,
+    repo_id: str | None,
+    evidence: list[str] | None = None,
+) -> dict[str, Any]:
+    """One repo's releases (newest first, 100 per page, up to `RELEASE_MAX_PAGES`), as the
+    stored signal: tag, published_at, prerelease and the launch-wording test per published
+    release (drafts have no publication date and are left out); `complete` is false when the
+    page cap cut the list or a request failed. The raw pages are dropped after parsing (their
+    items embed the author's account; `parse_releases` never reads it), and no release name or
+    body is stored."""
+    from pigtail.connectors.base import FetchError
+    from pigtail.connectors.github import RELEASES_PER_PAGE, parse_releases
+    from pigtail.privacy.deletion import PARSE_ERRORS as parse_errors
+    from pigtail.privacy.deletion import drop_after_parse as drop
+
+    rels: list[Any] = []
+    pages = 0
+    status = "truncated"
+    for page in range(1, RELEASE_MAX_PAGES + 1):
+        try:
+            f = github.releases_page(full, page=page, repo_id=repo_id)
+        except FetchError as e:
+            status = f"failed:{type(e).__name__}"
+            break
+        pages += 1
+        if evidence is not None:
+            evidence.append(f.evidence.id)
+        try:
+            items = parse_releases(f.data)
+        except parse_errors:
+            drop(db, github.store, f.evidence.id, f.content_hash, dlog)
+            status = "failed:parse"
+            break
+        drop(db, github.store, f.evidence.id, f.content_hash, dlog)
+        rels += items
+        if len(items) < RELEASES_PER_PAGE:
+            status = "complete"
+            break
+    records = sorted(
+        (
+            {
+                "tag": r.tag,
+                "published_at": r.published_at.astimezone(UTC).isoformat(),
+                "prerelease": r.prerelease,
+                "launch": release_is_launch(r.name, r.body_head),
+            }
+            for r in rels
+            if r.published_at is not None
+        ),
+        key=lambda x: (x["published_at"], x["tag"]),
+    )
+    return {
+        "source": RELEASE_SOURCE,
+        "rule": ANCHOR_RULE_VERSION,
+        "status": status,
+        "complete": status == "complete",
+        "pages": pages,
+        "releases": records,
+    }
+
+
+def first_mention(
+    hn: Any, db: Any, dlog: Any, full: str, until: datetime, evidence: list[str] | None = None
+) -> dict[str, Any]:
+    """ADR-084: the earliest HN item (any type) up to `until` whose URL or text links the
+    repo's `github.com/owner/name`, as the stored signal (item id, time and kind only). HN
+    Algolia `search_by_date` (newest first) for `github.com/<owner>/<name>` over all item
+    types: page 0, then from the oldest page back, until a page holds a real link (Algolia's
+    match is fuzzy; `parse_mention_page` checks each hit), at most `MENTION_MAX_REQUESTS`
+    requests. Status `found`, `none` (every page read, no link), `capped` (more hits than
+    Algolia serves: the oldest can't be reached), `truncated` (request cap) or `failed:…`."""
+    from pigtail.connectors.base import FetchError
+    from pigtail.connectors.hn import launch_lookup_evidence_url as evidence_url
+    from pigtail.connectors.hn import parse_mention_page
+    from pigtail.privacy.deletion import PARSE_ERRORS as parse_errors
+    from pigtail.privacy.deletion import drop_after_parse as drop
+
+    query = f"github.com/{full}"
+    base: dict[str, Any] = {"source": MENTION_SOURCE, "rule": ANCHOR_RULE_VERSION, "requests": 0}
+
+    def page(n: int) -> tuple[list[Any], int, int] | str:
+        try:
+            f = hn.search_mentions(
+                query,
+                until=until,
+                page=n,
+                evidence_url=f"{evidence_url(full, 'first_mention', 'story,comment')}&page={n}",
+            )
+        except FetchError as e:
+            return f"failed:{type(e).__name__}"
+        base["requests"] += 1
+        if evidence is not None:
+            evidence.append(f.evidence.id)
+        try:
+            got = parse_mention_page(f.data, full)
+        except parse_errors:
+            drop(db, hn.store, f.evidence.id, f.content_hash, dlog)
+            return "failed:parse"
+        drop(db, hn.store, f.evidence.id, f.content_hash, dlog)
+        return got
+
+    first = page(0)
+    if isinstance(first, str):
+        return {**base, "status": first}
+    hits0, nb, npages = first
+    if nb > MENTION_HITS_CAP:
+        return {**base, "status": "capped"}
+    order = [*range(max(npages, 1) - 1, 0, -1), 0]  # oldest page first, page 0 last
+    for n in order:
+        if n == 0:
+            hits = hits0
+        elif base["requests"] >= MENTION_MAX_REQUESTS:
+            return {**base, "status": "truncated"}
+        else:
+            got = page(n)
+            if isinstance(got, str):
+                return {**base, "status": got}
+            hits = got[0]
+        linked = [h for h in hits if h.links_repo and h.created_at is not None]
+        if linked:
+            h = min(linked, key=lambda x: (x.created_at, x.item_id))
+            return {
+                **base,
+                "status": "found",
+                "hn_item_id": h.item_id,
+                "time": h.created_at.isoformat(),
+                "kind": h.kind,
+            }
+    return {**base, "status": "none"}
+
+
+def _fetch_all_releases(
+    conn: psycopg.Connection[Any],
+    brief: Brief,
+    github: Any,
+    refs: Sequence[str],
+    *,
+    checkpoint: dict[str, Any],
+    save: Callable[[dict[str, Any]], None],
+    recorder: Any = None,
+) -> tuple[dict[str, Any], list[str]]:
+    """`fetch_releases` for every shortlisted repo, checkpointed per repo (`releases_done`);
+    `BudgetExhausted` propagates (the stage pauses, resumable). Counts only."""
+    from pigtail.capture.db import CaptureDB
+    from pigtail.privacy.deletion import DeletionLog
+
+    assert brief.version is not None
+    if checkpoint.get("releases_rule") != ANCHOR_RULE_VERSION:
+        checkpoint.pop("releases_done", None)
+        checkpoint["releases_rule"] = ANCHOR_RULE_VERSION
+    done: set[str] = set(checkpoint.get("releases_done") or [])
+    store = CandidateStore(conn, brief.brief_id, brief.version)
+    db = CaptureDB(conn)
+    dlog = DeletionLog(db, "retention", run_id=getattr(recorder, "id", None))
+    out: dict[str, Any] = {"repos": len(refs), "already_done": 0, "pages": 0, "status": {}}
+    evidence: list[str] = []
+    latest = {c.ref: c for c in store.all()}
+    for ref in sorted(refs):
+        if ref in done:
+            out["already_done"] += 1
+            continue
+        c = latest.get(ref)
+        if c is None or not c.repo_full_name:
+            continue
+        sig = fetch_releases(github, db, dlog, c.repo_full_name, c.repo_id, evidence)
+        store.replace_signals(ref, RELEASE_SOURCE, [sig])
+        out["pages"] += sig["pages"]
+        st = str(sig["status"])
+        out["status"][st] = out["status"].get(st, 0) + 1
+        done.add(ref)
+        checkpoint["releases_done"] = sorted(done)
+        save(checkpoint)
+    return out, evidence
+
+
+def _search_all_mentions(
+    conn: psycopg.Connection[Any],
+    brief: Brief,
+    hn: Any,
+    refs: Sequence[str],
+    *,
+    window: tuple[datetime, datetime],
+    checkpoint: dict[str, Any],
+    save: Callable[[dict[str, Any]], None],
+    recorder: Any = None,
+) -> tuple[dict[str, Any], list[str]]:
+    """`first_mention` for every shortlisted repo without a launch event in the window (after
+    the lookup and the releases), checkpointed per repo (`mentions_done`). Counts only."""
+    from pigtail.capture.db import CaptureDB
+    from pigtail.privacy.deletion import DeletionLog
+
+    assert brief.version is not None
+    if checkpoint.get("mentions_rule") != ANCHOR_RULE_VERSION:
+        checkpoint.pop("mentions_done", None)
+        checkpoint["mentions_rule"] = ANCHOR_RULE_VERSION
+    done: set[str] = set(checkpoint.get("mentions_done") or [])
+    store = CandidateStore(conn, brief.brief_id, brief.version)
+    db = CaptureDB(conn)
+    dlog = DeletionLog(db, "retention", run_id=getattr(recorder, "id", None))
+    start, end = window
+    out: dict[str, Any] = {"searched": 0, "not_needed": 0, "requests": 0, "status": {}}
+    evidence: list[str] = []
+    latest = {c.ref: c for c in store.all()}
+    for ref in sorted(refs):
+        c = latest.get(ref)
+        if c is None or not c.repo_full_name:
+            continue
+        if launch_events(c, start, end):
+            out["not_needed"] += 1
+            continue
+        if ref in done:
+            continue
+        sig = first_mention(hn, db, dlog, c.repo_full_name, end, evidence)
+        store.replace_signals(ref, MENTION_SOURCE, [sig])
+        out["searched"] += 1
+        out["requests"] += int(sig.get("requests") or 0)
+        st = str(sig["status"])
+        out["status"][st] = out["status"].get(st, 0) + 1
+        done.add(ref)
+        checkpoint["mentions_done"] = sorted(done)
+        save(checkpoint)
+    return out, evidence
+
+
+@dataclass(frozen=True)
+class LaunchEvent:
+    """One maintainer-initiated launch event of a repo (view B, ADR-084)."""
+
+    at: datetime
+    kind: str  # show_hn | launch_hn | release_launch
+    ref: str  # the HN item id or the release tag
+    via: str  # discovery | lookup:url | lookup:title | github_release
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"at": self.at.isoformat(), "kind": self.kind, "ref": self.ref, "via": self.via}
+
+
+def _signal(c: Candidate, source: str) -> dict[str, Any] | None:
+    """The candidate's current-rule signal of `source` (one per repo), or None."""
+    for s in c.sources:
+        if s.get("source") == source and s.get("rule") == ANCHOR_RULE_VERSION:
+            return s
+    return None
+
+
+def launch_events(
+    c: Candidate,
+    start: datetime,
+    end: datetime,
+    drop: set[tuple[str, int]] | frozenset[tuple[str, int]] = frozenset(),
+) -> list[LaunchEvent]:
+    """The repo's launch events inside the window, in order: its declared Show HN / Launch HN
+    launches (`_launches`: discovery and the lookup, confirmed title matches only) and its
+    GitHub releases announced as a launch (`release_is_launch`, stored as `launch`). Sorted by
+    time, then kind (show_hn, launch_hn, release_launch), then item id or tag. No star data."""
+    order = {k: i for i, k in enumerate(DECLARED_RULES)}
+    out = [
+        LaunchEvent(x.at, x.source, str(x.item_id), x.via) for x in _launches(c, start, end, drop)
+    ]
+    rel = _signal(c, RELEASE_SOURCE)
+    for r in (rel or {}).get("releases") or []:
+        if not r.get("launch"):
+            continue
+        t = _t(r["published_at"])
+        if start <= t <= end:
+            out.append(LaunchEvent(t, "release_launch", str(r["tag"]), "github_release"))
+    return sorted(out, key=lambda e: (e.at, order[e.kind], e.ref))
+
+
+def first_release_at(c: Candidate) -> tuple[datetime | None, str | None, bool]:
+    """(time of the earliest published release or None, its tag, known): `known` is false when
+    the release list is missing or incomplete (page cap, failed request), so the first release
+    can't be told."""
+    rel = _signal(c, RELEASE_SOURCE)
+    if rel is None or not rel.get("complete"):
+        return None, None, False
+    rs = rel.get("releases") or []
+    if not rs:
+        return None, None, True
+    r0 = min(rs, key=lambda r: (r["published_at"], str(r["tag"])))
+    return _t(r0["published_at"]), str(r0["tag"]), True
+
+
+def choose_launch_anchor(
+    events: Sequence[LaunchEvent],
+    mention: Mapping[str, Any] | None,
+    first_release: tuple[datetime | None, str | None, bool],
+    start: datetime,
+    end: datetime,
+) -> tuple[Anchor | None, str | None, list[dict[str, Any]]]:
+    """View B's anchor (ADR-084, `selection.VIEW_B_ANCHOR_RULE`): (anchor or None, reason,
+    relaunch events). Launch events only, never star data: the first launch event in the window
+    anchors (rule = its kind) and every later one is a relaunch event. Without one, the earlier
+    of the first external mention and the first public release (`undeclared:first_mention`,
+    `undeclared:first_release`; a tie goes to the mention), inside the window; no anchor when
+    neither exists, when the earlier is outside the window, or when either source is unknown."""
+    if events:
+        e0 = events[0]
+        a = Anchor("launch", e0.at, "hour", e0.kind, e0.via, rule=e0.kind, ref=e0.ref)
+        return a, None, [e.to_dict() for e in events[1:]]
+    rel_at, rel_tag, rel_known = first_release
+    status = (mention or {}).get("status")
+    if mention is None or status not in ("found", "none"):
+        return None, f"undeclared:mention_{status or 'not_searched'}", []
+    if not rel_known:
+        return None, "undeclared:releases_incomplete", []
+    options: list[tuple[datetime, int, Anchor]] = []
+    if status == "found":
+        t = _t(mention["time"])
+        via = "hn_comment" if mention.get("kind") == "comment" else "hn_story"
+        rule = "undeclared:first_mention"
+        ref = str(mention.get("hn_item_id"))
+        options.append((t, 0, Anchor("launch", t, "hour", "first_mention", via, rule, ref)))
+    if rel_at is not None:
+        a = Anchor(
+            "launch", rel_at, "hour", "first_release", "github_release",
+            "undeclared:first_release", rel_tag,
+        )  # fmt: skip
+        options.append((rel_at, 1, a))
+    if not options:
+        return None, "no_launch_event", []
+    t, _k, a = min(options, key=lambda o: (o[0], o[1]))
+    if t < start:
+        return None, "undeclared:before_window", []
+    if t > end:
+        return None, "undeclared:after_window", []
+    return a, None, []
+
+
+def view_b_anchor(
+    c: Candidate,
+    start: datetime,
+    end: datetime,
+    drop: set[tuple[str, int]] | frozenset[tuple[str, int]] = frozenset(),
+) -> tuple[Anchor | None, str | None, list[dict[str, Any]]]:
+    """View B's anchor of a candidate from its stored launch signals (`choose_launch_anchor`)."""
+    return choose_launch_anchor(
+        launch_events(c, start, end, drop),
+        _signal(c, MENTION_SOURCE),
+        first_release_at(c),
+        start,
+        end,
+    )
+
+
 # --- 2. load -----------------------------------------------------------------------------------
 def endpoint_day(t: datetime, tz: str = STAR_HISTORY_DAY_TZ) -> date:
     """D(t): the star-history endpoint day containing the instant t (outcome-model §1.2)."""
@@ -941,6 +1344,8 @@ ANCHOR_RULE_FUNCTIONS = (
     "pigtail.briefs.confirm:_norm",
     "pigtail.briefs.confirm:keywords",
     "pigtail.briefs.confirm:owner_named",
+    "pigtail.briefs.confirm:owner_overlaps_name",
+    "pigtail.briefs.confirm:_repo_name_parts",
     "pigtail.briefs.confirm:confirm_by_rules",
     "pigtail.briefs.confirm:haiku_input",
     "pigtail.briefs.confirm:Confirmer",
@@ -967,6 +1372,24 @@ ANCHOR_RULE_FUNCTIONS = (
     "_within_30d_before",
     "_burst_within_90d_after",
     "choose_anchor",
+    # view B's launch-event anchor (ADR-084)
+    "release_is_launch",
+    "fetch_releases",
+    "first_mention",
+    "_fetch_all_releases",
+    "_search_all_mentions",
+    "_signal",
+    "launch_events",
+    "first_release_at",
+    "choose_launch_anchor",
+    "view_b_anchor",
+    "pigtail.connectors.github:parse_releases",
+    "pigtail.connectors.hn:parse_mention_page",
+    "pigtail.connectors.hn:HNShowDiscoveryConnector",  # the lookup and mention searches
+    "pigtail.connectors.hn:github_repos_in_text",
+    "pigtail.briefs.selection:CaseInput",
+    "pigtail.briefs.selection:anchor_rule",
+    "pigtail.briefs.selection:in_population",
 )
 ANCHOR_RULE_CONSTANTS = (
     "TITLE_MIN_CHARS",
@@ -1001,6 +1424,18 @@ ANCHOR_RULE_CONSTANTS = (
     "pigtail.briefs.selection:FIT_EPS",
     "pigtail.briefs.selection:FT_ROUND",
     "pigtail.briefs.selection:MIN_POPULATION",
+    "RELEASE_SOURCE",
+    "RELEASE_MAX_PAGES",
+    "RELEASE_TEXT_CHARS",
+    "MENTION_SOURCE",
+    "MENTION_MAX_REQUESTS",
+    "MENTION_HITS_CAP",
+    "pigtail.briefs.selection:RELEASE_LAUNCH_PATTERN",
+    "pigtail.briefs.selection:DECLARED_RULES",
+    "pigtail.connectors.github:RELEASES_PER_PAGE",
+    "pigtail.connectors.github:RELEASE_BODY_CHARS",
+    "pigtail.connectors.hn:MENTION_FIELDS",
+    "pigtail.connectors.hn:_GH_URL_IN_TEXT",
 )
 
 
@@ -1121,7 +1556,13 @@ def load_inputs(
     window: tuple[datetime, datetime],
     as_of: date,
 ) -> list[CaseInput]:
-    """Step 2 (module docstring)."""
+    """Step 2 (module docstring). Each case also carries the same repo as view B reads it
+    (`CaseInput.launch_case`, ADR-084): anchored on its launch-event anchor
+    (`view_b_anchor`, from launch events only, never star data), with its values, covariates
+    and anomaly flags relative to that anchor, and its relaunch events. Both carry the
+    distribution surface coded before any outcome (`surface.surface_of`)."""
+    from pigtail.briefs.surface import surface_of
+
     definition = Definition.from_brief(brief)
     k_max = _star_horizon_max(definition)
     start, end = window
@@ -1139,6 +1580,8 @@ def load_inputs(
                 seg = segment(series, lo, hi, created=created)
                 bursts = [b.onset for b in seg.bursts]
         anchor, reason = choose_anchor(launches, bursts, bool(series))
+        # view B (ADR-084): launch events only; the star series is not an input
+        b_anchor, b_reason, relaunches = view_b_anchor(c, start, end, drop)
         prepared.append(
             {
                 "c": c,
@@ -1147,14 +1590,38 @@ def load_inputs(
                 "launches": launches,
                 "anchor": anchor,
                 "reason": reason,
+                "b_anchor": b_anchor,
+                "b_reason": b_reason,
+                "relaunches": relaunches,
             }
         )
 
-    # anomaly checks over the anchored field and reference candidates (§4.2)
-    anomaly_in: dict[str, tuple[dict[date, int], dict[str, dict[date, int]]]] = {}
-    windows: dict[str, tuple[date, date]] = {}
+    a_reports, a_windows = _anomaly(conn, prepared, "anchor", k_max)
+    b_reports, b_windows = _anomaly(conn, prepared, "b_anchor", k_max)
+    out: list[CaseInput] = []
     for p in prepared:
-        c, a = p["c"], p["anchor"]
+        c = p["c"]
+        surface, paths = surface_of(c)
+        b_case = _case_input(
+            p, p["b_anchor"], p["b_reason"], b_reports, b_windows, as_of, surface, paths
+        )
+        b_case = replace(b_case, relaunch_events=tuple(p["relaunches"]))
+        a_case = _case_input(
+            p, p["anchor"], p["reason"], a_reports, a_windows, as_of, surface, paths
+        )
+        out.append(replace(a_case, launch_case=b_case))
+    return out
+
+
+def _anomaly(
+    conn: psycopg.Connection[Any], prepared: Sequence[Mapping[str, Any]], key: str, k_max: int
+) -> tuple[dict[str, Any], dict[str, tuple[date, date, list[str]]]]:
+    """Anomaly checks (§4.2) over the field and reference candidates anchored by `key` (the
+    §2.2 anchor, or view B's), on the endpoint days `[T - 60 d, T + k_max)`."""
+    anomaly_in: dict[str, tuple[dict[date, int], dict[str, dict[date, int]]]] = {}
+    windows: dict[str, tuple[date, date, list[str]]] = {}
+    for p in prepared:
+        c, a = p["c"], p[key]
         if a is None or c.panel == "exemplar" or not p["series"]:
             continue
         f = first_day(a)
@@ -1166,111 +1633,121 @@ def load_inputs(
         forks = fork_series(conn, c.repo_host_id) if c.repo_host_id is not None else {}
         act = {"forks": {d: v for d, v in forks.items() if w0 <= d <= w1}}
         anomaly_in[c.ref] = (stars, {k: v for k, v in act.items() if v})
-        windows[c.ref] = (w0, w1)
-    reports = check_population(anomaly_in)
+        windows[c.ref] = (w0, w1, sorted(anomaly_in[c.ref][1]))
+    return check_population(anomaly_in), windows
 
-    out: list[CaseInput] = []
-    for p in prepared:
-        c, a, series = p["c"], p["anchor"], p["series"]
-        values: dict[str, Value] = {}
-        business = dict.fromkeys(BUSINESS_SIGNALS, NO_CONNECTOR)
-        cov = Covariates(language=c.metadata.get("language"))
-        flag: AnomalyFlag = "unknown"
-        anomaly: dict[str, Any] = {"label": STAR_LABEL, "status": "not_checked"}
-        if a is None:
-            no = Value("unknown", reason="no_anchor")
-            values = {m: no for dim in METRICS for m in METRICS[dim]}
-        else:
-            f = first_day(a)
-            for m in (*METRICS["attention"], *METRICS["adoption"], *METRICS["community"]):
-                values[m] = NO_CONNECTOR
-            values[BUSINESS_COUNT] = NO_CONNECTOR
-            for k in (30, 90):
-                values[f"att.stars@{k}"] = star_value(series, f, k, as_of)
-            # the views' star windows (ADR-083): launch size (days 0..2, the LSM days) and
-            # follow-through (days 3..29); Reddit reach has no connector (TM-05 is a GAP)
-            values[LAUNCH_SIZE] = star_window(series, f, *LAUNCH_DAYS, as_of)
-            values[FOLLOW_STARS] = star_window(series, f, *FOLLOW_DAYS, as_of)
-            values[REDDIT_REACH] = NO_CONNECTOR
-            pre, pre_why = stars_before_launch(series, _created_at(c), f)
-            pts = [
-                x.points
-                for x in p["launches"]
-                if x.points is not None and x.at >= a.at - timedelta(days=7)
-            ]
-            values["att.hn_points"] = (
-                Value("observed", float(max(pts)), "verified", "as of fetch")
-                if pts
-                else Value("unknown", reason="no_matched_story_captured")
-            )
-            lsm = None
-            launch_days = [f + DAY * i for i in range(*LAUNCH_DAYS)]
-            if all(d in series for d in launch_days):
-                lsm = math.log10(1 + max(0, sum(series[d] for d in launch_days)))
-            age = None
-            if p["created"] is not None:
-                age = math.log10(max(1, (a.at.astimezone(UTC).date() - p["created"]).days))
-            cov = Covariates(
-                lsm=lsm,
-                launch_quarter=_quarter(a.at),
-                launch_half_year=_half_year(a.at),
-                age_log10=age,
-                audience_band="unknown",
-                language=c.metadata.get("language"),
-                launch_type=a.source if a.type == "launch" else "burst",
-                prelaunch_stars=pre,
-                prelaunch_log=None if pre is None else math.log10(1 + max(0, pre)),
-                prelaunch_reason=pre_why,
-            )
-            rep = reports.get(c.ref)
-            if rep is not None:
-                w0, w1 = windows[c.ref]
-                case_from = f - timedelta(days=30)
-                spikes = [s for s in rep.spikes if s.end >= case_from and s.start <= w1]
-                flags = [
-                    fl
-                    for fl in rep.flags
-                    if fl.kind == "ratio_outlier"
-                    or (fl.end is not None and fl.start is not None and fl.end >= case_from)
-                ]
-                checked = all(s.checked for s in spikes)
-                ratio_ok = (
-                    rep.ratio is not None and rep.stars_total >= ANOMALY.ratio_min_stars
-                ) or rep.stars_total < ANOMALY.ratio_min_stars
-                flag = "true" if flags else ("false" if checked and ratio_ok else "unknown")
-                anomaly = {
-                    "label": STAR_LABEL,
-                    "rule_version": rep.rule_version,
-                    "params_version": rep.params_version,
-                    "status": rep.status,
-                    "flags": [
-                        {"kind": fl.kind, "start": _iso(fl.start), "end": _iso(fl.end)}
-                        for fl in flags
-                    ],
-                    "spikes_in_window": len(spikes),
-                    "ratio": None if rep.ratio is None else round(rep.ratio, 4),
-                    "stars_total": rep.stars_total,
-                    "window": [w0.isoformat(), w1.isoformat()],
-                    "channels": sorted(anomaly_in[c.ref][1]),
-                }
-            elif c.panel != "exemplar":
-                anomaly = {"label": STAR_LABEL, "status": "no_star_history_for_window"}
-        out.append(
-            CaseInput(
-                ref=c.ref,
-                panel=c.panel,
-                distance=c.distance if c.distance is not None else 0,
-                named_index=c.named_index,
-                anchor=a,
-                anchor_reason=p["reason"],
-                values=values,
-                business=business,
-                covariates=cov,
-                star_anomaly_flag=flag,
-                anomaly=anomaly,
-            )
+
+def _case_input(
+    p: Mapping[str, Any],
+    a: Anchor | None,
+    reason: str | None,
+    reports: Mapping[str, Any],
+    windows: Mapping[str, tuple[date, date, list[str]]],
+    as_of: date,
+    surface: str,
+    install_paths: tuple[str, ...],
+) -> CaseInput:
+    """One case's values, covariates and anomaly flag relative to the anchor `a`."""
+    c, series = p["c"], p["series"]
+    values: dict[str, Value] = {}
+    business = dict.fromkeys(BUSINESS_SIGNALS, NO_CONNECTOR)
+    cov = Covariates(
+        language=c.metadata.get("language"), surface=surface, install_paths=install_paths
+    )
+    flag: AnomalyFlag = "unknown"
+    anomaly: dict[str, Any] = {"label": STAR_LABEL, "status": "not_checked"}
+    if a is None:
+        no = Value("unknown", reason="no_anchor")
+        values = {m: no for dim in METRICS for m in METRICS[dim]}
+    else:
+        f = first_day(a)
+        for m in (*METRICS["attention"], *METRICS["adoption"], *METRICS["community"]):
+            values[m] = NO_CONNECTOR
+        values[BUSINESS_COUNT] = NO_CONNECTOR
+        for k in (30, 90):
+            values[f"att.stars@{k}"] = star_value(series, f, k, as_of)
+        # the views' star windows (ADR-083): launch size (days 0..2, the LSM days) and
+        # follow-through (days 3..29); Reddit reach has no connector (TM-05 is a GAP)
+        values[LAUNCH_SIZE] = star_window(series, f, *LAUNCH_DAYS, as_of)
+        values[FOLLOW_STARS] = star_window(series, f, *FOLLOW_DAYS, as_of)
+        values[REDDIT_REACH] = NO_CONNECTOR
+        pre, pre_why = stars_before_launch(series, _created_at(c), f)
+        pts = [
+            x.points
+            for x in p["launches"]
+            if x.points is not None and x.at >= a.at - timedelta(days=7)
+        ]
+        values["att.hn_points"] = (
+            Value("observed", float(max(pts)), "verified", "as of fetch")
+            if pts
+            else Value("unknown", reason="no_matched_story_captured")
         )
-    return out
+        lsm = None
+        launch_days = [f + DAY * i for i in range(*LAUNCH_DAYS)]
+        if all(d in series for d in launch_days):
+            lsm = math.log10(1 + max(0, sum(series[d] for d in launch_days)))
+        age = None
+        if p["created"] is not None:
+            age = math.log10(max(1, (a.at.astimezone(UTC).date() - p["created"]).days))
+        cov = Covariates(
+            lsm=lsm,
+            launch_quarter=_quarter(a.at),
+            launch_half_year=_half_year(a.at),
+            age_log10=age,
+            audience_band="unknown",
+            language=c.metadata.get("language"),
+            launch_type=a.source if a.type == "launch" else "burst",
+            prelaunch_stars=pre,
+            prelaunch_log=None if pre is None else math.log10(1 + max(0, pre)),
+            prelaunch_reason=pre_why,
+            surface=surface,
+            install_paths=install_paths,
+        )
+        rep = reports.get(c.ref)
+        if rep is not None:
+            w0, w1, channels = windows[c.ref]
+            case_from = f - timedelta(days=30)
+            spikes = [s for s in rep.spikes if s.end >= case_from and s.start <= w1]
+            flags = [
+                fl
+                for fl in rep.flags
+                if fl.kind == "ratio_outlier"
+                or (fl.end is not None and fl.start is not None and fl.end >= case_from)
+            ]
+            checked = all(s.checked for s in spikes)
+            ratio_ok = (
+                rep.ratio is not None and rep.stars_total >= ANOMALY.ratio_min_stars
+            ) or rep.stars_total < ANOMALY.ratio_min_stars
+            flag = "true" if flags else ("false" if checked and ratio_ok else "unknown")
+            anomaly = {
+                "label": STAR_LABEL,
+                "rule_version": rep.rule_version,
+                "params_version": rep.params_version,
+                "status": rep.status,
+                "flags": [
+                    {"kind": fl.kind, "start": _iso(fl.start), "end": _iso(fl.end)} for fl in flags
+                ],
+                "spikes_in_window": len(spikes),
+                "ratio": None if rep.ratio is None else round(rep.ratio, 4),
+                "stars_total": rep.stars_total,
+                "window": [w0.isoformat(), w1.isoformat()],
+                "channels": channels,
+            }
+        elif c.panel != "exemplar":
+            anomaly = {"label": STAR_LABEL, "status": "no_star_history_for_window"}
+    return CaseInput(
+        ref=c.ref,
+        panel=c.panel,
+        distance=c.distance if c.distance is not None else 0,
+        named_index=c.named_index,
+        anchor=a,
+        anchor_reason=reason,
+        values=values,
+        business=business,
+        covariates=cov,
+        star_anomaly_flag=flag,
+        anomaly=anomaly,
+    )
 
 
 def _iso(d: date | None) -> str | None:
