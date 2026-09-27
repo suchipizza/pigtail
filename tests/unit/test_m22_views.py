@@ -674,3 +674,17 @@ def test_estimate_counts_prelaunch_pages_and_haiku_checks_while_the_selection_is
     done = estimate(B, selection=SelectionState(pending=False))
     assert done.selection["title_match_checks"] == 0
     assert done.selection["prelaunch_extra_core_requests"] == 0
+
+
+def test_result_hash_ignores_input_stage_notes():
+    """R4.8: a recompute from stored data (which has no launch-lookup counts) gives the same
+    result hashes as the stage run that passed those counts in as notes."""
+    cases = split_field()
+    note = "launch lookup: 3 title-only rejected"
+    with_notes = select_views(cases, ctx(), Definition.from_brief(B), notes=[note])
+    without = select_views(cases, ctx(), Definition.from_brief(B))
+    assert with_notes.result_hash == without.result_hash
+    assert {k: v.result_hash for k, v in with_notes.views.items()} == {
+        k: v.result_hash for k, v in without.views.items()
+    }
+    assert note in with_notes.summary["warnings"]

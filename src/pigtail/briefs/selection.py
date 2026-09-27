@@ -1827,7 +1827,14 @@ def select(
         sensitivity=sens_summary,
         inputs_hash=inputs_hash(cases),
     )
-    sel.result_hash = sha256_json({k: v for k, v in sel.to_dict().items() if k != "result_hash"})
+    # the result hash covers the selection, not the input-stage notes (e.g. launch-lookup counts,
+    # which are not stored): a recompute from stored data reproduces it (R4.8)
+    hashed = {k: v for k, v in sel.to_dict().items() if k != "result_hash"}
+    hashed["summary"] = {
+        **hashed["summary"],
+        "warnings": [w for w in hashed["summary"]["warnings"] if w not in notes],
+    }
+    sel.result_hash = sha256_json(hashed)
     return sel
 
 
