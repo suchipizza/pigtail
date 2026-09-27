@@ -181,6 +181,7 @@ class FakeBluesky:
         self.fail = False
         self.fail_urls: set[str] = set()
         self.page_size: int | None = None
+        self.bad_request = False  # every search answers 400
         # handles without posts in this fake that still resolve to an account
         self.known: dict[str, str] = {
             HANDLE_C: "did:plc:cccccccccccccccccccccccc",
@@ -204,6 +205,11 @@ class FakeBluesky:
                 return httpx.Response(200, json={"did": self.known[p["handle"]]})
             return httpx.Response(400, json={"error": "InvalidRequest"})
         assert req.url.path == "/xrpc/app.bsky.feed.searchPosts", req.url.path
+        if p.get("q") == "*" and ("since" in p or "until" in p):
+            # the live AppView refuses q=* combined with since/until (verifier M22 round 7)
+            return httpx.Response(400, json={"error": "InvalidRequest"})
+        if self.bad_request:
+            return httpx.Response(400, json={"error": "InvalidRequest"})
         if self.fail or p.get("url") in self.fail_urls:
             return httpx.Response(503, json={"error": "unavailable"})
         author, url = p["author"], p["url"]

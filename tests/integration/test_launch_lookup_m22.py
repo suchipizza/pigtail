@@ -164,7 +164,7 @@ def test_lookup_stores_project_fields_drops_raw_and_anchors_on_a_same_day_launch
     assert len(fake.lookup_requests) == 9
     tags = sorted(r.url.params["tags"] for r in fake.lookup_requests)
     assert tags == ["launch_hn"] * 3 + ["show_hn"] * 6  # ADR-082: the launch_hn tag
-    assert lk["title_rejected"] == {"not_product_slot": 1} and lk["rule"] == "anchor-v6"
+    assert lk["title_rejected"] == {"not_product_slot": 1} and lk["rule"] == "anchor-v7"
     # ADR-083 E: KubeForge has a URL-matched launch, so its title match is not considered
     assert lk["title_unconfirmed"] == {"has_url_launch": 1} and lk["haiku_checks"] == 0
 
@@ -310,7 +310,7 @@ def test_a_pre_registration_under_the_old_selection_params_is_refused(
     monkeypatch.setattr(selmod.Context, "params", old_params)
     prereg(capture_db.conn, b, tmp_path)
     monkeypatch.setattr(selmod.Context, "params", new_params)
-    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v7"):
+    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v8"):
         require(capture_db.conn, b)
     fake = FakeShowHN(HITS)
     with pytest.raises(PreregistrationMissing):

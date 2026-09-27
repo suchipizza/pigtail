@@ -541,14 +541,14 @@ def test_view_c_covers_every_shortlisted_non_winner_with_counts_of_values():
 
 # --- 7. versions, guard, determinism, estimate -------------------------------------------
 def test_versions_are_bumped():
-    assert SELECTION_VERSION == "selection-v7" and ANCHOR_RULE_VERSION == "anchor-v6"
+    assert SELECTION_VERSION == "selection-v8" and ANCHOR_RULE_VERSION == "anchor-v7"
     p = Context.from_brief(B).params()
-    assert p["selection_version"] == "selection-v7" and p["anchor_rule_version"] == "anchor-v6"
+    assert p["selection_version"] == "selection-v8" and p["anchor_rule_version"] == "anchor-v7"
     assert set(p["views"]) == {"follow_through", "launch", "launch_undeclared"}
     vb = p["view_b_anchor"]
     assert vb["rules"] == list(ANCHOR_RULE_LABELS)
     assert vb["release_launch_pattern"] == selmod.RELEASE_LAUNCH_PATTERN
-    # selection-v7 (ADR-085): Bluesky and Product Hunt are sources now; the ADR-075 limitation
+    # selection-v8 (ADR-085): Bluesky and Product Hunt are sources now; the ADR-075 limitation
     # names only the accounts the maintainer did not declare
     assert any("ADR-075" in x for x in vb["limitations"])
     assert "unobserved channel" in vb["known_bias"]

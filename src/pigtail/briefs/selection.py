@@ -123,8 +123,8 @@ from pigtail.briefs.model import DIMENSIONS, RANKABLE, THRESHOLD_PERCENTILE, Bri
 #     launch-event anchor with the undeclared sub-population, full-pool SDs, view C over all
 #     non-winners; anchor-v5, confirm-v2 (ADR-084)
 # v7: view B's launch events add Product Hunt launches and declared maintainers' Bluesky posts,
-#     with the incomplete-source rule and the launch-source flags; anchor-v6 (ADR-085)
-SELECTION_VERSION = "selection-v7"
+#     with the incomplete-source rule and the launch-source flags; anchor-v7 (ADR-085)
+SELECTION_VERSION = "selection-v8"
 # view A's metric: follow-through relative to launch size (ADR-083)
 FOLLOW_THROUGH_METRIC_VERSION = "follow-through-v1"
 OUTCOME_MODEL_VERSION = "2.1"
@@ -157,8 +157,8 @@ MATCHING_RULE = (
 # the guarded code changes `selection_params_sha256` and an existing pre-registration stops
 # passing the gate by itself; the pinned constant makes the developer bump the versions too.
 # v5: view B's launch-event anchor (ADR-084); v6: Product Hunt and Bluesky launch events (ADR-085)
-ANCHOR_RULE_VERSION = "anchor-v6"
-ANCHOR_RULE_SOURCE_SHA256 = "d9e5029c3f435cd59383879a817efb04d0b5f37aab06d80c3dedf8eef26e8fa2"
+ANCHOR_RULE_VERSION = "anchor-v7"
+ANCHOR_RULE_SOURCE_SHA256 = "17a143a7aac66798c2dab8d4e2fb4cce4de63ff41c89826542edcda10a510027"
 ANCHOR_RULE = (
     "outcome-model §2.2 rules 1-6 as read by ADR-077.3; declared launches = Show HN or Launch HN "
     "posts from discovery and the per-repo launch lookup (current rule's records only), merged "

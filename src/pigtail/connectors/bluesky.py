@@ -12,7 +12,7 @@ never the handle. This module holds:
   else is ever used to find an account: Bluesky is never searched for people by name (ADR-075.3).
 - **The one API call** (`BlueskySearchConnector.search_posts`):
   `GET <base>/xrpc/app.bsky.feed.searchPosts` with `author=<declared handle or DID>`,
-  `url=<the repo's GitHub URL | its homepage URL>`, `since`/`until` = the brief's window,
+  `url=<the repo's GitHub URL | its homepage URL>` (the brief's window applied in memory),
   `sort=latest`, `limit=100`, `cursor`, and the lexicon's required `q` set to `*` (the filters do
   the selecting). Unauthenticated on `api.bsky.app` (the owner's check of 2026-09-27;
   `public.api.bsky.app` answers 403 for search), configurable with `PIGTAIL_BLUESKY_API_BASE`.
@@ -68,7 +68,7 @@ SEARCH_PATH = "/xrpc/app.bsky.feed.searchPosts"
 RESOLVE_PATH = "/xrpc/com.atproto.identity.resolveHandle"
 BSKY_QUERY = "*"  # the lexicon requires `q`; the author and url filters select the posts
 BSKY_PAGE = 100
-SEARCH_PARAMS = frozenset({"q", "author", "url", "since", "until", "sort", "limit", "cursor"})
+SEARCH_PARAMS = frozenset({"q", "author", "url", "sort", "limit", "cursor"})
 ACCOUNT_PLACEHOLDER = "[declared-account]"
 EVIDENCE_REPO_MARK = "launch_source_repo="
 
@@ -306,15 +306,15 @@ class BlueskySearchConnector(Connector):
         cursor: str | None,
         evidence_url: str,
     ) -> Fetched:
-        """One page of the declared account's posts that link `url`, inside the window, newest
-        first (not parsed here: `parse_search_page`; the caller drops the raw page). `author`
-        is used for this request only and never stored."""
+        """One page of the declared account's posts that link `url`, newest first (not parsed
+        here: `parse_search_page`; the caller drops the raw page). `since`/`until` are NOT sent:
+        the AppView answers 400 when `q=*` is combined with them (verifier M22 round 7), so the
+        caller applies the window in memory. `author` is used for this request only and never
+        stored."""
         params: dict[str, Any] = {
             "q": BSKY_QUERY,
             "author": author,
             "url": url,
-            "since": since.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "until": until.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "sort": "latest",
             "limit": BSKY_PAGE,
         }

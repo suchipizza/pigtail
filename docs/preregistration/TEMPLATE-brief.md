@@ -42,9 +42,9 @@ Paste the output of `pigtail brief preregister <brief-id> --print-hashes`:
 | `brief_sha256` (the whole brief version's content hash) | `<64 hex>` |
 | `success_definition_sha256` (primary dimension, percentile thresholds and minimums, metrics, business minimum, weights, `if_not_applicable`, the no-measurable-adoption rule) | `<64 hex>` |
 | `selection_params_sha256` (N winners and losers, exact-match keys, SMD target, headline exclusion SMD, calipers, matching rule, widening steps allowed, fallback steps, exemplar matching, sensitivity alternatives, selection / outcome-model / analysis-params versions; since `selection-v5` also views A, B and C, the follow-through metric, the title-confirmation rule with the Haiku prompt's fingerprint and the hash of the guarded anchor-rule code, ADR-083; since `selection-v6` also view B's launch-event anchor rule and its limitations, the undeclared-launch sub-population, the language groups and the pattern rule, the numeric-only headline rule, the SD rule, the distribution-surface coding with its prompt fingerprint, and the resolved Haiku model id, ADR-084; since `selection-v7` also view B's launch sources: whether Product Hunt and Bluesky apply, the Product Hunt topics, slug rule, product slot and confirmation rule with its Haiku prompt fingerprint, the Bluesky declared-account sources, search calls and incomplete rule, ADR-085) | `<64 hex>` |
-| `selection_version` | `selection-v7` |
+| `selection_version` | `selection-v8` |
 | `outcome_model_version` | `2.1` |
-| `anchor_rule_version` / `anchor_rule_source_sha256` | `anchor-v6` / `<64 hex>` |
+| `anchor_rule_version` / `anchor_rule_source_sha256` | `anchor-v7` / `<64 hex>` |
 | `follow_through_metric_version` / `title_confirmation_version` | `follow-through-v1` / `confirm-v2` |
 | `distribution_surface` version / prompt fingerprint / Haiku model | `surface-v1` / `<12 hex>` / `<model id>` |
 | View B's launch sources: Product Hunt / Bluesky (applies: yes or no), Product Hunt topics, `ph_match_check` prompt fingerprint | `yes` / `yes` / `open-source, developer-tools` / `<12 hex>` |

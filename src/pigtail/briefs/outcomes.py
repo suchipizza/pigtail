@@ -44,7 +44,7 @@ points; no identities):
    stored: item id, time, kind). Both checkpointed per repo. The star history of every repo
    with a view-B anchor is fetched back to its creation week (stars before launch).
 
-   Since anchor-v6 (ADR-085), right after the HN lookup: **Product Hunt launches** (slug lookup
+   Since anchor-v7 (ADR-085), right after the HN lookup: **Product Hunt launches** (slug lookup
    and topic scan, confirmed name matches; `launch_sources.run_product_hunt`) and **Bluesky posts
    by declared maintainer accounts** that link the repo (`launch_sources.run_bluesky`), when the
    pre-registered parameters say they apply. Both are launch events of view B.
@@ -1619,6 +1619,8 @@ ANCHOR_RULE_CONSTANTS = (
     "pigtail.connectors.producthunt:RESERVE_FRACTION",
     "pigtail.connectors.producthunt:DESCRIPTION_CHARS",
     "pigtail.connectors.bluesky:SEARCH_PATH",
+    "pigtail.connectors.bluesky:RESOLVE_PATH",
+    "pigtail.connectors.bluesky:DEFAULT_BSKY_BASE",
     "pigtail.connectors.bluesky:BSKY_QUERY",
     "pigtail.connectors.bluesky:BSKY_PAGE",
     "pigtail.connectors.bluesky:SEARCH_PARAMS",

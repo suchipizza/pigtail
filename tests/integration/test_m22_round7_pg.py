@@ -390,7 +390,7 @@ def test_bluesky_declared_accounts_searches_and_view_b_anchor(capture_db, tmp_pa
     assert {r.url.params["handle"] for r in resolves} == {HANDLE_A, HANDLE_C, HANDLE_D}
     for r in searches:
         assert set(r.url.params) <= SEARCH_PARAMS and r.url.params["sort"] == "latest"
-        assert r.url.params["since"] and r.url.params["until"]
+        assert "since" not in r.url.params and "until" not in r.url.params  # window in memory
     assert HANDLE_OTHER not in {a for a, _ in seen} | {r.url.params["handle"] for r in resolves}
     # GitHub: profile social accounts for user owners, the org page for org owners
     paths = [r.url.path for r in gh.requests]
@@ -576,3 +576,15 @@ def test_a_declared_handle_that_names_no_account_is_skipped_not_incomplete(
     bs = res.fetch["bluesky"]
     assert bs["incomplete"] == 0 and bs["accounts_unresolvable"] == 3
     assert not [r for r in fake.requests if r.url.path.endswith("searchPosts")]
+
+
+def test_a_rejected_search_is_incomplete_never_no_posts(capture_db, tmp_path, monkeypatch):
+    """Verifier M22 round 7: a 400 from searchPosts after the handle resolved is an incomplete
+    source (counted, retried), never a silent "no posts"."""
+    fake, texts = ten(0)
+    fake.bad_request = True
+    _b, fake, _gh, res, _cp = run_bsky(capture_db, tmp_path, monkeypatch, TEN, fake=fake,
+                                       readmes=texts)  # fmt: skip
+    bs = res.fetch["bluesky"]
+    assert bs["incomplete"] == 1 and bs["incomplete_reasons"] == {"search_failed": 1}
+    assert bs["accounts_unresolvable"] == 0

@@ -276,7 +276,7 @@ def test_search_posts_carries_author_and_url_filters_only_and_no_handle_leaves_m
     f = c.search_posts(author=HANDLE_A, url="https://github.com/org-b1/alpha-tool", since=W0,
                        until=W1, cursor=None, evidence_url=ev)  # fmt: skip
     (req,) = fake.requests
-    assert set(req.url.params) == {"q", "author", "url", "since", "until", "sort", "limit"}
+    assert set(req.url.params) == {"q", "author", "url", "sort", "limit"}  # no dates (400 live)
     assert req.url.params["sort"] == "latest" and req.url.params["q"] == "*"
     assert HANDLE_A not in f.evidence.url and DID_B not in f.evidence.url
     assert ACCOUNT_PLACEHOLDER in f.evidence.url and "launch_source_repo=org-b1/alpha-tool&" in ev
@@ -482,12 +482,12 @@ def test_ph_votes_and_comments_are_reported_never_ranked():
 
 # --- versions, parameters, guard, determinism, estimate ----------------------------------------
 def test_versions_and_the_launch_source_flags_in_the_params(launch_sources_on, monkeypatch):
-    assert SELECTION_VERSION == "selection-v7" and ANCHOR_RULE_VERSION == "anchor-v6"
+    assert SELECTION_VERSION == "selection-v8" and ANCHOR_RULE_VERSION == "anchor-v7"
     c = Context.from_brief(B)
     assert c.product_hunt and c.bluesky and c.ph_topics == ("open-source", "developer-tools")
     assert c.required_launch_sources == ("product_hunt", "bluesky")
     p = c.params()
-    assert p["selection_version"] == "selection-v7" and p["anchor_rule_version"] == "anchor-v6"
+    assert p["selection_version"] == "selection-v8" and p["anchor_rule_version"] == "anchor-v7"
     lsp = p["launch_sources"]
     assert lsp["product_hunt"]["applies"] is True and lsp["bluesky"]["applies"] is True
     assert lsp["product_hunt"]["topics"] == ["open-source", "developer-tools"]

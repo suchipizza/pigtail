@@ -282,7 +282,7 @@ code 7, before anything is fetched, computed or stored. A file that quotes brief
 refused; so is a pre-registration once the version already has a selection. Editing the brief
 (a new version) or a new selection rule needs a new pre-registration. The selection rule
 includes the anchor rule (`anchor_rule_version`) and the launch lookup (ADR-081, ADR-082):
-since `selection-v7` (anchor rule `anchor-v6`, ADR-085) a pre-registration recorded under an
+since `selection-v8` (anchor rule `anchor-v7`, ADR-085 and its addenda) a pre-registration recorded under an
 earlier selection version is refused, so pre-register the version again (a new file or
 amendment; the old one stays as it is; the brief itself needs no new version). The selection
 parameters also hold the hash of the code that implements the anchor rule, the launch lookup,

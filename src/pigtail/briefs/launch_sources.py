@@ -622,7 +622,8 @@ def run_bluesky(
             urls.append(("homepage_url", hp))
         found: dict[str, tuple[datetime, str]] = {}
         for account in accounts:
-            # a declared handle is resolved first: a dead or mistyped link (HTTP 400) is skipped
+            # a declared handle is resolved first: a handle that resolves to nothing (HTTP 400
+            # "Unable to resolve handle") is a dead or mistyped link, skipped
             # and counted, never mistaken for an outage; the DID stays in memory
             author: str | None = account
             if not account.startswith("did:"):
@@ -634,10 +635,7 @@ def run_bluesky(
             if author is None:
                 res.accounts_unresolvable += 1
                 continue
-            dead = False
             for match, url in urls:
-                if dead:
-                    break
                 cursor: str | None = None
                 for page in range(BSKY_MAX_PAGES):
                     try:
@@ -649,11 +647,9 @@ def run_bluesky(
                             cursor=cursor,
                             evidence_url=bsky_evidence_url(bsky.base, full, match, page),
                         )
-                    except FetchError as e:
-                        if e.status == 400 and author.startswith("did:") and page == 0:
-                            dead = True  # a declared DID that names no account: skipped
-                            res.accounts_unresolvable += 1
-                            break
+                    except FetchError:
+                        # any failed search (400 included) is incomplete, never "no posts": the
+                        # AppView answers 200 for an unknown author (verifier M22 round 7)
                         return incomplete("search_failed")
                     res.bluesky_requests += 1
                     res.evidence_ids.append(f.evidence.id)
@@ -663,12 +659,15 @@ def run_bluesky(
                         return incomplete("search_failed")
                     finally:
                         drop(db, bsky.store, f.evidence.id, f.content_hash, dlog)
+                    # no date filter in the request (the AppView refuses q=* with since/until):
+                    # the window is applied here, and paging stops once a page (newest first)
+                    # reaches before the window's start
                     for h in hits:
                         if h.at is None or not start <= h.at <= end:
                             continue
                         if links_to(h.links, match, full, url):
                             found.setdefault(h.key or h.at.isoformat(), (h.at, match))
-                    if not cursor:
+                    if not cursor or any(h.at is not None and h.at < start for h in hits):
                         break
                 else:
                     return incomplete("search_capped")
