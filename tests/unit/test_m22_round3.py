@@ -152,8 +152,8 @@ def test_hour_precision_onsets_still_compare_instants():
 def test_anchor_rule_is_part_of_the_selection_params_hash(monkeypatch):
     ctx = Context.from_brief(brief())
     p = ctx.params()
-    assert p["selection_version"] == "selection-v10"  # current (ADR-083)
-    assert p["anchor_rule_version"] == "anchor-v9"
+    assert p["selection_version"] == "selection-v11"  # current (ADR-083)
+    assert p["anchor_rule_version"] == "anchor-v10"
     assert "day precision" in p["anchor_rule"] or "endpoint day" in p["anchor_rule"]
     assert "Launch" in p["launch_lookup"] and "tags=launch_hn" in p["launch_lookup"]
     h = sha256_json(p)

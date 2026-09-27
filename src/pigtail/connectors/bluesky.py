@@ -69,6 +69,9 @@ BSKY_BASE_ENV = "PIGTAIL_BLUESKY_API_BASE"
 DEFAULT_BSKY_BASE = "https://api.bsky.app"
 SEARCH_PATH = "/xrpc/app.bsky.feed.searchPosts"
 RESOLVE_PATH = "/xrpc/com.atproto.identity.resolveHandle"
+# the only 400 of resolveHandle read as "this handle names no account" (addendum 5)
+UNRESOLVABLE_ERROR = "InvalidRequest"
+UNRESOLVABLE_MESSAGE = "Unable to resolve handle"
 BSKY_QUERY = "*"  # the lexicon requires `q`; the author and url filters select the posts
 BSKY_PAGE = 100
 SEARCH_PARAMS = frozenset({"q", "author", "url", "sort", "limit", "cursor"})
@@ -145,6 +148,23 @@ def declared_accounts(texts: Iterable[str | None]) -> list[str]:
 _URL_IN_TEXT = re.compile(
     r"(?:https?://)?(?:www\.)?[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:/[^\s)\]>\"']*)?"
 )
+
+
+def unresolvable_handle(body: bytes) -> bool:
+    """Whether a resolveHandle 400 answer says the handle names no account: a JSON object with
+    `error` == `UNRESOLVABLE_ERROR` and a `message` containing `UNRESOLVABLE_MESSAGE`."""
+    try:
+        d = json.loads(body)
+    except ValueError:
+        return False
+    if not isinstance(d, dict):
+        return False
+    msg = d.get("message")
+    return (
+        d.get("error") == UNRESOLVABLE_ERROR
+        and isinstance(msg, str)
+        and UNRESOLVABLE_MESSAGE in msg
+    )
 
 
 @dataclass(frozen=True)
@@ -291,12 +311,17 @@ class BlueskySearchConnector(Connector):
 
     def resolve_handle(self, handle: str) -> str | None:
         """The DID of a declared handle (`com.atproto.identity.resolveHandle`), or None when the
-        handle doesn't resolve (a dead or mistyped link: HTTP 400). Not snapshotted: the answer
-        is an identifier, used for the search in memory only and never stored or logged. Other
-        failures raise `FetchError` (an outage, not a dead link)."""
+        handle doesn't resolve (a dead or mistyped link): only an HTTP 400 whose body says
+        `"error": "InvalidRequest"` with a message containing "Unable to resolve handle"
+        (`unresolvable_handle`; ADR-085 addendum 5). Any other 400, and every other failure,
+        raises `FetchError` (the repo is then incomplete, never "no account"). Not snapshotted:
+        the answer is an identifier, used for the search in memory only and never stored or
+        logged; the error body is read in memory and dropped."""
         resp = self._request(f"{self.base}{RESOLVE_PATH}", {"handle": handle}, None)
         if resp.status_code == 400:
-            return None
+            if unresolvable_handle(resp.content):
+                return None
+            raise FetchError(f"{self.base}{RESOLVE_PATH}", 400, "bad request")
         if not resp.is_success:
             raise FetchError(f"{self.base}{RESOLVE_PATH}", resp.status_code)
         try:

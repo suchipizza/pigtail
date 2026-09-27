@@ -19,17 +19,22 @@ routes:
   listing is a **shared, instance-level cache** (`pigtail.briefs.ph_cache`, tables
   `ph_topic_post` and `ph_topic_scan`): only the gaps of the window that no complete scan of
   the last `PH_TOPIC_CACHE_MAX_AGE_DAYS` (14) days covers are read, every post of every page is
-  cached (id, name, slug, createdAt, featuredAt), the cursor stored after each page
+  cached (id, dates, the hash of the name), the cursor stored after each page
   (resumable), each gap scanned as calendar-month intervals with their own page cap; only the
   SHA-256 of a post's product-slot key is stored, never its name; the brief's name index is
   then built from the cached rows of the window, looked up by the hash of each repo's key. The
   scan rows a run uses are fixed in its checkpoint (`ph_cache`) and recorded in the result
-  (`topic_cache`). A topic hit is read again by `post(id:)` before it is confirmed. A page that
-  can't be parsed fails the topic's scan: every repo not done yet is stored `incomplete`
-  (`topic_scan_failed`: no view-B anchor, counted, retried), and more than
-  `PH_INCOMPLETE_MAX_SHARE` (10 %) of the repos refuses the selection (exit 9, resumable from
-  the stored cursor). A month cut at `PH_TOPIC_MAX_PAGES` is `truncated`: never coverage, and it
-  makes the topic incomplete the same way (`topic_scan_truncated`).
+  (`topic_cache`). Since anchor-v10 (addendum 5) the topic hits of every shortlisted repo are
+  computed once, by the first invocation that completes every topic, and frozen in the
+  checkpoint (`ph_topic_hits`, `PH_HITS_FROZEN`); a resume never reads the index again. A
+  planned scan row gone before then re-plans its topic; one found missing while the index is
+  read leaves the topic incomplete (`topic_plan_rows_missing`). A topic hit is read again by
+  `post(id:)` before it is confirmed. A page that can't be parsed fails the topic's scan: every
+  repo not done yet is stored `incomplete` (`topic_scan_failed`: no view-B anchor, counted,
+  retried), and more than `PH_INCOMPLETE_MAX_SHARE` (10 %) of the repos refuses the selection
+  (exit 9, resumable from the stored cursor). A month cut at `PH_TOPIC_MAX_PAGES` is
+  `truncated`: never coverage, and it makes the topic incomplete the same way
+  (`topic_scan_truncated`).
 
 A post found either way is kept when its name fills the **product slot** (`ph_name_key(name)`
 equals the repo's)
@@ -58,7 +63,7 @@ one account (`README_MAX_ACCOUNTS`, distinct after normalization), else it decla
 counted `readme_ambiguous` (ADR-085 addendum 3; `declared_account_sources`). Then, per account,
 `searchPosts` with `author` and `url` = the repo's GitHub URL, then its homepage URL when it has
 one, newest first, with no date filter (the window is applied in memory), every page until the
-list ends or a launch-worded post before the window is found, up to `BSKY_MAX_PAGES` pages each;
+list ends (addendum 5: to find the earliest launch-worded post), up to `BSKY_MAX_PAGES` pages each;
 each post is kept only when one of its links really is that URL. A post is a **launch event only
 when its text is worded as a launch** (`bsky_post_is_launch`: the release rule's pattern,
 `outcomes.RELEASE_LAUNCH_RE`, on the text, in memory only); posts that link the repo without it
@@ -107,6 +112,7 @@ PH_SLUG_CANDIDATES = 2
 PH_TOPIC_MAX_PAGES = 1000  # 20 posts per page: 20,000 posts per topic and window
 PH_GROUP = 25  # repos per checkpoint group and per Haiku batch
 PH_INCOMPLETE_MAX_SHARE = 0.10  # as Bluesky's: more incomplete repos refuse the selection
+PH_HITS_FROZEN = "ph_topic_hits_frozen"  # checkpoint marker: the topic hits are frozen
 BSKY_SOURCE = "bsky_maintainer_posts"
 BSKY_KIND = "bluesky_maintainer_post"
 BSKY_ROLE = "maintainer"
@@ -210,6 +216,10 @@ class PHResult:
     # the listing snapshot used (ADR-085 addendum 4): per topic and interval, reused or scanned
     topic_cache: list[dict[str, Any]] = field(default_factory=list)
     topic_cache_days: dict[str, dict[str, float]] = field(default_factory=dict)
+    # the topic hits come from the checkpoint, or were just frozen there (addendum 5)
+    topic_hits_frozen: bool = False
+    # topics whose planned scan rows were purged before the hits were frozen: planned again
+    topic_replanned: list[str] = field(default_factory=list)
     incomplete: int = 0
     incomplete_reasons: dict[str, int] = field(default_factory=dict)
     posts: int = 0
@@ -250,18 +260,20 @@ def run_product_hunt(
     connector or its token; a failed request propagates (resumable); a Haiku batch still running
     raises `BatchPending` (the group's repos are not checkpointed, so a resume redoes them and
     collects the batch)."""
-    from pigtail.briefs.ph_cache import days as ph_days
     from pigtail.briefs.ph_cache import (
+        ScanRow,
         end_scan,
         gaps,
         month_intervals,
         ph_key_hash,
+        record_density,
         save_page,
         scan_rows,
         start_scan,
         usable_scans,
         window_posts,
     )
+    from pigtail.briefs.ph_cache import days as ph_days
     from pigtail.capture.db import CaptureDB
     from pigtail.connectors.producthunt import (
         parse_post,
@@ -276,7 +288,8 @@ def run_product_hunt(
         raise LaunchSourceUnavailable(why)
     clock = clock or (lambda: datetime.now(UTC))
     if checkpoint.get("ph_rule") != ANCHOR_RULE_VERSION:  # an older rule's progress
-        for k in ("ph_done", "ph_topics", "ph_topic_hits", "ph_counts", "ph_cache"):
+        for k in ("ph_done", "ph_topics", "ph_topic_hits", "ph_counts", "ph_cache",
+                  PH_HITS_FROZEN, "ph_topic_provenance"):  # fmt: skip
             checkpoint.pop(k, None)
         checkpoint["ph_rule"] = ANCHOR_RULE_VERSION
     start, end = window
@@ -307,9 +320,38 @@ def run_product_hunt(
     # the gaps of the window no fresh complete scan covers are read, as calendar-month intervals
     # (one scan row and page cap each), every post of every page cached (its name only as a
     # hash), the cursor stored after each page. The plan (the scan rows used per topic) is
-    # fixed in the checkpoint at the run's first invocation, so a resume uses the same snapshot
+    # fixed in the checkpoint at the run's first invocation. The topic hits are computed once,
+    # by the first invocation that completes every topic, for every shortlisted repo, and
+    # frozen in the checkpoint (addendum 5): a resume never reads the cache's index again, so
+    # another run's newer listing, re-hashed rows or purged rows can't change what it matches
+    hits: dict[str, list[str]] = {}
+    failed_topics: list[str] = []
+    why = "topic_scan_truncated"
+    frozen = checkpoint.get(PH_HITS_FROZEN) is True and isinstance(
+        checkpoint.get("ph_topic_hits"), dict
+    )
+    if frozen:
+        hits = {str(k): [str(x) for x in v] for k, v in checkpoint["ph_topic_hits"].items()}
+        prov = checkpoint.get("ph_topic_provenance") or {}
+        res.topic_cache = list(prov.get("topic_cache") or [])
+        res.topic_status = dict(prov.get("topic_status") or {})
+        res.topic_pages = dict(prov.get("topic_pages") or {})
+        res.topic_cache_days = dict(prov.get("topic_cache_days") or {})
+        res.topic_hits_frozen = True
     plan: dict[str, dict[str, list[int]]] = checkpoint.setdefault("ph_cache", {})
-    for topic in topics if pending else ():
+
+    def planned(topic: str) -> tuple[list[ScanRow], list[ScanRow], bool]:
+        """(reused rows, scanned rows, whether a planned row is missing)."""
+        ids_r, ids_s = plan[topic]["reused"], plan[topic]["scans"]
+        reused, scanned = scan_rows(conn, ids_r), scan_rows(conn, ids_s)
+        return reused, scanned, len(reused) + len(scanned) < len({*ids_r, *ids_s})
+
+    for topic in topics if pending and not frozen else ():
+        if topic in plan and planned(topic)[2]:
+            # a planned scan row no longer exists (the retention purge): the hits aren't frozen
+            # yet, so no repo was matched against this plan; plan the topic again
+            del plan[topic]
+            res.topic_replanned.append(topic)
         if topic not in plan:
             use = usable_scans(conn, topic, now=clock())
             s0 = [u for u in use if u.posted_after <= end and u.posted_before >= start]
@@ -348,23 +390,21 @@ def run_product_hunt(
                     status="complete" if last else "running", now=clock(),
                 )  # fmt: skip
     # the brief's name index, from the cache: the posts of the window the plan's rows saw, by
-    # the hash of the product-slot key (the cache stores no name)
+    # the hash of the product-slot key (the cache stores no name); read once, then frozen
     index: dict[str, list[str]] = {}
     for c in todo:
         index.setdefault(ph_key_hash(ph_repo_key(str(c.repo_full_name))), []).append(c.ref)
-    hits: dict[str, list[str]] = {}
-    failed_topics: list[str] = []
-    why = "topic_scan_truncated"
-    for topic in topics:
+    used: dict[str, list[ScanRow]] = {}
+    for topic in topics if not frozen else ():
         if topic not in plan:
             continue
-        reused = scan_rows(conn, plan[topic]["reused"])
-        scanned = scan_rows(conn, plan[topic]["scans"])
+        reused, scanned, missing = planned(topic)
         res.topic_cache += [u.to_dict(reused=True) for u in reused]
         res.topic_cache += [u.to_dict(reused=False) for u in scanned]
         statuses = {u.status for u in scanned}
         status = (
-            "failed:parse" if statuses & {"failed", "running"}
+            "failed:plan_rows_missing" if missing
+            else "failed:parse" if statuses & {"failed", "running"}
             else "truncated" if "truncated" in statuses else "complete"
         )  # fmt: skip
         res.topic_status[topic] = status
@@ -377,14 +417,34 @@ def run_product_hunt(
         }
         if status != "complete":  # a failed or truncated month: the topic can't be complete
             failed_topics.append(topic)
-            if status != "truncated":
+            if status == "failed:plan_rows_missing":
+                del plan[topic]  # planned again by the next invocation
+                why = "topic_plan_rows_missing" if why == "topic_scan_truncated" else why
+            elif status != "truncated":
                 why = "topic_scan_failed"
             continue
-        for pid, key in window_posts(conn, topic, window, [*reused, *scanned]):
+        used[topic] = [*reused, *scanned]
+        for pid, key in window_posts(conn, topic, window, used[topic]):
             for ref in index.get(key, []):
                 lst = hits.setdefault(ref, [])
                 if pid not in lst:
                     lst.append(pid)
+    if not frozen and not failed_topics and pending and all(t in plan for t in topics):
+        # every topic complete: freeze the hits of every shortlisted repo, with the listing's
+        # provenance, and keep each topic's measured density (it outlives the purged rows)
+        checkpoint["ph_topic_hits"] = {k: hits[k] for k in sorted(hits)}
+        checkpoint["ph_topic_provenance"] = {
+            "topic_cache": res.topic_cache,
+            "topic_status": res.topic_status,
+            "topic_pages": res.topic_pages,
+            "topic_cache_days": res.topic_cache_days,
+            "repos_indexed": len(todo),
+        }
+        checkpoint[PH_HITS_FROZEN] = True
+        for topic, rows in used.items():
+            record_density(conn, topic, rows, now=clock())
+        res.topic_hits_frozen = True
+        save(checkpoint)
     # a topic that could not be read completely (a month failed, or hit the page cap) leaves
     # Product Hunt incomplete for every repo not done yet (ADR-085 item 8's rule, applied to
     # Product Hunt; verifier round 7): stored `incomplete`, no view-B anchor, not checkpointed,
@@ -405,7 +465,8 @@ def run_product_hunt(
                 f"completely, so {len(pending)} of {len(todo)} shortlisted repos have incomplete "
                 f"Product Hunt data (more than {PH_INCOMPLETE_MAX_SHARE:.0%}): the selection is "
                 "refused so view B's anchors don't change silently. Run again later: the scan "
-                "resumes from its stored cursor (ADR-085 addendum 4)"
+                "resumes from its stored cursor, and a topic whose planned scan rows are gone "
+                "is planned again (ADR-085 addenda 4 and 5)"
             )
         pending = []
 
@@ -824,9 +885,10 @@ def run_bluesky(
                     # no date filter in the request (the AppView refuses q=* with since/until):
                     # the window is applied here. Posts before it are read too (anchor-v8: a
                     # launch-worded one is a launch before the window); paging (newest first)
-                    # stops at the list's end or at the first launch-worded post before the
-                    # window, since older pages can't change that
-                    pre_launch = False
+                    # goes on to the list's end (addendum 5): the earliest launch-worded post,
+                    # not the first one met before the window, is what view B's per-kind count
+                    # of launches before the window compares across sources. The search is
+                    # filtered by author and URL, so the list is nearly always one page
                     for h in hits:
                         if h.at is None or h.at > end or not links_to(h.links, match, full, url):
                             continue
@@ -836,10 +898,9 @@ def run_bluesky(
                         seen.add(key)
                         if bsky_post_is_launch(h.text):  # the text: in memory only
                             found[key] = (h.at, match)
-                            pre_launch = pre_launch or h.at < start
                         elif h.at >= start:
                             unworded += 1
-                    if not cursor or pre_launch:
+                    if not cursor:
                         break
                 else:
                     return incomplete("search_capped")
@@ -918,11 +979,16 @@ def launch_source_params(
             "name (casefold, only a-z and 0-9 kept) equal to that of the repo name; a topic hit "
             "read again by post(id:)",
             "topic_cache": cache_params(),
-            "incomplete": "a topic page that can't be parsed, or a month cut at the page cap, "
-            "leaves that topic incomplete: every repo not done yet is stored incomplete "
-            "(topic_scan_failed | topic_scan_truncated), has no view-B anchor "
+            "incomplete": "a topic page that can't be parsed, a month cut at the page cap, or a "
+            "planned scan row found missing while the index is read, leaves that topic "
+            "incomplete: every repo not done yet is stored incomplete (topic_scan_failed | "
+            "topic_scan_truncated | topic_plan_rows_missing), has no view-B anchor "
             "(launch_source_incomplete:product_hunt, counted) and is retried by the next run "
-            "(the scan resumes from its stored cursor)",
+            "(the scan resumes from its stored cursor; a topic with missing rows is planned "
+            "again)",
+            "topic_hits": "computed once per run, by the first invocation that completes every "
+            "topic's scan, for every shortlisted repo, and frozen in the run's checkpoint; a "
+            "resume reuses them and never reads the cache's index again",
             "incomplete_max_share": PH_INCOMPLETE_MAX_SHARE,
             "incomplete_refusal": "more than 10 % of the shortlisted repos incomplete: the "
             "selection is refused (exit 9, resumable)",
@@ -960,8 +1026,9 @@ def launch_source_params(
             "search": f"GET {SEARCH_PATH} q={BSKY_QUERY!r} author=<declared account> url=<repo "
             "GitHub URL>, then url=<homepage URL> when there is one, sort=latest, limit=100, "
             "no since/until (the AppView refuses them with q=*; the window is applied in "
-            "memory), every page until the list ends or a launch-worded post before the window "
-            f"is found, up to {BSKY_MAX_PAGES} pages each (more: incomplete); a post counts "
+            "memory), every page until the list ends (to find the earliest launch-worded post, "
+            f"before the window included), up to {BSKY_MAX_PAGES} pages each (more: "
+            "incomplete); a post counts "
             "only when one of its links is that URL; no feed, profile or follower reads",
             "launch_wording": "a post is a launch event only when its text (record.text, "
             "whole) matches the release rule's pattern (view_b_anchor.release_launch_pattern, "

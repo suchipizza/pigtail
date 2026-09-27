@@ -59,7 +59,8 @@ class FakeProductHunt:
     `limit` / `remaining` / `reset`; `script` holds canned responses served first. Topic-page
     requests are counted (`topic_requests`, their variables, ADR-085 addendum 4); the topic
     requests whose ordinal (0-based, over every topic request) is in `fail_topic_at` answer 503,
-    in `garble_topic_at` an unparseable 200."""
+    in `garble_topic_at` an unparseable 200; `post(slug)` lookups of a slug in `fail_slugs`
+    answer 503 (a pause after the topic scan, ADR-085 addendum 5)."""
 
     FIELDS = re.compile(r"\{\s*([a-zA-Z ]+)\s*\}")
 
@@ -73,6 +74,7 @@ class FakeProductHunt:
         self.page_size = 20
         self.fail_topic_at: set[int] = set()
         self.garble_topic_at: set[int] = set()
+        self.fail_slugs: set[str] = set()
 
     @property
     def topic_requests(self) -> list[dict[str, Any]]:
@@ -132,6 +134,8 @@ class FakeProductHunt:
                 }
             }
         else:
+            if v.get("slug") in self.fail_slugs:
+                return httpx.Response(503, json={"error": "unavailable"}, headers=self._headers())
             key, val = ("slug", v["slug"]) if "slug" in v else ("id", v["id"])
             p = next((x for x in self.posts if x[key] == val), None)
             data = {"post": None if p is None else self._node(p, fields)}
@@ -201,9 +205,10 @@ def bsky_post(
 class FakeBluesky:
     """`GET https://api.bsky.app/xrpc/app.bsky.feed.searchPosts` with the author, url, since,
     until, sort, limit and cursor filters. Any other path is an assertion error (pigtail never
-    reads a feed or a profile), and `com.atproto.identity.resolveHandle` (400 for a handle that
-    names no account). `fail` answers 503 to every request; `fail_urls` to searches of those
-    URLs."""
+    reads a feed or a profile), and `com.atproto.identity.resolveHandle` (400 `InvalidRequest`
+    "Unable to resolve handle" for a handle that names no account, as the live AppView answers;
+    `resolve_bad_request` answers every resolution with another 400). `fail` answers 503 to every
+    request; `fail_urls` to searches of those URLs."""
 
     def __init__(self, posts: list[dict[str, Any]] | None = None) -> None:
         self.posts = list(posts or [])
@@ -212,6 +217,7 @@ class FakeBluesky:
         self.fail_urls: set[str] = set()
         self.page_size: int | None = None
         self.bad_request = False  # every search answers 400
+        self.resolve_bad_request = False  # every resolution answers a 400 of another kind
         # handles without posts in this fake that still resolve to an account
         self.known: dict[str, str] = {
             HANDLE_C: "did:plc:cccccccccccccccccccccccc",
@@ -228,12 +234,18 @@ class FakeBluesky:
         if req.url.path == "/xrpc/com.atproto.identity.resolveHandle":
             if self.fail:
                 return httpx.Response(503, json={"error": "unavailable"})
+            if self.resolve_bad_request:
+                return httpx.Response(
+                    400, json={"error": "InvalidRequest", "message": "Error: SYNTH-other"}
+                )
             for x in self.posts:
                 if x["author"]["handle"] == p["handle"]:
                     return httpx.Response(200, json={"did": x["author"]["did"]})
             if p["handle"] in self.known:
                 return httpx.Response(200, json={"did": self.known[p["handle"]]})
-            return httpx.Response(400, json={"error": "InvalidRequest"})
+            return httpx.Response(
+                400, json={"error": "InvalidRequest", "message": "Unable to resolve handle"}
+            )
         assert req.url.path == "/xrpc/app.bsky.feed.searchPosts", req.url.path
         if p.get("q") == "*" and ("since" in p or "until" in p):
             # the live AppView refuses q=* combined with since/until (verifier M22 round 7)

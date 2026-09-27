@@ -5,7 +5,7 @@ finds the same hits; a shifted window scans only its gaps; a cache older than 14
 again; a crash mid-scan resumes from the stored cursor; truncated and failed scans are never
 reused as complete; a page that can't be parsed leaves Product Hunt incomplete (no view-B anchor,
 refused above 10 %); no person field is requested or stored; the tables are in the export and the
-inventory and are purged after 90 days; the selection records the listing snapshot it used and
+inventory and are purged after 30 days; the selection records the listing snapshot it used and
 recomputes deterministically. Every name is made up (`org-c…`, `SYNTH-…`).
 """
 
@@ -353,19 +353,33 @@ def test_export_inventory_and_retention_cover_the_cache(capture_db, tmp_path):
     by = {x.table: x for x in inv.tables}
     assert by["ph_topic_post"].rows == 48 + 2 and by["ph_topic_scan"].rows == 24
     assert by["ph_topic_post"].distinct_repos is None  # products, not repos
-    # retention: kept while it can serve a scan, deleted 90 days after it was last seen
+    # retention: kept while it can serve a scan, deleted 30 days after it was last seen (ADR-085
+    # addendum 5); the per-topic measured density outlives the rows
+    dens = coverage(capture_db.conn, TOPICS, W, now=T)
     from pigtail.capture.snapshots import LocalSnapshotStore
 
     store = LocalSnapshotStore(tmp_path / "snap")
-    rep = purge(capture_db, store, cfg=RetentionConfig(), now=T + timedelta(days=89))
+    rep = purge(capture_db, store, cfg=RetentionConfig(), now=T + timedelta(days=29))
     assert rep.ph_topic_posts_deleted == 0 and rep.ph_topic_scans_deleted == 0
-    rep = purge(capture_db, store, cfg=RetentionConfig(), now=T + timedelta(days=91))
+    rep = purge(capture_db, store, cfg=RetentionConfig(), now=T + timedelta(days=31))
     assert rep.ph_topic_posts_deleted == 50 and rep.ph_topic_scans_deleted == 24
     logged = capture_db.conn.execute(
         "SELECT target, rows_affected FROM deletion_log WHERE target LIKE 'ph_topic%%'"
         " ORDER BY target"
     ).fetchall()
     assert logged == [("ph_topic_post", 50), ("ph_topic_scan", 24)]
+    # the measured density (pages and days of the last complete scan) is kept
+    assert TABLE_LEVELS["ph_topic_density"] == "project"
+    assert "ph_topic_density" in {s.table for s in TABLES}
+    kept = capture_db.conn.execute(
+        "SELECT topic, pages, days FROM ph_topic_density ORDER BY topic"
+    ).fetchall()
+    assert [(t0, p) for t0, p, _d in kept] == [("developer-tools", 12), ("open-source", 14)]
+    after = coverage(capture_db.conn, TOPICS, W, now=T + timedelta(days=31))
+    for topic in TOPICS:
+        assert dens[topic]["pages_per_day"] > 0
+        assert after[topic]["pages_per_day"] == pytest.approx(dens[topic]["pages_per_day"])
+        assert after[topic]["reused_days"] == 0  # the rows are gone: nothing covered
 
 
 def test_the_estimate_counts_only_the_gaps(capture_db, tmp_path):

@@ -68,7 +68,7 @@ class RetentionConfig:
     log_days: int = 365
     github_events_days: int = 16  # CB-22 / ADR-038: person_level_30d evidence
     after_report_days: int = 365  # R19.9: report final + 12 months
-    ph_topic_cache_days: int = PH_TOPIC_CACHE_RETENTION_DAYS  # ADR-085 addendum 4
+    ph_topic_cache_days: int = PH_TOPIC_CACHE_RETENTION_DAYS  # 30 days (ADR-085 addenda 4, 5)
 
 
 @dataclass
@@ -212,7 +212,8 @@ def purge(
     if rep.ui_sessions_expired_deleted:
         log.write("rows_deleted", "ui_sessions", rows=rep.ui_sessions_expired_deleted)
 
-    # 7. ADR-085 addendum 4: the Product Hunt topic-listing cache past its use.
+    # 7. ADR-085 addenda 4 and 5: the Product Hunt topic-listing cache past its use (30 days;
+    # `ph_topic_density`, the per-topic pages and days of the last complete scan, is kept).
     ph_cutoff = now - timedelta(days=cfg.ph_topic_cache_days)
     rep.ph_topic_posts_deleted = _delete_older(
         db, "ph_topic_post", "last_seen_at", ph_cutoff, dry_run

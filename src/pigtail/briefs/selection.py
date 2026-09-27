@@ -130,7 +130,11 @@ from pigtail.briefs.model import DIMENSIONS, RANKABLE, THRESHOLD_PERCENTILE, Bri
 # v10: the Product Hunt topic scan reads a shared, instance-level listing cache (only the gaps no
 #      complete scan of the last 14 days covers are scanned) and a failed topic scan leaves
 #      Product Hunt incomplete; anchor-v9 (ADR-085 addendum 4)
-SELECTION_VERSION = "selection-v10"
+# v11: the topic hits are frozen in the run's checkpoint once computed, missing planned scan
+#      rows re-plan or leave the topic incomplete, Bluesky reads to the list's end, only
+#      resolveHandle's "Unable to resolve handle" 400 is unresolvable; anchor-v10 (ADR-085
+#      addendum 5, verifier round 8)
+SELECTION_VERSION = "selection-v11"
 # view A's metric: follow-through relative to launch size (ADR-083)
 FOLLOW_THROUGH_METRIC_VERSION = "follow-through-v1"
 OUTCOME_MODEL_VERSION = "2.1"
@@ -165,8 +169,10 @@ MATCHING_RULE = (
 # v5: view B's launch-event anchor (ADR-084); v6: Product Hunt and Bluesky launch events (ADR-085)
 # v8: the owner decisions after verifier round 7 (ADR-085 addendum 3)
 # v9: the shared Product Hunt topic cache and Product Hunt's incomplete state (addendum 4)
-ANCHOR_RULE_VERSION = "anchor-v9"
-ANCHOR_RULE_SOURCE_SHA256 = "07a0c7166628027d5d2ed1509ca52798bf446775ffbc611f0824a6461b948871"
+# v10: frozen topic hits, missing plan rows, Bluesky paging to the end, resolveHandle 400s
+#      (addendum 5)
+ANCHOR_RULE_VERSION = "anchor-v10"
+ANCHOR_RULE_SOURCE_SHA256 = "36918c699c3b81137f2e05ef68f32b69d92c353c92ee44c7a9bf6eab23ccd5ee"
 ANCHOR_RULE = (
     "outcome-model §2.2 rules 1-6 as read by ADR-077.3; declared launches = Show HN or Launch HN "
     "posts from discovery and the per-repo launch lookup (current rule's records only), merged "
@@ -228,7 +234,7 @@ PRE_WINDOW_RULE = (
     "Show HN posts; releases (fetched back to the earliest, newest first, up to 10 pages: a list "
     "cut at the cap can miss older launch-worded releases); Product Hunt's slug route (no date "
     "bound; posts of any date stored); Bluesky (no date filter; the window applied in memory, "
-    "every page read until the list ends or a launch-worded post before the window is found). "
+    "every page read until the list ends, so the earliest launch-worded post is found). "
     "Not seen: a Product Hunt launch before the window that only the topic scan (bounded to "
     "the window) would find"
 )

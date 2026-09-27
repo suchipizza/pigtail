@@ -414,7 +414,9 @@ LLM cache need no approval.
   **Without `PH_API_TOKEN` the selection is refused with exit 8** (when Product Hunt applies).
   - **The topic listing is shared and reused (since `selection-v10`, ADR-085 addendum 4).**
     Product Hunt lets about **230 requests an hour** through (measured 2026-09-27), and
-    listing both topics over an 18-month window takes **about ten hours**. The listing is
+    listing both topics over an 18-month window takes **several hours** (not yet measured:
+    the first complete scan measures it, and until then the estimate shows its Product Hunt
+    hours as "at least", from a density inferred from an unfinished 6-hour run). The listing is
     therefore kept once per instance, in the database (`ph_topic_post`, `ph_topic_scan`), as
     little as matching needs: post ids, dates and a hash of each normalized name (no names,
     slugs or descriptions), and reused. It is read one calendar month at a time, each month
@@ -429,8 +431,13 @@ LLM cache need no approval.
     done yet have no view-B anchor
     for now (counted), and when that is more than 10 % of the shortlist the selection stops
     with **exit 9** (resumable; run again later). The selection records which listing it used
-    (`product_hunt_listing` in its summary). Cached rows unseen for 90 days are deleted by
-    `pigtail retention purge`.
+    (`product_hunt_listing` in its summary). Since `selection-v11` (addendum 5) a run
+    matches its repos against the listing once: the first invocation that finishes the topic
+    scans freezes each repo's topic hits in the run's checkpoint, so resuming a paused run
+    days later matches exactly what it would have matched then, even if other runs have
+    listed newer posts or the cached rows were purged meanwhile. Cached rows unseen for **30
+    days** are deleted by `pigtail retention purge`; per topic the pages and days of the last
+    complete scan are kept, so the estimate keeps its measured density.
 - **Bluesky maintainer posts** (ADR-085; unauthenticated public search on `api.bsky.app`,
   `PIGTAIL_BLUESKY_API_BASE` to change it). An account counts as the maintainer's only when the
   maintainer declared it: a `bsky.app/profile/…` link or an `@name.bsky.social` on the repo's
@@ -441,8 +448,8 @@ LLM cache need no approval.
   it declares none, counted as `readme_ambiguous`). A declared handle is first resolved to its
   DID (`resolveHandle`, in memory). pigtail then searches that account's posts that link the
   repo's GitHub URL (and its homepage, if any), with no date filter (the window is applied in
-  memory; pages are read until the list ends or a launch-worded post before the window turns
-  up), and nothing else: no feed, profile or follower is read, and Bluesky is never searched
+  memory; pages are read until the list ends, so the earliest launch-worded post is found),
+  and nothing else: no feed, profile or follower is read, and Bluesky is never searched
   for people by name. **A post counts only when its text is worded as a launch** (the release
   rule's words: launch, launching, introducing, announcing, first public release); the text is
   read in memory and never kept. The account is used in memory only; per repo pigtail keeps,
@@ -1171,7 +1178,7 @@ source itself, since pigtail no longer stores who wrote what.
   Product Hunt (TM-16). Personal, non-commercial use only unless Product Hunt agrees otherwise.
   Only project-level post fields are asked for; raw answers are dropped after parsing. The
   topic listing (per post: id, dates and a SHA-256 of the normalized name) is cached per instance and
-  reused for 14 days (ADR-085 addendum 4; 90-day retention); the API lets about 230 requests an
+  reused for 14 days (ADR-085 addendum 4; 30-day retention since addendum 5); the API lets about 230 requests an
   hour through (measured 2026-09-27).
 - **Bluesky search** (`bluesky_search`, on by default;
   `PIGTAIL_CONNECTOR_BLUESKY_SEARCH_ENABLED=false` turns it off): `resolveHandle` for a declared

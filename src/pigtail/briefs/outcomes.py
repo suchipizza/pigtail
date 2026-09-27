@@ -1617,6 +1617,7 @@ ANCHOR_RULE_FUNCTIONS = (
     "pigtail.connectors.bluesky:_links",
     "pigtail.connectors.bluesky:parse_search_page",
     "pigtail.connectors.bluesky:BlueskySearchConnector",
+    "pigtail.connectors.bluesky:unresolvable_handle",  # ADR-085 addendum 5
     "pigtail.connectors.github:parse_repo_links",
     "pigtail.connectors.github:parse_social_accounts",
     "pigtail.connectors.github:parse_org_profile",
@@ -1706,6 +1707,9 @@ ANCHOR_RULE_CONSTANTS = (
     "pigtail.connectors.producthunt:DESCRIPTION_CHARS",
     "pigtail.connectors.bluesky:SEARCH_PATH",
     "pigtail.connectors.bluesky:RESOLVE_PATH",
+    "pigtail.connectors.bluesky:UNRESOLVABLE_ERROR",
+    "pigtail.connectors.bluesky:UNRESOLVABLE_MESSAGE",
+    "pigtail.briefs.launch_sources:PH_HITS_FROZEN",
     "pigtail.connectors.bluesky:DEFAULT_BSKY_BASE",
     "pigtail.connectors.bluesky:BSKY_QUERY",
     "pigtail.connectors.bluesky:BSKY_PAGE",

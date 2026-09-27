@@ -3,9 +3,9 @@ scan across runs and briefs"; ADR-085 addendum 4; migration 0027).
 
 Product Hunt's API allows about 230 requests an hour (measured 2026-09-27), and the selection's
 topic scan (`launch_sources.run_product_hunt`, route (b)) reads every page of
-`posts(topic, postedAfter, postedBefore, order: NEWEST)` for the brief's window: about ten hours
-for the two default topics. The listing is the same for every brief of the instance, so it is
-kept once per instance and reused:
+`posts(topic, postedAfter, postedBefore, order: NEWEST)` for the brief's window: several hours
+for the two default topics (not yet measured; the first complete scan measures it). The listing
+is the same for every brief of the instance, so it is kept once per instance and reused:
 
 - `ph_topic_post`: one row per (topic, post id) with the minimum the matching needs: the SHA-256
   of the post's product-slot key (`name_key_sha256` = sha256(`ph_name_key(name)`), lowercase
@@ -33,7 +33,21 @@ one calendar month). `truncated` and `failed` rows never cover anything.
 whose `created_at` lies in [s, e] (Product Hunt filters postedAfter / postedBefore on the
 creation date, so this is the scan's own filter) and inside one of the scan rows the run used
 (reused or scanned), seen by it (`last_seen_at` at or after the row's `started_at`): a post a
-newer scan no longer lists, or one only an expired scan saw, is left out.
+newer scan no longer lists, or one only an expired scan saw, is left out. **The index is read
+once per run** (ADR-085 addendum 5): the first invocation that completes every topic's scan
+computes the topic hits (post ids per repo ref) of every shortlisted repo and freezes them in
+the run's checkpoint (`ph_topic_hits`, marker `ph_topic_hits_frozen`); a resume reuses them and
+never reads the cache again, so another run's newer listing, re-hashed rows or a retention purge
+can't change what a paused run matches. A planned scan row that no longer exists (purged) before
+the hits are frozen re-plans that topic (its gaps are scanned again); one found missing while
+the index is read leaves the topic `failed:plan_rows_missing` (the repos not done are
+incomplete, the 10 % refusal applies, and the next invocation re-plans it). Once frozen, missing
+rows don't matter.
+
+**The measured density** (`ph_topic_density`, migration 0028): per topic, the pages and days of
+the last complete topic scan a run used (its plan's rows, reused and scanned), written when the
+hits are frozen and kept by the retention purge, so the estimate keeps a measured density after
+the rows are purged (`coverage`).
 
 What changes between runs is the data fetched, not the rule: the rule (the maximum age, the gap
 rule, the month split, the cache rule label) is in the pre-registered parameters
@@ -54,7 +68,10 @@ import psycopg
 
 PH_TOPIC_CACHE_RULE = "ph-topic-cache-v1"
 PH_TOPIC_CACHE_MAX_AGE_DAYS = 14  # a complete scan is reused for 14 days after it finished
-PH_TOPIC_CACHE_RETENTION_DAYS = 90  # cached rows not seen (scans not started) for 90 days go
+# cached rows not seen (scans not started) for 30 days are purged: a scan is reused for 14 days
+# only, and older rows fed only the estimate's density, now kept in `ph_topic_density` (ADR-085
+# addendum 5; 90 days before)
+PH_TOPIC_CACHE_RETENTION_DAYS = 30
 GAP_RULE = (
     "for the window [s, e] and each topic: the parts of [s, e] not covered by the union of the "
     "scan rows of this cache rule whose status is complete and whose finished_at is at most "
@@ -68,7 +85,12 @@ INDEX_RULE = (
     "the cached posts of the topic whose created_at is in [s, e] and inside a scan row the run "
     "used (reused or scanned) with last_seen_at at or after that row's started_at, keyed by "
     "name_key_sha256 (SHA-256 of the product-slot key, lowercase hex), looked up with the same "
-    "hash of each repo's key; topic hits are then read fresh by post(id:)"
+    "hash of each repo's key; topic hits are then read fresh by post(id:). The index is read "
+    "once per run: the first invocation that completes every topic's scan computes the topic "
+    "hits of every shortlisted repo and freezes them in the run's checkpoint; a resume reuses "
+    "them and never reads the cache again. A planned scan row missing before the hits are "
+    "frozen re-plans that topic; missing while the index is read, the topic is "
+    "failed:plan_rows_missing (incomplete, re-planned by the next invocation)"
 )
 
 Interval = tuple[datetime, datetime]
@@ -279,6 +301,35 @@ def days(a: datetime, b: datetime) -> float:
     return max(0.0, (b - a).total_seconds() / 86400)
 
 
+def record_density(
+    conn: psycopg.Connection[Any], topic: str, rows: Sequence[ScanRow], *, now: datetime
+) -> None:
+    """Keep the measured density of a complete topic scan (the scan rows a run used, reused and
+    scanned, all `complete`): its pages and the days it covers, one row per topic (the last one
+    wins). Aggregates only; the retention purge keeps it (ADR-085 addendum 5)."""
+    pages = sum(r.pages for r in rows)
+    span = sum(days(*r.covered) for r in rows)
+    if pages <= 0 or span <= 0 or any(r.status != "complete" for r in rows):
+        return
+    conn.execute(
+        "INSERT INTO ph_topic_density (topic, rule, pages, days, measured_at)"
+        " VALUES (%s, %s, %s, %s, %s) ON CONFLICT (topic) DO UPDATE SET rule = EXCLUDED.rule,"
+        " pages = EXCLUDED.pages, days = EXCLUDED.days, measured_at = EXCLUDED.measured_at",
+        (topic, PH_TOPIC_CACHE_RULE, pages, span, now),
+    )
+
+
+def measured_density(conn: psycopg.Connection[Any], topic: str) -> float | None:
+    """Pages per day of the topic's last complete scan (`record_density`), else None."""
+    r = conn.execute(
+        "SELECT pages, days FROM ph_topic_density WHERE topic = %s AND rule = %s",
+        (topic, PH_TOPIC_CACHE_RULE),
+    ).fetchone()
+    if r is None or not r[1] or float(r[1]) <= 0 or int(r[0]) <= 0:
+        return None
+    return int(r[0]) / float(r[1])
+
+
 def coverage(
     conn: psycopg.Connection[Any],
     topics: Sequence[str],
@@ -289,8 +340,10 @@ def coverage(
 ) -> dict[str, dict[str, Any]]:
     """Per topic, for the estimate: the window's days, the days a usable scan covers, the
     month intervals of the gaps (in days: what would be scanned, one capped scan each), the pages
-    already read by unfinished scans of exactly those intervals, and the cached density (pages
-    per day of the complete scans of this rule, any age; None without one)."""
+    already read by unfinished scans of exactly those intervals, and the measured density: pages
+    per day of the topic's last complete scan (`measured_density`, kept after the rows are
+    purged), else of the complete scan rows of this rule still stored; None without either
+    (the estimate then uses its planning density, a lower bound)."""
     out: dict[str, dict[str, Any]] = {}
     for t in topics:
         use = usable_scans(conn, t, now=now, max_age_days=max_age_days)
@@ -317,7 +370,8 @@ def coverage(
             "reused_days": max(0.0, total - sum(days(a, b) for a, b in gs)),
             "gaps_days": [days(a, b) for a, b in parts],
             "gap_pages_done": [started.get(m, 0) for m in parts],
-            "pages_per_day": (pages / span) if span > 0 and pages > 0 else None,
+            "pages_per_day": measured_density(conn, t)
+            or ((pages / span) if span > 0 and pages > 0 else None),
         }
     return out
 

@@ -53,7 +53,11 @@ What it reports:
   complete scan, else the planning default; each gap scanned as calendar-month intervals, at
   most `PH_TOPIC_MAX_PAGES` per month, a cap a topic doesn't reach), shows
   "Product Hunt: cached listing reused for N of M days", and the Product Hunt time is computed
-  at the measured ~230 requests an hour (`PH_REQUESTS_PER_HOUR`).
+  at the measured ~230 requests an hour (`PH_REQUESTS_PER_HOUR`). Since ADR-085 addendum 5
+  (`estimate-v9`) the cache's coverage is measured for the run's own window (the checkpointed
+  `run_date`, not today's), the measured density is the last complete scan's (kept after the
+  cached rows are purged, `ph_cache.measured_density`), and hours computed with the planning
+  density are shown as a lower bound (`producthunt_hours_lower_bound`).
 """
 
 from __future__ import annotations
@@ -62,6 +66,7 @@ import math
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -86,7 +91,8 @@ from pigtail.llm.stages import stage_for, time_sensitive
 # per candidate (core bucket). v2 (M21b): per-stage models, Batch API discount, prompt caching,
 # the brief's total money cap and the monthly cap. v1 (ADR-058.4): expansion is an
 # on-demand call, not a run stage.
-ESTIMATE_MODEL = "estimate-v8"
+# v9 (ADR-085 addendum 5): the run's own window, the kept measured density, the lower bound.
+ESTIMATE_MODEL = "estimate-v9"
 
 # --- planning assumptions (placeholders until the pilot measures them, M23) ---------------
 SEARCH_PAGES_PER_QUERY = 2  # 100 results per page
@@ -138,16 +144,22 @@ SURFACE_PER_REQUEST = 20
 # (repo URL and homepage, one page)
 PH_SLUG_REQUESTS_PER_REPO = 2
 # Planning density of a topic listing until the instance's cache has a complete scan of its own
-# (then `ph_cache.coverage` gives pages per day of the complete scans, a measurement). Raised from
-# 300 (ADR-085 addendum 4): the live scan of 2026-09-27 took about ten hours for the two default
-# topics at ~230 requests an hour, i.e. about the 1,000-page cap per topic; for an 18-month
-# window that is at least ~1,100 posts per month and topic. An inference, not a count.
+# (then `ph_cache.coverage` gives the measured pages per day of the last complete scan). Raised
+# from 300 (ADR-085 addendum 4). An inference, not a count, and a lower bound (addendum 5): the
+# live run of 2026-09-27 was stopped unfinished after about 6 hours and 1,391 Product Hunt
+# requests, and 1,100 posts per month and topic is what the 1,000-page cap per topic would hold
+# over an 18-month window; the real density is not yet measured (the first complete scan
+# measures it), so hours computed with it are shown as "at least".
 PH_TOPIC_POSTS_PER_MONTH = 1_100
 DAYS_PER_MONTH = 30.44
 # Measured 2026-09-27 on the live API with the owner's developer token (ADR-085 addendum 4):
 # about 230 requests an hour get through (the rate-limit headers make the connector wait for the
 # window's reset), not the client limiter's 900. The Product Hunt time estimate uses it.
 PH_REQUESTS_PER_HOUR = 230
+PH_LOWER_BOUND_NOTE = (
+    "a lower bound: the listing density of 1,100 posts per month and topic is inferred from an "
+    "unfinished 6-hour run; the first complete scan measures it"
+)
 PH_REFETCH_SHARE = 0.05
 PH_CHECKS_PER_SHORTLISTED = 0.05
 PH_CHECK = "ph_match_check"  # the job and the estimate stage (relevance stage, Haiku)
@@ -243,10 +255,16 @@ def selection_state(conn: Any, brief: Brief, *, now: Any = None) -> SelectionSta
     n = len(shortlisted(conn, brief)) if st is not None and st["status"] == "final" else None
     now = now or utcnow()
     _ph, _bsky, topics = launch_source_settings()
-    ph_cache = coverage(conn, topics, window_bounds(brief, now.date()), now=now)
+    # the run's own window when a run exists (its checkpointed run date fixes the window's end
+    # for the whole run), else today's (addendum 5)
+    run_date = ((row or {}).get("checkpoint") or {}).get("run_date")
+    day = date.fromisoformat(str(run_date)) if run_date else now.date()
+    ph_cache = coverage(conn, topics, window_bounds(brief, day), now=now)
     plan = fetch.get("ph_cache") or {}
     ids = [i for t in topics for i in (plan.get(t) or {}).get("scans") or []]
-    topics_done = bool(plan) and all(t in plan for t in topics)
+    topics_done = bool(fetch.get("ph_topic_hits_frozen")) or (
+        bool(plan) and all(t in plan for t in topics)
+    )
     topics_done = topics_done and all(
         r.status in ("complete", "truncated") for r in scan_rows(conn, ids)
     )
@@ -588,6 +606,19 @@ def ph_topic_scan_pages(
     return (0 if done else pages), note
 
 
+def ph_topic_scan_lower_bound(
+    cache: Mapping[str, Mapping[str, Any]] | None, *, done: bool = False
+) -> bool:
+    """Whether the topic-scan pages left rest on the planning density (a topic with a gap to
+    scan and no measured density, or no cache at hand): the pages and hours are then a lower
+    bound (ADR-085 addendum 5)."""
+    if done:
+        return False
+    if not cache:
+        return True
+    return any(c.get("gaps_days") and not c.get("pages_per_day") for c in cache.values())
+
+
 def estimate(
     brief: Brief,
     *,
@@ -672,11 +703,12 @@ def estimate(
     ph_on, bsky_on = launch_sources
     ph_requests = ph_checks = bsky_requests = bsky_core = bsky_graphql = ph_topic_pages = 0
     ph_note: str | None = None
+    ph_lower = False
     if sel.pending and ph_on:
         left = max(0, sel_n - sel.ph_done)
-        ph_topic_pages, ph_note = ph_topic_scan_pages(
-            brief, ph_topics, sel.ph_cache, done=sel.ph_topics_done or left == 0
-        )
+        ph_done = sel.ph_topics_done or left == 0
+        ph_topic_pages, ph_note = ph_topic_scan_pages(brief, ph_topics, sel.ph_cache, done=ph_done)
+        ph_lower = ph_topic_pages > 0 and ph_topic_scan_lower_bound(sel.ph_cache, done=ph_done)
         ph_requests = (
             PH_SLUG_REQUESTS_PER_REPO * left + math.ceil(left * PH_REFETCH_SHARE) + ph_topic_pages
         )
@@ -817,6 +849,8 @@ def estimate(
             "producthunt_topic_pages": ph_topic_pages,
             "producthunt_hours": round(ph_requests / PH_REQUESTS_PER_HOUR, 2),
             "producthunt_requests_per_hour": PH_REQUESTS_PER_HOUR,
+            # the topic scan's pages rest on the planning density: the hours are "at least"
+            "producthunt_hours_lower_bound": ph_lower,
             "ph_cache_note": ph_note,
             "ph_cache": sel.ph_cache,
             "ph_match_checks": ph_checks,
@@ -911,9 +945,15 @@ def render_text(e: Estimate, brief: Brief) -> str:
         *(f"  {k:<16} {v:>5,} requests" for k, v in e.other_requests.items()),
         *(
             [
-                f"  {e.selection['ph_cache_note']}; Product Hunt about "
-                f"{e.selection.get('producthunt_hours', 0):.1f} h at the measured "
+                f"  {e.selection['ph_cache_note']}; Product Hunt "
+                + ("at least " if e.selection.get("producthunt_hours_lower_bound") else "about ")
+                + f"{e.selection.get('producthunt_hours', 0):.1f} h at the measured "
                 f"~{PH_REQUESTS_PER_HOUR} requests an hour"
+                + (
+                    f" ({PH_LOWER_BOUND_NOTE})"
+                    if e.selection.get("producthunt_hours_lower_bound")
+                    else ""
+                )
             ]
             if e.selection and e.selection.get("ph_cache_note")
             else []
@@ -1041,8 +1081,9 @@ def run_scope(e: Estimate, stages: tuple[str, ...] | list[str]) -> dict[str, Any
                 "launch_sources": "view B's Product Hunt and Bluesky steps (ADR-085): "
                 f"~{e.other_requests.get('producthunt', 0):,} Product Hunt requests (up to "
                 f"{PH_SLUG_REQUESTS_PER_REPO} slug lookups per repo, "
-                f"~{e.selection.get('producthunt_topic_pages', 0):,} topic-scan pages; about "
-                f"{e.selection.get('producthunt_hours', 0):.1f} h at the measured "
+                f"~{e.selection.get('producthunt_topic_pages', 0):,} topic-scan pages; "
+                + ("at least " if e.selection.get("producthunt_hours_lower_bound") else "about ")
+                + f"{e.selection.get('producthunt_hours', 0):.1f} h at the measured "
                 f"~{PH_REQUESTS_PER_HOUR} requests an hour; "
                 f"{e.selection.get('ph_cache_note') or 'no Product Hunt step'}), "
                 f"~{pc.llm_calls:,} Haiku checks of name-only matches; "

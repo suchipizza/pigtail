@@ -214,10 +214,10 @@ def test_ph_values_come_from_the_launch_window_only():
 
 # --- 5. versions, parameters and the guard ------------------------------------------------------
 def test_versions_and_the_new_rules_in_the_params(launch_sources_on):
-    assert SELECTION_VERSION == "selection-v10" and ANCHOR_RULE_VERSION == "anchor-v9"
+    assert SELECTION_VERSION == "selection-v11" and ANCHOR_RULE_VERSION == "anchor-v10"
     assert out.anchor_rule_source_sha256() == ANCHOR_RULE_SOURCE_SHA256
     p = Context.from_brief(B).params()
-    assert p["selection_version"] == "selection-v10" and p["anchor_rule_version"] == "anchor-v9"
+    assert p["selection_version"] == "selection-v11" and p["anchor_rule_version"] == "anchor-v10"
     vb = p["view_b_anchor"]
     assert "launched_before_window" in vb["pre_window_rule"]
     assert "topic scan" in vb["pre_window_rule"] and "HN's epoch" in vb["pre_window_rule"]

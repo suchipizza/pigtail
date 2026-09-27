@@ -76,6 +76,7 @@ TABLE_LEVELS: dict[str, Level] = {
     # listing's content), and the scanned month intervals; no name, tagline, count or person
     "ph_topic_post": "project",
     "ph_topic_scan": "project",
+    "ph_topic_density": "project",  # 0028 (addendum 5): pages and days per topic, aggregates
     # pre-registration records (0023, R8.2): brief id, version, SHA-256 values, file path, commit
     "brief_preregistration": "project",
     "brief_report_final": "project",  # R19.9 anchor (0018): ids, versions, timestamps

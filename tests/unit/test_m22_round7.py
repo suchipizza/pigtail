@@ -480,12 +480,12 @@ def test_ph_votes_and_comments_are_reported_never_ranked():
 
 # --- versions, parameters, guard, determinism, estimate ----------------------------------------
 def test_versions_and_the_launch_source_flags_in_the_params(launch_sources_on, monkeypatch):
-    assert SELECTION_VERSION == "selection-v10" and ANCHOR_RULE_VERSION == "anchor-v9"
+    assert SELECTION_VERSION == "selection-v11" and ANCHOR_RULE_VERSION == "anchor-v10"
     c = Context.from_brief(B)
     assert c.product_hunt and c.bluesky and c.ph_topics == ("open-source", "developer-tools")
     assert c.required_launch_sources == ("product_hunt", "bluesky")
     p = c.params()
-    assert p["selection_version"] == "selection-v10" and p["anchor_rule_version"] == "anchor-v9"
+    assert p["selection_version"] == "selection-v11" and p["anchor_rule_version"] == "anchor-v10"
     lsp = p["launch_sources"]
     assert lsp["product_hunt"]["applies"] is True and lsp["bluesky"]["applies"] is True
     assert lsp["product_hunt"]["topics"] == ["open-source", "developer-tools"]

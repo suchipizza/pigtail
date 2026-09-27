@@ -65,6 +65,8 @@ TABLES: tuple[TableSpec, ...] = (
     # repos; ids, dates and hashed normalized names only, and the scanned month intervals
     TableSpec("ph_topic_post", "cache", None, "last_seen_at"),
     TableSpec("ph_topic_scan", "cache", None, "started_at"),
+    # its measured density per topic (0028, ADR-085 addendum 5): pages and days, aggregates only
+    TableSpec("ph_topic_density", "cache", None, "measured_at"),
     # pre-registration records (0023, R8.2): ids, versions and SHA-256 values only
     TableSpec("brief_preregistration", "operational", None, "recorded_at"),
     TableSpec("brief_report_final", "operational", None, "report_final_at"),
