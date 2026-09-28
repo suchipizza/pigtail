@@ -213,6 +213,107 @@ def add_batch_ids(conn: psycopg.Connection[Any], brief_run_id: str, ids: Iterabl
     )
 
 
+def add_invocation(
+    conn: psycopg.Connection[Any],
+    brief_run_id: str,
+    *,
+    commit: str | None,
+    at: datetime,
+    kind: str,
+    run_record_id: str | None = None,
+) -> int:
+    """Append one invocation of the pilot (`create` or `resume`) with the code commit that ran
+    it (ADR-086 addendum 3: a resumed pilot records the commit of every invocation; the steps it
+    did are added by `mark_step`). Returns its number (1-based)."""
+    row = pilot_row(conn, brief_run_id) or {}
+    inv = list(row.get("invocations") or [])
+    entry: dict[str, Any] = {
+        "n": len(inv) + 1,
+        "kind": kind,
+        "commit": commit,
+        "at": at.isoformat(),
+        "steps": [],
+    }
+    if run_record_id is not None:
+        entry["run_record_id"] = run_record_id
+    inv.append(entry)
+    conn.execute(
+        "UPDATE brief_pilot SET invocations = %s WHERE brief_run_id = %s",
+        (Jsonb(inv), brief_run_id),
+    )
+    return len(inv)
+
+
+def mark_step(conn: psycopg.Connection[Any], brief_run_id: str, step: str) -> None:
+    """Record that the latest invocation did `step` (once)."""
+    row = pilot_row(conn, brief_run_id) or {}
+    inv = list(row.get("invocations") or [])
+    if not inv:
+        return
+    steps = list(inv[-1].get("steps") or [])
+    if step in steps:
+        return
+    inv[-1] = {**inv[-1], "steps": [*steps, step]}
+    conn.execute(
+        "UPDATE brief_pilot SET invocations = %s WHERE brief_run_id = %s",
+        (Jsonb(inv), brief_run_id),
+    )
+
+
+ANNOTATION_MAX_CHARS = 1_000
+
+
+def add_annotation(
+    conn: psycopg.Connection[Any],
+    brief_run_id: str,
+    *,
+    note: str,
+    at: datetime,
+    commit: str | None = None,
+    step: str | None = None,
+    annotated_by_commit: str | None = None,
+) -> dict[str, Any]:
+    """Append a correction note to a pilot run's provenance, never changing what was recorded
+    (`pigtail brief pilot-annotate`). `commit` and `step` state, when given, which code commit a
+    step's recorded work was actually made at; `annotated_by_commit` is the code that wrote the
+    note."""
+    text = " ".join(note.split())
+    if not text:
+        raise ValueError("an annotation needs a note")
+    if len(text) > ANNOTATION_MAX_CHARS:
+        raise ValueError(f"the note is longer than {ANNOTATION_MAX_CHARS} characters")
+    row = pilot_row(conn, brief_run_id)
+    if row is None:
+        raise ValueError(f"no pilot run {brief_run_id}")
+    notes = list(row.get("annotations") or [])
+    entry: dict[str, Any] = {"n": len(notes) + 1, "at": at.isoformat(), "note": text}
+    if commit:
+        entry["commit"] = commit
+    if step:
+        entry["step"] = step
+    if annotated_by_commit:
+        entry["annotated_by_commit"] = annotated_by_commit
+    notes.append(entry)
+    conn.execute(
+        "UPDATE brief_pilot SET annotations = %s WHERE brief_run_id = %s",
+        (Jsonb(notes), brief_run_id),
+    )
+    return entry
+
+
+def coding_commits(conn: psycopg.Connection[Any], brief_run_id: str) -> dict[str, dict[str, int]]:
+    """pass -> code commit -> coded rows (which code coded the stored rows)."""
+    rows = conn.execute(
+        "SELECT pass, COALESCE(code_commit, 'unknown'), count(*) FROM brief_coding"
+        " WHERE brief_run_id = %s GROUP BY 1, 2 ORDER BY 1, 2",
+        (brief_run_id,),
+    ).fetchall()
+    out: dict[str, dict[str, int]] = {}
+    for p, c, n in rows:
+        out.setdefault(str(p), {})[str(c)] = int(n)
+    return out
+
+
 # --- evidence and gaps -------------------------------------------------------------------------
 @dataclass(frozen=True)
 class EvidenceRow:

@@ -362,6 +362,7 @@ def _run(brief: Brief, deps: RunDeps, opts: RunOptions) -> RunOutcome:
         # re-read before every check: a batch's own charges (e.g. invalid output) count before
         # its fallback calls are checked (M22 verifier round 2)
         brief_ledger=lambda: PgCostLedger(conn).brief_total(brief.brief_id),
+        month_ledger=lambda since: PgCostLedger(conn).month_total(since),  # OPS-2
     )
     if opts.approve_paid and not run.approved_paid:
         run.update(approved_paid=True)

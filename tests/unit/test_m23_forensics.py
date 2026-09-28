@@ -376,7 +376,7 @@ def test_estimate_prices_coding_per_case_and_uses_the_measured_model() -> None:
     b = selection_fake.brief()
     kw: dict[str, Any] = dict(launch_sources=(False, False), ph_topics=0)
     plan = estimate(b, **kw)
-    assert ESTIMATE_MODEL == "estimate-v11"
+    assert ESTIMATE_MODEL == "estimate-v12"
     by = {s.stage: s for s in plan.stages}
     assert by["extraction"].llm_calls == 2 * plan.cases
     assert by["adjudication"].llm_calls == -(-plan.cases * 9 // 10)

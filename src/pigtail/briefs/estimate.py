@@ -70,7 +70,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from pigtail.briefs.budget import month_start, utcnow
+from pigtail.briefs.budget import month_spend, utcnow
 from pigtail.briefs.cache import RerunPlan, plan_rerun
 from pigtail.briefs.expansion import EXPANSION_TOKENS
 from pigtail.briefs.model import Brief, BriefInvalid
@@ -97,7 +97,9 @@ from pigtail.llm.stages import stage_for, time_sensitive
 # then the pilot's measured tokens per call, adjudication share and GitHub requests per case.
 # v11 (ADR-086 addendum 1): the flat coder output's planning numbers (`case-cost-v2`); a stored
 # measured model of another cost-model version, or from zero measured cost, is never used.
-ESTIMATE_MODEL = "estimate-v11"
+# v12 (ADR-086 addendum 3): the measured model is `case-cost-v3` (per call, current settings
+# only); the coding stage's calls are the measured coder calls per case (2 in planning).
+ESTIMATE_MODEL = "estimate-v12"
 
 # --- planning assumptions (placeholders until the pilot measures them, M23) ---------------
 SEARCH_PAGES_PER_QUERY = 2  # 100 results per page
@@ -795,7 +797,13 @@ def estimate(
         # R18.7: the run uses the accepted expansion; proposing one is a separate, on-demand call.
         cost("expansion", 0),
         cost("relevance", math.ceil(candidates / RELEVANCE_PER_REQUEST)),
-        case_cost("extraction", cases * CODERS, cm.coder, reused_by="extraction"),
+        case_cost(
+            "extraction",
+            # measured coder calls per case (retries of billed failures included), else 2
+            math.ceil(cases * getattr(cm, "coder_calls_per_case", CODERS)),
+            cm.coder,
+            reused_by="extraction",
+        ),
         case_cost(
             "adjudication",
             math.ceil(cases * cm.adjudication_share),
@@ -938,6 +946,7 @@ def estimate_for(
     hn_enabled: bool | None = None,
     env: Mapping[str, str] | None = None,
     case_model: Any = None,
+    month_ledger: Any = None,
 ) -> tuple[Estimate, RerunPlan | None]:
     """Estimate against this install's usage ledger (this month's API spend), with a reuse
     plan when an earlier version of the brief was run (used by the CLI and the D7 API).
@@ -949,8 +958,8 @@ def estimate_for(
 
     ph_on, bsky_on, topics = launch_source_settings(env)
     ledger = LLMStore(Path(data_dir) / "llm.sqlite3")
-    try:
-        month = ledger.usage_since("api", month_start(utcnow()))["cost_usd"]
+    try:  # the larger of the local usage store and the Postgres cost ledger (OPS-2)
+        month = float(month_spend(ledger, month_ledger, utcnow())["usd"])
     finally:
         ledger.close()
     plan = None

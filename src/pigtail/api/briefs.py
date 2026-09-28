@@ -316,6 +316,7 @@ def make_router(
             month_cap_usd=month_cap_usd,
             spent_usd=PgCostLedger(conn).brief_total(brief_id),
             brief_ledger=lambda: PgCostLedger(conn).brief_total(brief_id),  # ADR-078.6
+            month_ledger=lambda since: PgCostLedger(conn).month_total(since),  # OPS-2
         )
         try:
             proposal = propose_expansion(s.brief, client, guard)
@@ -363,6 +364,7 @@ def make_router(
             last_run_version=runs(conn).last_run_version(brief_id),
             brief_spent_usd=PgCostLedger(conn).brief_total(brief_id),
             selection=selection_state(conn, s.brief) if s.brief.version is not None else None,
+            month_ledger=lambda since: PgCostLedger(conn).month_total(since),  # OPS-2
         )
         return est.to_dict()
 

@@ -304,15 +304,16 @@ class PgCostLedger:
 
     def record(self, row: UsageRow) -> None:
         from pigtail.llm.pricing import PRICES_AS_OF
+        from pigtail.llm.store import NO_CALL_STATUSES
 
-        if row.status in ("cached", "limit"):
+        if row.status in NO_CALL_STATUSES:
             return  # no model call was made, nothing was spent
         self.conn.execute(
             "INSERT INTO llm_cost_ledger (brief_id, brief_run_id, case_ref, job, stage, backend,"
             " model, prompt_id, prompt_version, batch_id, status, input_tokens, output_tokens,"
-            " cache_write_tokens, cache_read_tokens, cost_usd, prices_as_of)"
+            " cache_write_tokens, cache_read_tokens, cost_usd, prices_as_of, thinking, requests)"
             " VALUES ((SELECT brief_id FROM brief_runs WHERE id = %s), %s, %s, %s, %s, %s, %s,"
-            " %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            " %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 row.brief_run_id,
                 row.brief_run_id,
@@ -331,6 +332,8 @@ class PgCostLedger:
                 row.cache_read_tokens,
                 round(row.cost_usd, 6),
                 PRICES_AS_OF if row.backend == "api" else None,
+                row.thinking,
+                max(1, int(row.requests)),
             ),
         )
 
@@ -363,6 +366,8 @@ class PgCostLedger:
         return float(row[0]) if row else 0.0
 
     def month_total(self, since: datetime) -> float:
+        """API spend recorded since `since` over every brief and status (the monthly cap; rows
+        back-filled by hand, `diagnostic` included, count: they were billed)."""
         row = self.conn.execute(
             "SELECT COALESCE(sum(cost_usd), 0) FROM llm_cost_ledger"
             " WHERE backend = 'api' AND created_at >= %s",

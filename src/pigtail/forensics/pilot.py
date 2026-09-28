@@ -23,6 +23,14 @@ the monthly cap before every batch (H6: stop above them); a projection above the
 ends the pilot with H6 (exit 4). When the coding failed for every case the pilot ends `failed`
 (exit 7) with the API error per case and no cost model or projection; the same command redoes
 the failed coding, never paying twice for what succeeded (ADR-086 addendum 1).
+
+**Provenance of a resumed pilot** (ADR-086 addendum 3): every invocation is recorded on the pilot
+(`brief_pilot.invocations`: the code commit that ran it, when, create or resume, and the steps it
+did), and every stored row (codings, alpha, the cost model, evidence) carries the commit of the
+invocation that wrote it. `pigtail brief pilot-annotate` appends a correction note without
+changing anything recorded. `rebuild_cost_model` re-stores the measured cost model of an
+existing pilot from its ledger rows under the current rules (`pigtail brief pilot-cost
+--rebuild`).
 """
 
 from __future__ import annotations
@@ -43,12 +51,15 @@ from pigtail.forensics import coding
 from pigtail.forensics import store as fstore
 from pigtail.forensics.citations import CitationStats
 from pigtail.forensics.cost import (
+    ADR087_AT,
     PLANNING,
     CaseCostModel,
+    current_settings,
     full_brief_cases,
     ledger_by_case,
     measurable,
     measured,
+    model_rows,
     projection,
 )
 from pigtail.forensics.frame import CODEBOOK_VERSION, FRAME_VERSION, Adjudication, CaseCoding
@@ -279,6 +290,7 @@ class PilotDeps:
     run_record_id: str | None = None
     extraction_model: str | None = None
     synthesis_model: str = "claude-opus-5-5"
+    code_commit: str | None = None  # the commit running this invocation (default: git HEAD)
 
 
 @dataclass
@@ -331,10 +343,16 @@ def plan(
     if not cases:
         return sel, [], None, "the selection has no headline pair to pilot"
     model = _cost_model(conn, brief.brief_id)
-    guard_usage = deps.client.store
-    from pigtail.briefs.budget import month_start
+    from pigtail.briefs.budget import month_spend
 
-    month = guard_usage.usage_since("api", month_start(deps.clock()))["cost_usd"]
+    # the larger of the local usage store and the Postgres cost ledger (OPS-2)
+    month = float(
+        month_spend(
+            deps.client.store,
+            lambda since: PgCostLedger(conn).month_total(since),
+            deps.clock(),
+        )["usd"]
+    )
     ext = deps.extraction_model or deps.client.model_for(JOB_CODING)
     est = estimate(
         brief,
@@ -432,7 +450,9 @@ def _run_locked(
         approved_paid=approved,
         clock=deps.clock,
         brief_ledger=lambda: PgCostLedger(conn).brief_total(brief.brief_id),
+        month_ledger=lambda since: PgCostLedger(conn).month_total(since),  # OPS-2
     )
+    commit = deps.code_commit if deps.code_commit is not None else git_commit()
     if rid is None:
         try:  # the whole pilot must fit both caps before anything starts
             guard.check_llm("pilot estimate", est_usd=est["total_usd"])
@@ -440,7 +460,6 @@ def _run_locked(
             return PilotOutcome(
                 None, "refused_budget", EXIT_BUDGET, str(e), estimate=est, stop=e.to_dict()
             )
-        commit = git_commit()
         ext = deps.extraction_model or deps.client.model_for(JOB_CODING)
         run = runs.create(
             brief,
@@ -472,13 +491,18 @@ def _run_locked(
             models={"coder_a": ext, "coder_b": ext, "adjudicator": ext},
             cases=cases,
         )
+        kind = "create"
     else:
         conn.execute(
             "UPDATE brief_runs SET resumes = resumes + 1, approved_paid = approved_paid OR %s"
             " WHERE id = %s",
             (opts.approve_paid, rid),
         )
-    return _steps(brief, deps, opts, rid, guard, est)
+        kind = "resume"
+    fstore.add_invocation(
+        conn, rid, commit=commit, at=deps.clock(), kind=kind, run_record_id=deps.run_record_id
+    )
+    return _steps(brief, deps, opts, rid, guard, est, commit)
 
 
 def _sel_data_version(conn: psycopg.Connection[Any], sid: str) -> str | None:
@@ -506,6 +530,7 @@ def _steps(
     rid: str,
     guard: BudgetGuard,
     est: dict[str, Any],
+    commit: str | None = None,
 ) -> PilotOutcome:
     from pigtail.briefs.candidates import CandidateStore
     from pigtail.connectors.github_budget import BudgetExhausted
@@ -525,9 +550,11 @@ def _steps(
         pages=deps.pages,
         clock=deps.clock,
         run_id=deps.run_record_id,
-        code_commit=pilot["code_commit"],
+        code_commit=commit,
     )
     try:
+        if any(c.evidence_status != "done" for c in cases):
+            fstore.mark_step(conn, rid, "case_evidence")
         stage.run(pilot, cases, cands)
     except BudgetExhausted as e:
         stop: dict[str, Any] = {"kind": "github_budget", "step": "case evidence", "detail": str(e)}
@@ -559,6 +586,7 @@ def _steps(
         coded = fstore.coded_cases(conn, rid, "B")
         todo = {k: ci for k, ci in inputs.items() if k not in coded}
         if todo:
+            fstore.mark_step(conn, rid, "double_coding")
             runs = coding.submit_and_collect(
                 deps.client,
                 todo,
@@ -585,7 +613,7 @@ def _steps(
                 rows,
                 codebook_version=CODEBOOK_VERSION,
                 frame_version=FRAME_VERSION,
-                code_commit=pilot["code_commit"],
+                code_commit=commit,  # the commit that coded these rows (addendum 3)
             )
             _save_citations(conn, rid, by_case, {c.coding_id for c in cases})
         rows = _load_rows(conn, rid, cases)
@@ -600,9 +628,11 @@ def _steps(
         )
         if not coded_ok:  # every coder call failed: nothing to adjudicate, measure or project
             return _coding_failed(brief, deps, rid, cases, rows, errors, est)
+
         final_done = fstore.coded_cases(conn, rid, "final")
         need = {k: ci for k, ci in inputs.items() if k not in final_done}
         if need:
+            fstore.mark_step(conn, rid, "adjudication")
             sub = [r for r in rows if r.case.case_key in need]
             dis = coding.disagreements(sub)
             items, texts = coding.adjudication_items(need, dis)
@@ -632,7 +662,7 @@ def _steps(
                 final,
                 codebook_version=CODEBOOK_VERSION,
                 frame_version=FRAME_VERSION,
-                code_commit=pilot["code_commit"],
+                code_commit=commit,  # the commit that coded these rows (addendum 3)
             )
             rows = _load_rows(conn, rid, cases)
             adjudicated = [r for r in rows if r.pass_ == "adjudicator"]
@@ -673,10 +703,11 @@ def _steps(
             stop=stop,
         )
     # 5. alpha
+    fstore.mark_step(conn, rid, "alpha")
     rel = coding.reliability_rows(rows, len(cases), resamples=opts.bootstrap_resamples)
-    fstore.save_reliability(conn, pilot, rel)
+    fstore.save_reliability(conn, {**pilot, "code_commit": commit}, rel)
     # 6. cost and projection
-    return _finish(brief, deps, rid, pilot, cases, rows, rel, guard, est)
+    return _finish(brief, deps, rid, pilot, cases, rows, rel, guard, est, commit)
 
 
 def _prepare_recode(
@@ -790,9 +821,11 @@ def _coding_failed(
     total = sum(t.usd for stages in by_case.values() for t in stages.values())
     now = deps.clock()
     assert brief.version is not None
+    fstore.mark_step(conn, rid, "report")
+    pilot = fstore.pilot_row(conn, rid) or pilot
     proj = _no_projection("every coder call failed: no cost was measured")
     cost = _cost_report(cases, by_case, {}, None)
-    report = _report(brief, pilot, cases, rows, [], cost, proj, 0, now, errors=errors)
+    report = _report(brief, pilot, cases, rows, [], cost, proj, 0, now, errors=errors, conn=conn)
     report["outcome"] = {"status": "failed", "reason": "coding_failed", "stop": stop}
     paths = write_report(
         deps.data_dir,
@@ -858,33 +891,48 @@ def _load_rows(
     return out
 
 
+ACTUAL_BASIS = (
+    "actual spend of this pilot's cases: every billed ledger row of the run (failed attempts "
+    "under earlier settings included), averaged over all the pilot's cases"
+)
+
+
 def _cost_report(
     cases: Sequence[PilotCase],
     by_case: Mapping[str, Mapping[str, Any]],
     gh: Mapping[str, Mapping[str, int]],
     model: CaseCostModel | None,
+    *,
+    model_per_case: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """The actual cost per case and stage (every billed row), with per-stage averages that add
+    up to `per_case_usd` (ADR-086 addendum 3), and the cost model's per-case figure beside it
+    (the projection's basis: current settings only)."""
     per_case: dict[str, Any] = {}
-    total = 0.0
+    stage_sum: dict[str, float] = {"coder_a": 0.0, "coder_b": 0.0, "adjudication": 0.0}
     for c in cases:
         stages = {k: v.to_dict() for k, v in by_case.get(c.coding_id, {}).items()}
-        usd = sum(float(s["usd"]) for s in stages.values())
-        total += usd
+        usd = 0.0
+        for k, st in stages.items():
+            stage_sum[k] = stage_sum.get(k, 0.0) + float(st["usd"])
+            usd += float(st["usd"])
         per_case[c.coding_id] = {
             "stages": stages,
             "usd": round(usd, 6),
             "github_requests": dict(gh.get(c.coding_id, {})),
         }
     n = max(len(cases), 1)
-    stage_avg = {
-        k: None if model is None else (model.measured_usd or {}).get(k)
-        for k in ("coder_a", "coder_b", "adjudication")
-    }
+    stage_avg = {k: round(v / n, 6) for k, v in stage_sum.items()}
+    unattributed = sum(t.usd for t in by_case.get("-", {}).values())
     modes = {s.get("mode") for c in per_case.values() for s in c["stages"].values()}
     return {
-        "total_usd": round(total, 6),
-        "per_case_usd": round(total / n, 6),
+        "basis": ACTUAL_BASIS,
+        "cases": len(cases),
+        "total_usd": round(sum(stage_sum.values()), 6),
+        "per_case_usd": round(sum(stage_avg.values()), 6),
         "per_case_usd_by_stage": stage_avg,
+        "unattributed_usd": round(unattributed, 6),
+        "cost_model_per_case_usd": dict(model_per_case) if model_per_case else None,
         "per_case": per_case,
         "mode": "batch"
         if modes <= {"batch"}
@@ -906,60 +954,42 @@ def _finish(
     rel: Sequence[dict[str, Any]],
     guard: BudgetGuard,
     est: dict[str, Any],
+    commit: str | None = None,
 ) -> PilotOutcome:
     from pigtail.forensics.report import pilot_markdown, write_report
-    from pigtail.llm.batch import PgCostLedger
-    from pigtail.llm.pricing import PRICES_AS_OF
 
     conn = deps.conn
     assert brief.version is not None
+    fstore.mark_step(conn, rid, "cost_and_projection")
     by_case = ledger_by_case(conn, rid)
-    ok = _fully_coded(rows)
-    coded = [c for c in cases if c.case_key in ok]
     gh = {c.coding_id: dict(c.evidence_stats.get("requests") or {}) for c in cases}
-    ext = pilot["models"]["coder_a"]
-    full = full_brief_cases(conn, pilot["selection_id"])
-    model: CaseCostModel | None = None
-    if coded and measurable(by_case):  # never a model or a projection from zero measured cost
-        model = measured(by_case, {c.coding_id: gh[c.coding_id] for c in coded}, len(coded))
-        proj = projection(
-            model,
-            extraction_model=ext,
-            synthesis_model=deps.synthesis_model,
-            full_cases=full["total"],
-            coded_cases=len(coded),
-            brief_spent_usd=PgCostLedger(conn).brief_total(brief.brief_id),
-            cap_usd=brief.budget.money_usd,
-            month_spent_usd=guard.month_spent(),
-            month_cap_usd=deps.month_cap_usd,
-            batch=deps.client.batches_for(JOB_CODING),
-        )
-        proj["full_brief_cases_detail"] = full
-        fstore.save_cost_model(
-            conn,
-            brief_id=brief.brief_id,
-            brief_version=brief.version,
-            brief_run_id=rid,
-            model_version=model.model_version,
-            n_cases=len(coded),
-            per_case=model.to_dict(),
-            projection=proj,
-            h6=bool(proj["h6"]),
-            prices_as_of=PRICES_AS_OF,
-            code_commit=pilot["code_commit"],
-        )
-    else:
-        proj = _no_projection("no case coded by both passes at a measured cost: no cost model")
-    cost = _cost_report(cases, by_case, gh, model)
+    model, proj = measure_and_project(
+        conn,
+        brief,
+        pilot,
+        cases,
+        rows,
+        synthesis_model=deps.synthesis_model,
+        batch=deps.client.batches_for(JOB_CODING),
+        backend=deps.client.backend_for(JOB_CODING).name,
+        month_spent_usd=guard.month_spent(),
+        month_cap_usd=deps.month_cap_usd,
+        commit=commit,
+    )
+    cost = _cost_report(cases, by_case, gh, model, model_per_case=proj.get("per_case_usd"))
     total = float(cost["total_usd"])
+    coded = [c for c in cases if c.case_key in _fully_coded(rows)]
     decay = conn.execute(
         "SELECT count(*) FROM brief_evidence_decay WHERE brief_run_id = %s", (rid,)
     ).fetchone()
     decay_n = int(decay[0]) if decay else 0
     now = deps.clock()
+    fstore.mark_step(conn, rid, "report")
     pilot = fstore.pilot_row(conn, rid) or pilot  # with every batch id recorded so far
     errors = coding_errors(rows)
-    report = _report(brief, pilot, cases, rows, rel, cost, proj, decay_n, now, errors=errors)
+    report = _report(
+        brief, pilot, cases, rows, rel, cost, proj, decay_n, now, errors=errors, conn=conn
+    )
     paths = write_report(
         deps.data_dir,
         brief.brief_id,
@@ -975,11 +1005,13 @@ def _finish(
         "below_070": sum(1 for r in rel if r["alpha"] is not None and r["alpha"] < 0.70),
         "undefined": sum(1 for r in rel if r["alpha"] is None),
         "assessed": sum(1 for r in rel if r["assessed"]),
+        "pooled_patterns": pooled_patterns(rel),
     }
     summary = {
         "cases": len(cases),
         "cases_coded": len(coded),
         "coding_failed_cases": len(cases) - len(coded),
+        "adjudication_share": None if model is None else round(model.adjudication_share, 4),
         "views": sorted({VIEW_LABEL.get(c.view, c.view) for c in cases}),
         "roles": _count(c.role for c in cases),
         "gaps": _count(g["reason"] for g in fstore.gaps(conn, rid)),
@@ -1042,6 +1074,7 @@ def _report(
     now: datetime,
     *,
     errors: Mapping[str, Any] | None = None,
+    conn: psycopg.Connection[Any] | None = None,
 ) -> dict[str, Any]:
     conn_rows: dict[str, dict[str, dict[str, fstore.CodingRow]]] = {}
     for r in rows:
@@ -1094,6 +1127,13 @@ def _report(
             "data_version": pilot.get("data_version"),
             "pilot_run": pilot["brief_run_id"],
             "code_commit": pilot["code_commit"],
+            "code_commit_note": (
+                "the commit that created the run; the commit of every invocation is in "
+                "`invocations` and each coded row's in `coding_commits`"
+            ),
+            "invocations": list(pilot.get("invocations") or []),
+            "coding_commits": {} if conn is None else fstore.coding_commits(conn, rid_of(pilot)),
+            "annotations": list(pilot.get("annotations") or []),
             "codebook_version": pilot["codebook_version"],
             "frame_version": pilot["frame_version"],
             "case_rule_version": pilot["case_rule_version"],
@@ -1110,3 +1150,173 @@ def _report(
         "decay": {"scheduled": decay_n, "offsets_days": list(fstore.DECAY_OFFSETS_DAYS)},
         "limitations": list(LIMITATIONS),
     }
+
+
+def rid_of(pilot: Mapping[str, Any]) -> str:
+    return str(pilot["brief_run_id"])
+
+
+def pooled_patterns(rel: Sequence[Mapping[str, Any]]) -> dict[str, Any] | None:
+    """The pooled C11a statistic (`pattern.*`) for the counts-only summary."""
+    for r in rel:
+        if r["field"] == "pattern.*" and r["statistic"] == "nominal":
+            ci = dict(r.get("ci") or {})
+            return {
+                "alpha": r["alpha"],
+                "n_pairable": r["n_pairable"],
+                "n_cases": r["n_cases"],
+                "assessed": bool(r["assessed"]),
+                "reason": r.get("reason"),
+                "ci_low": ci.get("low"),
+                "ci_high": ci.get("high"),
+                "ci_resampled": ci.get("resampled", "units"),
+            }
+    return None
+
+
+def measure_and_project(
+    conn: psycopg.Connection[Any],
+    brief: Brief,
+    pilot: Mapping[str, Any],
+    cases: Sequence[PilotCase],
+    rows: Sequence[fstore.CodingRow],
+    *,
+    synthesis_model: str,
+    batch: bool,
+    backend: str,
+    month_spent_usd: float,
+    month_cap_usd: float,
+    commit: str | None,
+    superseded_before: datetime = ADR087_AT,
+    store: bool = True,
+) -> tuple[CaseCostModel | None, dict[str, Any]]:
+    """The measured per-case model (`case-cost-v3`: per call, current settings only; ADR-086
+    addendum 3) and the full-brief projection, stored when `store` (never from zero cost)."""
+    from pigtail.llm.batch import PgCostLedger
+    from pigtail.llm.pricing import PRICES_AS_OF
+
+    assert brief.version is not None
+    rid = rid_of(pilot)
+    ok = _fully_coded(rows)
+    coded = [c for c in cases if c.case_key in ok]
+    gh = {c.coding_id: dict(c.evidence_stats.get("requests") or {}) for c in cases}
+    settings = current_settings(backend=backend, superseded_before=superseded_before)
+    by_case, counts = model_rows(conn, rid, settings)
+    if not (coded and measurable(by_case)):  # never a model or projection from zero cost
+        proj = _no_projection("no case coded by both passes at a measured cost: no cost model")
+        proj["ledger_rows"] = counts
+        return None, proj
+    model = measured(
+        by_case, {c.coding_id: gh[c.coding_id] for c in coded}, len(coded), rows=counts
+    )
+    full = full_brief_cases(conn, pilot["selection_id"])
+    proj = projection(
+        model,
+        extraction_model=pilot["models"]["coder_a"],
+        synthesis_model=synthesis_model,
+        full_cases=full["total"],
+        coded_cases=len(coded),
+        brief_spent_usd=PgCostLedger(conn).brief_total(brief.brief_id),
+        cap_usd=brief.budget.money_usd,
+        month_spent_usd=month_spent_usd,
+        month_cap_usd=month_cap_usd,
+        batch=batch,
+    )
+    proj["full_brief_cases_detail"] = full
+    if store:
+        fstore.save_cost_model(
+            conn,
+            brief_id=brief.brief_id,
+            brief_version=brief.version,
+            brief_run_id=rid,
+            model_version=model.model_version,
+            n_cases=len(coded),
+            per_case=model.to_dict(),
+            projection=proj,
+            h6=bool(proj["h6"]),
+            prices_as_of=PRICES_AS_OF,
+            code_commit=commit,
+        )
+    return model, proj
+
+
+def rebuild_cost_model(
+    conn: psycopg.Connection[Any],
+    brief: Brief,
+    brief_run_id: str,
+    *,
+    synthesis_model: str,
+    batch: bool,
+    backend: str,
+    month_spent_usd: float,
+    month_cap_usd: float,
+    commit: str | None,
+    at: datetime,
+    superseded_before: datetime = ADR087_AT,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Re-store an existing pilot's measured cost model from its ledger rows under the current
+    rules (`pigtail brief pilot-cost --rebuild`; ADR-086 addendum 3). Nothing is called or
+    fetched. The pilot's summary gets the new projection; the one it replaces is kept in
+    `summary.cost_model_history`. Returns the model, the projection and the rows used."""
+    pilot = fstore.pilot_row(conn, brief_run_id)
+    if pilot is None:
+        raise ValueError(f"no pilot run {brief_run_id}")
+    cases = fstore.load_cases(conn, brief_run_id)
+    rows = _load_rows(conn, brief_run_id, cases)
+    model, proj = measure_and_project(
+        conn,
+        brief,
+        pilot,
+        cases,
+        rows,
+        synthesis_model=synthesis_model,
+        batch=batch,
+        backend=backend,
+        month_spent_usd=month_spent_usd,
+        month_cap_usd=month_cap_usd,
+        commit=commit,
+        superseded_before=superseded_before,
+        store=not dry_run,
+    )
+    by_case = ledger_by_case(conn, brief_run_id)
+    gh = {c.coding_id: dict(c.evidence_stats.get("requests") or {}) for c in cases}
+    cost = _cost_report(cases, by_case, gh, model, model_per_case=proj.get("per_case_usd"))
+    out = {
+        "brief_run_id": brief_run_id,
+        "cost_model": None if model is None else model.to_dict(),
+        "projection": proj,
+        "cost": {k: v for k, v in cost.items() if k != "per_case"},
+        "stored": model is not None and not dry_run,
+        "dry_run": dry_run,
+    }
+    summary = dict(pilot.get("summary") or {})
+    if not dry_run and summary.get("reliability"):
+        # the pooled C11a statistic for the STATUS wording (summaries written before it)
+        rs = dict(summary["reliability"])
+        rs["pooled_patterns"] = pooled_patterns(fstore.reliability(conn, brief_run_id))
+        fstore.update_summary(conn, brief_run_id, reliability=rs)
+    if model is not None and not dry_run:
+        old = summary.get("projection") or {}
+        history = list(summary.get("cost_model_history") or [])
+        old_model = (summary.get("cost") or {}).get("cost_model")
+        history.append(
+            {
+                "replaced_at": at.isoformat(),
+                "by_commit": commit,
+                "previous_cost_model_version": (
+                    old_model.get("model_version") if isinstance(old_model, dict) else None
+                ),
+                "previous_projected_total_usd": old.get("projected_total_usd"),
+                "previous_per_case_usd": (old.get("per_case_usd") or {}).get("total"),
+            }
+        )
+        fstore.update_summary(
+            conn,
+            brief_run_id,
+            projection=proj,
+            cost=out["cost"],
+            adjudication_share=round(model.adjudication_share, 4),
+            cost_model_history=history,
+        )
+    return out

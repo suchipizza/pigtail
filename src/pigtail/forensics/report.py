@@ -181,9 +181,24 @@ def pilot_markdown(r: dict[str, Any]) -> str:
             f"{c['github_requests']} |"
         )
     pr = r["projection"]
+    by_stage = cost.get("per_case_usd_by_stage") or {}
+    model_pc = cost.get("cost_model_per_case_usd") or {}
     lines += [
         "",
-        f"Total {_usd(cost['total_usd'])}; per case {_usd(cost['per_case_usd'])}.",
+        f"Total {_usd(cost['total_usd'])}; per case {_usd(cost['per_case_usd'])} = "
+        + " + ".join(f"{k} {_usd(v)}" for k, v in by_stage.items())
+        + f" (actual: {cost.get('basis', 'every billed ledger row')}).",
+        *(
+            [
+                "",
+                "Cost model per case (the projection's basis: calls of the current settings "
+                f"only, case-cost-v3): {_usd(model_pc.get('total'))} = coder A "
+                f"{_usd(model_pc.get('coder_a'))} + coder B {_usd(model_pc.get('coder_b'))} + "
+                f"adjudication {_usd(model_pc.get('adjudication'))}.",
+            ]
+            if model_pc
+            else []
+        ),
         "",
         "## Projection for the full brief",
         *[f"- {k}: {v}" for k, v in pr.items()],
@@ -219,6 +234,12 @@ def ops_lines(summary: dict[str, Any], *, label: str, month: str) -> dict[str, s
     def u(v: Any) -> str:
         return "unknown" if v is None else f"{float(v):.4f}"
 
+    contingency = (
+        f" (with ×{pr.get('contingency_factor')} contingency USD "
+        f"{u(pr.get('projected_total_with_contingency_usd'))})"
+        if pr.get("projected_total_with_contingency_usd") is not None
+        else ""
+    )
     costs = (
         f"| {month} | pilot {label}: {n} cases, API USD {u(c.get('total_usd'))} "
         f"(per case avg USD {u(c.get('per_case_usd'))}: coder A {u(per.get('coder_a'))}, "
@@ -228,21 +249,46 @@ def ops_lines(summary: dict[str, Any], *, label: str, month: str) -> dict[str, s
             "no projection (no measured cost) |"
             if pr.get("skipped")
             else f"projection {pr.get('full_brief_cases', '?')} cases: USD "
-            f"{u(pr.get('projected_total_usd'))} of cap USD {u(pr.get('cap_usd'))}"
+            f"{u(pr.get('projected_total_usd'))}{contingency} of cap USD {u(pr.get('cap_usd'))}"
             f"{' — H6' if pr.get('h6') else ''} |"
         )
     )
+    pooled = pooled_wording(rel.get("pooled_patterns"))
     status = (
-        f"- Pilot ({label}): {n} cases double-coded and adjudicated; per-field alpha on "
+        f"- Pilot ({label}): {n} cases double-coded and adjudicated; "
+        + (f"{pooled}; " if pooled else "")
+        + "per-field alpha on "
         f"{rel.get('fields', 0)} fields ({rel.get('below_070', 0)} below 0.70, "
         f"{rel.get('undefined', 0)} undefined, "
         f"{rel.get('statistics', 0) - rel.get('assessed', 0)} of {rel.get('statistics', 0)} "
         f"statistics 'reliability not assessed'; all labelled 'pilot, n = {n}'); API USD "
         f"{u(c.get('total_usd'))} total, USD "
         f"{u(c.get('per_case_usd'))} per case; full-brief projection USD "
-        f"{u(pr.get('projected_total_usd'))} of the USD {u(pr.get('cap_usd'))} cap"
+        f"{u(pr.get('projected_total_usd'))}{contingency} of the USD {u(pr.get('cap_usd'))} cap"
         + (" — **H6: stop, over the cap**" if pr.get("h6") else " (within the cap)")
         + f"; evidence decay scheduled for {summary.get('decay_scheduled', 0)} checks "
         "(+1/+7/+30 days). Case detail stays in the private report."
     )
     return {"COSTS.md": costs, "STATUS.md": status}
+
+
+def pooled_wording(p: dict[str, Any] | None) -> str:
+    """The pooled C11a statistic in words for STATUS: 'assessed (pooled over N cases)' when
+    it is assessed, else 'not assessed' with the reason; the CI says what it resampled."""
+    if not p:
+        return ""
+    a = p.get("alpha")
+    alpha = "undefined" if a is None else f"{float(a):.2f}"
+    lo, hi = p.get("ci_low"), p.get("ci_high")
+    ci = (
+        f"; 95 % CI {lo}..{hi}, {p.get('ci_resampled', 'units')} resampled"
+        if lo is not None and hi is not None
+        else ""
+    )
+    n_cases = p.get("n_cases")
+    state = (
+        f"assessed (pooled over {n_cases} cases)"
+        if p.get("assessed")
+        else f"reliability not assessed ({p.get('reason') or 'n too small'})"
+    )
+    return f"pooled pattern-seed α {alpha} (n {p.get('n_pairable')} units{ci}), {state}"

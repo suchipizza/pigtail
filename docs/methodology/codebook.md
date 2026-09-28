@@ -585,6 +585,7 @@ Core fields are coded and double-coded in **every** brief's deep forensics. Non-
 
 ### 10.5 Confidence intervals
 - Nonparametric bootstrap over **units** (rows of the reliability matrix), B = 10,000 resamples, percentile 95 % CI, fixed seed recorded in the report. Resamples with D_e = 0 are dropped and counted; if more than 5 % are dropped the CI is labelled "unstable".
+- **Units that share a case** (the pooled C11a statistic, 12 pattern units per case; the item-level fields C1–C3, one unit per evidence item) are not independent, so their interval resamples **cases**, each drawn case bringing all its units (a cluster bootstrap; implementation `kalpha-v2`, ADR-086 addendum 3). Where every case has one unit this is the unit bootstrap above. The report says which was used (`resampled: cases | units`).
 - The α implementation must reproduce the worked examples in LR [70] before use, and the version is pinned in the report.
 
 ---

@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS llm_usage (
     model TEXT NOT NULL,
     prompt_id TEXT NOT NULL,
     prompt_version TEXT NOT NULL,
-    status TEXT NOT NULL,  -- ok | cached | limit | error | error_billed | invalid_output
+    status TEXT NOT NULL,  -- LEDGER_STATUSES
     input_tokens INTEGER NOT NULL DEFAULT 0,
     output_tokens INTEGER NOT NULL DEFAULT 0,
     cost_usd REAL NOT NULL DEFAULT 0
@@ -67,6 +67,35 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+# --- the ledger status vocabulary (ADR-086 addendum 3) ------------------------------------------
+# One status per row of the local usage ledger (`llm_usage`) and the Postgres cost ledger
+# (`llm_cost_ledger`, whose CHECK constraint holds the statuses it can carry, migration 0031):
+LEDGER_STATUSES: dict[str, str] = {
+    "ok": "a model call that returned a valid output; billed",
+    "invalid_output": "a model call whose output failed validation; billed",
+    "error": "a request the API refused or that failed without a response: no tokens, no money",
+    "error_billed": (
+        "a response that came back but can't be used (`max_tokens`, `refusal`, non-JSON); "
+        "billed for the usage it reports (ADR-087)"
+    ),
+    "diagnostic": (
+        "a call made by hand outside a product job (an operator's diagnostic request, "
+        "back-filled into the Postgres ledger); billed, counted by the caps, never part of a "
+        "cost model"
+    ),
+    "cached": "served from pigtail's result cache: no call (local usage ledger only)",
+    "limit": "a subscription usage-limit hit: no call (local usage ledger only)",
+}
+# Rows that spent money or made a call: the monthly and brief caps count them.
+SPEND_STATUSES: tuple[str, ...] = ("ok", "invalid_output", "error", "error_billed", "diagnostic")
+# Rows that are calls of a product job and may enter a per-call cost model (settings permitting,
+# `pigtail.forensics.cost`): never `error` (no call was billed), never `diagnostic`.
+COST_MODEL_STATUSES: tuple[str, ...] = ("ok", "invalid_output", "error_billed")
+# Statuses that made no model call and are not written to the Postgres ledger.
+NO_CALL_STATUSES: tuple[str, ...] = ("cached", "limit")
+_SPEND_SQL = "(" + ", ".join(f"'{s}'" for s in SPEND_STATUSES) + ")"
+
+
 @dataclass(frozen=True)
 class UsageRow:
     backend: str
@@ -86,6 +115,10 @@ class UsageRow:
     batch_id: str | None = None
     brief_run_id: str | None = None
     case_ref: str | None = None
+    # ADR-086 addendum 3: the thinking label sent (ADR-087; None when unknown) and how many
+    # requests the row covers (1 for every row pigtail writes; a hand back-fill may cover more).
+    thinking: str | None = None
+    requests: int = 1
 
 
 # Columns added after the first release of the ledger (added by `_upgrade`, idempotent).
@@ -374,7 +407,7 @@ class LLMStore:
         with self._lock:
             rows = self._db.execute(
                 "SELECT backend,"
-                " SUM(status IN ('ok', 'invalid_output', 'error', 'error_billed')),"
+                f" SUM(status IN {_SPEND_SQL}),"
                 " SUM(status = 'cached'), SUM(status = 'limit'),"
                 " SUM(status IN ('error', 'error_billed', 'invalid_output')),"
                 " SUM(input_tokens), SUM(output_tokens), SUM(cost_usd)"
@@ -403,7 +436,7 @@ class LLMStore:
                 "SELECT COUNT(*), SUM(input_tokens), SUM(output_tokens), SUM(cost_usd),"
                 " SUM(cache_write_tokens), SUM(cache_read_tokens)"
                 " FROM llm_usage WHERE backend = ? AND ts >= ?"
-                " AND status IN ('ok', 'invalid_output', 'error', 'error_billed')",
+                f" AND status IN {_SPEND_SQL}",
                 (backend, _ts(since)),
             ).fetchone()
         calls, tin, tout, cost, cw, cr = row
@@ -423,7 +456,7 @@ class LLMStore:
                 " SUM(cache_write_tokens), SUM(cache_read_tokens),"
                 " SUM(batch_id IS NOT NULL), SUM(cost_usd)"
                 " FROM llm_usage WHERE brief_run_id = ?"
-                " AND status IN ('ok', 'invalid_output', 'error', 'error_billed')"
+                f" AND status IN {_SPEND_SQL}"
                 " GROUP BY 1 ORDER BY 1",
                 (brief_run_id,),
             ).fetchall()
@@ -452,7 +485,7 @@ class LLMStore:
             row = self._db.execute(
                 "SELECT SUM(input_tokens + output_tokens) FROM llm_usage"
                 " WHERE backend = ? AND ts >= ? AND ts < ?"
-                " AND status IN ('ok', 'invalid_output', 'error', 'error_billed')",
+                f" AND status IN {_SPEND_SQL}",
                 (backend, _ts(start), _ts(end)),
             ).fetchone()
         return float(row[0] or 0)

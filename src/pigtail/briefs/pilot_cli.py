@@ -8,7 +8,16 @@
         counts-only lines for ops/COSTS.md and ops/STATUS.md (no case detail)
     pigtail brief decay [ID] [--version N] [--all] [--due] [--json]
         evidence decay at +1/+7/+30 days: with --due, run the checks that are due; then print
-        the aggregation by source and age (and write it to the private report directory)
+        the aggregation by source and age, with the actual age at check and the late checks
+        (and write it to the private report directory)
+    pigtail brief pilot-cost ID [--version N] [--run RUN] [--rebuild] [--dry-run]
+                             [--superseded-before ISO] [--json]
+        the pilot's measured cost model and projection; with --rebuild, re-store the model from
+        the pilot's cost-ledger rows under the current rules (case-cost-v3: per call, current
+        settings only, diagnostic rows never; ADR-086 addendum 3). No call, no network.
+    pigtail brief pilot-annotate ID --note TEXT [--version N] [--run RUN] [--commit SHA]
+                                 [--step STEP] [--json]
+        append a correction note to a pilot run's provenance (nothing recorded is changed)
 
 Exit codes as `pigtail run`: 0 ok; 1 failed or nothing to pilot; 2 usage; 3 paid steps not
 approved; 4 a cap (H6), the GitHub budget, or a projection above the brief's cap (H6); 5 a
@@ -262,16 +271,28 @@ def cmd_decay(args: argparse.Namespace) -> int:
 
 def _decay_md(agg: dict[str, Any]) -> str:
     lines = [
-        "| kind | age | scheduled | checked | retrievable | changed | gone | errors | lost |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| kind | age | scheduled | checked | retrievable | changed | gone | errors | lost |"
+        " actual age at check (h: min / median / max) | late |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in agg["by_kind_and_age"]:
+        a = r.get("age_hours_at_check") or {}
         lines.append(
             f"| {r['kind']} | +{r['offset_days']}d | {r['scheduled']} | {r['checked']} | "
             f"{r['retrievable']} | {r['changed']} | {r['gone']} | {r['errors']} | "
-            f"{r['lost_share']} |"
+            f"{r['lost_share']} | {a.get('min')} / {a.get('median')} / {a.get('max')} | "
+            f"{r.get('late_checks', 0)} |"
         )
     r198 = agg["r19_8"]
+    lines.append("")
+    for age, v in (agg.get("by_age") or {}).items():
+        a = v.get("age_hours_at_check") or {}
+        lines.append(
+            f"- {age}: nominal {v.get('nominal_hours')} h, on time within "
+            f"{v.get('on_time_within_hours')} h; actual {a.get('min')} / {a.get('median')} / "
+            f"{a.get('max')} h; late checks {v.get('late_checks', 0)}"
+            + (" (LATE: reported at the actual age)" if v.get("late_checks") else "")
+        )
     lines.append("")
     lines.append(
         f"R19.8: lost at 7 days {r198['lost_at_7d']} (complete: {r198['complete_at_7d']}); "
@@ -283,6 +304,190 @@ def _decay_md(agg: dict[str, Any]) -> str:
         + f". {agg['note']}."
     )
     return "\n".join(lines) + "\n"
+
+
+def _pilot_run(conn: Any, args: argparse.Namespace) -> dict[str, Any] | None:
+    from pigtail.forensics.store import latest_pilot, pilot_row
+
+    if args.run:
+        row = pilot_row(conn, args.run)
+        return row if row is not None and row["brief_id"] == args.brief_id else None
+    return latest_pilot(conn, args.brief_id, args.version)
+
+
+def cmd_pilot_cost(args: argparse.Namespace) -> int:
+    import psycopg
+
+    from pigtail.briefs.budget import month_spend
+    from pigtail.briefs.cli import _settings
+    from pigtail.capture.runs import git_commit
+    from pigtail.forensics.cost import ADR087_AT
+    from pigtail.forensics.pilot import rebuild_cost_model
+    from pigtail.forensics.report import write_report
+    from pigtail.forensics.store import latest_cost_model
+    from pigtail.llm.batch import PgCostLedger
+    from pigtail.llm.store import LLMStore
+
+    s = _settings()
+    if not s.database_url:
+        print("DATABASE_URL is not set", file=sys.stderr)
+        return EXIT_USAGE
+    before = ADR087_AT
+    if args.superseded_before:
+        try:
+            before = datetime.fromisoformat(args.superseded_before)
+        except ValueError:
+            print("--superseded-before must be an ISO 8601 time", file=sys.stderr)
+            return EXIT_USAGE
+        if before.tzinfo is None:
+            before = before.replace(tzinfo=UTC)
+    now = datetime.now(UTC)
+    with psycopg.connect(s.database_url, autocommit=True) as conn:
+        pilot = _pilot_run(conn, args)
+        if pilot is None:
+            print("no pilot run for this brief", file=sys.stderr)
+            return EXIT_INVALID
+        if not args.rebuild:
+            row = latest_cost_model(conn, args.brief_id)
+            if args.json:
+                _print({"brief_run_id": pilot["brief_run_id"], "cost_model": row})
+            elif row is None:
+                print("no current (case-cost-v3) cost model stored; run with --rebuild")
+            else:
+                pr = row["projection"]
+                print(
+                    f"cost model of run {row['brief_run_id']} ({row['model_version']}, "
+                    f"{row['created_at']}): per case USD "
+                    f"{(pr.get('per_case_usd') or {}).get('total')}; projection USD "
+                    f"{pr.get('projected_total_usd')} (with contingency USD "
+                    f"{pr.get('projected_total_with_contingency_usd')}) of cap USD "
+                    f"{pr.get('cap_usd')}"
+                )
+            return 0
+        try:
+            brief = _brief(
+                argparse.Namespace(brief_id=args.brief_id, version=pilot["brief_version"])
+            )
+        except (BriefNotFound, BriefInvalid) as e:
+            print(str(e), file=sys.stderr)
+            return EXIT_INVALID
+        local = LLMStore(s.data_dir / "llm.sqlite3")
+        try:
+            month = float(
+                month_spend(local, lambda since: PgCostLedger(conn).month_total(since), now)["usd"]
+            )
+        finally:
+            local.close()
+        backend = brief.budget.llm_backend
+        out = rebuild_cost_model(
+            conn,
+            brief,
+            str(pilot["brief_run_id"]),
+            synthesis_model=s.llm_models["synthesis"],
+            batch=bool(s.llm_batch) and backend == "api",
+            backend=backend,
+            month_spent_usd=month,
+            month_cap_usd=s.budget_usd_month,
+            commit=git_commit(),
+            at=now,
+            superseded_before=before,
+            dry_run=args.dry_run,
+        )
+    md = _cost_md(out)
+    if not args.dry_run and out["stored"]:
+        paths = write_report(
+            s.data_dir, args.brief_id, int(pilot["brief_version"]), "pilot-cost", out, md,
+            day=now.date(),
+        )  # fmt: skip
+        out["report_paths"] = paths
+    if args.json:
+        _print(out)
+    else:
+        print(md)
+        for k, v in (out.get("report_paths") or {}).items():
+            print(f"private report ({k}): {v}")
+    return 0 if out["cost_model"] is not None else EXIT_INVALID
+
+
+def _cost_md(out: dict[str, Any]) -> str:
+    pr = out["projection"]
+    rows = (out.get("cost_model") or {}).get("ledger_rows") or pr.get("ledger_rows") or {}
+    used = rows.get("used") or {}
+    lines = [
+        f"Pilot cost model rebuilt from the ledger (run {out['brief_run_id']}; "
+        + ("dry run, nothing stored" if out["dry_run"] else "stored" if out["stored"] else "")
+        + ")",
+        f"- ledger rows used: {used.get('rows')} rows, {used.get('requests')} requests, "
+        f"USD {used.get('usd')}",
+        *[
+            f"- left out ({why}): {v['rows']} rows, {v['requests']} requests, USD {v['usd']}"
+            for why, v in (rows.get("excluded") or {}).items()
+        ],
+    ]
+    if pr.get("skipped"):
+        lines.append(f"- no projection: {pr['skipped']}")
+    else:
+        per = pr.get("per_case_usd") or {}
+        lines += [
+            f"- per case USD {per.get('total')} = coder A {per.get('coder_a')} + coder B "
+            f"{per.get('coder_b')} + adjudication {per.get('adjudication')}",
+            f"- projection ({pr.get('full_brief_cases')} cases, {pr.get('cases_remaining')} "
+            f"remaining): USD {pr.get('projected_total_usd')}; with x{pr.get('contingency_factor')}"
+            f" contingency USD {pr.get('projected_total_with_contingency_usd')}; cap USD "
+            f"{pr.get('cap_usd')}" + (" — H6" if pr.get("h6") else " (within)"),
+        ]
+    c = out.get("cost") or {}
+    by = c.get("per_case_usd_by_stage") or {}
+    lines.append(
+        f"- actual spend of the pilot's cases: USD {c.get('total_usd')}, per case USD "
+        f"{c.get('per_case_usd')} = " + " + ".join(f"{k} {v}" for k, v in by.items())
+    )
+    return "\n".join(lines) + "\n"
+
+
+def cmd_pilot_annotate(args: argparse.Namespace) -> int:
+    import psycopg
+
+    from pigtail.briefs.cli import _settings
+    from pigtail.capture.runs import git_commit
+    from pigtail.forensics.store import add_annotation, pilot_row
+
+    s = _settings()
+    if not s.database_url:
+        print("DATABASE_URL is not set", file=sys.stderr)
+        return EXIT_USAGE
+    with psycopg.connect(s.database_url, autocommit=True) as conn:
+        pilot = _pilot_run(conn, args)
+        if pilot is None:
+            print("no pilot run for this brief", file=sys.stderr)
+            return EXIT_INVALID
+        rid = str(pilot["brief_run_id"])
+        try:
+            entry = add_annotation(
+                conn,
+                rid,
+                note=args.note,
+                at=datetime.now(UTC),
+                commit=args.commit,
+                step=args.step,
+                annotated_by_commit=git_commit(),
+            )
+        except ValueError as e:
+            print(str(e), file=sys.stderr)
+            return EXIT_USAGE
+        row = pilot_row(conn, rid) or {}
+    out = {
+        "brief_run_id": rid,
+        "annotation": entry,
+        "annotations": row.get("annotations") or [],
+        "recorded_code_commit": row.get("code_commit"),
+        "invocations": row.get("invocations") or [],
+    }
+    if args.json:
+        _print(out)
+    else:
+        print(f"annotation {entry['n']} added to pilot run {rid} (nothing recorded was changed)")
+    return 0
 
 
 def add_commands(bs: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -303,6 +508,34 @@ def add_commands(bs: argparse._SubParsersAction[argparse.ArgumentParser]) -> Non
     p.add_argument("--label", default="brief", help="how the ops files name the brief")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_pilot_summary)
+
+    p = bs.add_parser(
+        "pilot-cost", help="the pilot's cost model; --rebuild re-stores it from the ledger"
+    )
+    p.add_argument("brief_id")
+    p.add_argument("--version", type=int, help="brief version (default: the latest pilot's)")
+    p.add_argument("--run", help="the pilot run id (default: the latest pilot of the brief)")
+    p.add_argument(
+        "--rebuild", action="store_true", help="re-store the model under the current rules"
+    )
+    p.add_argument("--dry-run", action="store_true", help="with --rebuild: show, store nothing")
+    p.add_argument(
+        "--superseded-before",
+        help="back-compat cut-off for ledger rows without a thinking label (ISO 8601; default: "
+        "the ADR-087 commit time)",
+    )
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_pilot_cost)
+
+    p = bs.add_parser("pilot-annotate", help="add a correction note to a pilot's provenance")
+    p.add_argument("brief_id")
+    p.add_argument("--note", required=True, help="the note (no names or brief content)")
+    p.add_argument("--version", type=int)
+    p.add_argument("--run", help="the pilot run id (default: the latest pilot of the brief)")
+    p.add_argument("--commit", help="the code commit the note says a step was actually run at")
+    p.add_argument("--step", help="the step the note is about (e.g. double_coding)")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_pilot_annotate)
 
     p = bs.add_parser("decay", help="evidence decay at +1/+7/+30 days (R19.8)")
     p.add_argument("brief_id", nargs="?")

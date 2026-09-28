@@ -174,4 +174,63 @@ def test_status_is_labelled_estimate():
     st = guard(api(150), store, spent_usd=1.0).status()
     assert st["label"] == "estimate"
     assert st["brief_usd"] == {"spent": 1.0, "cap": 150.0}
-    assert st["month_usd"] == {"spent": 2.5, "cap": 200.0}
+    assert {k: st["month_usd"][k] for k in ("spent", "cap")} == {"spent": 2.5, "cap": 200.0}
+    assert st["month_usd"]["api_sources"]["source"] == "local_usage_store"
+
+
+# --- OPS-2: the monthly figure is the larger of the usage store and the Postgres ledger ------
+def test_ops2_month_spent_takes_the_larger_of_local_store_and_pg_ledger():
+    from datetime import UTC, datetime
+
+    from pigtail.briefs.budget import month_spend, month_start
+
+    now = datetime(2026, 9, 28, 12, tzinfo=UTC)
+    store = ledger()
+    spend(store, 2.0)
+    seen: list[datetime] = []
+
+    def pg(since: datetime) -> float:
+        seen.append(since)
+        return 3.38  # e.g. hand back-filled billed failures and diagnostics are only here
+
+    g = guard(api(150), store, month_ledger=pg, clock=lambda: now)
+    assert g.month_spent() == 3.38  # the Postgres ledger is larger: it is used
+    assert seen and seen[-1] == month_start(now)
+    info = month_spend(store, pg, now)
+    assert info["source"] == "postgres_cost_ledger"
+    assert (info["local_usage_store_usd"], info["postgres_cost_ledger_usd"]) == (2.0, 3.38)
+    # a local store ahead of the ledger (a run without a database) wins the other way
+    g2 = guard(api(150), store, month_ledger=lambda _s: 0.5, clock=lambda: now)
+    assert g2.month_spent() == 2.0
+    # never the sum: this install's calls are in both
+    g3 = guard(api(150), store, month_ledger=lambda _s: 2.0, clock=lambda: now)
+    assert g3.month_spent() == 2.0
+    # other paid steps charged by the guard still add on top
+    g.paid_this_month_usd = 1.0
+    assert g.month_spent() == 4.38
+
+
+def test_ops2_monthly_cap_stops_on_the_pg_ledger_total():
+    from datetime import UTC, datetime
+
+    now = datetime(2026, 9, 28, 12, tzinfo=UTC)
+    g = guard(api(150), ledger(), approved_paid=True, month_cap_usd=10.0,
+              month_ledger=lambda _s: 9.5, clock=lambda: now)  # fmt: skip
+    with pytest.raises(BudgetStop) as e:
+        g.check_llm("batch", est_usd=1.0)
+    assert e.value.kind == "month"
+
+
+def test_ops2_unreadable_pg_ledger_falls_back_to_the_local_store():
+    from datetime import UTC, datetime
+
+    from pigtail.briefs.budget import month_spend
+
+    def broken(_since: datetime) -> float:
+        raise RuntimeError("database down")
+
+    store = ledger()
+    spend(store, 1.5)
+    info = month_spend(store, broken, datetime(2026, 9, 28, tzinfo=UTC))
+    assert info["usd"] == 1.5 and info["postgres_cost_ledger_usd"] is None
+    assert info["source"] == "local_usage_store"

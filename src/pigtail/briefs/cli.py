@@ -127,6 +127,23 @@ def _brief_spent(settings: Any, brief_id: str) -> float:
         return 0.0
 
 
+def _month_ledger(settings: Any) -> Any:
+    """The Postgres cost ledger's API total since a time (OPS-2: the monthly cap takes the
+    larger of it and the local usage store), or None without a database."""
+    if not settings.database_url:
+        return None
+
+    def read(since: Any) -> float:
+        import psycopg
+
+        from pigtail.llm.batch import PgCostLedger
+
+        with psycopg.connect(settings.database_url, connect_timeout=3) as conn:
+            return PgCostLedger(conn).month_total(since)
+
+    return read
+
+
 def _read_source(path: str) -> str:
     if path == "-":
         return sys.stdin.read()
@@ -483,6 +500,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         brief_spent_usd=_brief_spent(s, brief.brief_id),
         selection=_selection_state(s, brief),
         case_model=_case_model(s, brief.brief_id),
+        month_ledger=_month_ledger(s),  # OPS-2
     )
     out = est.to_dict()
     recorded = None
@@ -641,6 +659,7 @@ def cmd_expand(args: argparse.Namespace) -> int:
             spent_usd=_brief_spent(s, brief.brief_id),
             # re-read before every money check (ADR-078.6), like the runner's guard
             brief_ledger=lambda: _brief_spent(s, brief.brief_id),
+            month_ledger=_month_ledger(s),  # OPS-2
         )
         proposal = propose_expansion(brief, client, guard)
     except BudgetStop as e:
@@ -812,6 +831,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         brief_spent_usd=_brief_spent(s, brief.brief_id),
         selection=_selection_state(s, brief),
         case_model=_case_model(s, brief.brief_id),
+        month_ledger=_month_ledger(s),  # OPS-2
     )
     scope = run_scope(est, stages)
     out: dict[str, Any] = {"estimate": est.to_dict(), "run_scope": scope}

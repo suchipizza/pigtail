@@ -219,6 +219,7 @@ def make_guard(
     month_cap_usd: float | None = None,
     spent_usd: float = 0.0,
     brief_ledger: Callable[[], float] | None = None,
+    month_ledger: Callable[[datetime], float] | None = None,
 ) -> BudgetGuard:
     """A `BudgetGuard` on this install's usage ledger, with the client's explicit overrides.
     `spent_usd` is what the brief has already spent (cost ledger); `month_cap_usd` defaults to
@@ -237,6 +238,7 @@ def make_guard(
         spent_usd=spent_usd,
         overrides=dict(client.overrides),
         brief_ledger=brief_ledger,
+        month_ledger=month_ledger,
     )
 
 

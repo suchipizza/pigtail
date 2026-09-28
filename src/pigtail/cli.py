@@ -889,9 +889,69 @@ def _backup_briefs(s: Any, db_backup: Any, out: dict[str, Any]) -> int:
     except BackupError as e:
         out["briefs"] = {"error": str(e)}
         print(f"briefs archive failed (the database backup was written): {e}", file=sys.stderr)
+        _backup_reports(s, db_backup, out, m.group(1) if m else None)  # tried all the same
         return 2
     out["briefs"] = br.to_dict()
+    # ADR-086 addendum 3: the private reports are backed up beside the briefs
+    return _backup_reports(s, db_backup, out, m.group(1) if m else None)
+
+
+def _backup_reports(s: Any, db_backup: Any, out: dict[str, Any], stamp: str | None) -> int:
+    """ADR-073.1 / ADR-086 addendum 3: the encrypted archive of the private reports
+    (`PIGTAIL_DATA_DIR/reports`) beside a database backup (same timestamp and recipient)."""
+    import os
+
+    from pigtail.briefs.backup import create_reports_archive
+    from pigtail.privacy.backup import RECIPIENT_ENV, BackupError
+
+    try:
+        rr = create_reports_archive(
+            s.data_dir, db_backup.parent, recipient=os.environ.get(RECIPIENT_ENV), stamp=stamp
+        )
+    except BackupError as e:
+        out["reports"] = {"error": str(e)}
+        print(f"reports archive failed (the database backup was written): {e}", file=sys.stderr)
+        return 2
+    out["reports"] = rr.to_dict()
     return 0
+
+
+def _restore_reports(args: argparse.Namespace, s: Any, backup: Any) -> dict[str, Any] | None:
+    """ADR-086 addendum 3: restore the reports archive taken with `backup` (or `--reports-in`)
+    into PIGTAIL_DATA_DIR/reports; existing reports are never overwritten."""
+    import os
+    from pathlib import Path
+
+    from pigtail.briefs.backup import reports_companion_of, restore_reports_archive
+    from pigtail.privacy.backup import IDENTITY_ENV, BackupError
+
+    if getattr(args, "no_reports", False):
+        return None
+    given = getattr(args, "reports_in", None)
+    path = Path(given) if given else reports_companion_of(backup)
+    if path is None or not path.is_file():
+        print(
+            "warning: no reports archive found next to the backup; the private reports were"
+            " not restored (pass --reports-in FILE)",
+            file=sys.stderr,
+        )
+        return {"status": "not_found"}
+    try:
+        res = restore_reports_archive(
+            path, s.data_dir, identity=args.identity or os.environ.get(IDENTITY_ENV)
+        )
+    except (BackupError, ValueError) as e:
+        print(f"reports not restored: {e}", file=sys.stderr)
+        return {"status": "failed", "error": str(e)}
+    d = res.to_dict()
+    d.pop("conflict_paths")
+    if res.conflicts:
+        print(
+            f"warning: {res.conflicts} report(s) in the archive differ from the ones in"
+            f" {s.data_dir / 'reports'}; the existing files were kept",
+            file=sys.stderr,
+        )
+    return {"status": "restored", "archive": path.name, **d}
 
 
 def _restore_briefs(args: argparse.Namespace, s: Any, backup: Any) -> dict[str, Any] | None:
@@ -1008,6 +1068,7 @@ def cmd_backup_restore(args: argparse.Namespace) -> int:
         db.close()
     out = {"run_id": run.id, "runs": runs, **res.to_dict()}
     out["briefs"] = _restore_briefs(args, s, Path(args.input))
+    out["reports"] = _restore_reports(args, s, Path(args.input))
     if res.carry_over_source != "live":
         print(
             f"warning: no live database to carry over from ({res.carry_over_source}): deletions"
@@ -1393,6 +1454,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--briefs-in", help="briefs archive (default: the one taken with the backup, ADR-071.3)"
     )
     br.add_argument("--no-briefs", action="store_true", help="don't restore the briefs archive")
+    br.add_argument(
+        "--reports-in",
+        help="private reports archive (default: the one taken with the backup, restored into "
+        "PIGTAIL_DATA_DIR/reports without overwriting)",
+    )
+    br.add_argument(
+        "--no-reports", action="store_true", help="don't restore the private reports archive"
+    )
     br.set_defaults(func=cmd_backup_restore)
     bp = bk_sub.add_parser("prune", help="delete backups older than 35 days")
     bp.add_argument("--dir", help="backup directory (default $BACKUP_DIR)")

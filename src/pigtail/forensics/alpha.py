@@ -16,9 +16,14 @@ Alpha-Reliability" (LR [70]):
 pairable unit): alpha is undefined there, never 1.0 by convention (the codebook's "D_e > 0"
 rule, §10.4). The tests reproduce the worked examples of Krippendorff (2011).
 
-`bootstrap_ci` resamples units with replacement (codebook §10.5: B = 10,000, percentile 95 %
+`bootstrap_ci` resamples with replacement (codebook §10.5: B = 10,000, percentile 95 %
 interval, fixed seed); resamples with D_e = 0 are dropped and counted, and more than 5 % dropped
-labels the interval "unstable".
+labels the interval "unstable". With `clusters` (the case of each unit) it resamples **cases**,
+each drawn case bringing all its units (a cluster bootstrap, `kalpha-v2`, ADR-086 addendum 3):
+units of one case are not independent (the pooled C11a statistic has 12 pattern units per case,
+the item fields one unit per evidence item), so resampling units would make the interval too
+narrow. Where every case has one unit this is the unit bootstrap. The interval's `method` and
+`resampled` say which was used.
 """
 
 from __future__ import annotations
@@ -30,7 +35,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 Level = Literal["nominal", "ordinal", "interval"]
-ALPHA_VERSION = "kalpha-v1"
+ALPHA_VERSION = "kalpha-v2"  # v2: bootstrap over cases when units share a case
 LOW_RELIABILITY_BELOW = 0.70  # PRD §9.2, ADR-047.7, ADR-065
 MIN_PAIRABLE = 30  # codebook §10.4
 MIN_RARER_BINARY = 5  # codebook §10.4
@@ -158,6 +163,8 @@ class BootstrapCI:
     resamples: int
     dropped: int
     seed: int
+    resampled: str = "units"  # "units" or "cases"
+    clusters: int | None = None  # cases with a pairable unit (resampled: cases)
 
     @property
     def unstable(self) -> bool:
@@ -171,7 +178,14 @@ class BootstrapCI:
             "dropped": self.dropped,
             "seed": self.seed,
             "unstable": self.unstable,
-            "method": "nonparametric bootstrap over units, percentile, 95 %",
+            "resampled": self.resampled,
+            **({"cases": self.clusters} if self.clusters is not None else {}),
+            "method": (
+                "nonparametric cluster bootstrap over cases (all units of a drawn case), "
+                "percentile, 95 %"
+                if self.resampled == "cases"
+                else "nonparametric bootstrap over units, percentile, 95 %"
+            ),
         }
 
 
@@ -182,33 +196,51 @@ def bootstrap_ci(
     *,
     resamples: int = BOOTSTRAP_RESAMPLES,
     seed: int = BOOTSTRAP_SEED,
+    clusters: Sequence[Hashable] | None = None,
 ) -> BootstrapCI:
-    """Percentile 95 % interval of alpha over `resamples` bootstrap samples of the pairable
-    units (codebook §10.5). The order of `order` (ordinal) is kept for every resample."""
-    rows = pairable(units)
-    if not rows:
+    """Percentile 95 % interval of alpha over `resamples` bootstrap samples (codebook §10.5):
+    of the pairable units, or, with `clusters` (one case id per unit of `units`) and a case
+    with several pairable units, of the cases (module docstring). The order of `order`
+    (ordinal) is kept for every resample."""
+    if clusters is not None and len(clusters) != len(units):
+        raise ValueError("clusters must name the case of every unit")
+    groups: dict[Hashable, list[dict[tuple[Hashable, Hashable], float]]] = {}
+    for i, u in enumerate(units):
+        vals = [v for v in u if v is not None]
+        if len(vals) < 2:
+            continue
+        cid = clusters[i] if clusters is not None else i
+        groups.setdefault(cid, []).append(_unit_pairs(vals))
+    if not groups:
         return BootstrapCI(None, None, 0, 0, seed)
-    per_unit = [_unit_pairs(vals) for vals in rows]
+    by_case = clusters is not None and any(len(g) > 1 for g in groups.values())
+    blocks = list(groups.values())
     rng = random.Random(seed)
     stats: list[float] = []
     dropped = 0
-    k = len(rows)
+    k = len(blocks)
     for _ in range(resamples):
         o: dict[tuple[Hashable, Hashable], float] = {}
+        n_units = 0
         for _i in range(k):
-            for key, w in per_unit[rng.randrange(k)].items():
-                o[key] = o.get(key, 0.0) + w
+            block = blocks[rng.randrange(k)]
+            n_units += len(block)
+            for pairs in block:
+                for key, w in pairs.items():
+                    o[key] = o.get(key, 0.0) + w
         n_c: dict[Hashable, float] = {}
         for (c, _k2), w in o.items():
             n_c[c] = n_c.get(c, 0.0) + w
-        a = _alpha_from(Coincidences(o, n_c, sum(n_c.values()), k), level, order)
+        a = _alpha_from(Coincidences(o, n_c, sum(n_c.values()), n_units), level, order)
         if a is None:
             dropped += 1
             continue
         stats.append(a)
+    resampled = "cases" if by_case else "units"
+    n_cases = k if by_case else None
     if not stats:
-        return BootstrapCI(None, None, resamples, dropped, seed)
+        return BootstrapCI(None, None, resamples, dropped, seed, resampled, n_cases)
     stats.sort()
     lo = stats[max(0, math.floor(0.025 * len(stats)))]
     hi = stats[min(len(stats) - 1, math.ceil(0.975 * len(stats)) - 1)]
-    return BootstrapCI(lo, hi, resamples, dropped, seed)
+    return BootstrapCI(lo, hi, resamples, dropped, seed, resampled, n_cases)

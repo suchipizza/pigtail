@@ -656,6 +656,64 @@ changed and gone per source and age, and writes it next to the pilot report. The
 results are ready a week after the pilot; the +30 day results a month after it. If more than 10 %
 of items are gone at 7 days, the refresh cadence for new breakouts should be shortened (an ADR).
 
+**Late decay checks** (ADR-086 addendum 3): a check runs when it is due or later (the scheduler
+runs every 6 h; a machine that was off runs it when it is back). Each check records its actual
+age (hours between the capture and the check) and whether it was on time: within 12 h after due
+for +1 d, 24 h for +7 d, 48 h for +30 d. `pigtail brief decay <id>` shows the actual ages per
+source and offset (minimum / median / maximum) and the number of late checks; a late check is
+reported at its actual age, not the nominal one.
+
+**The measured cost model** (ADR-086 addendum 3, `case-cost-v3`): the projection's per-case cost
+is built per call from the cost-ledger rows made under the current settings only (the coder and
+adjudicator prompt versions and the thinking setting now sent). Left out: rows with status
+`diagnostic` (calls you made by hand), `error` (nothing billed), and rows made under another
+setting (for example adaptive thinking before ADR-087). A row that covers several batch requests
+counts as that many calls. Billed failures under the current setting stay in: they are part of
+what a case costs. The **adjudication share** is the adjudication requests per coded case (a case
+with at least one A/B disagreement gets one request, so 0.8 when 4 of 5 cases went to
+adjudication); a case's adjudication cost is the share times one adjudication call. The
+projection shows the base figure and the figure with a **contingency of ×1.25** on the future
+spend (remaining coding and synthesis); H6 is decided on the figure with contingency. The
+report's cost block gives the actual spend per case (every billed row of the pilot, failed
+attempts included) with per-stage averages that add up to the per-case figure, and the model's
+per-case figure beside it.
+
+The ledger's status vocabulary (`pigtail.llm.store.LEDGER_STATUSES`): `ok`, `invalid_output`,
+`error` (no response, no money), `error_billed` (`max_tokens`, `refusal` or non-JSON: billed),
+`diagnostic` (a call made by hand, back-filled: billed, counted by the caps, never in a cost
+model); `cached` and `limit` exist in the local usage store only. When you back-fill a row by
+hand, set `thinking` to the label that was sent and `requests` to the number of requests it
+covers.
+
+```sh
+pigtail brief pilot-cost <id>                     # the stored model and projection
+pigtail brief pilot-cost <id> --rebuild --dry-run # what a rebuild would use and leave out
+pigtail brief pilot-cost <id> --rebuild           # re-store the model from the ledger (no call)
+```
+
+`--rebuild` reads the pilot's ledger rows, stores a new model, updates the pilot's summary (the
+replaced projection is kept in its history) and writes `pilot-cost-<date>.json|.md` to the
+private report directory. It calls nothing. **Rows written before this version have no thinking
+label.** For them one narrow rule applies: a `double_coding` row with 16,000 or more output
+tokens (the whole output budget) written before the ADR-087 fix (commit 8f441b3, 2026-09-28
+18:56:14 UTC) was made with thinking on and is left out; every other such row counts as made
+under the current setting (`--superseded-before ISO` moves that cut-off).
+
+**Provenance of a resumed pilot** (ADR-086 addendum 3): every run of `pigtail brief pilot` on the
+same pilot is recorded as an invocation with the code commit that ran it, the time, and the
+steps it did (`case_evidence`, `double_coding`, `adjudication`, `alpha`, `cost_and_projection`,
+`report`). Coded rows, alpha rows and the cost model carry the commit that wrote them. The run's
+`code_commit` stays the commit that created it. To correct a provenance record without rewriting
+it, add a note:
+
+```sh
+pigtail brief pilot-annotate <id> --note "codings made at commit <sha>'s code" \
+  --commit <sha> --step double_coding
+```
+
+Notes are appended (numbered, timed, with the commit that wrote them) and shown in the next
+reports; nothing recorded is changed. Keep brief content and names out of notes.
+
 **Opt-outs** reach the pilot: a repo's cases, codings, evidence links, gaps, decay checks, its
 evidence snapshots and the cached model outputs of its cases are deleted with it.
 
@@ -1472,6 +1530,18 @@ of the briefs directory (`PIGTAIL_BRIEFS_DIR`) beside the database backup, with 
 and key (`pigtail-briefs-<time>.age`; ADR-071.3). `backup restore` restores it into
 `PIGTAIL_BRIEFS_DIR` after the database, never overwriting a version that exists (`--briefs-in
 FILE` picks another archive, `--no-briefs` skips it); `backup prune` prunes both kinds of file.
+
+**The private reports** (pilot, decay and cost reports, ADR-073.1) are backed up too: `backup
+create` writes a third encrypted archive of `PIGTAIL_DATA_DIR/reports`, same timestamp and
+recipient (`pigtail-reports-<time>.age`; ADR-086 addendum 3). It holds only
+`reports/<brief>/v<N>/*.json|*.md`. `backup restore` restores it into
+`PIGTAIL_DATA_DIR/reports` after the briefs, never overwriting a report that exists (same bytes:
+skipped; different bytes: a conflict, kept and reported); files 0600 in 0700 directories, and it
+refuses a reports directory inside a git working tree that git doesn't ignore. `--reports-in
+FILE` picks another archive, `--no-reports` skips it. To restore only the reports (no database),
+decrypt by hand: `age -d -i KEY pigtail-reports-<time>.age | tail -c +19 | tar -x -C
+"$PIGTAIL_DATA_DIR"` (the first 18 bytes are the `PIGTAIL-REPORTS 1` line). `backup prune` prunes
+this file with the others (35 days).
 ```bash
 export BACKUP_RECIPIENT=age1...        # public key only: age (preferred) or a gpg fingerprint
 export BACKUP_DIR=/srv/pigtail-backups    # default for --out / --dir, checked by `pigtail doctor`

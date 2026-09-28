@@ -529,7 +529,7 @@ def test_m23_all_coding_failed_ends_failed_without_projection_and_reruns(env: En
     assert q(env, "SELECT status, resumes FROM brief_runs WHERE id = %s", rid)[0] == (
         "succeeded", 1)  # fmt: skip
     ((n, per_case),) = q(env, "SELECT n_cases, per_case FROM brief_case_cost_model")
-    assert n == 5 and per_case["model_version"] == "case-cost-v2"
+    assert n == 5 and per_case["model_version"] == "case-cost-v3"
     assert per_case["measured_usd_per_case"]["total"] > 0
     assert per_case["coder_call"]["output"] == 3000  # the error rows are not averaged in
     assert again.summary["projection"]["projected_total_usd"] > 0

@@ -602,6 +602,13 @@ def _agreed(ra: CodingRow, rb: CodingRow | None) -> CodingRow:
 
 # --- alpha ------------------------------------------------------------------------------------
 def _pairs(rows: Sequence[CodingRow], fld_match: Callable[[str], bool]) -> list[tuple[Any, Any]]:
+    return [p for _case, p in _case_pairs(rows, fld_match)]
+
+
+def _case_pairs(
+    rows: Sequence[CodingRow], fld_match: Callable[[str], bool]
+) -> list[tuple[str, tuple[Any, Any]]]:
+    """(case key, (A value, B value)) per unit of the matching fields."""
     a, b = _by_unit(rows, "A"), _by_unit(rows, "B")
     out = []
     for key in sorted(set(a) | set(b)):
@@ -611,7 +618,7 @@ def _pairs(rows: Sequence[CodingRow], fld_match: Callable[[str], bool]) -> list[
             continue
         va = None if ra is None or ra.excluded else ra.value
         vb = None if rb is None or rb.excluded else rb.value
-        out.append((va, vb))
+        out.append((key[0], (va, vb)))
     return out
 
 
@@ -637,7 +644,9 @@ def reliability_rows(
             cf[r.pass_]["failed"] += 1 if r.status == "citation_failed" else 0
             cf[r.pass_]["schema_invalid"] += 1 if r.status == SCHEMA_INVALID else 0
     for name, match, level in specs:
-        pairs = _pairs(rows, match)
+        case_pairs = _case_pairs(rows, match)
+        pairs = [p for _c, p in case_pairs]
+        cases_of = [c for c, _p in case_pairs]  # the bootstrap resamples cases (kalpha-v2)
         excluded = sum(1 for va, vb in pairs if va is None or vb is None)
         a_vals = [va for va, _ in pairs if va is not None]
         b_vals = [vb for _, vb in pairs if vb is not None]
@@ -687,7 +696,11 @@ def reliability_rows(
                 labels.append("low reliability")
             if stat == "known_unknown" and not any(v is False for vals in pairable for v in vals):
                 labels.append("1.0 (degenerate: no unknowns)")
-            ci = ka.bootstrap_ci(units, lv, order, resamples=resamples) if a is not None else None
+            ci = (
+                ka.bootstrap_ci(units, lv, order, resamples=resamples, clusters=cases_of)
+                if a is not None
+                else None
+            )
             out.append(
                 {
                     "field": name,

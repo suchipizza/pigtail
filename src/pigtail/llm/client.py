@@ -273,6 +273,7 @@ class LLMClient:
             batch_id=resp.batch_id if resp else None,
             brief_run_id=brief_run_id,
             case_ref=case_ref,
+            thinking=self.thinking_label(job, model, backend),
         )
         self.store.record(row)
         if self.cost_sink is not None and status not in ("cached", "limit"):

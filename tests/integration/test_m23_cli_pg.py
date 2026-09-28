@@ -104,6 +104,41 @@ def test_m23_cli_pilot_estimate_dry_run_approval_run_and_summary(cli_env, capsys
     # the next estimate prices the coding stages with the measured per-case model
     assert main(["brief", "estimate", BID, "--json"]) == 3  # paid steps, not approved
     est = json.loads(capsys.readouterr().out)
-    assert est["model"] == "estimate-v11"
+    assert est["model"] == "estimate-v12"
     assert est["coding_cost_model"]["source"] == "measured"
     assert est["coding_cost_model"]["n_cases"] == 5
+
+
+def test_m23_cli_pilot_cost_rebuild_and_annotate(cli_env, capsys):
+    """ADR-086 addendum 3: `pilot-cost --rebuild` re-stores the model from the ledger (no call),
+    writes a private cost report and prints what it used and left out; `pilot-annotate`
+    appends a note to the pilot's provenance."""
+    db, backend, tmp = cli_env
+    assert main(["brief", "pilot", BID, "--approve-paid", "--json"]) == 0
+    capsys.readouterr()
+    submitted = len(backend.submitted)
+    models = n(db, "brief_case_cost_model")
+    assert main(["brief", "pilot-cost", BID, "--rebuild", "--dry-run", "--json"]) == 0
+    dry = json.loads(capsys.readouterr().out)
+    assert dry["dry_run"] and not dry["stored"] and n(db, "brief_case_cost_model") == models
+    assert main(["brief", "pilot-cost", BID, "--rebuild", "--json"]) == 0
+    res = json.loads(capsys.readouterr().out)
+    assert res["stored"] and res["cost_model"]["model_version"] == "case-cost-v3"
+    assert res["projection"]["projected_total_with_contingency_usd"] is not None
+    assert Path(res["report_paths"]["json"]).is_relative_to(tmp / "data")
+    assert n(db, "brief_case_cost_model") == models + 1
+    assert len(backend.submitted) == submitted  # nothing was called
+    assert main(["brief", "pilot-cost", BID, "--rebuild"]) == 0
+    text = capsys.readouterr().out
+    assert "ledger rows used" in text and "contingency" in text
+    assert main(["brief", "pilot-cost", BID]) == 0
+    assert "case-cost-v3" in capsys.readouterr().out
+    assert main(["brief", "pilot-cost", BID, "--rebuild", "--superseded-before", "nope"]) == 2
+    capsys.readouterr()
+    assert main(["brief", "pilot-annotate", BID, "--note", "codings made at 8f441b3's code",
+                 "--commit", "8f441b3", "--step", "double_coding", "--json"]) == 0  # fmt: skip
+    ann = json.loads(capsys.readouterr().out)
+    assert ann["annotation"]["commit"] == "8f441b3" and len(ann["annotations"]) == 1
+    assert ann["invocations"] and ann["invocations"][0]["kind"] == "create"
+    assert main(["brief", "pilot-annotate", BID, "--note", " "]) == 2
+    assert main(["brief", "pilot-annotate", "no-such-brief", "--note", "x"]) == 1

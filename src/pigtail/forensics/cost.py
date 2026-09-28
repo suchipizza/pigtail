@@ -17,6 +17,39 @@ addendum 1: the first live pilot's calls all failed, and a projection from zero 
 meaningless). `case-cost-v2` (addendum 1): the planning numbers of the flat coder output
 (schema 2.0.0); stored `case-cost-v1` models are not used any more.
 
+**`case-cost-v3` (ADR-086 addendum 3, verifier M23 round 1).** The measured model is built
+**per call** from the ledger rows that are calls of the current job settings only
+(`model_rows`, `row_exclusion`):
+
+- status in `COST_MODEL_STATUSES` (`ok`, `invalid_output`, `error_billed`): never `error` (no
+  call billed) and never `diagnostic` (a call made by hand outside a product job);
+- a row covering several batch requests (`llm_cost_ledger.requests`, a hand back-fill) counts
+  as that many calls, so its tokens are spread over them;
+- the row's prompt version equals the current one of its prompt, and its thinking label
+  (`llm_cost_ledger.thinking`, ADR-087) equals the label the job sends now on the row's model;
+- rows written before migration 0031 have no thinking label. For them one narrow back-compat
+  rule applies (`LEGACY_RULE`): a `double_coding` row with at least
+  `LEGACY_SUPERSEDED_OUTPUT_TOKENS` (16,000, the coder's `max_tokens`) output tokens written
+  before the ADR-087 commit (8f441b3, `ADR087_AT`) was made with adaptive thinking on (it spent
+  its whole output budget) and is superseded; any other legacy row is taken as made under the
+  current setting.
+
+Billed failures under the current setting (`error_billed` with the current thinking label) stay
+in: what failures cost is part of a case's cost (ADR-087). Coder calls per case are measured
+too (`coder_calls_per_case`, 2 when every case was coded once per pass). The stored v2 models
+(averaged over every row) are no longer read; `pigtail brief pilot-cost --rebuild` stores a v3
+model from an existing pilot's ledger rows.
+
+**Contingency** (`CONTINGENCY_FACTOR` = 1.25): the projection shows the base figure and the
+figure with the future spend (remaining coding and synthesis) times 1.25; H6 is decided on the
+figure with contingency (a pilot of a handful of cases is a small sample; the cap is a hard
+stop, so the conservative figure gates).
+
+**Adjudication share**: adjudication requests per coded case. A case with at least one A/B
+disagreement gets one adjudication request, so without retries it is the share of coded cases
+that went to adjudication (0.8 when 4 of 5 did); the per-case adjudication cost is this share
+times the cost of one adjudication call.
+
 **Projection** (R15.11): `brief spent so far + per-case cost x (full-brief cases - pilot cases
 already coded) + synthesis (planning)`, against the brief's `budget.money_usd`; above it the
 pilot stops and says H6. The full brief's cases are every stored selection row with role
@@ -30,11 +63,24 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pigtail.llm.pricing import PRICES_AS_OF, TokenUsage, cost_usd
+from pigtail.llm.store import COST_MODEL_STATUSES
 
-COST_MODEL_VERSION = "case-cost-v2"
+COST_MODEL_VERSION = "case-cost-v3"
+CONTINGENCY_FACTOR = 1.25  # on the projected future spend (module docstring)
+CODERS_PER_CASE = 2.0  # coder A and coder B, one call each
+# The back-compat rule for ledger rows without a thinking label (module docstring).
+ADR087_COMMIT = "8f441b3"
+ADR087_AT = datetime(2026, 9, 28, 18, 56, 14, tzinfo=UTC)  # the commit time of 8f441b3
+LEGACY_SUPERSEDED_OUTPUT_TOKENS = 16_000  # the coder's max_tokens: the whole budget spent
+LEGACY_RULE = (
+    "rows without a thinking label (before migration 0031): a double_coding row with >= "
+    f"{LEGACY_SUPERSEDED_OUTPUT_TOKENS} output tokens written before the ADR-087 commit "
+    f"({ADR087_COMMIT}) is superseded (adaptive thinking); other legacy rows count as current"
+)
 SELECTED_ROLES = ("winner", "matched_loser", "exemplar", "exemplar_matched_loser")
 BATCH_CACHE_HIT_SHARE = 0.5  # as the estimate assumes for batches (estimate.CACHE_HIT_SHARE)
 
@@ -95,10 +141,14 @@ class CaseCostModel:
     measured_usd: dict[str, float] | None = None  # per case, by stage (measured models)
     batch_share: float = 1.0  # share of calls that went through a batch (measured)
     model_version: str = COST_MODEL_VERSION
+    coder_calls_per_case: float = CODERS_PER_CASE  # both passes (measured: retries included)
+    rows: dict[str, Any] | None = None  # ledger rows used and excluded, by reason (measured)
 
     def usd_per_case(self, model: str, *, batch: bool = True) -> dict[str, float | None]:
-        """USD per case by stage on `model` (list price); None when the price is unknown."""
-        a = cost_usd(model, self.coder.times(1), batch=batch)
+        """USD per case by stage on `model` (list price); None when the price is unknown. The
+        stages add up to `total`."""
+        call = cost_usd(model, self.coder.times(1), batch=batch)
+        a = None if call is None else call * self.coder_calls_per_case / CODERS_PER_CASE
         adj = cost_usd(model, self.adjudication.times(1), batch=batch)
         adj_case = None if adj is None else adj * self.adjudication_share
         total = None if a is None or adj_case is None else 2 * a + adj_case
@@ -118,6 +168,8 @@ class CaseCostModel:
             "n_cases": self.n_cases,
             "measured_usd_per_case": self.measured_usd,
             "batch_share": round(self.batch_share, 4),
+            "coder_calls_per_case": round(self.coder_calls_per_case, 4),
+            **({"ledger_rows": self.rows} if self.rows is not None else {}),
         }
 
     @classmethod
@@ -131,6 +183,9 @@ class CaseCostModel:
             n_cases=int(d.get("n_cases") or 0),
             measured_usd=d.get("measured_usd_per_case"),
             batch_share=float(d.get("batch_share", 1.0)),
+            model_version=str(d.get("model_version") or COST_MODEL_VERSION),
+            coder_calls_per_case=float(d.get("coder_calls_per_case", CODERS_PER_CASE)),
+            rows=d.get("ledger_rows"),
         )
 
 
@@ -191,12 +246,14 @@ STAGE_OF_PROMPT = {
 
 
 def ledger_by_case(conn: Any, brief_run_id: str) -> dict[str, dict[str, StageTotals]]:
-    """Actual cost per case (coding id) and stage from `llm_cost_ledger` (every model call of the
-    pilot run; cached results cost nothing and have no row; failed requests (`error`) made no
-    model call and are left out; billed failures (`error_billed`: `max_tokens`, `refusal`,
-    non-JSON, ADR-087) were paid for and count, so a case's cost includes its failed calls)."""
+    """Actual cost per case (coding id) and stage from `llm_cost_ledger`: every billed row of
+    the pilot run, whatever its settings (cached results cost nothing and have no row; failed
+    requests (`error`) made no model call and are left out; billed failures (`error_billed`)
+    and hand-recorded `diagnostic` calls were paid for and count). Calls are weighted by the
+    requests a row covers. This is the spend report; the cost model reads `model_rows`."""
     rows = conn.execute(
-        "SELECT COALESCE(case_ref, '-'), prompt_id, count(*), count(batch_id), sum(input_tokens),"
+        "SELECT COALESCE(case_ref, '-'), prompt_id, sum(requests),"
+        " COALESCE(sum(requests) FILTER (WHERE batch_id IS NOT NULL), 0), sum(input_tokens),"
         " sum(output_tokens), sum(cache_write_tokens), sum(cache_read_tokens), sum(cost_usd)"
         " FROM llm_cost_ledger WHERE brief_run_id = %s AND status <> 'error'"
         " GROUP BY 1, 2 ORDER BY 1, 2",
@@ -220,6 +277,147 @@ def ledger_by_case(conn: Any, brief_run_id: str) -> dict[str, dict[str, StageTot
     return out
 
 
+@dataclass(frozen=True)
+class CostSettings:
+    """The settings a ledger row must have been made under to enter the cost model: per prompt
+    id its current prompt version and job; per job the thinking setting, whose label on the
+    row's model (`thinking(job, model)`) the row must carry."""
+
+    prompt_versions: Mapping[str, str]
+    prompt_jobs: Mapping[str, str]
+    thinking_modes: Mapping[str, str]
+    backend: str = "api"
+    superseded_before: datetime = ADR087_AT
+
+    def thinking(self, job: str, model: str) -> str | None:
+        from pigtail.llm.thinking import THINKING_MODES, label
+
+        if self.backend != "api":
+            return "cli-default"
+        mode = self.thinking_modes.get(job)
+        for m in THINKING_MODES:
+            if mode == m:
+                try:
+                    return label(m, model)
+                except ValueError:
+                    return None
+        return None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "prompt_versions": dict(self.prompt_versions),
+            "thinking_modes": dict(self.thinking_modes),
+            "backend": self.backend,
+            "legacy_rule": LEGACY_RULE,
+            "superseded_before": self.superseded_before.isoformat(),
+        }
+
+
+def current_settings(
+    *, backend: str = "api", superseded_before: datetime = ADR087_AT
+) -> CostSettings:
+    """The coding and adjudication jobs' settings as this code sends them."""
+    from pigtail.forensics.prompts import (
+        ADJUDICATOR,
+        CODER_A,
+        CODER_B,
+        JOB_ADJUDICATION,
+        JOB_CODING,
+    )
+    from pigtail.llm.thinking import mode_for
+
+    return CostSettings(
+        prompt_versions={p.id: p.version for p in (CODER_A, CODER_B, ADJUDICATOR)},
+        prompt_jobs={
+            CODER_A.id: JOB_CODING,
+            CODER_B.id: JOB_CODING,
+            ADJUDICATOR.id: JOB_ADJUDICATION,
+        },
+        thinking_modes={j: mode_for(j) for j in (JOB_CODING, JOB_ADJUDICATION)},
+        backend=backend,
+        superseded_before=superseded_before,
+    )
+
+
+def row_exclusion(row: Mapping[str, Any], settings: CostSettings) -> str | None:
+    """Why a ledger row is left out of the cost model, or None when it is a call of the
+    current settings (module docstring)."""
+    status = str(row.get("status"))
+    if status not in COST_MODEL_STATUSES:
+        return f"status:{status}"
+    pid = str(row.get("prompt_id"))
+    if pid not in settings.prompt_versions:
+        return "not_a_coding_prompt"
+    if str(row.get("prompt_version")) != settings.prompt_versions[pid]:
+        return "prompt_version"
+    job = str(row.get("job") or settings.prompt_jobs[pid])
+    thinking = row.get("thinking")
+    if thinking is None:  # written before migration 0031: the narrow back-compat rule
+        created = row.get("created_at")
+        if (
+            job == "double_coding"
+            and int(row.get("output_tokens") or 0) >= LEGACY_SUPERSEDED_OUTPUT_TOKENS
+            and isinstance(created, datetime)
+            and created < settings.superseded_before
+        ):
+            return "legacy_superseded_thinking"
+        return None
+    want = settings.thinking(job, str(row.get("model")))
+    if want is None or str(thinking) != want:
+        return "thinking"
+    return None
+
+
+def model_rows(
+    conn: Any, brief_run_id: str, settings: CostSettings
+) -> tuple[dict[str, dict[str, StageTotals]], dict[str, Any]]:
+    """Per case and stage the ledger rows that enter the cost model (`row_exclusion`), and a
+    count of the rows and requests used and left out, by reason."""
+    cur = conn.execute(
+        "SELECT COALESCE(case_ref, '-') AS case_ref, prompt_id, prompt_version, job, model,"
+        " status, thinking, requests, batch_id, input_tokens, output_tokens,"
+        " cache_write_tokens, cache_read_tokens, cost_usd, created_at"
+        " FROM llm_cost_ledger WHERE brief_run_id = %s ORDER BY id",
+        (brief_run_id,),
+    )
+    cols = [d.name for d in cur.description or []]
+    out: dict[str, dict[str, StageTotals]] = {}
+    used: dict[str, Any] = {"rows": 0, "requests": 0, "usd": 0.0}
+    excluded: dict[str, dict[str, Any]] = {}
+    for raw in cur.fetchall():
+        row = dict(zip(cols, raw, strict=True))
+        n = max(1, int(row.get("requests") or 1))
+        usd = float(row.get("cost_usd") or 0.0)
+        why = row_exclusion(row, settings)
+        slot = (
+            used
+            if why is None
+            else excluded.setdefault(why, {"rows": 0, "requests": 0, "usd": 0.0})
+        )
+        slot["rows"] += 1
+        slot["requests"] += n
+        slot["usd"] = round(float(slot["usd"]) + usd, 6)
+        if why is not None:
+            continue
+        stage = STAGE_OF_PROMPT.get(str(row["prompt_id"]), str(row["prompt_id"]))
+        out.setdefault(str(row["case_ref"]), {}).setdefault(stage, StageTotals()).add(
+            {
+                "calls": n,
+                "batched": n if row.get("batch_id") else 0,
+                "input_tokens": row.get("input_tokens"),
+                "output_tokens": row.get("output_tokens"),
+                "cache_write_tokens": row.get("cache_write_tokens"),
+                "cache_read_tokens": row.get("cache_read_tokens"),
+                "cost_usd": usd,
+            }
+        )
+    return out, {
+        "used": used,
+        "excluded": dict(sorted(excluded.items())),
+        "settings": settings.to_dict(),
+    }
+
+
 def measurable(by_case: Mapping[str, Mapping[str, StageTotals]]) -> bool:
     """Whether the ledger measured a coder call that cost something (addendum 1: never a model
     or a projection from zero measured cost)."""
@@ -235,9 +433,12 @@ def measured(
     by_case: Mapping[str, Mapping[str, StageTotals]],
     github_by_case: Mapping[str, Mapping[str, int]],
     n_cases: int,
+    *,
+    rows: dict[str, Any] | None = None,
 ) -> CaseCostModel:
-    """The per-case model measured by a pilot of `n_cases` coded cases (cases whose coding
-    failed in both passes are not counted: they cost nothing). Only for a `measurable` ledger."""
+    """The per-case model measured by a pilot of `n_cases` coded cases, per call (a row
+    covering several requests counts as that many calls), from the rows `model_rows` let in
+    (`rows`: its counts, stored with the model). Only for a `measurable` ledger."""
     if not measurable(by_case):
         raise ValueError("no coder call with a measured cost: no cost model from zero cost")
     coder, adj = StageTotals(), StageTotals()
@@ -249,7 +450,7 @@ def measured(
                 coder.add(_row(t))
             if name == "adjudication":
                 adj.add(_row(t))
-                adjudicated += 1 if t.calls else 0
+                adjudicated += t.calls  # requests per coded case (module docstring)
             if name in usd:
                 usd[name] += t.usd
     n = max(n_cases, 1)
@@ -267,6 +468,8 @@ def measured(
         n_cases,
         {**{k: round(v / n, 6) for k, v in usd.items()}, "total": round(sum(usd.values()) / n, 6)},
         (coder.batched + adj.batched) / calls if calls else 1.0,
+        coder_calls_per_case=coder.calls / n if coder.calls else CODERS_PER_CASE,
+        rows=rows,
     )
 
 
@@ -339,8 +542,10 @@ def projection(
     synth = synthesis_usd(synthesis_model, batch=batch)
     remaining = max(0, full_cases - coded_cases)
     coding = None if per_case is None else per_case * remaining
-    total = None if coding is None or synth is None else brief_spent_usd + coding + synth
-    h6 = total is None or total > cap_usd + 1e-9
+    future = None if coding is None or synth is None else coding + synth
+    total = None if future is None else brief_spent_usd + future
+    with_c = None if future is None else brief_spent_usd + CONTINGENCY_FACTOR * future
+    h6 = with_c is None or with_c > cap_usd + 1e-9
     month_room = month_cap_usd - month_spent_usd
     return {
         "label": "projection",
@@ -357,11 +562,16 @@ def projection(
         "synthesis_usd_planning": None if synth is None else round(synth, 4),
         "brief_spent_usd": round(brief_spent_usd, 4),
         "projected_total_usd": None if total is None else round(total, 4),
+        "contingency_factor": CONTINGENCY_FACTOR,
+        "projected_total_with_contingency_usd": None if with_c is None else round(with_c, 4),
         "cap_usd": cap_usd,
         "within_cap": not h6,
         "h6": h6,
+        "h6_basis": "projected_total_with_contingency_usd",
         "month_room_usd": round(month_room, 4),
-        "fits_this_month": None if coding is None else (coding + (synth or 0)) <= month_room,
+        "fits_this_month": None
+        if coding is None
+        else CONTINGENCY_FACTOR * (coding + (synth or 0)) <= month_room,
         "github_requests_remaining": {
             k: math.ceil(v * remaining) for k, v in model.github_per_case().items()
         },

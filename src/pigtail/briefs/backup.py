@@ -15,6 +15,18 @@ overwritten (same bytes: skipped; different bytes: a conflict, reported and left
 The database backup format (`pigtail.privacy.backup`, `PIGTAIL-BACKUP 1`) is unchanged; this
 archive is a second encrypted stream beside it (M21b; folding it into one stream is an ADR
 candidate for the privacy track). Nothing here reads or prints brief content: counts only.
+
+**The private reports** (ADR-073.1, ADR-086 addendum 3): a third encrypted archive, same
+recipient and timestamp, holds `PIGTAIL_DATA_DIR/reports` (pilot, decay and cost reports):
+
+    pigtail-reports-<UTC yyyymmddThhmmssZ>.<age|gpg>  =  encrypt(b"PIGTAIL-REPORTS 1\n" + tar)
+
+Members are `reports/<brief_id>/v<N>/<name>.json|.md` only (anything else is skipped). `pigtail
+backup restore` restores them into `PIGTAIL_DATA_DIR/reports` (or `--reports-in FILE`;
+`--no-reports` to skip) with the same rule as brief versions: a report that already exists is
+never overwritten (same bytes: skipped; different bytes: a conflict, reported and left alone),
+files 0600 in 0700 directories, refused inside a git working tree unless ignored. Pruning
+follows the backup retention like the briefs archive.
 """
 
 from __future__ import annotations
@@ -48,9 +60,23 @@ MEMBER_RE = re.compile(r"^briefs/([a-z0-9][a-z0-9-]{1,62}[a-z0-9])/(v\d{4,}\.yam
 MAX_MEMBER = 1 << 20  # a brief version is a few KB; refuse anything absurd
 PARTIAL_SUFFIX = ".partial"
 
+REPORTS_MAGIC = b"PIGTAIL-REPORTS 1\n"
+REPORTS_NAME_RE = re.compile(r"^pigtail-reports-(\d{8}T\d{6}Z)\.(age|gpg)$")
+REPORT_MEMBER_RE = re.compile(
+    r"^reports/([a-z0-9][a-z0-9-]{1,62}[a-z0-9])/(v\d{1,6})/"
+    r"([A-Za-z0-9][A-Za-z0-9._-]{0,127}\.(?:json|md))$"
+)
+MAX_REPORT_MEMBER = 64 << 20  # a pilot report is a few hundred KB
+REPORT_DIR_MODE = 0o700
+REPORT_FILE_MODE = 0o600
+
 
 def archive_name(stamp: str, tool: str) -> str:
     return f"pigtail-briefs-{stamp}.{tool}"
+
+
+def reports_archive_name(stamp: str, tool: str) -> str:
+    return f"pigtail-reports-{stamp}.{tool}"
 
 
 def stamp_of(at: datetime) -> str:
@@ -63,6 +89,29 @@ def companion_of(db_backup: Path) -> Path | None:
     if not m:
         return None
     return db_backup.with_name(archive_name(m.group(1), m.group(2)))
+
+
+def reports_companion_of(db_backup: Path) -> Path | None:
+    """The reports archive taken with a database backup (same timestamp and tool), if any."""
+    m = DB_NAME_RE.match(db_backup.name)
+    if not m:
+        return None
+    return db_backup.with_name(reports_archive_name(m.group(1), m.group(2)))
+
+
+def report_files(data_dir: Path) -> list[tuple[str, Path]]:
+    """(archive name, path) of every private report under `data_dir/reports`."""
+    root = data_dir / "reports"
+    out: list[tuple[str, Path]] = []
+    if not root.is_dir():
+        return out
+    for p in sorted(root.rglob("*")):
+        if not p.is_file() or p.is_symlink():
+            continue
+        arc = "reports/" + p.relative_to(root).as_posix()
+        if REPORT_MEMBER_RE.match(arc):
+            out.append((arc, p))
+    return out
 
 
 def version_files(briefs_dir: Path) -> list[tuple[str, Path]]:
@@ -101,16 +150,81 @@ def create_briefs_archive(
     now: datetime | None = None,
 ) -> BriefsBackupResult:
     """Write the encrypted archive of `briefs_dir` into `out_dir` (never inside a git tree)."""
+    files = version_files(briefs_dir)
+    final, tool = _write_archive(
+        files, out_dir, recipient=recipient, stamp=stamp, now=now, name=archive_name, magic=MAGIC
+    )
+    return BriefsBackupResult(
+        path=str(final),
+        tool=tool,
+        briefs=len({arc.split("/")[1] for arc, _ in files}),
+        versions=len(files),
+        bytes=final.stat().st_size,
+    )
+
+
+@dataclass(frozen=True)
+class ReportsBackupResult:
+    path: str
+    tool: str
+    briefs: int
+    reports: int
+    bytes: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def create_reports_archive(
+    data_dir: Path,
+    out_dir: Path,
+    *,
+    recipient: str | None,
+    stamp: str | None = None,
+    now: datetime | None = None,
+) -> ReportsBackupResult:
+    """Write the encrypted archive of `data_dir/reports` into `out_dir` (module docstring)."""
+    files = report_files(data_dir)
+    final, tool = _write_archive(
+        files,
+        out_dir,
+        recipient=recipient,
+        stamp=stamp,
+        now=now,
+        name=reports_archive_name,
+        magic=REPORTS_MAGIC,
+        file_mode=REPORT_FILE_MODE,
+    )
+    return ReportsBackupResult(
+        path=str(final),
+        tool=tool,
+        briefs=len({arc.split("/")[1] for arc, _ in files}),
+        reports=len(files),
+        bytes=final.stat().st_size,
+    )
+
+
+def _write_archive(
+    files: list[tuple[str, Path]],
+    out_dir: Path,
+    *,
+    recipient: str | None,
+    stamp: str | None,
+    now: datetime | None,
+    name: Any,
+    magic: bytes,
+    file_mode: int = FILE_MODE,
+) -> tuple[Path, str]:
+    """Stream `magic` + a tar of `files` into the encryptor; returns (archive, tool)."""
     if not recipient or not recipient.strip():
         raise BackupError("BACKUP_RECIPIENT is not set: refusing to write an unencrypted backup")
     recipient = recipient.strip()
     tool = tool_for_recipient(recipient)
     out = check_out_dir(out_dir)
     out.mkdir(parents=True, exist_ok=True, mode=0o700)
-    final = out / archive_name(stamp or stamp_of(now or datetime.now(UTC)), tool)
+    final = out / name(stamp or stamp_of(now or datetime.now(UTC)), tool)
     if final.exists():
         raise BackupError(f"{final.name} already exists")
-    files = version_files(briefs_dir)
     partial = final.with_name(final.name + PARTIAL_SUFFIX)
     partial.touch(mode=0o600)
     os.chmod(partial, 0o600)
@@ -125,13 +239,13 @@ def create_briefs_archive(
             )
             assert enc.stdin is not None
             try:
-                enc.stdin.write(MAGIC)
+                enc.stdin.write(magic)
                 with tarfile.open(fileobj=enc.stdin, mode="w|", format=tarfile.PAX_FORMAT) as tar:
                     for arc, p in files:
                         info = tarfile.TarInfo(arc)
                         data = p.read_bytes()
                         info.size = len(data)
-                        info.mode = FILE_MODE
+                        info.mode = file_mode
                         info.mtime = int(p.stat().st_mtime)
                         tar.addfile(info, io.BytesIO(data))
             finally:
@@ -143,18 +257,12 @@ def create_briefs_archive(
                 raise BackupError(f"{tool} failed ({rc}): {tail}")
         os.chmod(partial, 0o600)
         if detect_tool(partial) != tool:
-            raise BackupError("the briefs archive is not encrypted as expected")
+            raise BackupError(f"{final.name} is not encrypted as expected")
         os.replace(partial, final)
     except BaseException:
         partial.unlink(missing_ok=True)
         raise
-    return BriefsBackupResult(
-        path=str(final),
-        tool=tool,
-        briefs=len({arc.split("/")[1] for arc, _ in files}),
-        versions=len(files),
-        bytes=final.stat().st_size,
-    )
+    return final, tool
 
 
 @dataclass
@@ -169,10 +277,10 @@ class BriefsRestoreResult:
         return asdict(self)
 
 
-def _read_magic(f: IO[bytes]) -> None:
-    head = f.read(len(MAGIC))
-    if head != MAGIC:
-        raise BackupError("not a pigtail briefs archive")
+def _read_magic(f: IO[bytes], magic: bytes = MAGIC, what: str = "briefs") -> None:
+    head = f.read(len(magic))
+    if head != magic:
+        raise BackupError(f"not a pigtail {what} archive")
 
 
 def restore_members(
@@ -220,12 +328,93 @@ def restore_members(
     return res
 
 
+def restore_report_members(
+    stream: IO[bytes], data_dir: Path, *, dry_run: bool = False
+) -> BriefsRestoreResult:
+    """Restore private reports from a decrypted reports archive stream (after the magic line)
+    into `data_dir/reports`, never overwriting (module docstring)."""
+    from pigtail.forensics.report import ensure_private
+
+    res = BriefsRestoreResult()
+    root = data_dir.expanduser() / "reports"
+    if not dry_run:
+        root = ensure_private(root)
+    with tarfile.open(fileobj=stream, mode="r|") as tar:
+        for m in tar:
+            match = REPORT_MEMBER_RE.match(m.name)
+            if not match or not m.isfile() or m.size > MAX_REPORT_MEMBER:
+                res.rejected_members += 1
+                continue
+            fobj = tar.extractfile(m)
+            if fobj is None:
+                res.rejected_members += 1
+                continue
+            data = fobj.read()
+            brief_id, version, fname = match.group(1), match.group(2), match.group(3)
+            target = root / brief_id / version / fname
+            if target.exists():
+                if target.read_bytes() == data:
+                    res.already_present += 1
+                else:
+                    res.conflicts += 1
+                    res.conflict_paths.append(f"{brief_id}/{version}/{fname}")
+                continue
+            res.restored += 1
+            if dry_run:
+                continue
+            for d in (root, root / brief_id, root / brief_id / version):
+                d.mkdir(mode=REPORT_DIR_MODE, parents=True, exist_ok=True)
+                os.chmod(d, REPORT_DIR_MODE)
+            fd, tmp = tempfile.mkstemp(prefix=".tmp-", dir=target.parent)
+            try:
+                os.fchmod(fd, REPORT_FILE_MODE)
+                with os.fdopen(fd, "wb") as out:
+                    out.write(data)
+                    out.flush()
+                    os.fsync(out.fileno())
+                os.link(tmp, target)  # never overwrites
+            finally:
+                Path(tmp).unlink(missing_ok=True)
+    return res
+
+
+def restore_reports_archive(
+    path: Path, data_dir: Path, *, identity: str | None = None, dry_run: bool = False
+) -> BriefsRestoreResult:
+    """Decrypt `path` and restore its reports into `data_dir/reports` (never overwriting)."""
+    if not REPORTS_NAME_RE.match(path.name):
+        raise BackupError(f"{path.name} is not a pigtail reports archive name")
+    return _restore(
+        path,
+        identity,
+        REPORTS_MAGIC,
+        "reports",
+        lambda stream: restore_report_members(stream, data_dir, dry_run=dry_run),
+    )
+
+
 def restore_briefs_archive(
     path: Path, briefs_dir: Path, *, identity: str | None = None, dry_run: bool = False
 ) -> BriefsRestoreResult:
     """Decrypt `path` and restore its brief versions into `briefs_dir` (never overwriting)."""
     if not NAME_RE.match(path.name):
         raise BackupError(f"{path.name} is not a pigtail briefs archive name")
+    return _restore(
+        path,
+        identity,
+        MAGIC,
+        "briefs",
+        lambda stream: restore_members(stream, briefs_dir, dry_run=dry_run),
+    )
+
+
+def _restore(
+    path: Path,
+    identity: str | None,
+    magic: bytes,
+    what: str,
+    restore_fn: Any,
+) -> BriefsRestoreResult:
     tool = detect_tool(path)
     with tempfile.TemporaryFile() as dec_err:
         dec = subprocess.Popen(
@@ -238,19 +427,19 @@ def restore_briefs_archive(
         err: Exception | None = None
         res = BriefsRestoreResult()
         try:
-            _read_magic(dec.stdout)
-            res = restore_members(dec.stdout, briefs_dir, dry_run=dry_run)
+            _read_magic(dec.stdout, magic, what)
+            res = restore_fn(dec.stdout)
         except (tarfile.TarError, BackupError) as e:
             err = e
         finally:
             dec.stdout.close()
             rc = dec.wait()
         if rc == 0 and err is not None:
-            raise BackupError(f"briefs archive unreadable: {type(err).__name__}: {err}")
+            raise BackupError(f"{what} archive unreadable: {type(err).__name__}: {err}")
         if rc != 0:
             dec_err.seek(0)
             tail = dec_err.read()[-600:].decode(errors="replace")
-            raise BackupError(f"{tool} failed to decrypt the briefs archive ({rc}): {tail}")
+            raise BackupError(f"{tool} failed to decrypt the {what} archive ({rc}): {tail}")
     return res
 
 
@@ -271,7 +460,8 @@ def prune_briefs_archives(
     now: datetime | None = None,
     dry_run: bool = False,
 ) -> BriefsPruneResult:
-    """Delete briefs archives older than `days` (the backup retention) and stale partials."""
+    """Delete briefs and reports archives older than `days` (the backup retention) and stale
+    partials."""
     if not 1 <= days <= BACKUP_RETENTION_DAYS:
         raise BackupError(f"--days must be between 1 and {BACKUP_RETENTION_DAYS} (CB-17)")
     if not directory.is_dir():
@@ -281,7 +471,8 @@ def prune_briefs_archives(
     deleted: list[str] = []
     for p in sorted(directory.iterdir()):
         partial = p.name.endswith(PARTIAL_SUFFIX)
-        m = NAME_RE.match(p.name.removesuffix(PARTIAL_SUFFIX))
+        base = p.name.removesuffix(PARTIAL_SUFFIX)
+        m = NAME_RE.match(base) or REPORTS_NAME_RE.match(base)
         if m is None or not p.is_file():
             continue
         at = datetime.strptime(m.group(1), "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC)

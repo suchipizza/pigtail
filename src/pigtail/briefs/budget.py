@@ -31,6 +31,15 @@ spend recorded since the guard was built counts, for example the batch items cha
 invalid output before their standard-call fallback is checked (`LLMClient.run_batch` calls
 `before_submit` again for the fallback). The monthly total is read from the usage ledger at
 every check already (`month_spent`).
+
+**Monthly spend from both ledgers** (OPS-2, ADR-086 addendum 3): the monthly figure is the
+**larger** of the local usage store (`llm.sqlite3`, this install's calls) and, where a Postgres
+cost ledger is available (`month_ledger`, `PgCostLedger.month_total`), that ledger's API total
+for the month. The Postgres ledger also holds rows written by hand (billed failures back-filled,
+an operator's `diagnostic` calls) and calls made from another install on the same database; the
+local store holds calls of a run without a database. Neither is a subset of the other, so the
+larger is taken rather than the sum (the sum would count this install's calls twice).
+`month_spend` returns both figures and which one was used; `status()` shows it.
 """
 
 from __future__ import annotations
@@ -126,6 +135,39 @@ def month_start(now: datetime) -> datetime:
     return n.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
+def month_spend(
+    usage: UsageSource | None,
+    ledger: Callable[[datetime], float] | None,
+    now: datetime,
+) -> dict[str, Any]:
+    """This calendar month's API spend: the local usage store's and the Postgres cost ledger's
+    (None where there is none, or it can't be read), and the larger of the two, which the
+    monthly cap uses (module docstring, OPS-2)."""
+    since = month_start(now)
+    local = None if usage is None else float(usage.usage_since("api", since)["cost_usd"])
+    pg: float | None = None
+    if ledger is not None:
+        try:
+            pg = float(ledger(since))
+        except Exception:
+            pg = None
+    values = [v for v in (local, pg) if v is not None]
+    used = max(values) if values else 0.0
+    if pg is None:
+        source = "local_usage_store"
+    elif local is None or pg > local:
+        source = "postgres_cost_ledger"
+    else:
+        source = "local_usage_store"
+    return {
+        "usd": used,
+        "local_usage_store_usd": None if local is None else round(local, 6),
+        "postgres_cost_ledger_usd": None if pg is None else round(pg, 6),
+        "source": source,
+        "rule": "the larger of the local usage store and the Postgres cost ledger",
+    }
+
+
 @dataclass
 class BudgetGuard:
     budget: Budget
@@ -141,6 +183,9 @@ class BudgetGuard:
     paid_this_month_usd: float = 0.0
     # The brief's recorded API spend (cost ledger), re-read before every money check.
     brief_ledger: Callable[[], float] | None = None
+    # The Postgres cost ledger's API total since a time (`PgCostLedger.month_total`), where a
+    # database is available: the monthly figure is the larger of it and the usage store (OPS-2).
+    month_ledger: Callable[[datetime], float] | None = None
 
     # --- backend -------------------------------------------------------------------------------
     def check_backend(self, backend: str, *, job: str) -> None:
@@ -163,9 +208,10 @@ class BudgetGuard:
         return self.spent_usd
 
     def month_spent(self) -> float:
-        """API spend this calendar month (usage ledger) plus other paid steps charged here."""
-        api = self.usage.usage_since("api", month_start(self.clock()))["cost_usd"]
-        return api + self.paid_this_month_usd
+        """API spend this calendar month (the larger of the usage store and the Postgres cost
+        ledger, `month_spend`) plus other paid steps charged here."""
+        api = month_spend(self.usage, self.month_ledger, self.clock())["usd"]
+        return float(api) + self.paid_this_month_usd
 
     def _check_money(self, step: str, usd: float | None, what: str) -> None:
         if usd is not None and usd < 0:
@@ -234,7 +280,11 @@ class BudgetGuard:
         self.refresh()
         return {
             "brief_usd": {"spent": round(self.spent_usd, 6), "cap": self.budget.money_usd},
-            "month_usd": {"spent": round(self.month_spent(), 6), "cap": self.month_cap_usd},
+            "month_usd": {
+                "spent": round(self.month_spent(), 6),
+                "cap": self.month_cap_usd,
+                "api_sources": month_spend(self.usage, self.month_ledger, self.clock()),
+            },
             "approved_paid": self.approved_paid,
             "subscription_share": {
                 "value": self.budget.subscription_share,
