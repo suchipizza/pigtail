@@ -9,6 +9,6 @@ Budget ceilings: USD 200/month for the API (owner, Anthropic Console limit and `
 
 | Date | Pilot | Cost | Projection for the full brief |
 |---|---|---|---|
-| 2026-09-28 | 5 cases double-coded and adjudicated (claude-sonnet-5, batch, thinking disabled) | successful run USD 0.49 (per case: coder A 0.040, coder B 0.039, adjudication 0.019 on 4 of 5 cases → about USD 0.10/case); the tool's measured model also averages in the billed failed attempts (thinking on) → USD 0.133/case | clean-run basis ≈ USD 18 for 147 cases (142 remaining × ~0.10 + spent 2.72 + synthesis ~1.41, planning); the tool's conservative figure USD 36.37 (includes the failed attempts); both within the USD 90 brief cap |
+| 2026-09-28 | 5 cases double-coded and adjudicated (claude-sonnet-5, batch, thinking disabled) | pilot cases' actual spend USD 0.667 (USD 0.133/case, includes one billed failed attempt under the superseded thinking setting); measured model `case-cost-v3` from the clean calls only: USD 0.0977/case (coder A 0.0396, coder B 0.0396, adjudication 0.0185) | USD 18.01 for 147 cases (142 remaining), USD 21.83 with the ×1.25 contingency; within the USD 90 brief cap |
 
 Billed-but-unrecorded spend found 2026-09-28 (max_tokens results ledgered at USD 0 before ADR-087): USD 1.38, back-filled in the ledger; the monthly figure (local usage store) lacks it (BACKLOG OPS-2).
