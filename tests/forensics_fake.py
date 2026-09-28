@@ -33,6 +33,20 @@ from pigtail.llm.types import BackendResponse
 
 NOW = datetime(2026, 9, 28, 12, 0, tzinfo=UTC)
 ANCHOR = datetime(2026, 3, 10, 15, 0, tzinfo=UTC)
+# outcome-proximal numbers the coders must never see (blind-v1, ADR-086): distinctive
+STARS, FORKS, POINTS, PH_VOTES, PH_COMMENTS = 98765, 5432, 4242, 7777, 8888
+README_STARS, README_FORKS = "31,337", "2,718"
+BLIND_NUMBERS = (
+    str(STARS),
+    str(FORKS),
+    str(POINTS),
+    str(PH_VOTES),
+    str(PH_COMMENTS),
+    README_STARS,
+    README_FORKS,
+    "31337",
+    "2718",
+)
 HANDLE = "synthetic-person"  # a made-up handle that must never reach coded outputs
 EMAIL = "synthetic.person@example.org"
 
@@ -53,7 +67,8 @@ def readme_text(full: str, at: str) -> str:
     name = full.split("/")[1]
     return (
         f"# {name}\n\n{name} is the first command-line tool that checks config files ({at}).\n\n"
-        f"Install: `brew install {name}`\n\nMaintained by @{HANDLE} "
+        f"Install: `brew install {name}`\n\nLoved by {README_STARS} stars and "
+        f"{README_FORKS} forks.\n\nMaintained by @{HANDLE} "
         f"(https://github.com/{HANDLE}, {EMAIL}).\n\nSee the docs for more.\n"
     )
 
@@ -96,8 +111,8 @@ class FakeGitHubCases:
             node = None
             if r is not None:
                 node = {
-                    "databaseId": r["id"], "nameWithOwner": full, "stargazerCount": 1234,
-                    "forkCount": 56, "createdAt": "2025-11-01T10:00:00Z",
+                    "databaseId": r["id"], "nameWithOwner": full, "stargazerCount": STARS,
+                    "forkCount": FORKS, "createdAt": "2025-11-01T10:00:00Z",
                     "pushedAt": "2026-09-01T10:00:00Z",
                     "description": f"A tool by {full.split('/')[0]} for config checks",
                     "isArchived": False, "isFork": False,
@@ -394,8 +409,12 @@ def seed_selection(conn: Any, brief: Any) -> str:
     for full in REPOS:
         sources = [
             {"source": "show_hn", "term": "t", "hn_item_id": 900 + REPOS[full]["id"] % 100,
-             "points": 42, "title": f"Show HN: {full.split('/')[1]} – checks configs",
+             "points": POINTS, "title": f"Show HN: {full.split('/')[1]} – checks configs",
              "time": "2026-03-10T15:00:00+00:00"},
+            {"source": "ph_launch", "rule": "anchor-v11", "status": "complete",
+             "posts": [{"id": "ph1", "createdAt": "2026-03-10T08:00:00Z",
+                        "featuredAt": "2026-03-10T08:00:00Z", "votesCount": PH_VOTES,
+                        "commentsCount": PH_COMMENTS, "confirmed": True}]},
             {"source": "bsky_maintainer_posts", "rule": "anchor-v11", "status": "complete",
              "posts": [{"kind": "bluesky_maintainer_post", "time": "2026-03-10T16:00:00+00:00",
                         "role": "maintainer", "match": "repo_url",

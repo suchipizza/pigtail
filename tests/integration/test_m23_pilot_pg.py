@@ -33,6 +33,7 @@ from pigtail.llm.redact import alias_redact
 from pigtail.llm.store import LLMStore, UsageRow
 from tests import selection_fake
 from tests.forensics_fake import (
+    BLIND_NUMBERS,
     EMAIL,
     HANDLE,
     NOW,
@@ -445,3 +446,36 @@ def test_m23_budget_guard_rejects_before_submit(env: Env) -> None:
     g = BudgetGuard(env.brief.budget, env.llm, month_cap_usd=0.05, approved_paid=True)
     with pytest.raises(BudgetStop):
         g.before_submit("double_coding", 5, 0.2)
+
+
+def test_m23_coder_and_adjudicator_inputs_are_blind_to_outcome_numbers(env: Env) -> None:
+    """blind-v1 (ADR-086): no HN points, PH votes or comments, star or fork counts (structured
+    or in text), outcome, percentile, rank, role, pair or view in any coder or adjudicator input;
+    event kinds and times stay."""
+    import re
+
+    out = run_pilot(env.brief, env.deps(), OPTS)
+    assert out.exit_code == 0
+    prompts = env.backend.prompts()
+    adj = [p for b in env.backend.submitted for _, par in b
+           for p in [par["messages"][0]["content"]] if "## Disagreements" in p]  # fmt: skip
+    assert adj and len(prompts) == 15
+    # the fixture's numbers are really there (in the stored evidence), and never in an input
+    stored = " ".join(
+        env.snaps.get(h).decode(errors="replace")
+        for (h,) in q(env, "SELECT content_hash FROM evidence WHERE deletion_state = 'present'")
+    )
+    assert all(n in stored for n in ("98765", "4242", "7777", "8888"))  # README: base64
+    for p in prompts:
+        for n in BLIND_NUMBERS:
+            assert n not in p, n
+        for key in ('"points"', '"votesCount"', '"commentsCount"', "stargazerCount",
+                    "forkCount", '"percentile', '"values"', '"rank"', '"role"', '"pair',
+                    '"view"', "follow_through", "matched_loser"):  # fmt: skip
+            assert key not in p, key
+        assert re.search(r"\d\s*(stars|forks|points|votes)\b", p, re.I) is None
+    # event kinds and times are kept
+    launch = next(p for p in prompts if "kind: launch_events" in p)
+    assert '"source": "ph_launch"' in launch and '"featuredAt": "2026-03-10T08:00:00Z"' in launch
+    assert '"source": "show_hn"' in launch and '"time": "2026-03-10T15:00:00+00:00"' in launch
+    assert "[count withheld]" in launch or "[count withheld]" in " ".join(prompts)

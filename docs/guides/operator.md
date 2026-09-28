@@ -626,6 +626,8 @@ full-brief projection is above your cap (the pilot finished, the report says so;
 your approval of spend above the cap); 5 a batch is still running; 6 another pilot of this brief
 is running.
 
+**Blind coding** (ADR-086 item 11): the coders and the adjudicator never see HN points, Product Hunt votes or comments, star or fork counts, outcomes, percentiles, ranks, roles, pairs or views; counts written in a README or on a homepage appear as `[count withheld]`. Event kinds and times are kept.
+
 **Reports stay private** (ADR-073.1): `PIGTAIL_DATA_DIR/reports/<brief>/v<version>/pilot-<date>.json`
 and `.md` hold, per case, the coded fields with their citations (at most one short excerpt per
 source), both coders' values and the adjudicated value with its reason, the gaps, and the cost per

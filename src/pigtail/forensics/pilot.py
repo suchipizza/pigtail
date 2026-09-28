@@ -77,8 +77,9 @@ LIMITATIONS = (
     "Alpha from a pilot of a handful of cases is noisy: every field is labelled 'pilot, n = N' "
     "and 'reliability not assessed' (codebook §10.4 needs 30 pairable units).",
     "LLM-coded, not human-validated (no H3 calibration sample).",
-    "Coders see launch events with HN points and Product Hunt votes, which are close to view "
-    "B's secondary outcomes (codebook §11.6: unavoidable leakage, recorded, not a breach).",
+    "Coders are blind to outcome-proximal numbers (blind-v1, ADR-086); leakage through the "
+    "evidence itself (a launch's timing, wording about popularity without a number) remains "
+    "(codebook §11.6: recorded, not a breach).",
     "Repository metadata is the current state, not the state at T; README at T is the README "
     "at the last commit touching the README's current path before T.",
     "Edges (C6/C7), asset categories (C8) and triggers (C9/C10) are not coded in the pilot frame.",

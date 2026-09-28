@@ -18,6 +18,10 @@ brief's success definition (§11.6); cases are identified by a random coding id.
 the adjudicator's are fixed and fingerprinted (`PromptSpec.fingerprint`), and the fingerprints
 are stored with every coded row (R7.4). Changing any text needs a version bump.
 
+**Blind to outcome-proximal numbers** (`blind-v1`, ADR-086 item 11): `BLIND_KEYS` are dropped
+from structured items and counts in text withheld before any input is rendered; the
+spec (`INPUT_SPEC`) is part of the context, so it is fingerprinted with the prompts.
+
 **Adjudication** (§11.5): the adjudicator sees both codings of each disagreeing unit, with the
 two options in an order drawn per unit from a fixed seed (position bias, LR [80]), plus the
 evidence, and returns one value with a reason and citations, or `unknown`.
@@ -27,6 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -46,7 +51,7 @@ JOB_ADJUDICATION = "adjudication"  # extraction stage
 PROMPT_A = "case-coder-a"
 PROMPT_B = "case-coder-b"
 PROMPT_ADJ = "case-adjudicator"
-PROMPT_VERSION = "1"
+PROMPT_VERSION = "2"  # 2: input blinding (blind-v1, ADR-086)
 ADJ_ORDER_SEED = "pigtail-adjudication-order-v1"
 
 # Kinds of evidence items (the case-evidence stage, pigtail.forensics.evidence).
@@ -94,7 +99,55 @@ def _field_lines() -> str:
     return "\n".join(lines)
 
 
-CODEBOOK_CONTEXT = f"""# pigtail coding frame {FRAME_VERSION} (codebook {CODEBOOK_VERSION})
+# Input blinding (`blind-v1`; ADR-086, orchestrator decision 2026-09-28: coders and the
+# adjudicator are blind to outcome-proximal numbers, standard blind-coding practice). Removed from
+# every coder and adjudicator input before it is rendered, and listed in the fingerprinted
+# context below, so a change to the list changes the prompt fingerprints:
+BLIND_VERSION = "blind-v1"
+# keys dropped from structured items (the launch events document, at any depth)
+BLIND_KEYS: tuple[str, ...] = (
+    "points",  # HN story points
+    "votesCount",  # Product Hunt votes
+    "commentsCount",  # Product Hunt comments
+    "num_comments",
+    "stargazerCount",
+    "stars",
+    "forkCount",
+    "forks",
+    "score",
+    "percentile",
+    "percentiles",
+    "values",  # stored outcome values
+    "outcome",
+    "outcomes",
+    "lsm",  # launch size
+    "rank",
+    "role",
+    "pair",
+    "pair_id",
+    "view",
+    "covariates",
+    "qualification",
+    "sensitivity",
+    "star_anomaly",
+)
+# counts in free text (README, homepage, release notes, titles): replaced by `[count withheld]`
+BLIND_TEXT_PATTERN = (
+    r"(?i)\b\d[\d,.]*\s*[km]?\+?\s*(?:github\s+)?"
+    r"(?:stars?|stargazers?|forks?|upvotes?|votes?|points?|comments?|downloads?)\b"
+)
+BLIND_REPLACEMENT = "[count withheld]"
+INPUT_SPEC = (
+    f"## Input blinding ({BLIND_VERSION})\n"
+    "Outcome-proximal numbers are withheld from the evidence you see: HN points, Product Hunt "
+    "votes and comments, star and fork counts, and any outcome, percentile, rank, role, pair or "
+    "view. Removed fields: " + ", ".join(BLIND_KEYS) + ". Counts written in text appear as "
+    f"{BLIND_REPLACEMENT}. Event kinds and times are kept. Never infer or ask for these numbers.\n"
+)
+
+
+CODEBOOK_CONTEXT = (
+    f"""# pigtail coding frame {FRAME_VERSION} (codebook {CODEBOOK_VERSION})
 
 You code one open-source project ("the case") from the evidence items given in the input. Each
 item has an evidence id and a text. Everything you state must rest on those items.
@@ -177,7 +230,11 @@ item offered, with reliability, first_party and event_type_supported for that it
 ## Pattern presence tests (codebook §7.4, seed hypotheses 0.4.0)
 present needs the test's elements supported by evidence; absent needs positive evidence that the
 element was missing in an observable channel; otherwise unknown.
-""" + "\n".join(f"- {p}: {_PATTERN_TESTS[p]}" for p in CODED_PATTERNS)
+"""
+    + "\n".join(f"- {p}: {_PATTERN_TESTS[p]}" for p in CODED_PATTERNS)
+    + "\n\n"
+    + INPUT_SPEC
+)
 
 SYSTEM_A = (
     "You are a careful research coder applying a published codebook to evidence about one "
@@ -217,6 +274,20 @@ CODER_A = PromptSpec(PROMPT_A, PROMPT_VERSION, SYSTEM_A, TEMPLATE_A, CODEBOOK_CO
 CODER_B = PromptSpec(PROMPT_B, PROMPT_VERSION, SYSTEM_B, TEMPLATE_B, CODEBOOK_CONTEXT)
 ADJUDICATOR = PromptSpec(PROMPT_ADJ, PROMPT_VERSION, SYSTEM_ADJ, TEMPLATE_ADJ, CODEBOOK_CONTEXT)
 PROMPTS = {"A": CODER_A, "B": CODER_B, "adjudicator": ADJUDICATOR}
+
+
+def blind_obj(obj: object) -> object:
+    """`obj` without any `BLIND_KEYS` key, at any depth."""
+    if isinstance(obj, dict):
+        return {k: blind_obj(v) for k, v in obj.items() if k not in BLIND_KEYS}
+    if isinstance(obj, list):
+        return [blind_obj(v) for v in obj]
+    return obj
+
+
+def blind_text(text: str) -> str:
+    """Counts of stars, forks, votes, points, comments and downloads in free text withheld."""
+    return re.sub(BLIND_TEXT_PATTERN, BLIND_REPLACEMENT, text)
 
 
 def fingerprints() -> dict[str, str]:

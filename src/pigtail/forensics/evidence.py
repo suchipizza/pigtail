@@ -47,7 +47,7 @@ from pigtail.capture.db import CaptureDB
 from pigtail.capture.models import Evidence, evidence_id
 from pigtail.capture.snapshots import SnapshotMeta, SnapshotStore, sha256_hex
 from pigtail.forensics import store as fstore
-from pigtail.forensics.prompts import RenderedItem
+from pigtail.forensics.prompts import RenderedItem, blind_obj, blind_text
 from pigtail.forensics.store import EvidenceRow, PilotCase
 from pigtail.llm.trim import TrimPolicy, trim_text
 from pigtail.pseudonymize import scrub_identifiers
@@ -557,8 +557,13 @@ def _trim(text: str, chars: int) -> str:
 
 
 def render_text(kind: str, data: bytes) -> str:
-    """The text of one stored item as the coders see it (before owner-stripping and redaction).
-    Deterministic, so a resumed run rebuilds the same input."""
+    """The text of one stored item as the coders see it (before owner-stripping and redaction):
+    blind to outcome-proximal numbers (`prompts.BLIND_KEYS` dropped from structured items,
+    counts in text withheld; ADR-086). Deterministic, so a resumed run rebuilds the same input."""
+    return blind_text(_render(kind, data))
+
+
+def _render(kind: str, data: bytes) -> str:
     from pigtail.connectors.github import parse_readme_json, parse_repo_node
     from pigtail.connectors.project_page import visible_text
 
@@ -598,7 +603,7 @@ def render_text(kind: str, data: bytes) -> str:
             )
         return "\n".join(parts)
     if kind == "launch_events":
-        return json.dumps(doc, sort_keys=True, ensure_ascii=False, indent=1)
+        return json.dumps(blind_obj(doc), sort_keys=True, ensure_ascii=False, indent=1)
     raise ValueError(f"unknown evidence kind {kind!r}")
 
 

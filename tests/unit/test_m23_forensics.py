@@ -186,10 +186,10 @@ def test_flatten_units_novelty_and_missing_items() -> None:
 
 
 # --- prompts --------------------------------------------------------------------------------
-PINNED = {
-    "A": "case-coder-a@1#961bbdbb9d92",
-    "B": "case-coder-b@1#365289b3c034",
-    "adjudicator": "case-adjudicator@1#d31ae746ab20",
+PINNED = {  # blind-v1 input spec included (ADR-086)
+    "A": "case-coder-a@2#0cf64ab34bd1",
+    "B": "case-coder-b@2#040214afa1fc",
+    "adjudicator": "case-adjudicator@2#dad83b59a2ab",
 }
 
 
@@ -511,3 +511,29 @@ def test_launch_events_doc_keeps_whitelisted_fields_only() -> None:
                             "User"}}}}  # fmt: skip
     text = render_text("repo_metadata", json.dumps(meta).encode())
     assert "987654" not in text and "4321" not in text and "Description: d" in text
+
+
+def test_blinding_spec_is_in_the_fingerprinted_context() -> None:
+    from pigtail.forensics.prompts import BLIND_KEYS, BLIND_VERSION, blind_obj, blind_text
+
+    for p in (CODER_A, CODER_B, ADJUDICATOR):
+        assert BLIND_VERSION in p.context
+        assert all(k in p.context for k in ("points", "votesCount", "commentsCount", "stars"))
+    assert {"points", "votesCount", "commentsCount", "stargazerCount", "forkCount", "percentile",
+            "values", "rank", "role", "pair", "view"} <= set(BLIND_KEYS)  # fmt: skip
+    doc = {
+        "signals": [
+            {
+                "source": "show_hn",
+                "points": 9,
+                "time": "t",
+                "posts": [{"votesCount": 1, "commentsCount": 2, "createdAt": "c"}],
+            }
+        ],
+        "rank": 1,
+        "role": "winner",
+    }
+    assert blind_obj(doc) == {"signals": [{"source": "show_hn", "time": "t",
+                                           "posts": [{"createdAt": "c"}]}]}  # fmt: skip
+    t = blind_text("12.5k stars, 1,024 forks, 300 upvotes, 88 points, v2.0 with 3 commands")
+    assert t.count("[count withheld]") == 4 and "v2.0 with 3 commands" in t
