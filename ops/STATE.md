@@ -10,7 +10,7 @@ resumed: 2026-09-26 after CR-001/CR-002 (ADR-047/048); work locally, no server
 | M0, M2, M3, M11, M12 | accepted | — |
 | M20 Documents per Owner Directive 001 | **accepted** (2026-09-26) | — |
 | M21 Cleanup and privacy | **accepted** (2026-09-26) | — |
-| M22 Discovery, relevance, shortlist review, selection (outcome sort, matched losers, balance, sensitivity), `pigtail run --brief` | **accepted 2026-09-28** (verifier round 9, @811eec3; history in RUNLOG and ADR-076–085; selection-v12 / anchor-v11) | brief 1: amendment 2 under selection-v12, then its one-time outcome sort (PH step must start before 2026-10-11 20:59 UTC to reuse the cached listing); doc minors in BACKLOG M22-D |
+| M22 Discovery, relevance, shortlist review, selection (outcome sort, matched losers, balance, sensitivity), `pigtail run --brief` | **accepted 2026-09-28** (verifier round 9, @811eec3; history in RUNLOG and ADR-076–085; selection-v12 / anchor-v11) | brief 1: outcome sort done 2026-09-28 (amendment 2 recorded; 20/20 in views A, B and B-undeclared); next: the coding step (extraction, adjudication) needs the owner's H6 approval; doc minors in BACKLOG M22-D |
 | M23 Owner brief #1 pilot (5 cases, cost projection, evidence decay) | not started | M22; CB-12 (H5) and CB-06b for person-level sources |
 | M23b Outcome connectors (npm, crates.io, returning contributors; PyPI/deps.dev optional) | not started (ADR-080) | M23; before the owner's second report |
 | M24 Owner brief #1 full run and report | not started | M23, cost within cap |
