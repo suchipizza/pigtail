@@ -110,8 +110,22 @@ def pilot_markdown(r: dict[str, Any]) -> str:
         "## Provenance",
         *[f"- {k}: {v}" for k, v in p.items()],
         "",
-        "## Cases",
     ]
+    outcome = r.get("outcome") or {}
+    if outcome.get("status") == "failed":
+        lines += [
+            "## Outcome: FAILED — coding failed for every case",
+            "",
+            "No cost model, projection or alpha was computed (nothing was measured). Errors:",
+            *[
+                f"- {e['error']} ({e['requests']} request(s))"
+                for e in (outcome.get("stop") or {}).get("errors", [])
+            ],
+            "",
+            "Fix the cause and run the same command again: the failed coding is redone.",
+            "",
+        ]
+    lines += ["## Cases"]
     for c in r["cases"]:
         lines += [
             "",
@@ -121,6 +135,10 @@ def pilot_markdown(r: dict[str, Any]) -> str:
             f"{c['anchor'].get('source')})",
             f"Evidence items: {len(c['evidence'])}; gaps: "
             + ", ".join(f"{g['source']} ({g['reason']})" for g in c["gaps"]),
+            *[
+                f"Coding failed, pass {ps}: {e.get('type')}: {e.get('message') or '-'}"
+                for ps, e in sorted((c.get("coding_errors") or {}).items())
+            ],
             "",
             "| unit | final | A | B | status | citation |",
             "|---|---|---|---|---|---|",
@@ -175,7 +193,9 @@ def pilot_markdown(r: dict[str, Any]) -> str:
             "owner's approval.**"
         )
         if pr.get("h6")
-        else "Within the brief's cap.",
+        else (
+            f"No projection: {pr['skipped']}." if pr.get("skipped") else "Within the brief's cap."
+        ),
         "",
         "## Evidence decay",
         f"Checks scheduled at +1, +7 and +30 days: {r['decay']['scheduled']} "
@@ -204,9 +224,13 @@ def ops_lines(summary: dict[str, Any], *, label: str, month: str) -> dict[str, s
         f"(per case avg USD {u(c.get('per_case_usd'))}: coder A {u(per.get('coder_a'))}, "
         f"coder B {u(per.get('coder_b'))}, adjudication {u(per.get('adjudication'))}; "
         f"{c.get('mode', 'batch')}; GitHub requests avg {c.get('github_per_case', '?')}/case) | "
-        f"projection {pr.get('full_brief_cases', '?')} cases: USD "
-        f"{u(pr.get('projected_total_usd'))} of cap USD {u(pr.get('cap_usd'))}"
-        f"{' — H6' if pr.get('h6') else ''} |"
+        + (
+            "no projection (no measured cost) |"
+            if pr.get("skipped")
+            else f"projection {pr.get('full_brief_cases', '?')} cases: USD "
+            f"{u(pr.get('projected_total_usd'))} of cap USD {u(pr.get('cap_usd'))}"
+            f"{' — H6' if pr.get('h6') else ''} |"
+        )
     )
     status = (
         f"- Pilot ({label}): {n} cases double-coded and adjudicated; per-field alpha on "

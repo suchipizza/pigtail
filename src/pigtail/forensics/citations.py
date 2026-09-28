@@ -14,7 +14,10 @@ A coded value other than `unknown` (or `not_applicable`) is kept only when:
    (Directive §8.1).
 
 Otherwise the value is dropped and becomes `unknown` with reason `citation_failed` (§11.1). An
-`unknown` keeps its reason (default `insufficient_evidence`) and no citations.
+`unknown` keeps its reason (default `insufficient_evidence`) and no citations. A value outside
+its field's enum was already turned into `unknown` with reason `schema_invalid` when the output
+was flattened (`frame.flatten`, ADR-086 addendum 1); it gets status `schema_invalid` and is
+counted apart, like citation failures.
 """
 
 from __future__ import annotations
@@ -24,7 +27,7 @@ import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
-from pigtail.forensics.frame import MAX_QUOTE_CHARS, CodedUnit
+from pigtail.forensics.frame import MAX_QUOTE_CHARS, SCHEMA_INVALID, CodedUnit
 
 _WS = re.compile(r"\s+")
 PERSON_TOKEN = re.compile(
@@ -40,7 +43,7 @@ def normalize(text: str) -> str:
 @dataclass(frozen=True)
 class Checked:
     unit: CodedUnit
-    status: str  # ok | unknown | citation_failed | excluded
+    status: str  # ok | unknown | citation_failed | schema_invalid | excluded
     problems: tuple[str, ...] = ()
     excerpts_dropped: int = 0
 
@@ -50,7 +53,9 @@ class CitationStats:
     checked: int = 0
     ok: int = 0
     failed: int = 0
+    schema_invalid: int = 0
     excerpts_dropped: int = 0
+    units_ignored: int = 0  # unit keys the coder returned that were not offered, or repeated
     reasons: dict[str, int] = field(default_factory=dict)
 
     def add(self, c: Checked) -> None:
@@ -62,6 +67,10 @@ class CitationStats:
             self.failed += 1
             for p in c.problems:
                 self.reasons[p] = self.reasons.get(p, 0) + 1
+        elif c.status == SCHEMA_INVALID:
+            self.schema_invalid += 1
+            for p in c.problems:
+                self.reasons[p] = self.reasons.get(p, 0) + 1
         elif c.status == "ok":
             self.ok += 1
 
@@ -70,7 +79,9 @@ class CitationStats:
             "checked": self.checked,
             "ok": self.ok,
             "citation_failed": self.failed,
+            "schema_invalid": self.schema_invalid,
             "excerpts_dropped": self.excerpts_dropped,
+            "units_ignored": self.units_ignored,
             "reasons": dict(sorted(self.reasons.items())),
         }
 
@@ -79,6 +90,9 @@ def check(unit: CodedUnit, texts: Mapping[str, str]) -> Checked:
     """Validate one unit against the item texts (`evidence_id -> text`) its pass saw."""
     if unit.excluded is not None:
         return Checked(unit, "excluded")
+    if unit.unknown_reason == SCHEMA_INVALID:
+        clean = replace(unit, value="unknown", evidence_ids=(), excerpts=())
+        return Checked(clean, SCHEMA_INVALID, unit.problems or ("value_not_allowed",))
     if unit.value in SPECIAL:
         reason = unit.unknown_reason or "insufficient_evidence"
         return Checked(

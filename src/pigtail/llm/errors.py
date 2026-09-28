@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 
 
@@ -39,3 +40,24 @@ class BatchPending(LLMError):
     def __init__(self, batch_ids: list[str]) -> None:
         super().__init__(f"{len(batch_ids)} batch(es) still running: {', '.join(batch_ids)}")
         self.batch_ids = list(batch_ids)
+
+
+MAX_ERROR_MESSAGE_CHARS = 300
+_SECRETISH = re.compile(
+    r"(sk-ant-[A-Za-z0-9_\-]+|Bearer\s+\S+|(?:api[_-]?key|token|authorization)\s*[:=]\s*(?:bearer\s+)?\S+)",
+    re.IGNORECASE,
+)
+
+
+def safe_error_message(message: object, limit: int = MAX_ERROR_MESSAGE_CHARS) -> str | None:
+    """An API error message fit to store with a run and show in a private report: identifiers
+    redacted (CB-18 `scrub`), anything shaped like a key or token masked, cut to `limit`
+    characters. API error messages describe the request's shape, not its content; this is the
+    belt to that brace. None for an empty message."""
+    if message is None:
+        return None
+    from pigtail.logsafe import scrub
+
+    text = _SECRETISH.sub("[secret]", " ".join(str(message).split()))
+    text = scrub(text, limit=limit)
+    return text or None

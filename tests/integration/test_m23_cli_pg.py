@@ -104,6 +104,6 @@ def test_m23_cli_pilot_estimate_dry_run_approval_run_and_summary(cli_env, capsys
     # the next estimate prices the coding stages with the measured per-case model
     assert main(["brief", "estimate", BID, "--json"]) == 3  # paid steps, not approved
     est = json.loads(capsys.readouterr().out)
-    assert est["model"] == "estimate-v10"
+    assert est["model"] == "estimate-v11"
     assert est["coding_cost_model"]["source"] == "measured"
     assert est["coding_cost_model"]["n_cases"] == 5

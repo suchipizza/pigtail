@@ -12,7 +12,9 @@
 
 Exit codes as `pigtail run`: 0 ok; 1 failed or nothing to pilot; 2 usage; 3 paid steps not
 approved; 4 a cap (H6), the GitHub budget, or a projection above the brief's cap (H6); 5 a
-Message Batch still running (run again to collect it); 6 another pilot of the brief is running.
+Message Batch still running (run again to collect it); 6 another pilot of the brief is running;
+7 the coding failed for every case (the API errors are in the run and the private report; no
+cost model or projection is written; run again to redo the failed coding, ADR-086 addendum 1).
 Reports go to PIGTAIL_DATA_DIR/reports/<brief>/v<version>/ (private, never in git; ADR-073.1).
 """
 

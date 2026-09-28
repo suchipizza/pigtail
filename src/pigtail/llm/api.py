@@ -29,7 +29,7 @@ from typing import Any
 
 import anthropic
 
-from pigtail.llm.errors import BackendError, UsageLimitReached
+from pigtail.llm.errors import BackendError, UsageLimitReached, safe_error_message
 from pigtail.llm.pricing import PRICES, TokenUsage, cost_usd, estimate_cost
 from pigtail.llm.types import BackendResponse
 
@@ -122,6 +122,7 @@ class BatchItemResult:
     response: BackendResponse | None = None
     error: str | None = None  # error type only, never content
     retryable: bool = False
+    message: str | None = None  # the API's error message, scrubbed and cut (safe_error_message)
 
 
 def _rate_limited(e: anthropic.RateLimitError) -> UsageLimitReached:
@@ -233,7 +234,13 @@ class ApiBackend:
                 try:
                     resp = parse_message(res.message, batch_id=batch_id)
                 except BackendError as e:
-                    yield BatchItemResult(r.custom_id, "errored", error=str(e), retryable=True)
+                    yield BatchItemResult(
+                        r.custom_id,
+                        "errored",
+                        error="output_error",
+                        retryable=True,
+                        message=safe_error_message(e),
+                    )
                     continue
                 yield BatchItemResult(r.custom_id, "succeeded", response=resp)
             elif kind == "errored":
@@ -244,6 +251,7 @@ class ApiBackend:
                     "errored",
                     error=etype_s,
                     retryable=etype_s != "invalid_request_error",
+                    message=safe_error_message(getattr(etype, "message", None)),
                 )
             else:  # canceled | expired: safe to resubmit
                 yield BatchItemResult(r.custom_id, kind, retryable=True)

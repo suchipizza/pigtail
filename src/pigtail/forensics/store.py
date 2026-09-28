@@ -429,12 +429,53 @@ def codings(
     cur = conn.execute(
         "SELECT case_key, coding_id, pass, unit, field, value, unknown_reason, evidence_ids,"
         " excerpts, confidence, status, excluded, reason, model, prompt_id, prompt_fingerprint,"
-        " batch_id FROM brief_coding WHERE brief_run_id = %s AND (%s::text IS NULL OR pass = %s)"
-        " ORDER BY case_key, pass, unit",
+        " batch_id, detail FROM brief_coding WHERE brief_run_id = %s"
+        " AND (%s::text IS NULL OR pass = %s) ORDER BY case_key, pass, unit",
         (brief_run_id, pass_, pass_),
     )
     cols = [d.name for d in cur.description or []]
     return [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
+
+
+def failed_coding_cases(conn: psycopg.Connection[Any], brief_run_id: str) -> set[str]:
+    """Cases whose coding request failed in pass A or B (rows excluded as `coding_failed`)."""
+    rows = conn.execute(
+        "SELECT DISTINCT case_key FROM brief_coding WHERE brief_run_id = %s"
+        " AND pass IN ('A', 'B') AND excluded = 'coding_failed'",
+        (brief_run_id,),
+    ).fetchall()
+    return {str(r[0]) for r in rows}
+
+
+def delete_codings(
+    conn: psycopg.Connection[Any], brief_run_id: str, case_keys: Iterable[str] | None = None
+) -> int:
+    """Delete the coded rows (every pass) of `case_keys` (all cases: None) and the run's alpha,
+    so the coding of those cases can be redone (ADR-086 addendum 1). Returns the rows deleted."""
+    with conn.transaction():
+        if case_keys is None:
+            cur = conn.execute("DELETE FROM brief_coding WHERE brief_run_id = %s", (brief_run_id,))
+        else:
+            cur = conn.execute(
+                "DELETE FROM brief_coding WHERE brief_run_id = %s AND case_key = ANY(%s)",
+                (brief_run_id, sorted(case_keys)),
+            )
+        conn.execute("DELETE FROM brief_reliability WHERE brief_run_id = %s", (brief_run_id,))
+    return int(cur.rowcount or 0)
+
+
+def set_prompt_fingerprints(
+    conn: psycopg.Connection[Any], brief_run_id: str, fingerprints: dict[str, str]
+) -> None:
+    """Record the prompts a redone coding runs under (on the pilot and its brief run)."""
+    conn.execute(
+        "UPDATE brief_pilot SET prompt_fingerprints = %s WHERE brief_run_id = %s",
+        (Jsonb(fingerprints), brief_run_id),
+    )
+    conn.execute(
+        "UPDATE brief_runs SET prompt_versions = %s WHERE id = %s",
+        (Jsonb(fingerprints), brief_run_id),
+    )
 
 
 def coded_cases(conn: psycopg.Connection[Any], brief_run_id: str, pass_: str) -> set[str]:
@@ -537,12 +578,19 @@ def save_cost_model(
 def latest_cost_model(
     conn: psycopg.Connection[Any], brief_id: str | None = None
 ) -> dict[str, Any] | None:
-    """The latest measured per-case cost (of `brief_id`, else of any brief on this instance)."""
+    """The latest measured per-case cost (of `brief_id`, else of any brief on this instance) of
+    the current cost-model version with a measured cost above zero (ADR-086 addendum 1: a model
+    stored from zero measured cost, as the first live pilot's all-failed coding stored, is never
+    used)."""
+    from pigtail.forensics.cost import COST_MODEL_VERSION
+
     cur = conn.execute(
         "SELECT brief_id, brief_version, brief_run_id, model_version, n_cases, per_case,"
         " projection, h6, prices_as_of, created_at FROM brief_case_cost_model"
-        " WHERE (%s::text IS NULL OR brief_id = %s) ORDER BY created_at DESC, id DESC LIMIT 1",
-        (brief_id, brief_id),
+        " WHERE (%s::text IS NULL OR brief_id = %s) AND model_version = %s"
+        " AND COALESCE((per_case -> 'measured_usd_per_case' ->> 'total')::numeric, 0) > 0"
+        " ORDER BY created_at DESC, id DESC LIMIT 1",
+        (brief_id, brief_id, COST_MODEL_VERSION),
     )
     row = cur.fetchone()
     if row is None:

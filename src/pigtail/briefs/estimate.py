@@ -95,7 +95,9 @@ from pigtail.llm.stages import stage_for, time_sensitive
 # v10 (M23, ADR-086): the coding stages (double coding and adjudication) are priced per case by
 # the case cost model (`pigtail.forensics.cost`): planning tokens per call until a pilot has run,
 # then the pilot's measured tokens per call, adjudication share and GitHub requests per case.
-ESTIMATE_MODEL = "estimate-v10"
+# v11 (ADR-086 addendum 1): the flat coder output's planning numbers (`case-cost-v2`); a stored
+# measured model of another cost-model version, or from zero measured cost, is never used.
+ESTIMATE_MODEL = "estimate-v11"
 
 # --- planning assumptions (placeholders until the pilot measures them, M23) ---------------
 SEARCH_PAGES_PER_QUERY = 2  # 100 results per page

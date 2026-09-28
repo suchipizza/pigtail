@@ -51,7 +51,7 @@ JOB_ADJUDICATION = "adjudication"  # extraction stage
 PROMPT_A = "case-coder-a"
 PROMPT_B = "case-coder-b"
 PROMPT_ADJ = "case-adjudicator"
-PROMPT_VERSION = "2"  # 2: input blinding (blind-v1, ADR-086)
+PROMPT_VERSION = "3"  # 2: input blinding (blind-v1); 3: flat unit output (ADR-086 add. 1)
 ADJ_ORDER_SEED = "pigtail-adjudication-order-v1"
 
 # Kinds of evidence items (the case-evidence stage, pigtail.forensics.evidence).
@@ -152,12 +152,18 @@ CODEBOOK_CONTEXT = (
 You code one open-source project ("the case") from the evidence items given in the input. Each
 item has an evidence id and a text. Everything you state must rest on those items.
 
-## Output fields and their values
+## Output: one entry in `units` per unit
+A unit is a case field or an item field of one evidence item. Case fields: category_primary;
+module_active.<module> for {", ".join(MODULES)}; novelty_claim;
+novelty_kind.<kind> (yes or no per kind; only when novelty_claim is present, else leave them out);
+pattern.<MC-xx> for {", ".join(CODED_PATTERNS)}. Item fields, one set per evidence item offered,
+written <field>@<evidence_id>: reliability@<evidence_id>, first_party@<evidence_id>,
+event_type_supported@<evidence_id>. Each entry has `unit` (exactly as named here), `value` (one
+of the field's values below, as text), `unknown_reason`, `evidence_ids`, `excerpts` (each with
+`evidence_id` and `quote`) and `confidence`. A value outside the field's list is discarded.
+
+## Fields and their values
 {_field_lines()}
-Case fields: category_primary; modules.<module> for {", ".join(MODULES)}; novelty_claim;
-novelty_kind (a list of kinds, only when novelty_claim is present, else an empty list);
-patterns.<mc_xx> for {", ".join(CODED_PATTERNS)}. Item fields: one entry in `items` per evidence
-item offered, with reliability, first_party and event_type_supported for that item.
 
 ## Rules for every value (codebook §11)
 1. Snapshot or drop. A value other than `unknown` must cite at least one evidence id from the
@@ -245,7 +251,8 @@ SYSTEM_A = (
 )
 TEMPLATE_A = (
     "Code the case below with the frame. Go field by field.\n\n{input}\n\n"
-    "Return every field. `items` has one entry per evidence item listed above."
+    "Return one `units` entry for every case field and for every item field of every evidence "
+    "item listed above."
 )
 
 SYSTEM_B = (
@@ -258,7 +265,8 @@ SYSTEM_B = (
 TEMPLATE_B = (
     "Evidence items for one project follow (newest first). Read them all, then code the "
     "project with the frame.\n\n{input}\n\n"
-    "Fill every output field; add one `items` entry for each evidence item above."
+    "Return one `units` entry for every case field, and the item fields of each evidence item "
+    "above."
 )
 
 SYSTEM_ADJ = (
@@ -322,8 +330,10 @@ def case_input(coding_id: str, anchor: str, items: Sequence[RenderedItem]) -> st
     outcome or success definition (codebook §11.6)."""
     head = (
         f"Case {coding_id}. Reference date T: {anchor}.\n"
-        f"Evidence items offered: {len(items)}. Sources not collected for this case are listed "
-        "as gaps in the last item when relevant.\n"
+        f"Evidence items offered: {len(items)}"
+        + (f" ({', '.join(i.evidence_id for i in items)})" if items else "")
+        + ". Sources not collected for this case are listed as gaps in the last item when "
+        "relevant.\n"
     )
     return head + "\n\n".join(i.block() for i in items)
 

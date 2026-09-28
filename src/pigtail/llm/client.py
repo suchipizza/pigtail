@@ -87,6 +87,8 @@ class BatchRun:
 
     results: dict[str, LLMResult[Any]] = field(default_factory=dict)
     failed: dict[str, str] = field(default_factory=dict)
+    # item ref -> {"type", "message"} of a failed item (the message scrubbed and cut)
+    errors: dict[str, dict[str, str | None]] = field(default_factory=dict)
     batch_ids: list[str] = field(default_factory=list)
     mode: str = "batch"  # batch | standard
     standard_fallbacks: int = 0
@@ -533,7 +535,8 @@ class LLMClient:
             redo = [
                 k
                 for k in by_key
-                if self.store.cache_get(k) is None and failed_types.get(k, ("missing", True))[1]
+                if self.store.cache_get(k) is None
+                and failed_types.get(k, ("missing", True, None))[1]
             ]
             if redo:
                 est = 2 * est_usd_per_item * len(redo) if est_usd_per_item is not None else None
@@ -557,7 +560,7 @@ class LLMClient:
                         trim_version=p.trim_version,
                     )
                     continue
-                err, retryable = failed_types.get(k, ("missing", True))
+                err, retryable, msg = failed_types.get(k, ("missing", True, None))
                 if fallback_standard and retryable:
                     run.standard_fallbacks += 1
                     run.results[p.item.ref] = self._complete_safe(
@@ -575,6 +578,7 @@ class LLMClient:
                     hit = self.store.cache_get(k)
                 else:
                     run.failed[p.item.ref] = err
+                    run.errors[p.item.ref] = {"type": err, "message": msg}
         return run
 
     def _is_open(self, batch_id: str) -> bool:
@@ -587,14 +591,15 @@ class LLMClient:
                 return bid
         return None
 
-    def _failures(self, batch_ids: list[str]) -> dict[str, tuple[str, bool]]:
-        out: dict[str, tuple[str, bool]] = {}
+    def _failures(self, batch_ids: list[str]) -> dict[str, tuple[str, bool, str | None]]:
+        """cache key -> (error type or status, retryable, scrubbed error message)."""
+        out: dict[str, tuple[str, bool, str | None]] = {}
         for bid in batch_ids:
             for r in self.batch_store.requests(bid):
                 if r.status in ("errored", "canceled", "expired", "invalid_output"):
                     bad_request = r.error_type == "invalid_request_error"
                     retryable = not (r.status == "errored" and bad_request)
-                    out[r.cache_key] = (r.error_type or r.status, retryable)
+                    out[r.cache_key] = (r.error_type or r.status, retryable, r.error_message)
         return out
 
     def _collect[T: BaseModel](
@@ -620,7 +625,9 @@ class LLMClient:
             if r is None or r.status != "pending":
                 continue  # unknown or already collected
             if res.kind != "succeeded" or res.response is None:
-                self.batch_store.mark_request(batch_id, r.custom_id, res.kind, res.error)
+                self.batch_store.mark_request(
+                    batch_id, r.custom_id, res.kind, res.error, getattr(res, "message", None)
+                )
                 if res.kind == "errored":
                     self._record(
                         backend=backend.name,

@@ -10,7 +10,12 @@ plus its GitHub requests (budget, not money). `PLANNING` holds the assumed token
 any pilot has run; `measured(...)` builds the model from the pilot's cost ledger (average tokens
 per call, prompt-cache reads and writes included, as billed) and stores it
 (`brief_case_cost_model`), and `pigtail.briefs.estimate` uses the latest measured model for every
-later estimate of the coding stages (item 9 of M23).
+later estimate of the coding stages (item 9 of M23). Calls that failed (ledger status
+`error`: no tokens, no money) are not calls of the model: they are left out of the averages,
+and a pilot whose coder calls measured no cost stores no model and no projection (ADR-086
+addendum 1: the first live pilot's calls all failed, and a projection from zero cost is
+meaningless). `case-cost-v2` (addendum 1): the planning numbers of the flat coder output
+(schema 2.0.0); stored `case-cost-v1` models are not used any more.
 
 **Projection** (R15.11): `brief spent so far + per-case cost x (full-brief cases - pilot cases
 already coded) + synthesis (planning)`, against the brief's `budget.money_usd`; above it the
@@ -29,7 +34,7 @@ from typing import Any, Literal
 
 from pigtail.llm.pricing import PRICES_AS_OF, TokenUsage, cost_usd
 
-COST_MODEL_VERSION = "case-cost-v1"
+COST_MODEL_VERSION = "case-cost-v2"
 SELECTED_ROLES = ("winner", "matched_loser", "exemplar", "exemplar_matched_loser")
 BATCH_CACHE_HIT_SHARE = 0.5  # as the estimate assumes for batches (estimate.CACHE_HIT_SHARE)
 
@@ -64,13 +69,14 @@ class CallTokens:
 
 
 # Planning assumptions (before the first pilot; replaced by the measured model): the frame and
-# the system prompt ~2,800 tokens (the cached prefix; `CODEBOOK_CONTEXT` is ~10,400 chars), a
+# the system prompt ~3,000 tokens (the cached prefix; `CODEBOOK_CONTEXT` is ~11,300 chars), a
 # case's trimmed evidence <= 30,000 characters (~7,500 tokens) plus headers and instructions,
-# ~4,000 output tokens for ~50 coded values with citations; the adjudicator sees the evidence
-# plus the disagreeing units (~12 units, ~3,000 tokens) and writes ~1,500; 90 % of cases have at
-# least one disagreement among their ~50 units.
-PLAN_CODER = (11_000, 2_800, 4_000)  # (input incl. prefix, prefix, output)
-PLAN_ADJ = (13_500, 2_800, 1_500)
+# ~4,500 output tokens for ~45 flat units with citations (each unit repeats its key: ~500 more
+# than the nested 1.0.0 form); the adjudicator sees the evidence plus the disagreeing units
+# (~12 units, ~3,000 tokens) and writes ~1,500; 90 % of cases have at least one disagreement.
+# One call per coder pass and case (the flat schema fits one call; ADR-086 addendum 1).
+PLAN_CODER = (11_200, 3_000, 4_500)  # (input incl. prefix, prefix, output)
+PLAN_ADJ = (13_700, 3_000, 1_500)
 PLAN_ADJ_SHARE = 0.9
 PLAN_GITHUB = {"core": 6.0, "graphql": 1.0, "other": 2.0}
 
@@ -183,11 +189,13 @@ STAGE_OF_PROMPT = {
 
 def ledger_by_case(conn: Any, brief_run_id: str) -> dict[str, dict[str, StageTotals]]:
     """Actual cost per case (coding id) and stage from `llm_cost_ledger` (every model call of the
-    pilot run; cached results cost nothing and have no row)."""
+    pilot run; cached results cost nothing and have no row; failed requests (`error`) made no
+    model call and are left out)."""
     rows = conn.execute(
         "SELECT COALESCE(case_ref, '-'), prompt_id, count(*), count(batch_id), sum(input_tokens),"
         " sum(output_tokens), sum(cache_write_tokens), sum(cache_read_tokens), sum(cost_usd)"
-        " FROM llm_cost_ledger WHERE brief_run_id = %s GROUP BY 1, 2 ORDER BY 1, 2",
+        " FROM llm_cost_ledger WHERE brief_run_id = %s AND status <> 'error'"
+        " GROUP BY 1, 2 ORDER BY 1, 2",
         (brief_run_id,),
     ).fetchall()
     out: dict[str, dict[str, StageTotals]] = {}
@@ -208,12 +216,26 @@ def ledger_by_case(conn: Any, brief_run_id: str) -> dict[str, dict[str, StageTot
     return out
 
 
+def measurable(by_case: Mapping[str, Mapping[str, StageTotals]]) -> bool:
+    """Whether the ledger measured a coder call that cost something (addendum 1: never a model
+    or a projection from zero measured cost)."""
+    return any(
+        t.calls > 0 and t.usd > 0
+        for stages in by_case.values()
+        for name, t in stages.items()
+        if name in ("coder_a", "coder_b")
+    )
+
+
 def measured(
     by_case: Mapping[str, Mapping[str, StageTotals]],
     github_by_case: Mapping[str, Mapping[str, int]],
     n_cases: int,
 ) -> CaseCostModel:
-    """The per-case model measured by a pilot of `n_cases` cases."""
+    """The per-case model measured by a pilot of `n_cases` coded cases (cases whose coding
+    failed in both passes are not counted: they cost nothing). Only for a `measurable` ledger."""
+    if not measurable(by_case):
+        raise ValueError("no coder call with a measured cost: no cost model from zero cost")
     coder, adj = StageTotals(), StageTotals()
     usd = {"coder_a": 0.0, "coder_b": 0.0, "adjudication": 0.0}
     adjudicated = 0

@@ -22,23 +22,26 @@ flag (§7.4: pipeline-set presence, excluded from alpha). `novelty_kind.*` of a 
 
 The value enums below mirror `schemas/codebook/v0.4.0.json` (a test checks them against it, as
 `pigtail.analysis.params` mirrors the analysis parameters), so the app image doesn't need the
-`schemas/` directory. The coder output's JSON Schema is `schemas/coding/v1.0.0.json`
-(`output_schema()`; a test keeps the file in sync).
+`schemas/` directory. The coder output's JSON Schema is `schemas/coding/v2.0.0.json`
+(`output_schema()`; a test keeps the file in sync): a flat list of units (`unit`, `value`,
+`unknown_reason`, `evidence_ids`, `excerpts`, `confidence`), each value checked against its
+field's type in code (`flatten`; ADR-086 addendum 1). 1.0.0 (nested, one object per field) is
+kept for the record: the API refused its compiled grammar as too large.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, get_args
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from pigtail.llm.types import schema_of
 
 FRAME_VERSION = "pilot-frame-v1"
 CODEBOOK_VERSION = "0.4.0"
-OUTPUT_SCHEMA_VERSION = "1.0.0"  # schemas/coding/v1.0.0.json
+OUTPUT_SCHEMA_VERSION = "2.0.0"  # schemas/coding/v2.0.0.json (flat units)
 MAX_QUOTE_CHARS = 300  # codebook §11.2
 
 Category = Literal[
@@ -108,6 +111,12 @@ def pattern_attr(pid: str) -> str:
 
 
 # --- coder output (structured output; every object closed) -------------------------------------
+# Output schema 2.0.0 (ADR-086 addendum 1): one flat list of units. The nested 1.0.0 form (one
+# object type per field, 12 pattern objects, enums per field) compiled to a grammar the API
+# refused as too large (HTTP 400, "The compiled grammar is too large"), so the schema now has
+# the shape of the adjudicator's decisions, which the API accepts: `unit` and `value` are plain
+# strings, and each unit's value is checked against the field's enum in code after parsing
+# (`VALUE_TYPES`); an invalid value becomes `unknown` with reason `schema_invalid`.
 class Excerpt(BaseModel):
     """One short attributed excerpt: a verbatim span (<= 300 chars) of the cited item's text."""
 
@@ -115,79 +124,23 @@ class Excerpt(BaseModel):
     quote: str
 
 
-class _Coded(BaseModel):
+class UnitCoding(BaseModel):
+    """One coded unit: a case field (`category_primary`, `module_active.ai_hype`,
+    `novelty_kind.new_approach`, `pattern.MC-01`, ...) or an item field of one evidence item
+    (`reliability@<evidence id>`)."""
+
+    unit: str
+    value: str
+    unknown_reason: UnknownReason | None
     evidence_ids: list[str]
     excerpts: list[Excerpt]
-    unknown_reason: UnknownReason | None
     confidence: Confidence
 
 
-class CodedCategory(_Coded):
-    value: Category | Literal["unknown"]
-
-
-class CodedYesNo(_Coded):
-    value: YesNo
-
-
-class CodedPresence(_Coded):
-    value: Presence
-
-
-class CodedReliability(_Coded):
-    value: ReliabilityValue
-
-
-class CodedEventType(_Coded):
-    value: EventType
-
-
-class CodedNoveltyKinds(_Coded):
-    """Multi-valued (§5.1): every kind the novelty claim shows; empty unless `present`."""
-
-    value: list[NoveltyKind]
-
-
-class Modules(BaseModel):
-    ai_hype: CodedYesNo
-    b2b_oss_saas: CodedYesNo
-    chinese_ecosystem: CodedYesNo
-    cli_devtools: CodedYesNo
-    corporate_backed: CodedYesNo
-    relaunch_pivot: CodedYesNo
-
-
-class Patterns(BaseModel):
-    mc_01: CodedPresence
-    mc_02: CodedPresence
-    mc_03: CodedPresence
-    mc_04: CodedPresence
-    mc_05: CodedPresence
-    mc_06: CodedPresence
-    mc_07: CodedPresence
-    mc_08: CodedPresence
-    mc_09: CodedPresence
-    mc_10: CodedPresence
-    mc_11: CodedPresence
-    mc_13: CodedPresence
-
-
-class ItemCoding(BaseModel):
-    evidence_id: str
-    reliability: CodedReliability
-    first_party: CodedYesNo
-    event_type_supported: CodedEventType
-
-
 class CaseCoding(BaseModel):
-    """One coder's coding of one case (pass A or B)."""
+    """One coder's coding of one case (pass A or B), flat (output schema 2.0.0)."""
 
-    category_primary: CodedCategory
-    modules: Modules
-    novelty_claim: CodedPresence
-    novelty_kind: CodedNoveltyKinds
-    patterns: Patterns
-    items: list[ItemCoding]
+    units: list[UnitCoding]
 
 
 class Decision(BaseModel):
@@ -207,12 +160,12 @@ class Adjudication(BaseModel):
 
 
 def output_schema() -> dict[str, Any]:
-    """The coder output's JSON Schema (`schemas/coding/v1.0.0.json`)."""
+    """The coder output's JSON Schema (`schemas/coding/v2.0.0.json`)."""
     s = schema_of(CaseCoding)
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "pigtail/coding/v1.0.0",
-        "title": "pigtail case coding (pilot-frame-v1, codebook 0.4.0)",
+        "$id": f"pigtail/coding/v{OUTPUT_SCHEMA_VERSION}",
+        "title": "pigtail case coding (pilot-frame-v1, codebook 0.4.0, flat units)",
         **s,
     }
 
@@ -295,63 +248,108 @@ class CodedUnit:
     evidence_ids: tuple[str, ...]
     excerpts: tuple[tuple[str, str], ...]  # (evidence_id, quote)
     unknown_reason: str | None
-    confidence: str
+    confidence: str | None
     excluded: str | None = None  # not_applicable | derived | None
+    problems: tuple[str, ...] = ()  # schema problems (schema_invalid)
 
 
-def _unit(field: str, c: _Coded, value: str, ev: str | None = None) -> CodedUnit:
+# The value type of each field (pydantic, checked per unit after parsing; mirrors
+# `allowed_values`). A value outside it is `unknown` with reason `schema_invalid`.
+SCHEMA_INVALID = "schema_invalid"  # a pipeline reason (like `coding_failed`), never offered
+_TYPE_OF_GROUP: dict[str, Any] = {
+    "C4": Category | Literal["unknown"],
+    "C5": YesNo,
+    "novelty_claim": Presence,
+    "novelty_kind": YesNo,
+    "C11a": Presence,
+    "C1": ReliabilityValue,
+    "C2": YesNo,
+    "C3": EventType,
+}
+VALUE_TYPES: dict[str, TypeAdapter[Any]] = {
+    f.field: TypeAdapter(_TYPE_OF_GROUP[f.group]) for f in FIELDS
+}
+
+
+def value_ok(field: str, value: str) -> bool:
+    """Whether `value` is one of `field`'s values (`unknown` included)."""
+    try:
+        VALUE_TYPES[field].validate_python(value)
+    except ValidationError:
+        return False
+    return True
+
+
+def expected_units(offered: Sequence[str]) -> list[str]:
+    """Every unit key of a case, in frame order: case fields, then per offered evidence id its
+    item fields."""
+    out = [f.field for f in FIELDS if f.unit == "case"]
+    item_fields = [f.field for f in FIELDS if f.unit == "item"]
+    for ev in offered:
+        out.extend(unit_key(name, ev) for name in item_fields)
+    return out
+
+
+@dataclass(frozen=True)
+class Flattened:
+    units: list[CodedUnit]
+    schema_invalid: int = 0  # units whose value is not in the field's enum
+    ignored: tuple[str, ...] = ()  # unit keys not offered (or repeated): dropped, counted
+
+
+def _unit(field: str, u: UnitCoding, unit: str) -> CodedUnit:
+    if not value_ok(field, u.value):
+        return CodedUnit(
+            unit, field, "unknown", (), (), SCHEMA_INVALID, u.confidence,
+            problems=("value_not_allowed",),
+        )  # fmt: skip
     return CodedUnit(
-        unit=unit_key(field, ev),
+        unit=unit,
         field=field,
-        value=value,
-        evidence_ids=tuple(c.evidence_ids),
-        excerpts=tuple((e.evidence_id, e.quote) for e in c.excerpts),
-        unknown_reason=c.unknown_reason,
-        confidence=c.confidence,
+        value=u.value,
+        evidence_ids=tuple(u.evidence_ids),
+        excerpts=tuple((e.evidence_id, e.quote) for e in u.excerpts),
+        unknown_reason=u.unknown_reason,
+        confidence=u.confidence,
     )
 
 
-def flatten(coding: CaseCoding, offered: tuple[str, ...]) -> Iterator[CodedUnit]:
-    """Every unit of one coding, in frame order. Item fields cover exactly the `offered`
-    evidence ids: an item the coder left out is `unknown` (insufficient_evidence); items not
-    offered are ignored."""
-    yield _unit("category_primary", coding.category_primary, coding.category_primary.value)
-    for m in MODULES:
-        c = getattr(coding.modules, m)
-        yield _unit(f"module_active.{m}", c, c.value)
-    yield _unit("novelty_claim", coding.novelty_claim, coding.novelty_claim.value)
-    present = coding.novelty_claim.value == "present"
-    kinds = set(coding.novelty_kind.value)
-    for k in NOVELTY_KINDS:
-        u = _unit(f"novelty_kind.{k}", coding.novelty_kind, "yes" if k in kinds else "no")
-        if not present:
-            u = CodedUnit(
-                u.unit,
-                u.field,
-                "not_applicable",
-                (),
-                (),
-                None,
-                u.confidence,
-                excluded="not_applicable",
-            )
-        yield u
-    for p in CODED_PATTERNS:
-        c = getattr(coding.patterns, pattern_attr(p))
-        yield _unit(f"pattern.{p}", c, c.value)
-    by_ev: dict[str, ItemCoding] = {}
-    for it in coding.items:
-        by_ev.setdefault(it.evidence_id, it)
-    for ev in offered:
-        item = by_ev.get(ev)
-        for name in ("reliability", "first_party", "event_type_supported"):
-            if item is None:
-                yield CodedUnit(
-                    unit_key(name, ev), name, "unknown", (), (), "insufficient_evidence", "low"
-                )
-                continue
-            c = getattr(item, name)
-            yield _unit(name, c, c.value, ev)
+def flatten(coding: CaseCoding, offered: tuple[str, ...]) -> Flattened:
+    """Every unit of one coding, in frame order, each value checked against its field's type.
+    Item fields cover exactly the `offered` evidence ids. A unit the coder left out is
+    `unknown` (insufficient_evidence); a unit key not expected, or given twice, is ignored
+    (the first one counts) and listed. `novelty_kind.*` is not applicable unless this coder's
+    (valid) `novelty_claim` is `present` (§5.1, §10.2)."""
+    expected = expected_units(offered)
+    wanted = set(expected)
+    got: dict[str, UnitCoding] = {}
+    ignored: list[str] = []
+    for u in coding.units:
+        key = u.unit.strip()
+        if key not in wanted or key in got:
+            ignored.append(key[:80])
+            continue
+        got[key] = u
+    out: list[CodedUnit] = []
+    invalid = 0
+    claim = got.get("novelty_claim")
+    present = claim is not None and claim.value == "present"
+    for key in expected:
+        field = field_of(key)
+        found = got.get(key)
+        if field.startswith("novelty_kind.") and not present:
+            out.append(
+                CodedUnit(key, field, "not_applicable", (), (), None,
+                          found.confidence if found else None, excluded="not_applicable")
+            )  # fmt: skip
+            continue
+        if found is None:
+            out.append(CodedUnit(key, field, "unknown", (), (), "insufficient_evidence", "low"))
+            continue
+        cu = _unit(field, found, key)
+        invalid += 1 if cu.problems else 0
+        out.append(cu)
+    return Flattened(out, invalid, tuple(ignored))
 
 
 def derived_units(star_anomaly_flag: str | None) -> list[CodedUnit]:

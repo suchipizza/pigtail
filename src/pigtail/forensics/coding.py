@@ -9,12 +9,16 @@ R15.8-R15.10; codebook §10-§11; ADR-047.7, ADR-065, ADR-086).
    extraction model (job `double_coding`), both submitted before either is awaited, each gated
    by the brief's `BudgetGuard` with the cost model's per-call estimate. A batch still running
    raises `BatchPending`; the next invocation collects it by its stored id, never resubmitting.
-3. **Validation** (`validate`): every unit through `citations.check`; dropped values become
-   `unknown` (`citation_failed`). A case whose request failed is excluded for that pass.
+3. **Validation** (`validate`): the flat output (schema 2.0.0) is cut into the frame's units
+   and each value checked against its field's type (`frame.flatten`: outside the enum it is
+   `unknown`, `schema_invalid`); then every unit through `citations.check`; dropped values
+   become `unknown` (`citation_failed`). A case whose request failed is excluded for that pass
+   (`coding_failed`, with the API's error type and scrubbed message in the row's detail).
 4. **Adjudication** (`adjudication_items`, `finalize`): only units whose A and B values differ
    (excluded units never), one batched request per case with disagreements (job
    `adjudication`, extraction model), options in a seeded per-unit order; the decision is
-   validated like a coding (value in the field's enum, citations checked); agreed units take
+   validated like a coding (a value outside the field's enum is `schema_invalid`, citations
+   checked); agreed units take
    pass A's validated value. MC-12 is derived (§7.4).
 5. **Alpha** (`reliability_rows`): per field on A and B after validation, before adjudication
    (§10.1); nominal with `unknown` as a value; ordinal with `unknown` missing plus the
@@ -35,6 +39,7 @@ from pigtail.forensics.citations import PERSON_TOKEN, CitationStats, check
 from pigtail.forensics.frame import (
     FIELD_BY_NAME,
     FIELDS,
+    SCHEMA_INVALID,
     Adjudication,
     CaseCoding,
     CodedUnit,
@@ -136,6 +141,7 @@ def _items(inputs: Mapping[str, CaseInput], pass_: str) -> list[BatchItem]:
 class PassRun:
     results: dict[str, LLMResult[Any]] = field(default_factory=dict)  # coding id -> result
     failed: dict[str, str] = field(default_factory=dict)
+    errors: dict[str, dict[str, str | None]] = field(default_factory=dict)  # coding id -> error
     batch_ids: list[str] = field(default_factory=list)
     mode: str = "batch"
 
@@ -169,7 +175,9 @@ def run_pass(
         poll_seconds=poll_seconds,
         **kw,
     )
-    return PassRun(dict(run.results), dict(run.failed), list(run.batch_ids), run.mode)
+    return PassRun(
+        dict(run.results), dict(run.failed), dict(run.errors), list(run.batch_ids), run.mode
+    )
 
 
 def submit_and_collect(
@@ -195,6 +203,7 @@ def submit_and_collect(
         if new and on_batches is not None:
             on_batches(list(new))
 
+    finished: dict[str, PassRun] = {}
     for p in passes:  # submit (or find) every batch first
         try:
             r = run_pass(
@@ -211,11 +220,18 @@ def submit_and_collect(
                 sleep=sleep,
             )
             note(p, r.batch_ids)
+            # ended already: keep it (running the pass again would resubmit its failed items,
+            # e.g. a request the API refused, within the same invocation; addendum 1)
+            finished[p] = r
         except BatchPending as e:
             note(p, e.batch_ids)
             continue
     out: dict[str, PassRun] = {}
     for p in passes:
+        if p in finished:
+            out[p] = finished[p]
+            out[p].batch_ids = list(seen[p])
+            continue
         try:
             out[p] = run_pass(
                 client,
@@ -268,8 +284,10 @@ def validate(
     inputs: Mapping[str, CaseInput],
     runs: Mapping[str, PassRun],
     batch_of: Mapping[tuple[str, str], str] | None = None,
+    per_case: dict[str, dict[str, CitationStats]] | None = None,
 ) -> tuple[list[CodingRow], dict[str, CitationStats]]:
-    """Pass A and B rows after citation validation (codebook §11.1)."""
+    """Pass A and B rows after schema and citation validation (codebook §11.1). `per_case`, when
+    given, receives the stats per coding id and pass as well."""
     rows: list[CodingRow] = []
     stats = {p: CitationStats() for p in runs}
     for ci in inputs.values():
@@ -280,6 +298,9 @@ def validate(
                 why = run.failed.get(
                     ci.case.coding_id, "no_evidence_items" if not ci.items else "no_result"
                 )
+                detail: dict[str, Any] = {"failure": why}
+                if ci.case.coding_id in run.errors:
+                    detail["error"] = dict(run.errors[ci.case.coding_id])
                 for u in _all_units(ci):
                     rows.append(
                         CodingRow(
@@ -291,14 +312,20 @@ def validate(
                             "excluded",
                             unknown_reason="insufficient_evidence",
                             excluded="coding_failed",
-                            detail={"failure": why},
+                            detail=detail,
                         )
                     )
                 continue
             texts = blocks(ci.text[p])
-            for unit in flatten(res.output, ci.offered):
+            flat = flatten(res.output, ci.offered)
+            mine = CitationStats(units_ignored=len(flat.ignored))
+            if per_case is not None:
+                per_case.setdefault(ci.case.coding_id, {})[p] = mine
+            stats[p].units_ignored += len(flat.ignored)
+            for unit in flat.units:
                 c = check(unit, texts)
                 stats[p].add(c)
+                mine.add(c)
                 rows.append(
                     _row(
                         ci.case,
@@ -485,8 +512,8 @@ def finalize(
                     unit,
                     fld,
                     "unknown",
-                    "unknown",
-                    unknown_reason="conflicting_evidence",
+                    SCHEMA_INVALID,
+                    unknown_reason=SCHEMA_INVALID,
                     detail={"failure": "value_not_allowed"},
                     provenance=prov,
                 )
@@ -603,11 +630,12 @@ def reliability_rows(
     specs.append(
         ("pattern.*", lambda x: x.startswith("pattern.") and x != "pattern.MC-12", "nominal")
     )
-    cf = {p: {"units": 0, "failed": 0} for p in ("A", "B")}
+    cf = {p: {"units": 0, "failed": 0, "schema_invalid": 0} for p in ("A", "B")}
     for r in rows:
         if r.pass_ in cf and not r.excluded:
             cf[r.pass_]["units"] += 1
             cf[r.pass_]["failed"] += 1 if r.status == "citation_failed" else 0
+            cf[r.pass_]["schema_invalid"] += 1 if r.status == SCHEMA_INVALID else 0
     for name, match, level in specs:
         pairs = _pairs(rows, match)
         excluded = sum(1 for va, vb in pairs if va is None or vb is None)
@@ -618,6 +646,8 @@ def reliability_rows(
             "unknown_b": _share(sum(v == "unknown" for v in b_vals), len(b_vals)),
             "citation_failed_a": _share(cf["A"]["failed"], cf["A"]["units"]),
             "citation_failed_b": _share(cf["B"]["failed"], cf["B"]["units"]),
+            "schema_invalid_a": _share(cf["A"]["schema_invalid"], cf["A"]["units"]),
+            "schema_invalid_b": _share(cf["B"]["schema_invalid"], cf["B"]["units"]),
         }
         disagree = sum(1 for va, vb in pairs if va is not None and vb is not None and va != vb)
         stats: list[tuple[str, list[tuple[Any, Any]], Any]] = []

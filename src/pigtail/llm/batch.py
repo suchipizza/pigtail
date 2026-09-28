@@ -43,6 +43,7 @@ class BatchRequestRecord:
     case_ref: str | None = None
     status: RequestState = "pending"
     error_type: str | None = None
+    error_message: str | None = None  # scrubbed and cut (`safe_error_message`), never content
 
 
 @dataclass(frozen=True)
@@ -76,7 +77,12 @@ class BatchStore(Protocol):
     def requests(self, batch_id: str) -> list[BatchRequestRecord]: ...
 
     def mark_request(
-        self, batch_id: str, custom_id: str, status: RequestState, error_type: str | None = None
+        self,
+        batch_id: str,
+        custom_id: str,
+        status: RequestState,
+        error_type: str | None = None,
+        error_message: str | None = None,
     ) -> None: ...
 
     def set_status(
@@ -117,10 +123,17 @@ class MemoryBatchStore:
         return list(self.reqs.get(batch_id, {}).values())
 
     def mark_request(
-        self, batch_id: str, custom_id: str, status: RequestState, error_type: str | None = None
+        self,
+        batch_id: str,
+        custom_id: str,
+        status: RequestState,
+        error_type: str | None = None,
+        error_message: str | None = None,
     ) -> None:
         r = self.reqs[batch_id][custom_id]
-        self.reqs[batch_id][custom_id] = replace(r, status=status, error_type=error_type)
+        self.reqs[batch_id][custom_id] = replace(
+            r, status=status, error_type=error_type, error_message=error_message
+        )
 
     def set_status(
         self, batch_id: str, status: BatchState, counts: dict[str, int] | None = None
@@ -236,19 +249,24 @@ class PgBatchStore:
 
     def requests(self, batch_id: str) -> list[BatchRequestRecord]:
         rows = self.conn.execute(
-            "SELECT custom_id, cache_key, input_hash, evidence_id, case_ref, status, error_type"
-            " FROM llm_batch_requests WHERE batch_id = %s ORDER BY custom_id",
+            "SELECT custom_id, cache_key, input_hash, evidence_id, case_ref, status, error_type,"
+            " error_message FROM llm_batch_requests WHERE batch_id = %s ORDER BY custom_id",
             (batch_id,),
         ).fetchall()
         return [BatchRequestRecord(*r) for r in rows]
 
     def mark_request(
-        self, batch_id: str, custom_id: str, status: RequestState, error_type: str | None = None
+        self,
+        batch_id: str,
+        custom_id: str,
+        status: RequestState,
+        error_type: str | None = None,
+        error_message: str | None = None,
     ) -> None:
         self.conn.execute(
-            "UPDATE llm_batch_requests SET status = %s, error_type = %s"
+            "UPDATE llm_batch_requests SET status = %s, error_type = %s, error_message = %s"
             " WHERE batch_id = %s AND custom_id = %s",
-            (status, error_type, batch_id, custom_id),
+            (status, error_type, error_message, batch_id, custom_id),
         )
 
     def set_status(

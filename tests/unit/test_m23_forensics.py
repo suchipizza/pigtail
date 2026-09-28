@@ -128,68 +128,70 @@ def test_frame_enums_mirror_codebook_json() -> None:
 
 
 def test_output_schema_file_in_sync() -> None:
-    on_disk = json.loads((ROOT / "schemas/coding/v1.0.0.json").read_text())
+    on_disk = json.loads((ROOT / "schemas/coding/v2.0.0.json").read_text())
     assert on_disk == json.loads(json.dumps(output_schema(), sort_keys=True))
+    assert output_schema()["$id"] == "pigtail/coding/v2.0.0"
 
 
-def _coded(value: Any, ev: str | None = None, quote: str = "") -> dict[str, Any]:
+def _coded(unit: str, value: Any, ev: str | None = None, quote: str = "") -> dict[str, Any]:
     if ev is None:
-        return {"value": value, "evidence_ids": [], "excerpts": [],
+        return {"unit": unit, "value": value, "evidence_ids": [], "excerpts": [],
                 "unknown_reason": "no_evidence", "confidence": "low"}  # fmt: skip
-    return {"value": value, "evidence_ids": [ev],
+    return {"unit": unit, "value": value, "evidence_ids": [ev],
             "excerpts": [{"evidence_id": ev, "quote": quote}], "unknown_reason": None,
             "confidence": "high"}  # fmt: skip
 
 
 def sample_coding(ev: str = "ev_1", quote: str = "the first tool") -> dict[str, Any]:
-    return {
-        "category_primary": _coded("devtools", ev, quote),
-        "modules": {m: _coded("no", ev, quote) for m in MODULES},
-        "novelty_claim": _coded("present", ev, quote),
-        "novelty_kind": {**_coded("present", ev, quote), "value": ["new_in_kind"]},
-        "patterns": {p.lower().replace("-", "_"): _coded("unknown") for p in CODED_PATTERNS},
-        "items": [{"evidence_id": ev, "reliability": _coded("high", ev, quote),
-                   "first_party": _coded("yes", ev, quote),
-                   "event_type_supported": _coded("none", ev, quote)}],
-    }  # fmt: skip
+    return {"units": [
+        _coded("category_primary", "devtools", ev, quote),
+        *(_coded(f"module_active.{m}", "no", ev, quote) for m in MODULES),
+        _coded("novelty_claim", "present", ev, quote),
+        _coded("novelty_kind.new_in_kind", "yes", ev, quote),
+        *(_coded(f"novelty_kind.{k}", "no", ev, quote) for k in NOVELTY_KINDS[1:]),
+        *(_coded(f"pattern.{p}", "unknown") for p in CODED_PATTERNS),
+        _coded(f"reliability@{ev}", "high", ev, quote),
+        _coded(f"first_party@{ev}", "yes", ev, quote),
+        _coded(f"event_type_supported@{ev}", "none", ev, quote),
+    ]}  # fmt: skip
 
 
 def test_structured_output_validates_against_the_schema() -> None:
     jsonschema = pytest.importorskip("jsonschema")
-    schema = json.loads((ROOT / "schemas/coding/v1.0.0.json").read_text())
+    schema = json.loads((ROOT / "schemas/coding/v2.0.0.json").read_text())
     good = sample_coding()
     jsonschema.validate(good, schema)
     CaseCoding.model_validate(good)
     bad = sample_coding()
-    bad["category_primary"]["value"] = "not-a-category"
+    bad["units"][0]["confidence"] = "certain"  # the enums left in the schema still hold
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(bad, schema)
     with pytest.raises(ValueError):
         CaseCoding.model_validate(bad)
     extra = sample_coding()
-    extra["handle"] = "someone"  # closed objects (no extra fields, CB-11 P1)
+    extra["units"][0]["handle"] = "someone"  # closed objects (no extra fields, CB-11 P1)
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(extra, schema)
 
 
 def test_flatten_units_novelty_and_missing_items() -> None:
     c = CaseCoding.model_validate(sample_coding())
-    units = {u.unit: u for u in flatten(c, ("ev_1", "ev_2"))}
+    units = {u.unit: u for u in flatten(c, ("ev_1", "ev_2")).units}
     assert units["novelty_kind.new_in_kind"].value == "yes"
     assert units["novelty_kind.other"].value == "no"
     assert units["first_party@ev_2"].value == "unknown"  # the coder left ev_2 out
     absent = sample_coding()
-    absent["novelty_claim"]["value"] = "absent"
-    units = {u.unit: u for u in flatten(CaseCoding.model_validate(absent), ("ev_1",))}
+    absent["units"][len(MODULES) + 1]["value"] = "absent"  # novelty_claim
+    units = {u.unit: u for u in flatten(CaseCoding.model_validate(absent), ("ev_1",)).units}
     assert units["novelty_kind.new_in_kind"].excluded == "not_applicable"
     assert "pattern.MC-12" not in units  # derived, never coded
 
 
 # --- prompts --------------------------------------------------------------------------------
-PINNED = {  # blind-v1 input spec included (ADR-086)
-    "A": "case-coder-a@2#0cf64ab34bd1",
-    "B": "case-coder-b@2#040214afa1fc",
-    "adjudicator": "case-adjudicator@2#dad83b59a2ab",
+PINNED = {  # blind-v1 input spec included (ADR-086); flat unit output (addendum 1)
+    "A": "case-coder-a@3#1c7ae4d34bac",
+    "B": "case-coder-b@3#7d06803578f2",
+    "adjudicator": "case-adjudicator@3#5c1bf110bb6b",
 }
 
 
@@ -373,7 +375,7 @@ def test_estimate_prices_coding_per_case_and_uses_the_measured_model() -> None:
     b = selection_fake.brief()
     kw: dict[str, Any] = dict(launch_sources=(False, False), ph_topics=0)
     plan = estimate(b, **kw)
-    assert ESTIMATE_MODEL == "estimate-v10"
+    assert ESTIMATE_MODEL == "estimate-v11"
     by = {s.stage: s for s in plan.stages}
     assert by["extraction"].llm_calls == 2 * plan.cases
     assert by["adjudication"].llm_calls == -(-plan.cases * 9 // 10)

@@ -1,0 +1,109 @@
+{
+  "$defs": {
+    "Excerpt": {
+      "additionalProperties": false,
+      "description": "One short attributed excerpt: a verbatim span (<= 300 chars) of the cited item's text.",
+      "properties": {
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "quote": {
+          "title": "Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "quote"
+      ],
+      "title": "Excerpt",
+      "type": "object"
+    },
+    "UnitCoding": {
+      "additionalProperties": false,
+      "description": "One coded unit: a case field (`category_primary`, `module_active.ai_hype`,\n`novelty_kind.new_approach`, `pattern.MC-01`, ...) or an item field of one evidence item\n(`reliability@<evidence id>`).",
+      "properties": {
+        "confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        },
+        "unknown_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "no_evidence",
+                "insufficient_evidence",
+                "citation_failed",
+                "coverage_gap",
+                "unobservable_channel",
+                "held",
+                "conflicting_evidence"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unknown Reason"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "unit",
+        "value",
+        "unknown_reason",
+        "evidence_ids",
+        "excerpts",
+        "confidence"
+      ],
+      "title": "UnitCoding",
+      "type": "object"
+    }
+  },
+  "$id": "pigtail/coding/v2.0.0",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One coder's coding of one case (pass A or B), flat (output schema 2.0.0).",
+  "properties": {
+    "units": {
+      "items": {
+        "$ref": "#/$defs/UnitCoding"
+      },
+      "title": "Units",
+      "type": "array"
+    }
+  },
+  "required": [
+    "units"
+  ],
+  "title": "CaseCoding",
+  "type": "object"
+}

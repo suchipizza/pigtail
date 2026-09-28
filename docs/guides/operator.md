@@ -624,7 +624,14 @@ already submitted are collected by their stored ids, never resubmitted (exit 5 m
 still running). Exit codes: 0 done; 3 approval needed; 4 a cap, the GitHub budget, or **H6**: the
 full-brief projection is above your cap (the pilot finished, the report says so; going on needs
 your approval of spend above the cap); 5 a batch is still running; 6 another pilot of this brief
-is running.
+is running; 7 the coding failed for every case.
+
+**When coding fails** (ADR-086 addendum 1): each failed request's API error (type and a short,
+scrubbed message) is kept in the run and in the private report, per case. If every case failed,
+the pilot ends `failed` (exit 7) and writes no cost model, projection or alpha (nothing was
+measured). If some cases failed, the pilot finishes on the others and names the failed ones.
+Either way, fix the cause and run the same command again: only the failed cases are coded again,
+and anything already answered comes from the result cache, so nothing is paid for twice.
 
 **Blind coding** (ADR-086 item 11): the coders and the adjudicator never see HN points, Product Hunt votes or comments, star or fork counts, outcomes, percentiles, ranks, roles, pairs or views; counts written in a README or on a homepage appear as `[count withheld]`. Event kinds and times are kept.
 

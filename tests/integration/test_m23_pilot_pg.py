@@ -26,7 +26,7 @@ from pigtail.connectors.github import GitHubConnector, MemoryCache
 from pigtail.connectors.github_budget import Budget, JobCaps
 from pigtail.connectors.project_page import ProjectPageConnector
 from pigtail.forensics.decay import aggregate, run_due
-from pigtail.forensics.pilot import PilotDeps, PilotOptions, run_pilot
+from pigtail.forensics.pilot import EXIT_CODING_FAILED, PilotDeps, PilotOptions, run_pilot
 from pigtail.llm.batch import MemoryBatchStore, PgCostLedger
 from pigtail.llm.client import LLMClient
 from pigtail.llm.redact import alias_redact
@@ -35,11 +35,13 @@ from tests import selection_fake
 from tests.forensics_fake import (
     BLIND_NUMBERS,
     EMAIL,
+    GRAMMAR_ERROR,
     HANDLE,
     NOW,
     CodingBatchBackend,
     FakeGitHubCases,
     FakeSite,
+    is_coder,
     seed_selection,
 )
 
@@ -479,3 +481,144 @@ def test_m23_coder_and_adjudicator_inputs_are_blind_to_outcome_numbers(env: Env)
     assert '"source": "ph_launch"' in launch and '"featuredAt": "2026-03-10T08:00:00Z"' in launch
     assert '"source": "show_hn"' in launch and '"time": "2026-03-10T15:00:00+00:00"' in launch
     assert "[count withheld]" in launch or "[count withheld]" in " ".join(prompts)
+
+
+# --- ADR-086 addendum 1: coding failures are honest and redoable -------------------------------
+def test_m23_all_coding_failed_ends_failed_without_projection_and_reruns(env: Env) -> None:
+    """The live failure: every coder request answered `invalid_request_error`. The pilot ends
+    `failed` (exit 7) with the error per case in the run and the private report, writes no cost
+    model, projection or alpha, and the same command redoes the coding once the cause is fixed."""
+    env.backend.fail_when = is_coder
+    out = run_pilot(env.brief, env.deps(), OPTS)
+    assert out.status == "failed" and out.exit_code == EXIT_CODING_FAILED == 7, out.message
+    rid = out.brief_run_id
+    assert "invalid_request_error" in out.message and "compiled grammar" in out.message
+    status, stop, spend = q(env, "SELECT status, stop, spend FROM brief_runs WHERE id = %s",
+                            rid)[0]  # fmt: skip
+    assert status == "failed" and stop["kind"] == "coding_failed" and stop["cases"] == 5
+    assert stop["errors"] == [{"error": f"invalid_request_error: {GRAMMAR_ERROR}",
+                               "requests": 10}]  # fmt: skip
+    assert spend["api_usd"] == 0.0
+    # nothing measured: no cost model, no projection, no alpha, no adjudication batch
+    assert q(env, "SELECT count(*) FROM brief_case_cost_model")[0][0] == 0
+    assert q(env, "SELECT count(*) FROM brief_reliability")[0][0] == 0
+    assert len(env.backend.submitted) == 2
+    summary = q(env, "SELECT summary FROM brief_pilot WHERE brief_run_id = %s", rid)[0][0]
+    assert summary["coding_failed_cases"] == 5 and not summary.get("report_written")
+    assert summary["projection"]["skipped"] and "projected_total_usd" not in summary["projection"]
+    errs = summary["coding_errors"]
+    assert len(errs) == 5 and all(
+        e[p] == {"failure": "invalid_request_error", "type": "invalid_request_error",
+                 "message": GRAMMAR_ERROR} for e in errs.values() for p in ("A", "B")
+    )  # fmt: skip
+    # the private failure report names the error per case
+    report = json.loads(Path(out.report_paths["json"]).read_text())
+    assert report["outcome"]["status"] == "failed" and report["projection"]["skipped"]
+    assert all(c["coding_errors"]["A"]["message"] == GRAMMAR_ERROR for c in report["cases"])
+    assert "FAILED" in Path(out.report_paths["md"]).read_text()
+    # the failed requests cost nothing
+    assert q(env, "SELECT count(*), COALESCE(sum(cost_usd), 0) FROM llm_cost_ledger"
+                  " WHERE brief_run_id = %s AND status = 'error'", rid)[0] == (10, 0)  # fmt: skip
+    # fixed: the same command resumes the same run and redoes the coding
+    env.backend.fail_when = None
+    again = run_pilot(env.brief, env.deps(), OPTS)
+    assert again.exit_code == 0 and again.status == "succeeded", again.message
+    assert again.brief_run_id == rid and len(env.backend.submitted) == 5  # 2 coders + adj
+    assert q(env, "SELECT count(*) FROM brief_coding WHERE brief_run_id = %s"
+                  " AND excluded = 'coding_failed'", rid)[0][0] == 0  # fmt: skip
+    assert q(env, "SELECT status, resumes FROM brief_runs WHERE id = %s", rid)[0] == (
+        "succeeded", 1)  # fmt: skip
+    ((n, per_case),) = q(env, "SELECT n_cases, per_case FROM brief_case_cost_model")
+    assert n == 5 and per_case["model_version"] == "case-cost-v2"
+    assert per_case["measured_usd_per_case"]["total"] > 0
+    assert per_case["coder_call"]["output"] == 3000  # the error rows are not averaged in
+    assert again.summary["projection"]["projected_total_usd"] > 0
+
+
+def _fail_theta_a(params: dict[str, Any]) -> bool:
+    return "Work field by field" in params["system"][0]["text"] and (
+        "# theta-b2" in params["messages"][0]["content"]
+    )
+
+
+def test_m23_partial_failure_is_redone_without_paying_twice(env: Env) -> None:
+    """Coder A fails for one case: the pilot finishes on the other four (the failure named), and
+    the same command redoes that case only: its pass B comes from the result cache, the other
+    cases are not called again."""
+    env.backend.fail_when = _fail_theta_a
+    out = run_pilot(env.brief, env.deps(), OPTS)
+    assert out.exit_code == 0 and out.status == "succeeded", out.message
+    rid = out.brief_run_id
+    assert "coding failed for 1 case" in out.message
+    assert out.summary["cases_coded"] == 4 and out.summary["coding_failed_cases"] == 1
+    assert len(env.backend.submitted) == 3
+    (n,) = q(env, "SELECT n_cases FROM brief_case_cost_model")[0]
+    assert n == 4  # measured on the coded cases only
+
+    def calls() -> dict[str, int]:
+        rows = q(env, "SELECT prompt_id, count(*) FROM llm_cost_ledger WHERE brief_run_id = %s"
+                      " AND status <> 'error' GROUP BY 1", rid)  # fmt: skip
+        return dict(rows)
+
+    before = calls()
+    assert before == {"case-coder-a": 4, "case-coder-b": 5, "case-adjudicator": 4}
+    env.backend.fail_when = None
+    again = run_pilot(env.brief, env.deps(), OPTS)
+    assert again.exit_code == 0 and again.brief_run_id == rid, again.message
+    assert again.summary["coding_failed_cases"] == 0 and again.summary["cases_coded"] == 5
+    # one new coder-A request and one adjudication, nothing else
+    assert calls() == {"case-coder-a": 5, "case-coder-b": 5, "case-adjudicator": 5}
+    new = env.backend.submitted[3:]
+    assert [len(b) for b in new] == [1, 1]
+    assert "# theta-b2" in new[0][0][1]["messages"][0]["content"]
+    # every case has final values, none failed
+    assert q(env, "SELECT count(DISTINCT case_key) FROM brief_coding WHERE brief_run_id = %s"
+                  " AND pass = 'final'", rid)[0][0] == 5  # fmt: skip
+    assert q(env, "SELECT count(*) FROM brief_coding WHERE brief_run_id = %s"
+                  " AND excluded = 'coding_failed'", rid)[0][0] == 0  # fmt: skip
+    # a third run has nothing to do
+    third = run_pilot(env.brief, env.deps(), OPTS)
+    assert third.status == "complete" and len(env.backend.submitted) == 5
+
+
+def test_m23_adjudicator_value_outside_the_enum_is_schema_invalid(env: Env) -> None:
+    from tests import forensics_fake
+
+    orig = forensics_fake.adjudicator_answer
+
+    def bad(prompt: str) -> dict[str, Any]:
+        out = orig(prompt)
+        for d in out["decisions"]:
+            if d["unit"] == "category_primary":
+                d["value"] = "not-a-category"
+        return out
+
+    forensics_fake.adjudicator_answer = bad
+    try:
+        out = run_pilot(env.brief, env.deps(), OPTS)
+    finally:
+        forensics_fake.adjudicator_answer = orig
+    assert out.exit_code == 0
+    rows = q(env, "SELECT value, status, unknown_reason FROM brief_coding WHERE pass ="
+                  " 'adjudicator' AND unit = 'category_primary'")  # fmt: skip
+    assert rows and set(rows) == {("unknown", "schema_invalid", "schema_invalid")}
+
+
+def test_m23_zero_cost_models_are_never_used_for_estimates(env: Env) -> None:
+    """A model stored from zero measured cost (as the failed live pilot stored one) or of the
+    old cost-model version is ignored: the estimate falls back to planning."""
+    from pigtail.forensics.pilot import plan
+    from pigtail.forensics.store import latest_cost_model, save_cost_model
+
+    zero = {"source": "measured", "model_version": "case-cost-v1",
+            "coder_call": {"input": 0, "output": 0}, "adjudication_call": {"input": 0,
+            "output": 0}, "adjudication_share": 0.0, "n_cases": 5,
+            "measured_usd_per_case": {"total": 0.0}}  # fmt: skip
+    for version in ("case-cost-v1", "case-cost-v2"):
+        save_cost_model(env.conn, brief_id=env.brief.brief_id, brief_version=1,
+                        brief_run_id=None, model_version=version, n_cases=5, per_case=zero,
+                        projection={}, h6=False, prices_as_of=None, code_commit=None)  # fmt: skip
+    assert latest_cost_model(env.conn, env.brief.brief_id) is None
+    _sel, _cases, est, err = plan(env.conn, env.brief, OPTS, env.deps())
+    assert err is None and est is not None and est["cost_model"]["source"] == "planning"
+    assert est["per_case_usd"]["total"] and est["per_case_usd"]["total"] > 0

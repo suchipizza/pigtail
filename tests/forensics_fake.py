@@ -19,7 +19,7 @@ import base64
 import hashlib
 import json
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -262,14 +262,39 @@ def coder_answer(prompt: str, system: str) -> dict[str, Any]:
             "first_party": _coded("yes", ev, body),
             "event_type_supported": _coded("none", ev, body),
         })  # fmt: skip
-    return {
-        "category_primary": _coded(cat, *(meta or (None, None))),
-        "modules": mods,
-        "novelty_claim": novelty,
-        "novelty_kind": {**novelty, "value": ["new_in_kind"] if readme else []},
-        "patterns": patterns,
-        "items": out_items,
-    }
+    return flat_units(
+        {
+            "category_primary": _coded(cat, *(meta or (None, None))),
+            "modules": mods,
+            "novelty_claim": novelty,
+            "novelty_kind": {**novelty, "value": ["new_in_kind"] if readme else []},
+            "patterns": patterns,
+            "items": out_items,
+        }
+    )
+
+
+def flat_units(nested: dict[str, Any]) -> dict[str, Any]:
+    """The nested answer above as the flat coder output (schema 2.0.0, ADR-086 addendum 1)."""
+    units: list[dict[str, Any]] = []
+
+    def add(unit: str, coded: dict[str, Any], value: Any = None) -> None:
+        units.append({**coded, "unit": unit, "value": coded["value"] if value is None else value})
+
+    add("category_primary", nested["category_primary"])
+    for m, c in nested["modules"].items():
+        add(f"module_active.{m}", c)
+    add("novelty_claim", nested["novelty_claim"])
+    nk = nested["novelty_kind"]
+    if nested["novelty_claim"]["value"] == "present":
+        for k in ("new_in_kind", "new_approach", "new_combination", "other"):
+            add(f"novelty_kind.{k}", nk, "yes" if k in nk["value"] else "no")
+    for attr, c in nested["patterns"].items():
+        add("pattern.MC-" + attr.split("_")[1], c)
+    for it in nested["items"]:
+        for name in ("reliability", "first_party", "event_type_supported"):
+            add(f"{name}@{it['evidence_id']}", it[name])
+    return {"units": units}
 
 
 def adjudicator_answer(prompt: str) -> dict[str, Any]:
@@ -315,6 +340,8 @@ class CodingBatchBackend:
     submitted: list[list[tuple[str, dict[str, Any]]]] = field(default_factory=list)
     polls: dict[str, int] = field(default_factory=dict)
     prefix: str = "msgbatch_m23_"
+    # requests for which the API answers `invalid_request_error` (as the live pilot saw it)
+    fail_when: Callable[[dict[str, Any]], bool] | None = None
 
     def params(self, **kw: Any) -> dict[str, Any]:
         return build_params(max_tokens=16000, **kw)
@@ -349,7 +376,23 @@ class CodingBatchBackend:
     def batch_results(self, batch_id: str) -> Iterator[BatchItemResult]:
         n = int(batch_id.removeprefix(self.prefix))
         for cid, params in self.submitted[n - 1]:
+            if self.fail_when is not None and self.fail_when(params):
+                yield BatchItemResult(
+                    cid, "errored", error="invalid_request_error", retryable=False,
+                    message=GRAMMAR_ERROR,
+                )  # fmt: skip
+                continue
             yield BatchItemResult(cid, "succeeded", response=self._resp(params, batch_id))
+
+
+GRAMMAR_ERROR = (
+    "The compiled grammar is too large, which would cause performance issues. Simplify your "
+    "tool schemas or reduce the number of strict tools."
+)
+
+
+def is_coder(params: dict[str, Any]) -> bool:
+    return "adjudicate" not in params["system"][0]["text"]
 
 
 # --- a stored selection ------------------------------------------------------------------------
