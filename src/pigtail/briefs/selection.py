@@ -132,9 +132,9 @@ from pigtail.briefs.model import DIMENSIONS, RANKABLE, THRESHOLD_PERCENTILE, Bri
 #      Product Hunt incomplete; anchor-v9 (ADR-085 addendum 4)
 # v11: the topic hits are frozen in the run's checkpoint once computed, missing planned scan
 #      rows re-plan or leave the topic incomplete, Bluesky reads to the list's end, only
-#      resolveHandle's "Unable to resolve handle" 400 is unresolvable; anchor-v10 (ADR-085
+#      resolveHandle's "Unable to resolve handle" 400 is unresolvable; anchor-v11 (ADR-085
 #      addendum 5, verifier round 8)
-SELECTION_VERSION = "selection-v11"
+SELECTION_VERSION = "selection-v12"
 # view A's metric: follow-through relative to launch size (ADR-083)
 FOLLOW_THROUGH_METRIC_VERSION = "follow-through-v1"
 OUTCOME_MODEL_VERSION = "2.1"
@@ -171,8 +171,8 @@ MATCHING_RULE = (
 # v9: the shared Product Hunt topic cache and Product Hunt's incomplete state (addendum 4)
 # v10: frozen topic hits, missing plan rows, Bluesky paging to the end, resolveHandle 400s
 #      (addendum 5)
-ANCHOR_RULE_VERSION = "anchor-v10"
-ANCHOR_RULE_SOURCE_SHA256 = "36918c699c3b81137f2e05ef68f32b69d92c353c92ee44c7a9bf6eab23ccd5ee"
+ANCHOR_RULE_VERSION = "anchor-v11"
+ANCHOR_RULE_SOURCE_SHA256 = "9897a5624677943c64e81705d9c8a02967ac1b0e6617aeab8e650457db0cae28"
 ANCHOR_RULE = (
     "outcome-model §2.2 rules 1-6 as read by ADR-077.3; declared launches = Show HN or Launch HN "
     "posts from discovery and the per-repo launch lookup (current rule's records only), merged "

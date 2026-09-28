@@ -24,7 +24,7 @@ routes:
   SHA-256 of a post's product-slot key is stored, never its name; the brief's name index is
   then built from the cached rows of the window, looked up by the hash of each repo's key. The
   scan rows a run uses are fixed in its checkpoint (`ph_cache`) and recorded in the result
-  (`topic_cache`). Since anchor-v10 (addendum 5) the topic hits of every shortlisted repo are
+  (`topic_cache`). Since anchor-v11 (addendum 5) the topic hits of every shortlisted repo are
   computed once, by the first invocation that completes every topic, and frozen in the
   checkpoint (`ph_topic_hits`, `PH_HITS_FROZEN`); a resume never reads the index again. A
   planned scan row gone before then re-plans its topic; one found missing while the index is
@@ -635,13 +635,18 @@ def bsky_post_is_launch(text: str | None) -> bool:
 
 def declared_account_sources(
     sources: Sequence[tuple[str, list[str]]],
+    resolve: Callable[[str], str | None] | None = None,
 ) -> tuple[list[str], list[str], bool]:
     """(accounts in order of first appearance, the source kinds that declared at least one new
     account, README ambiguous) from the texts of each source (ADR-085 addendum 3). The GitHub
     profile's social accounts, the org page and the homepage field always count; the README
     counts only when it names exactly `README_MAX_ACCOUNTS` (1) account, distinct after
     normalization (`account_id`: a handle lowercased; a handle and a DID are two identifiers),
-    else it declares nothing and is reported ambiguous. In memory only."""
+    else it declares nothing and is reported ambiguous. When the README names several
+    identifiers and `resolve` is given (owner decision 2026-09-28), its handles are resolved to
+    DIDs in memory and identifiers of the same account count once: a handle and its own DID are
+    one account. A handle that doesn't resolve stays a distinct identifier. `resolve` failures
+    (`FetchError`) propagate: the caller treats them as an incomplete source. In memory only."""
     from pigtail.connectors.bluesky import declared_accounts
 
     accounts: list[str] = []
@@ -649,6 +654,13 @@ def declared_account_sources(
     ambiguous = False
     for kind, texts in sources:
         named = declared_accounts(texts)
+        if kind == "readme" and len(named) > README_MAX_ACCOUNTS and resolve is not None:
+            same: dict[str, str] = {}  # identifier -> the account it names (a DID when known)
+            for a in named:
+                same[a] = a if a.startswith("did:") else (resolve(a) or a)
+            distinct = list(dict.fromkeys(same.values()))
+            if len(distinct) <= README_MAX_ACCOUNTS:
+                named = distinct
         if kind == "readme" and len(named) > README_MAX_ACCOUNTS:
             ambiguous = True
             continue
@@ -825,7 +837,16 @@ def run_bluesky(
             return incomplete("declared_sources_failed")
         if raw:
             sources.append(("readme", [raw[:README_CHARS].decode("utf-8", errors="replace")]))
-        accounts, kinds, ambiguous = declared_account_sources(sources)
+
+        def resolve_once(handle: str) -> str | None:
+            res.bluesky_requests += 1
+            did: str | None = bsky.resolve_handle(handle)
+            return did
+
+        try:
+            accounts, kinds, ambiguous = declared_account_sources(sources, resolve=resolve_once)
+        except FetchError:
+            return incomplete("resolve_failed")
         for kind in kinds:
             res.declared_in[kind] = res.declared_in.get(kind, 0) + 1
         if ambiguous:
@@ -1021,8 +1042,9 @@ def launch_source_params(
             f"({RESOLVE_PATH}), the DID never stored",
             "readme_rule": "the profile, org page and homepage field always count; the README "
             f"counts only when it names exactly {README_MAX_ACCOUNTS} account (distinct after "
-            "normalization: handles lowercased); with 2 or more it declares nothing and is "
-            "counted readme_ambiguous",
+            "normalization: handles lowercased, and handles resolved in memory so a handle and "
+            "its own DID are one account); with 2 or more it declares nothing and is counted "
+            "readme_ambiguous",
             "search": f"GET {SEARCH_PATH} q={BSKY_QUERY!r} author=<declared account> url=<repo "
             "GitHub URL>, then url=<homepage URL> when there is one, sort=latest, limit=100, "
             "no since/until (the AppView refuses them with q=*; the window is applied in "

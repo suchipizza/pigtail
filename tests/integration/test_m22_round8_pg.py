@@ -123,10 +123,11 @@ def test_launch_wording_readme_rule_pre_window_and_ph_launch_window(
     assert bs["status"] == {"complete": 2, "no_declared_account": 4} and bs["incomplete"] == 0
     assert bs["readme_ambiguous"] == 1 and bs["declared_in"] == {"github_profile": 2}
     assert bs["posts_without_launch_wording"] == 2 and bs["launch_posts_before_window"] == 1
-    # the README's two accounts were never resolved or searched
+    # the README's two accounts were resolved once to compare them (owner decision 2026-09-28:
+    # a handle and its own DID are one account) but, being two accounts, never searched
     handles = {r.url.params.get("handle") for r in fake.requests}
     authors = {r.url.params.get("author") for r in fake.requests}
-    assert not {HANDLE_C, HANDLE_D} & handles
+    assert {HANDLE_C, HANDLE_D} <= handles
     assert not {synthetic_did(HANDLE_C), synthetic_did(HANDLE_D)} & authors
     # the searches carry no date filter; before-window posts were read
     assert all("since" not in r.url.params for r in fake.requests)

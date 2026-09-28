@@ -545,9 +545,9 @@ def test_view_c_covers_every_shortlisted_non_winner_with_counts_of_values():
 
 # --- 7. versions, guard, determinism, estimate -------------------------------------------
 def test_versions_are_bumped():
-    assert SELECTION_VERSION == "selection-v11" and ANCHOR_RULE_VERSION == "anchor-v10"
+    assert SELECTION_VERSION == "selection-v12" and ANCHOR_RULE_VERSION == "anchor-v11"
     p = Context.from_brief(B).params()
-    assert p["selection_version"] == "selection-v11" and p["anchor_rule_version"] == "anchor-v10"
+    assert p["selection_version"] == "selection-v12" and p["anchor_rule_version"] == "anchor-v11"
     assert set(p["views"]) == {"follow_through", "launch", "launch_undeclared"}
     vb = p["view_b_anchor"]
     assert vb["rules"] == list(ANCHOR_RULE_LABELS)

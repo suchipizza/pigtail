@@ -214,10 +214,10 @@ def test_ph_values_come_from_the_launch_window_only():
 
 # --- 5. versions, parameters and the guard ------------------------------------------------------
 def test_versions_and_the_new_rules_in_the_params(launch_sources_on):
-    assert SELECTION_VERSION == "selection-v11" and ANCHOR_RULE_VERSION == "anchor-v10"
+    assert SELECTION_VERSION == "selection-v12" and ANCHOR_RULE_VERSION == "anchor-v11"
     assert out.anchor_rule_source_sha256() == ANCHOR_RULE_SOURCE_SHA256
     p = Context.from_brief(B).params()
-    assert p["selection_version"] == "selection-v11" and p["anchor_rule_version"] == "anchor-v10"
+    assert p["selection_version"] == "selection-v12" and p["anchor_rule_version"] == "anchor-v11"
     vb = p["view_b_anchor"]
     assert "launched_before_window" in vb["pre_window_rule"]
     assert "topic scan" in vb["pre_window_rule"] and "HN's epoch" in vb["pre_window_rule"]
@@ -262,3 +262,23 @@ def test_old_rule_bluesky_signals_are_ignored():
     assert [e.kind for e in launch_events(c, W0, W1)] == ["show_hn"]
     assert launch_events_before(c, W0) == []
     assert timedelta(0) < W1 - W0
+
+
+def test_readme_handle_and_its_own_did_are_one_account():
+    """Owner decision 2026-09-28: a README naming the same account as a handle and as its DID
+    declares that one account (the handle is resolved in memory); a different DID stays
+    ambiguous; an unresolvable handle stays a distinct identifier."""
+    text = f"@{HANDLE_C} https://bsky.app/profile/{DID_B}"
+    same = declared_account_sources([("readme", [text])], resolve=lambda h: DID_B)
+    assert same == ([DID_B], ["readme"], False)
+    other = declared_account_sources(
+        [("readme", [text])], resolve=lambda h: "did:plc:zzzzzzzzzzzzzzzzzzzzzzzz"
+    )
+    assert other == ([], [], True)
+    dead = declared_account_sources([("readme", [text])], resolve=lambda h: None)
+    assert dead == ([], [], True)
+    calls: list[str] = []
+    declared_account_sources(
+        [("readme", [f"@{HANDLE_C}"])], resolve=lambda h: calls.append(h) or DID_B
+    )
+    assert calls == []  # a single README account needs no resolution

@@ -116,7 +116,7 @@ def test_old_rule_records_are_replaced_and_title_only_candidates_counted(capture
     assert nl is not None
     lookups = [s for s in nl.sources if s["source"] == "hn_launch_lookup"]
     assert [(s["hn_item_id"], s["match"], s["rule"]) for s in lookups] == [
-        (8304, "title", "anchor-v10")
+        (8304, "title", "anchor-v11")
     ]  # the anchor-v2 record is gone
     # ADR-083 E: rules 1-3 don't confirm it (no homepage, no owner in the title, no
     # description) and no Haiku check can run here (no confirmer): excluded, fail closed

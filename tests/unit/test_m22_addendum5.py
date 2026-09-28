@@ -33,7 +33,7 @@ from tests.unit.test_m22_views import B
 
 
 def test_versions_guard_and_the_cache_label(launch_sources_on):
-    assert SELECTION_VERSION == "selection-v11" and ANCHOR_RULE_VERSION == "anchor-v10"
+    assert SELECTION_VERSION == "selection-v12" and ANCHOR_RULE_VERSION == "anchor-v11"
     assert est.ESTIMATE_MODEL == "estimate-v9"
     assert out.anchor_rule_source_sha256() == ANCHOR_RULE_SOURCE_SHA256
     # what the cache stores is unchanged: the listing cached under v10 stays reusable
