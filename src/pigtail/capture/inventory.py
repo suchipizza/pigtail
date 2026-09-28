@@ -67,6 +67,16 @@ TABLES: tuple[TableSpec, ...] = (
     TableSpec("ph_topic_scan", "cache", None, "started_at"),
     # its measured density per topic (0028, ADR-085 addendum 5): pages and days, aggregates only
     TableSpec("ph_topic_density", "cache", None, "measured_at"),
+    # M23 pilot (0029): pilot runs, cases, evidence links, gaps, codings, alpha, the measured
+    # cost model and the evidence-decay observations
+    TableSpec("brief_pilot", "operational", None, "created_at"),
+    TableSpec("brief_pilot_case", "operational", "repo_full_name", None),
+    TableSpec("brief_case_evidence", "operational", "repo_full_name", "captured_at"),
+    TableSpec("brief_case_gap", "operational", "repo_full_name", None),
+    TableSpec("brief_coding", "operational", "repo_full_name", "coded_at"),
+    TableSpec("brief_reliability", "operational", None, "computed_at"),
+    TableSpec("brief_case_cost_model", "operational", None, "created_at"),
+    TableSpec("brief_evidence_decay", "operational", "repo_full_name", "due_at"),
     # pre-registration records (0023, R8.2): ids, versions and SHA-256 values only
     TableSpec("brief_preregistration", "operational", None, "recorded_at"),
     TableSpec("brief_report_final", "operational", None, "report_final_at"),

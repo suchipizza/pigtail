@@ -7,6 +7,7 @@ from pigtail.connectors.gharchive import GHArchiveConnector
 from pigtail.connectors.github import GitHubConnector, GitHubRepoEventsConnector
 from pigtail.connectors.hn import HNAlgoliaConnector, HNFirebaseConnector
 from pigtail.connectors.hn_ranks import HNRanksConnector
+from pigtail.connectors.project_page import ProjectPageConnector
 
 CONNECTORS: dict[str, type[Connector]] = {
     c.name: c
@@ -17,5 +18,6 @@ CONNECTORS: dict[str, type[Connector]] = {
         HNRanksConnector,
         GitHubConnector,
         GitHubRepoEventsConnector,
+        ProjectPageConnector,
     )
 }

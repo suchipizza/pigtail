@@ -390,7 +390,9 @@ class BriefRuns:
         model_versions: dict[str, str] | None = None,
         resumed_from: str | None = None,
         run_id: str | None = None,
+        kind: str = "run",
     ) -> BriefRun:
+        """A new run row (`kind` `pilot`: an M23 pilot, never picked up by `pigtail run`)."""
         if brief.version is None:
             raise ValueError("only a stored brief version can be run")
         rid = new_brief_run_id()
@@ -398,8 +400,8 @@ class BriefRuns:
             "INSERT INTO brief_runs (id, brief_id, brief_version, brief_hash, run_id, status,"
             " data_version, code_commit, codebook_version, outcome_model_version,"
             " prompt_versions, model_versions, estimate, approved_paid, stage_keys, rerun_plan,"
-            " resumed_from) VALUES (%s, %s, %s, %s, %s, 'planned', %s, %s, %s, %s, %s, %s, %s,"
-            " %s, %s, %s, %s)",
+            " resumed_from, kind) VALUES (%s, %s, %s, %s, %s, 'planned', %s, %s, %s, %s, %s, %s,"
+            " %s, %s, %s, %s, %s, %s)",
             (
                 rid,
                 brief.brief_id,
@@ -417,6 +419,7 @@ class BriefRuns:
                 Jsonb(stage_keys(brief, data_version)),
                 Jsonb(plan.to_dict()) if plan is not None else None,
                 resumed_from,
+                kind,
             ),
         )
         return BriefRun(rid, brief, self.conn)
@@ -432,7 +435,7 @@ class BriefRuns:
     def latest(
         self, brief_id: str, *, statuses: tuple[str, ...] | None = None
     ) -> dict[str, Any] | None:
-        q = "SELECT id FROM brief_runs WHERE brief_id = %s"
+        q = "SELECT id FROM brief_runs WHERE brief_id = %s AND kind = 'run'"
         params: list[Any] = [brief_id]
         if statuses:
             q += " AND status = ANY(%s)"
@@ -449,7 +452,8 @@ class BriefRuns:
         """Last run per brief for the D7 list (status, version, times, spend)."""
         rows = self.conn.execute(
             "SELECT DISTINCT ON (brief_id) brief_id, id, brief_version, status, created_at,"
-            " finished_at, spend, stop FROM brief_runs ORDER BY brief_id, created_at DESC"
+            " finished_at, spend, stop FROM brief_runs WHERE kind = 'run'"
+            " ORDER BY brief_id, created_at DESC"
         ).fetchall()
         return {
             r[0]: {

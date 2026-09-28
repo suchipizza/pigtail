@@ -187,7 +187,62 @@ def seed(db: Any, store: LocalSnapshotStore, repo: tuple[int, str]) -> dict[str,
         " VALUES ('synthetic-brief', 1, %s, %s, 'accept', 'synthetic', 'user')",
         (key, key),
     )
-    return {"key": key, "evidence": [page, hist, search]}
+    # M23 pilot (0029): a pilot run with the repo as a case, its evidence link (to an item
+    # reachable only through the link: no repo id, a URL that doesn't name the repo), a gap, a
+    # coding and a decay observation
+    site = put_ev(
+        db, store, f"homepage {hid}".encode(), fetched_at=t, retention_class="project_level",
+        source="project_page", url=f"https://site-{hid}.example.org/",
+    )  # fmt: skip
+    run = f"brun_{hid:020x}"
+    q(
+        "INSERT INTO brief_runs (id, brief_id, brief_version, brief_hash, status, kind)"
+        " VALUES (%s, 'brief_synthetic', 1, %s, 'succeeded', 'pilot')",
+        (run, "0" * 64),
+    )
+    q(
+        "INSERT INTO brief_pilot (brief_run_id, brief_id, brief_version, brief_hash,"
+        " selection_id, cases_requested, case_rule_version, frame_version, codebook_version,"
+        " prompt_fingerprints, models) VALUES (%s, 'brief_synthetic', 1, %s, %s, 5,"
+        " 'pilot-cases-v1', 'pilot-frame-v1', '0.4.0', '{}', '{}')",
+        (run, "0" * 64, sel),
+    )
+    ck = f"follow_through:gh:{name.lower()}"
+    q(
+        "INSERT INTO brief_pilot_case (brief_run_id, case_key, coding_id, view, candidate_ref,"
+        " repo_full_name, repo_id, repo_host_id, position, role, anchor) VALUES (%s, %s, %s,"
+        " 'follow_through', %s, %s, %s, %s, 1, 'winner', '{}')",
+        (run, ck, f"cod_{hid:016x}", "gh:" + name.lower(), name.lower(), key, hid),
+    )
+    ce = q(
+        "INSERT INTO brief_case_evidence (brief_run_id, case_key, brief_id, brief_version,"
+        " selection_id, candidate_ref, repo_full_name, repo_id, repo_host_id, kind, evidence_id,"
+        " content_hash, decay_url, captured_at) VALUES (%s, %s, 'brief_synthetic', 1, %s, %s,"
+        " %s, %s, %s, 'homepage', %s, %s, %s, %s) RETURNING id",
+        (run, ck, sel, "gh:" + name.lower(), name.lower(), key, hid, site.id,
+         site.content_hash, f"https://site-{hid}.example.org/", t),
+    ).fetchone()  # fmt: skip
+    q(
+        "INSERT INTO brief_case_gap (brief_run_id, case_key, candidate_ref, repo_full_name,"
+        " repo_id, repo_host_id, source, reason) VALUES (%s, %s, %s, %s, %s, %s, 'reddit',"
+        " 'source_gap')",
+        (run, ck, "gh:" + name.lower(), name.lower(), key, hid),
+    )
+    q(
+        "INSERT INTO brief_coding (brief_run_id, brief_id, brief_version, selection_id, case_key,"
+        " coding_id, candidate_ref, repo_full_name, repo_id, repo_host_id, pass, unit, field,"
+        " value, status, codebook_version, frame_version) VALUES (%s, 'brief_synthetic', 1, %s,"
+        " %s, %s, %s, %s, %s, %s, 'A', 'category_primary', 'category_primary', 'devtools',"
+        " 'ok', '0.4.0', 'pilot-frame-v1')",
+        (run, sel, ck, f"cod_{hid:016x}", "gh:" + name.lower(), name.lower(), key, hid),
+    )
+    q(
+        "INSERT INTO brief_evidence_decay (case_evidence_id, brief_run_id, brief_id,"
+        " brief_version, repo_full_name, repo_id, repo_host_id, kind, offset_days, due_at)"
+        " VALUES (%s, %s, 'brief_synthetic', 1, %s, %s, %s, 'homepage', 1, %s)",
+        (ce[0] if ce else None, run, name.lower(), key, hid, t + timedelta(days=1)),
+    )
+    return {"key": key, "evidence": [page, hist, search, site]}
 
 
 def rows_of(db: Any, t: RepoTable, repo: tuple[int, str]) -> int:
@@ -235,8 +290,8 @@ def test_cb13c_purge_repo_reaches_every_registered_table(capture_db, tmp_path, p
     for ev in x["evidence"]:
         assert not store.exists(ev.content_hash)
         assert db.conn.execute("SELECT 1 FROM evidence WHERE id = %s", (ev.id,)).fetchone() is None
-    assert res.counts["evidence_deleted"] == 3
-    assert res.counts["llm_cache_rows_deleted"] == 3
+    assert res.counts["evidence_deleted"] == 4  # M23: the homepage item via its pilot link
+    assert res.counts["llm_cache_rows_deleted"] == 4
     assert res.counts["repo_star_daily_rows_deleted"] == 1 and res.counts["cases_deleted"] == 1
     assert res.counts["launch_mode_window_rows_deleted"] == 1
     # the other repo is untouched

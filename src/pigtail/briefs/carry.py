@@ -126,7 +126,7 @@ def _source_run(conn: psycopg.Connection[Any], source: Brief, run_id: str | None
         return got
     row = conn.execute(
         "SELECT id FROM brief_runs WHERE brief_id = %s AND brief_version = %s"
-        " ORDER BY created_at DESC, id DESC LIMIT 1",
+        " AND kind = 'run' ORDER BY created_at DESC, id DESC LIMIT 1",
         (source.brief_id, source.version),
     ).fetchone()
     return (runs.get(row[0]) if row else None) or {}

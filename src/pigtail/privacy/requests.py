@@ -584,6 +584,14 @@ def _repo_evidence(
                     " WHERE o.evidence_id = t.evidence_id AND o.repo_host_id <> %(host_id)s)"
                 ).format(t=sql.Identifier(table))
             )
+    # M23 pilot (0029): every evidence item linked to one of the repo's pilot cases (derived
+    # documents and the homepage included, whose URLs don't name the repo)
+    parts.append(
+        sql.SQL(
+            "SELECT evidence_id FROM brief_case_evidence WHERE repo_id = %(key)s"
+            " OR repo_host_id = %(host_id)s OR lower(repo_full_name) = ANY(%(names)s)"
+        )
+    )
     if names:
         cond, p = _url_cond("url", names)
         params |= p

@@ -124,6 +124,13 @@ _HN_STORY_CLEAR = (
     " content_cleared_at = COALESCE(content_cleared_at, now())"
 )
 
+# The repo columns of the M23 pilot tables (0029), all keyed the same three ways.
+_PILOT_REPO_COLUMNS: tuple[tuple[str, RepoMatch], ...] = (
+    ("repo_id", "id"),
+    ("repo_full_name", "name"),
+    ("repo_host_id", "host_id"),
+)
+
 # Order matters: rows are removed in this order (evidence ids are collected before any delete).
 REPO_TABLES: tuple[RepoTable, ...] = (
     # per-repo GitHub collectors (M1-T24): star history and events
@@ -154,6 +161,20 @@ REPO_TABLES: tuple[RepoTable, ...] = (
     RepoTable("brief_shortlist_entry", "repo_id", "id", "delete", "shortlist_entry_rows_deleted"),
     RepoTable(
         "brief_shortlist_entry", "repo_full_name", "name", "delete", "shortlist_entry_rows_deleted"
+    ),
+    # M23 pilot (0029): the repo's pilot cases, their evidence links, gaps, codings (A, B,
+    # adjudicated, final) and decay observations, by id, name and GitHub id; the linked evidence
+    # itself goes with the repo's evidence below (`_repo_evidence` reads the links first)
+    *(
+        RepoTable(t, col, match, "delete", f"{t}_rows_deleted")
+        for t in (
+            "brief_evidence_decay",
+            "brief_coding",
+            "brief_case_gap",
+            "brief_case_evidence",
+            "brief_pilot_case",
+        )
+        for col, match in _PILOT_REPO_COLUMNS
     ),
     # ETag cache of per-repo GitHub API pages (url and etag only)
     RepoTable("github_http_cache", "url", "url", "delete"),

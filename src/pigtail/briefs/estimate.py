@@ -92,7 +92,10 @@ from pigtail.llm.stages import stage_for, time_sensitive
 # the brief's total money cap and the monthly cap. v1 (ADR-058.4): expansion is an
 # on-demand call, not a run stage.
 # v9 (ADR-085 addendum 5): the run's own window, the kept measured density, the lower bound.
-ESTIMATE_MODEL = "estimate-v9"
+# v10 (M23, ADR-086): the coding stages (double coding and adjudication) are priced per case by
+# the case cost model (`pigtail.forensics.cost`): planning tokens per call until a pilot has run,
+# then the pilot's measured tokens per call, adjudication share and GitHub requests per case.
+ESTIMATE_MODEL = "estimate-v10"
 
 # --- planning assumptions (placeholders until the pilot measures them, M23) ---------------
 SEARCH_PAGES_PER_QUERY = 2  # 100 results per page
@@ -102,7 +105,6 @@ TERMS_PER_WIDENING_STEP = 3
 SHORTLIST_FRACTION = 0.25  # share of candidates the relevance filter keeps
 CORE_PER_SHORTLISTED = 7  # repo metadata, contributors, issues/PRs, releases (outcome metrics)
 STAR_HISTORY_WEEKS_PER_PAGE = 30
-CORE_PER_CASE = 40  # deep forensics per winner, loser and reference case (events, releases, ...)
 GRAPHQL_BATCH = 50  # candidates per GraphQL metadata query
 GRAPHQL_POINTS_PER_BATCH = 2
 HN_QUERIES_PER_TERM_SLICE = 1
@@ -294,8 +296,10 @@ TOKENS = {
     # description, topics, language, README excerpt of <= 1,200 chars), ~25 out per repo
     SURFACE: (300 + SURFACE_PER_REQUEST * 350, SURFACE_PER_REQUEST * 25),
     PH_CHECK: (450, 60),  # one name match per request (ADR-085)
-    "extraction": (8_000, 1_500),
-    "adjudication": (6_000, 1_000),
+    # the coding stages: the planning case model's tokens per call (pigtail.forensics.cost);
+    # a measured model replaces them in `estimate(case_model=...)`
+    "extraction": (11_000, 4_000),
+    "adjudication": (13_500, 1_500),
     "patterns": (20_000, 3_000),
     "report": (30_000, 6_000),
     "plan": (20_000, 5_000),
@@ -307,8 +311,8 @@ CACHED_PREFIX = {
     TITLE_CHECK: 0,  # far below Haiku's minimum cacheable prefix
     SURFACE: 0,  # likewise
     PH_CHECK: 0,  # likewise
-    "extraction": 6_000,
-    "adjudication": 5_000,
+    "extraction": 2_800,
+    "adjudication": 2_800,
     "patterns": 3_000,
     "report": 3_000,
     "plan": 3_000,
@@ -319,9 +323,7 @@ CACHE_HIT_SHARE = {"batch": 0.5, "standard": 0.8}
 # Minimum cacheable prefix per model (claude-api skill, prompt caching). Opus 5.5 isn't listed;
 # assumed 1,024 (Opus 5 is 512), so a prefix between the two is priced uncached.
 MIN_CACHEABLE = {"claude-haiku-4-5": 4_096, "claude-sonnet-5": 1_024, "claude-opus-5-5": 1_024}
-EXTRACTION_CHUNKS_PER_CASE = 12
-CODERS = 2  # double coding (R7.2)
-ADJUDICATION_SHARE = 0.2
+CODERS = 2  # double coding (R7.2): coder A and coder B, one call per case each (M23)
 PATTERN_CALLS = 10
 REPORT_CALLS = 4
 PLAN_CALLS = 3
@@ -401,6 +403,7 @@ class Estimate:
     expansion: dict[str, Any] = field(default_factory=dict)
     exemplar_cases: int = 0  # distribution exemplars + their matched losers (in `cases`)
     selection: dict[str, Any] = field(default_factory=dict)
+    coding_cost_model: dict[str, Any] = field(default_factory=dict)  # M23 (ADR-086)
     warnings: list[str] = field(default_factory=list)
 
     @property
@@ -467,6 +470,7 @@ class Estimate:
                 "cases": self.cases,
                 "exemplar_cases": self.exemplar_cases,
             },
+            "coding_cost_model": self.coding_cost_model,
             "llm": {
                 "backend": self.llm_backend,
                 "calls": self.llm_calls,
@@ -633,6 +637,7 @@ def estimate(
     launch_sources: tuple[bool, bool] | None = None,
     ph_topics: int | None = None,
     source_warnings: list[str] | None = None,
+    case_model: Any = None,
 ) -> Estimate:
     """Estimate one run of `brief` (widening included as an upper bound).
 
@@ -641,7 +646,12 @@ def estimate(
     selection stage's state (default: pending, nothing looked up); `hn_enabled` whether the
     Show HN connector is on (ADR-082); `launch_sources` whether Product Hunt and Bluesky apply
     (ADR-085), `ph_topics` how many Product Hunt topics are scanned, `source_warnings` the
-    warnings for a source that applies but can't run."""
+    warnings for a source that applies but can't run. `case_model` is the coding stages' per-case
+    cost model (`pigtail.forensics.cost.CaseCostModel`; default: the planning model, replaced by
+    the latest pilot's measured model when the caller passes it, M23)."""
+    from pigtail.forensics.cost import PLANNING, CallTokens
+
+    cm = case_model if case_model is not None else PLANNING
     stage_models: dict[str, str] = {str(k): v for k, v in DEFAULT_STAGE_MODELS.items()}
     stage_models.update(models or {})
     slices = math.ceil(brief.window.months / 3)
@@ -666,10 +676,11 @@ def estimate(
 
     core = (
         gh("evidence", shortlisted * (CORE_PER_SHORTLISTED + star_pages))
-        + gh("extraction", cases * CORE_PER_CASE)
+        + gh("extraction", math.ceil(cases * cm.github.get("core", 0.0)))
         + gh("relevance", candidates)  # one README per candidate (M22)
     )
     graphql = gh("discovery", math.ceil(candidates / GRAPHQL_BATCH) * GRAPHQL_POINTS_PER_BATCH)
+    graphql += gh("extraction", math.ceil(cases * cm.github.get("graphql", 0.0)))
     requests = {"core": core, "graphql": graphql, "search": gh("discovery", search)}
     # ADR-082: the launch lookup runs with this version's selection, so the reuse plan doesn't
     # waive it; it covers the repos the run's checkpoint hasn't looked up yet
@@ -756,13 +767,39 @@ def estimate(
             usd=usd,
         )
 
-    chunks = cases * EXTRACTION_CHUNKS_PER_CASE
+    def case_cost(stage: str, calls: int, per: CallTokens, *, reused_by: str) -> StageCost:
+        """A coding stage priced from the case cost model's tokens per call (M23)."""
+        llm_stage = stage_for(stage)
+        model = stage_models[llm_stage]
+        use_batch = api and batch and not time_sensitive(stage)
+        if cm.source == "planning":  # the planning prefix, split by this mode's cache-hit share
+            tin, tout = TOKENS[stage]
+            per = CallTokens.planned(
+                tin,
+                CACHED_PREFIX[stage],
+                tout,
+                CACHE_HIT_SHARE["batch" if use_batch else "standard"],
+            )
+        usage = per.times(calls)
+        usd = (cost_usd(model, usage, batch=use_batch) if api else 0.0) if calls else 0.0
+        return StageCost(
+            stage, calls, round(per.total_input * calls), usage.output,
+            reused=reused_by in reused, llm_stage=llm_stage, model=model,
+            mode="batch" if use_batch else "standard", cache_read_tokens=usage.cache_read,
+            cache_write_tokens=usage.cache_write, usd=usd,
+        )  # fmt: skip
+
     stages = [
         # R18.7: the run uses the accepted expansion; proposing one is a separate, on-demand call.
         cost("expansion", 0),
         cost("relevance", math.ceil(candidates / RELEVANCE_PER_REQUEST)),
-        cost("extraction", chunks * CODERS),
-        cost("adjudication", math.ceil(chunks * ADJUDICATION_SHARE), reused_by="extraction"),
+        case_cost("extraction", cases * CODERS, cm.coder, reused_by="extraction"),
+        case_cost(
+            "adjudication",
+            math.ceil(cases * cm.adjudication_share),
+            cm.adjudication,
+            reused_by="extraction",
+        ),
         cost("patterns", PATTERN_CALLS),
         cost("report", REPORT_CALLS, reused_by="patterns"),
         cost("plan", PLAN_CALLS, reused_by="patterns"),
@@ -834,6 +871,13 @@ def estimate(
         reuse=reuse,
         expansion=expansion_status(brief),
         exemplar_cases=exemplar_cases,
+        coding_cost_model={
+            "source": cm.source,
+            "n_cases": cm.n_cases,
+            "adjudication_share": round(cm.adjudication_share, 4),
+            "github_per_case": dict(cm.github),
+            "model_version": cm.model_version,
+        },
         selection={
             **sel.to_dict(),
             "shortlisted_used": sel_n,
@@ -891,6 +935,7 @@ def estimate_for(
     selection: SelectionState | None = None,
     hn_enabled: bool | None = None,
     env: Mapping[str, str] | None = None,
+    case_model: Any = None,
 ) -> tuple[Estimate, RerunPlan | None]:
     """Estimate against this install's usage ledger (this month's API spend), with a reuse
     plan when an earlier version of the brief was run (used by the CLI and the D7 API).
@@ -925,6 +970,7 @@ def estimate_for(
         launch_sources=(ph_on, bsky_on),
         ph_topics=len(topics),
         source_warnings=launch_source_warnings(env),
+        case_model=case_model,
     )
     return est, plan
 

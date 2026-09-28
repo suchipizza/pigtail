@@ -1,0 +1,603 @@
+{
+  "$defs": {
+    "CodedCategory": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "unknown_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "no_evidence",
+                "insufficient_evidence",
+                "citation_failed",
+                "coverage_gap",
+                "unobservable_channel",
+                "held",
+                "conflicting_evidence"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unknown Reason"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "enum": [
+                "ai-apps-agents",
+                "ml-infra",
+                "devtools",
+                "web-frontend",
+                "backend-libs",
+                "data-db",
+                "infra-ops",
+                "security",
+                "self-hosted-apps",
+                "mobile-desktop",
+                "lang-runtime",
+                "crypto-web3",
+                "lists-learning",
+                "media-games-science",
+                "other"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "unknown",
+              "type": "string"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "evidence_ids",
+        "excerpts",
+        "unknown_reason",
+        "confidence",
+        "value"
+      ],
+      "title": "CodedCategory",
+      "type": "object"
+    },
+    "CodedEventType": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "unknown_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "no_evidence",
+                "insufficient_evidence",
+                "citation_failed",
+                "coverage_gap",
+                "unobservable_channel",
+                "held",
+                "conflicting_evidence"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unknown Reason"
+        },
+        "value": {
+          "enum": [
+            "prep",
+            "launch",
+            "relaunch",
+            "pivot",
+            "none",
+            "unknown"
+          ],
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_ids",
+        "excerpts",
+        "unknown_reason",
+        "confidence",
+        "value"
+      ],
+      "title": "CodedEventType",
+      "type": "object"
+    },
+    "CodedNoveltyKinds": {
+      "additionalProperties": false,
+      "description": "Multi-valued (\u00a75.1): every kind the novelty claim shows; empty unless `present`.",
+      "properties": {
+        "confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "unknown_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "no_evidence",
+                "insufficient_evidence",
+                "citation_failed",
+                "coverage_gap",
+                "unobservable_channel",
+                "held",
+                "conflicting_evidence"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unknown Reason"
+        },
+        "value": {
+          "items": {
+            "enum": [
+              "new_in_kind",
+              "new_approach",
+              "new_combination",
+              "other"
+            ],
+            "type": "string"
+          },
+          "title": "Value",
+          "type": "array"
+        }
+      },
+      "required": [
+        "evidence_ids",
+        "excerpts",
+        "unknown_reason",
+        "confidence",
+        "value"
+      ],
+      "title": "CodedNoveltyKinds",
+      "type": "object"
+    },
+    "CodedPresence": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "unknown_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "no_evidence",
+                "insufficient_evidence",
+                "citation_failed",
+                "coverage_gap",
+                "unobservable_channel",
+                "held",
+                "conflicting_evidence"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unknown Reason"
+        },
+        "value": {
+          "enum": [
+            "present",
+            "absent",
+            "unknown"
+          ],
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_ids",
+        "excerpts",
+        "unknown_reason",
+        "confidence",
+        "value"
+      ],
+      "title": "CodedPresence",
+      "type": "object"
+    },
+    "CodedReliability": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "unknown_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "no_evidence",
+                "insufficient_evidence",
+                "citation_failed",
+                "coverage_gap",
+                "unobservable_channel",
+                "held",
+                "conflicting_evidence"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unknown Reason"
+        },
+        "value": {
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ],
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_ids",
+        "excerpts",
+        "unknown_reason",
+        "confidence",
+        "value"
+      ],
+      "title": "CodedReliability",
+      "type": "object"
+    },
+    "CodedYesNo": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "excerpts": {
+          "items": {
+            "$ref": "#/$defs/Excerpt"
+          },
+          "title": "Excerpts",
+          "type": "array"
+        },
+        "unknown_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "no_evidence",
+                "insufficient_evidence",
+                "citation_failed",
+                "coverage_gap",
+                "unobservable_channel",
+                "held",
+                "conflicting_evidence"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unknown Reason"
+        },
+        "value": {
+          "enum": [
+            "yes",
+            "no",
+            "unknown"
+          ],
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_ids",
+        "excerpts",
+        "unknown_reason",
+        "confidence",
+        "value"
+      ],
+      "title": "CodedYesNo",
+      "type": "object"
+    },
+    "Excerpt": {
+      "additionalProperties": false,
+      "description": "One short attributed excerpt: a verbatim span (<= 300 chars) of the cited item's text.",
+      "properties": {
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "quote": {
+          "title": "Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "quote"
+      ],
+      "title": "Excerpt",
+      "type": "object"
+    },
+    "ItemCoding": {
+      "additionalProperties": false,
+      "properties": {
+        "event_type_supported": {
+          "$ref": "#/$defs/CodedEventType"
+        },
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "first_party": {
+          "$ref": "#/$defs/CodedYesNo"
+        },
+        "reliability": {
+          "$ref": "#/$defs/CodedReliability"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "reliability",
+        "first_party",
+        "event_type_supported"
+      ],
+      "title": "ItemCoding",
+      "type": "object"
+    },
+    "Modules": {
+      "additionalProperties": false,
+      "properties": {
+        "ai_hype": {
+          "$ref": "#/$defs/CodedYesNo"
+        },
+        "b2b_oss_saas": {
+          "$ref": "#/$defs/CodedYesNo"
+        },
+        "chinese_ecosystem": {
+          "$ref": "#/$defs/CodedYesNo"
+        },
+        "cli_devtools": {
+          "$ref": "#/$defs/CodedYesNo"
+        },
+        "corporate_backed": {
+          "$ref": "#/$defs/CodedYesNo"
+        },
+        "relaunch_pivot": {
+          "$ref": "#/$defs/CodedYesNo"
+        }
+      },
+      "required": [
+        "ai_hype",
+        "b2b_oss_saas",
+        "chinese_ecosystem",
+        "cli_devtools",
+        "corporate_backed",
+        "relaunch_pivot"
+      ],
+      "title": "Modules",
+      "type": "object"
+    },
+    "Patterns": {
+      "additionalProperties": false,
+      "properties": {
+        "mc_01": {
+          "$ref": "#/$defs/CodedPresence"
+        },
+        "mc_02": {
+          "$ref": "#/$defs/CodedPresence"
+        },
+        "mc_03": {
+          "$ref": "#/$defs/CodedPresence"
+        },
+        "mc_04": {
+          "$ref": "#/$defs/CodedPresence"
+        },
+        "mc_05": {
+          "$ref": "#/$defs/CodedPresence"
+        },
+        "mc_06": {
+          "$ref": "#/$defs/CodedPresence"
+        },
+        "mc_07": {
+          "$ref": "#/$defs/CodedPresence"
+        },
+        "mc_08": {
+          "$ref": "#/$defs/CodedPresence"
+        },
+        "mc_09": {
+          "$ref": "#/$defs/CodedPresence"
+        },
+        "mc_10": {
+          "$ref": "#/$defs/CodedPresence"
+        },
+        "mc_11": {
+          "$ref": "#/$defs/CodedPresence"
+        },
+        "mc_13": {
+          "$ref": "#/$defs/CodedPresence"
+        }
+      },
+      "required": [
+        "mc_01",
+        "mc_02",
+        "mc_03",
+        "mc_04",
+        "mc_05",
+        "mc_06",
+        "mc_07",
+        "mc_08",
+        "mc_09",
+        "mc_10",
+        "mc_11",
+        "mc_13"
+      ],
+      "title": "Patterns",
+      "type": "object"
+    }
+  },
+  "$id": "pigtail/coding/v1.0.0",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One coder's coding of one case (pass A or B).",
+  "properties": {
+    "category_primary": {
+      "$ref": "#/$defs/CodedCategory"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/ItemCoding"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "modules": {
+      "$ref": "#/$defs/Modules"
+    },
+    "novelty_claim": {
+      "$ref": "#/$defs/CodedPresence"
+    },
+    "novelty_kind": {
+      "$ref": "#/$defs/CodedNoveltyKinds"
+    },
+    "patterns": {
+      "$ref": "#/$defs/Patterns"
+    }
+  },
+  "required": [
+    "category_primary",
+    "modules",
+    "novelty_claim",
+    "novelty_kind",
+    "patterns",
+    "items"
+  ],
+  "title": "CaseCoding",
+  "type": "object"
+}

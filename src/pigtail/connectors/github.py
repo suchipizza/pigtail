@@ -705,6 +705,90 @@ def readme_url(full_name: str) -> str:
     return f"{API}/repos/{full_name}/readme"
 
 
+# --- case evidence (M23, ADR-086): README at a commit, release notes, probes for decay ----------
+@dataclass(frozen=True)
+class ReadmeDoc:
+    """`GET /repos/{o}/{r}/readme` as JSON: the file's path and decoded text (project page)."""
+
+    path: str
+    text: str
+
+
+def parse_readme_json(data: bytes) -> ReadmeDoc:
+    """Path and text of a README answer (`content` is base64). Reads no other field."""
+    import base64
+
+    body = json.loads(data)
+    if not isinstance(body, dict) or not isinstance(body.get("path"), str):
+        raise ValueError("not a README object")
+    raw = body.get("content") or ""
+    if not isinstance(raw, str):
+        raise ValueError("README content is not a string")
+    text = base64.b64decode(raw.encode()).decode("utf-8", errors="replace")
+    return ReadmeDoc(body["path"], text)
+
+
+def parse_commit_refs(data: bytes) -> list[tuple[str, datetime | None]]:
+    """(sha, committer date) of a `GET /repos/{o}/{r}/commits` page. Reads only `sha` and
+    `commit.committer.date`: the author and committer names, e-mails and accounts are never
+    read, and the caller drops the raw page right after parsing (M23, ADR-086)."""
+    body = json.loads(data)
+    out: list[tuple[str, datetime | None]] = []
+    for it in body if isinstance(body, list) else []:
+        if not isinstance(it, dict) or not isinstance(it.get("sha"), str):
+            continue
+        commit = it.get("commit") if isinstance(it.get("commit"), dict) else {}
+        committer = (commit or {}).get("committer")
+        when = _dt(committer.get("date")) if isinstance(committer, dict) else None
+        out.append((it["sha"], when))
+    return out
+
+
+@dataclass(frozen=True)
+class ReleaseNote:
+    """One release with its notes (M23 case evidence). `name` and `body` are project text; the
+    caller scrubs identifiers before storing them. The `author` object is never read."""
+
+    tag: str
+    name: str | None
+    published_at: datetime | None
+    prerelease: bool
+    body: str | None
+
+
+def parse_release_notes(data: bytes, *, body_chars: int = 1500) -> list[ReleaseNote]:
+    """Releases of one page with the first `body_chars` characters of their notes."""
+    body = json.loads(data)
+    out: list[ReleaseNote] = []
+    for it in body if isinstance(body, list) else []:
+        if not isinstance(it, dict) or not isinstance(it.get("tag_name"), str):
+            continue
+        text = it.get("body")
+        out.append(
+            ReleaseNote(
+                tag=it["tag_name"][:200],
+                name=_opt_str(it.get("name")),
+                published_at=_dt(it.get("published_at")),
+                prerelease=bool(it.get("prerelease")),
+                body=text[:body_chars] if isinstance(text, str) else None,
+            )
+        )
+    return out
+
+
+@dataclass(frozen=True)
+class Probe:
+    """A conditional GET that stores nothing (evidence decay, R19.8): status, the body's
+    SHA-256 (None for 304 or an error), and the validators the server sent."""
+
+    status: int | None
+    body_hash: str | None
+    etag: str | None
+    last_modified: str | None
+    body: bytes = b""
+    note: str | None = None  # e.g. robots_disallowed (project pages)
+
+
 def star_history_url(full_name: str) -> str:
     return f"{API}/repos/{full_name}/stargazers/history"
 
@@ -810,6 +894,65 @@ class GitHubConnector(GitHubAPI):
             )
         except NotFound:
             return None
+
+    def readme_json(
+        self, full_name: str, *, ref: str | None = None, repo_id: str | None = None
+    ) -> Fetched | None:
+        """A repo's README as the JSON object (path and base64 content), at `ref` (a commit sha)
+        or the default branch; None when there is none. Project page, `project_level` (M23)."""
+        try:
+            return self.fetch(
+                readme_url(full_name),
+                params={"ref": ref} if ref else None,
+                repo_id=repo_id,
+                retention_class="project_level",
+            )
+        except NotFound:
+            return None
+
+    def commits_page(
+        self, full_name: str, *, path: str, until: datetime, per_page: int = 1,
+        repo_id: str | None = None,
+    ) -> Fetched:  # fmt: skip
+        """`GET /repos/{o}/{r}/commits?path=…&until=…` (core bucket), not parsed: the newest
+        commits touching `path` before `until`. Items embed author and committer accounts, so
+        the snapshot is `person_level_24m` and the caller drops it right after
+        `parse_commit_refs` (CB-24; M23)."""
+        return self.fetch(
+            f"{API}/repos/{full_name}/commits",
+            params={
+                "path": path,
+                "until": until.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "per_page": per_page,
+            },
+            repo_id=repo_id,
+            retention_class="person_level_24m",
+        )
+
+    def probe(
+        self, url: str, *, etag: str | None = None, last_modified: str | None = None
+    ) -> Probe:
+        """A conditional GET for evidence decay (R19.8): budgeted and rate-limited like every
+        request, a `304` costs no rate limit; nothing is snapshotted or parsed."""
+        from pigtail.capture.snapshots import sha256_hex
+
+        hdrs: dict[str, str] = {}
+        if etag:
+            hdrs["If-None-Match"] = etag
+        if last_modified:
+            hdrs["If-Modified-Since"] = last_modified
+        try:
+            resp = self._send("GET", url, headers=hdrs)
+        except FetchError as e:
+            return Probe(e.status, None, None, None)
+        ok = resp.is_success
+        return Probe(
+            resp.status_code,
+            sha256_hex(resp.content) if ok else None,
+            resp.headers.get("ETag"),
+            resp.headers.get("Last-Modified"),
+            resp.content if ok else b"",
+        )
 
     def releases_page(
         self, full_name: str, *, page: int = 1, repo_id: str | None = None

@@ -189,7 +189,7 @@ def _latest(
 ) -> dict[str, Any] | None:
     row = conn.execute(
         "SELECT id FROM brief_runs WHERE brief_id = %s AND brief_version = %s"
-        " AND status = ANY(%s) ORDER BY created_at DESC, id DESC LIMIT 1",
+        " AND kind = 'run' AND status = ANY(%s) ORDER BY created_at DESC, id DESC LIMIT 1",
         (brief.brief_id, brief.version, list(statuses)),
     ).fetchone()
     return BriefRuns(conn).get(row[0]) if row else None

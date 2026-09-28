@@ -77,7 +77,7 @@ def test_a_scan_covers_its_interval_only_up_to_when_it_started():
 # --- parameters, versions, guard ---------------------------------------------------------------
 def test_versions_and_the_cache_rule_in_the_params(launch_sources_on):
     assert SELECTION_VERSION == "selection-v12" and ANCHOR_RULE_VERSION == "anchor-v11"
-    assert est.ESTIMATE_MODEL == "estimate-v9"
+    assert est.ESTIMATE_MODEL == "estimate-v10"
     p = Context.from_brief(B).params()
     ph = p["launch_sources"]["product_hunt"]
     tc = ph["topic_cache"]

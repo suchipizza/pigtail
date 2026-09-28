@@ -81,8 +81,19 @@ TABLE_LEVELS: dict[str, Level] = {
     "brief_preregistration": "project",
     "brief_report_final": "project",  # R19.9 anchor (0018): ids, versions, timestamps
     "brief_evidence": "project",  # R19.9 anchor (0018): brief run -> evidence ids
+    # M23 pilot (0029): run, cases, evidence links, gaps, alpha, the cost model and decay
+    # observations (ids, repo names, enums, counts and statistics)
+    "brief_pilot": "project",
+    "brief_pilot_case": "project",
+    "brief_case_evidence": "project",
+    "brief_case_gap": "project",
+    "brief_reliability": "project",
+    "brief_case_cost_model": "project",
+    "brief_evidence_decay": "project",
     # LLM-derived stage results may quote evidence (as the LLM cache does, CB-05)
     "brief_stage_cache": "person",
+    # M23 codings carry short excerpts of evidence text (quoted spans, codebook §11.2)
+    "brief_coding": "person",
     # M21b (0020): batch ids, hashes, statuses, token counts and USD; no prompt, output or evidence
     "llm_batches": "project",
     "llm_batch_requests": "project",

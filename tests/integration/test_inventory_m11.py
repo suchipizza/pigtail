@@ -4,6 +4,7 @@ only, read-only. Synthetic rows only (fake repos org-a/repo-1, org-b/repo-2)."""
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -58,7 +59,7 @@ def test_m11_inventory_counts_only_and_covers_every_table(capture_db, pg_url):
     dump = json.dumps(inv.to_dict())
     for out in (text, dump):  # no names, ids or handles: counts and dates only
         assert "org-a" not in out and "repo-1" not in out and "github:" not in out
-        assert "case_" not in out
+        assert re.search(r"case_[0-9a-f]{20}", out) is None  # no case ids (table names ok)
 
 
 def test_m11_cli_report_inventory_is_read_only(capture_db, pg_url, monkeypatch, capsys):

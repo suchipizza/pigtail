@@ -71,6 +71,16 @@ window = "48h"
 since_before_open = "14d"
 retry_base = "10m"
 
+# Evidence decay (R19.8, M23, ADR-086): re-checks each pilot evidence item's URL at +1, +7 and
+# +30 days after capture (conditional GET, project-level only, nothing stored). GitHub checks
+# stay due without GITHUB_TOKEN; results aggregate by source and age into the private report
+# directory (`pigtail brief decay <id>`).
+[jobs.evidence_decay]
+command = ["brief", "decay", "--all", "--due"]
+every = "6h"
+timeout = "30m"
+retry_base = "10m"
+
 # --- Per-repo GitHub collectors (M1-T24, ADR-032; per-repo only since M11). Every job below
 # requires the `github` connector, which makes no live call without GITHUB_TOKEN: until the
 # operator sets it, each run is skipped and logged with reason `missing_env:GITHUB_TOKEN` (no

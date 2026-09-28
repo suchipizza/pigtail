@@ -1,0 +1,550 @@
+"""Postgres rows of the pilot (migration 0029; ADR-086). Every row carries its provenance: the
+brief id and version, the selection id, the code commit, and for coded rows the prompt
+fingerprint, model, batch id, codebook and frame versions (R7.4, R18.6). Project-level only."""
+
+from __future__ import annotations
+
+import dataclasses
+import hashlib
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import Any
+
+import psycopg
+from psycopg.types.json import Jsonb
+
+DECAY_OFFSETS_DAYS: tuple[int, ...] = (1, 7, 30)
+
+
+@dataclass
+class PilotCase:
+    """One pilot case: a (view, repo) of the stored selection, with its blind coding id."""
+
+    case_key: str
+    view: str
+    candidate_ref: str
+    repo_full_name: str
+    repo_id: str | None
+    repo_host_id: int | None
+    position: int
+    role: str
+    pair_id: int | None
+    anchor: dict[str, Any]
+    coding_id: str = ""
+    star_anomaly_flag: str | None = None
+    evidence_status: str = "pending"
+    evidence_stats: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def anchor_at(self) -> datetime:
+        return datetime.fromisoformat(str(self.anchor["at"]))
+
+    @property
+    def owner(self) -> str:
+        return self.repo_full_name.partition("/")[0]
+
+
+def coding_id_for(brief_run_id: str, case_key: str) -> str:
+    """A random-looking, stable id (blinding, codebook §11.6): nothing in it names the case."""
+    h = hashlib.sha256(f"pigtail-coding-id|{brief_run_id}|{case_key}".encode()).hexdigest()
+    return "cod_" + h[:16]
+
+
+# --- pilot run --------------------------------------------------------------------------------
+def create_pilot(
+    conn: psycopg.Connection[Any],
+    *,
+    brief_run_id: str,
+    brief_id: str,
+    brief_version: int,
+    brief_hash: str,
+    selection_id: str,
+    data_version: str | None,
+    cases_requested: int,
+    case_rule_version: str,
+    frame_version: str,
+    codebook_version: str,
+    code_commit: str | None,
+    prompt_fingerprints: dict[str, str],
+    models: dict[str, str],
+    cases: Sequence[PilotCase],
+) -> None:
+    with conn.transaction():
+        conn.execute(
+            "INSERT INTO brief_pilot (brief_run_id, brief_id, brief_version, brief_hash,"
+            " selection_id, data_version, cases_requested, case_rule_version, frame_version,"
+            " codebook_version, code_commit, prompt_fingerprints, models) VALUES (%s, %s, %s,"
+            " %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (
+                brief_run_id,
+                brief_id,
+                brief_version,
+                brief_hash,
+                selection_id,
+                data_version,
+                cases_requested,
+                case_rule_version,
+                frame_version,
+                codebook_version,
+                code_commit,
+                Jsonb(prompt_fingerprints),
+                Jsonb(models),
+            ),
+        )
+        for c in cases:
+            c.coding_id = coding_id_for(brief_run_id, c.case_key)
+            conn.execute(
+                "INSERT INTO brief_pilot_case (brief_run_id, case_key, coding_id, view,"
+                " candidate_ref, repo_full_name, repo_id, repo_host_id, position, role, pair_id,"
+                " anchor) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    brief_run_id,
+                    c.case_key,
+                    c.coding_id,
+                    c.view,
+                    c.candidate_ref,
+                    c.repo_full_name,
+                    c.repo_id,
+                    c.repo_host_id,
+                    c.position,
+                    c.role,
+                    c.pair_id,
+                    Jsonb({**c.anchor, "star_anomaly_flag": c.star_anomaly_flag}),
+                ),
+            )
+
+
+def pilot_row(conn: psycopg.Connection[Any], brief_run_id: str) -> dict[str, Any] | None:
+    cur = conn.execute("SELECT * FROM brief_pilot WHERE brief_run_id = %s", (brief_run_id,))
+    row = cur.fetchone()
+    if row is None:
+        return None
+    return dict(zip([d.name for d in cur.description or []], row, strict=True))
+
+
+def find_resumable(
+    conn: psycopg.Connection[Any],
+    brief_id: str,
+    brief_version: int,
+    selection_id: str,
+    cases_requested: int,
+    statuses: Sequence[str],
+) -> str | None:
+    """The latest unfinished pilot run of this brief version, selection and size."""
+    row = conn.execute(
+        "SELECT r.id FROM brief_runs r JOIN brief_pilot p ON p.brief_run_id = r.id"
+        " WHERE r.kind = 'pilot' AND r.brief_id = %s AND r.brief_version = %s"
+        " AND p.selection_id = %s AND p.cases_requested = %s AND r.status = ANY(%s)"
+        " ORDER BY r.created_at DESC, r.id DESC LIMIT 1",
+        (brief_id, brief_version, selection_id, cases_requested, list(statuses)),
+    ).fetchone()
+    return str(row[0]) if row else None
+
+
+def latest_pilot(
+    conn: psycopg.Connection[Any], brief_id: str, brief_version: int | None = None
+) -> dict[str, Any] | None:
+    q = (
+        "SELECT p.brief_run_id FROM brief_pilot p JOIN brief_runs r ON r.id = p.brief_run_id"
+        " WHERE p.brief_id = %s AND (%s::int IS NULL OR p.brief_version = %s)"
+        " ORDER BY p.created_at DESC, p.brief_run_id DESC LIMIT 1"
+    )
+    row = conn.execute(q, (brief_id, brief_version, brief_version)).fetchone()
+    return pilot_row(conn, str(row[0])) if row else None
+
+
+def load_cases(conn: psycopg.Connection[Any], brief_run_id: str) -> list[PilotCase]:
+    rows = conn.execute(
+        "SELECT case_key, view, candidate_ref, repo_full_name, repo_id, repo_host_id, position,"
+        " role, pair_id, anchor, coding_id, evidence_status, evidence_stats"
+        " FROM brief_pilot_case WHERE brief_run_id = %s ORDER BY position",
+        (brief_run_id,),
+    ).fetchall()
+    out = []
+    for r in rows:
+        anchor = dict(r[9] or {})
+        flag = anchor.pop("star_anomaly_flag", None)
+        out.append(
+            PilotCase(
+                case_key=r[0],
+                view=r[1],
+                candidate_ref=r[2],
+                repo_full_name=r[3],
+                repo_id=r[4],
+                repo_host_id=r[5],
+                position=r[6],
+                role=r[7],
+                pair_id=r[8],
+                anchor=anchor,
+                coding_id=r[10],
+                star_anomaly_flag=flag,
+                evidence_status=r[11],
+                evidence_stats=dict(r[12] or {}),
+            )
+        )
+    return out
+
+
+def set_case_evidence(
+    conn: psycopg.Connection[Any], brief_run_id: str, case_key: str, stats: dict[str, Any]
+) -> None:
+    conn.execute(
+        "UPDATE brief_pilot_case SET evidence_status = 'done', evidence_stats = %s"
+        " WHERE brief_run_id = %s AND case_key = %s",
+        (Jsonb(stats), brief_run_id, case_key),
+    )
+
+
+def update_summary(conn: psycopg.Connection[Any], brief_run_id: str, **items: Any) -> None:
+    conn.execute(
+        "UPDATE brief_pilot SET summary = summary || %s WHERE brief_run_id = %s",
+        (Jsonb(items), brief_run_id),
+    )
+
+
+def add_batch_ids(conn: psycopg.Connection[Any], brief_run_id: str, ids: Iterable[str]) -> None:
+    row = pilot_row(conn, brief_run_id)
+    have = list((row or {}).get("batch_ids") or [])
+    merged = have + [i for i in ids if i not in have]
+    conn.execute(
+        "UPDATE brief_pilot SET batch_ids = %s WHERE brief_run_id = %s",
+        (Jsonb(merged), brief_run_id),
+    )
+
+
+# --- evidence and gaps -------------------------------------------------------------------------
+@dataclass(frozen=True)
+class EvidenceRow:
+    kind: str
+    evidence_id: str
+    content_hash: str
+    item_date: str
+    decay_url: str | None = None
+    upstream_hash: str | None = None
+    etag: str | None = None
+    last_modified: str | None = None
+    detail: dict[str, Any] = field(default_factory=dict)
+
+
+def add_evidence(
+    conn: psycopg.Connection[Any],
+    pilot: dict[str, Any],
+    case: PilotCase,
+    row: EvidenceRow,
+    *,
+    captured_at: datetime,
+    code_commit: str | None,
+) -> int:
+    """Insert one case item (idempotent per case and kind) and its decay schedule."""
+    got = conn.execute(
+        "INSERT INTO brief_case_evidence (brief_run_id, case_key, brief_id, brief_version,"
+        " selection_id, candidate_ref, repo_full_name, repo_id, repo_host_id, kind, evidence_id,"
+        " content_hash, decay_url, upstream_hash, etag, last_modified, item_date, captured_at,"
+        " detail, code_commit) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,"
+        " %s, %s, %s, %s, %s, %s) ON CONFLICT (brief_run_id, case_key, kind) DO UPDATE SET"
+        " evidence_id = EXCLUDED.evidence_id RETURNING id",
+        (
+            pilot["brief_run_id"],
+            case.case_key,
+            pilot["brief_id"],
+            pilot["brief_version"],
+            pilot["selection_id"],
+            case.candidate_ref,
+            case.repo_full_name,
+            case.repo_id,
+            case.repo_host_id,
+            row.kind,
+            row.evidence_id,
+            row.content_hash,
+            row.decay_url,
+            row.upstream_hash,
+            row.etag,
+            row.last_modified,
+            row.item_date,
+            captured_at,
+            Jsonb(row.detail),
+            code_commit,
+        ),
+    ).fetchone()
+    assert got is not None
+    ce_id = int(got[0])
+    if row.decay_url:
+        for d in DECAY_OFFSETS_DAYS:
+            conn.execute(
+                "INSERT INTO brief_evidence_decay (case_evidence_id, brief_run_id, brief_id,"
+                " brief_version, repo_full_name, repo_id, repo_host_id, kind, offset_days, due_at,"
+                " code_commit) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                " ON CONFLICT (case_evidence_id, offset_days) DO NOTHING",
+                (
+                    ce_id,
+                    pilot["brief_run_id"],
+                    pilot["brief_id"],
+                    pilot["brief_version"],
+                    case.repo_full_name,
+                    case.repo_id,
+                    case.repo_host_id,
+                    row.kind,
+                    d,
+                    captured_at + timedelta(days=d),
+                    code_commit,
+                ),
+            )
+    return ce_id
+
+
+def add_gap(
+    conn: psycopg.Connection[Any],
+    brief_run_id: str,
+    case: PilotCase,
+    source: str,
+    reason: str,
+    detail: dict[str, Any] | None = None,
+) -> None:
+    conn.execute(
+        "INSERT INTO brief_case_gap (brief_run_id, case_key, candidate_ref, repo_full_name,"
+        " repo_id, repo_host_id, source, reason, detail) VALUES (%s, %s, %s, %s, %s, %s, %s, %s,"
+        " %s) ON CONFLICT (brief_run_id, case_key, source) DO UPDATE SET reason ="
+        " EXCLUDED.reason, detail = EXCLUDED.detail",
+        (
+            brief_run_id,
+            case.case_key,
+            case.candidate_ref,
+            case.repo_full_name,
+            case.repo_id,
+            case.repo_host_id,
+            source,
+            reason,
+            Jsonb(detail or {}),
+        ),
+    )
+
+
+def evidence_rows(
+    conn: psycopg.Connection[Any], brief_run_id: str, case_key: str | None = None
+) -> list[dict[str, Any]]:
+    cur = conn.execute(
+        "SELECT id, case_key, kind, evidence_id, content_hash, decay_url, item_date, captured_at,"
+        " detail FROM brief_case_evidence WHERE brief_run_id = %s"
+        " AND (%s::text IS NULL OR case_key = %s) ORDER BY case_key, kind",
+        (brief_run_id, case_key, case_key),
+    )
+    cols = [d.name for d in cur.description or []]
+    return [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
+
+
+def gaps(conn: psycopg.Connection[Any], brief_run_id: str) -> list[dict[str, Any]]:
+    cur = conn.execute(
+        "SELECT case_key, source, reason, detail FROM brief_case_gap WHERE brief_run_id = %s"
+        " ORDER BY case_key, source",
+        (brief_run_id,),
+    )
+    cols = [d.name for d in cur.description or []]
+    return [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
+
+
+# --- codings -----------------------------------------------------------------------------------
+@dataclass(frozen=True)
+class CodingRow:
+    case: PilotCase
+    pass_: str  # A | B | adjudicator | final
+    unit: str
+    field: str
+    value: str
+    status: str
+    unknown_reason: str | None = None
+    evidence_ids: tuple[str, ...] = ()
+    excerpts: tuple[tuple[str, str], ...] = ()
+    confidence: str | None = None
+    excluded: str | None = None
+    reason: str | None = None
+    detail: dict[str, Any] = dataclasses.field(default_factory=dict)
+    provenance: dict[str, Any] = dataclasses.field(default_factory=dict)
+
+
+def save_codings(
+    conn: psycopg.Connection[Any],
+    pilot: dict[str, Any],
+    rows: Sequence[CodingRow],
+    *,
+    codebook_version: str,
+    frame_version: str,
+    code_commit: str | None,
+) -> int:
+    n = 0
+    with conn.transaction(), conn.cursor() as cur:
+        for r in rows:
+            p = r.provenance
+            cur.execute(
+                "INSERT INTO brief_coding (brief_run_id, brief_id, brief_version, selection_id,"
+                " case_key, coding_id, candidate_ref, repo_full_name, repo_id, repo_host_id, pass,"
+                " unit, field, value, unknown_reason, evidence_ids, excerpts, confidence, status,"
+                " excluded, reason, detail, model, llm_backend, prompt_id, prompt_version,"
+                " prompt_fingerprint, batch_id, input_hash, codebook_version, frame_version,"
+                " code_commit) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,"
+                " %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                " ON CONFLICT (brief_run_id, case_key, pass, unit) DO NOTHING",
+                (
+                    pilot["brief_run_id"],
+                    pilot["brief_id"],
+                    pilot["brief_version"],
+                    pilot["selection_id"],
+                    r.case.case_key,
+                    r.case.coding_id,
+                    r.case.candidate_ref,
+                    r.case.repo_full_name,
+                    r.case.repo_id,
+                    r.case.repo_host_id,
+                    r.pass_,
+                    r.unit,
+                    r.field,
+                    r.value,
+                    r.unknown_reason,
+                    list(r.evidence_ids),
+                    Jsonb([{"evidence_id": e, "quote": q} for e, q in r.excerpts]),
+                    r.confidence,
+                    r.status,
+                    r.excluded,
+                    r.reason,
+                    Jsonb(r.detail),
+                    p.get("model"),
+                    p.get("backend"),
+                    p.get("prompt_id"),
+                    p.get("prompt_version"),
+                    p.get("prompt_fingerprint"),
+                    p.get("batch_id"),
+                    p.get("input_hash"),
+                    codebook_version,
+                    frame_version,
+                    code_commit,
+                ),
+            )
+            n += cur.rowcount
+    return n
+
+
+def codings(
+    conn: psycopg.Connection[Any], brief_run_id: str, pass_: str | None = None
+) -> list[dict[str, Any]]:
+    cur = conn.execute(
+        "SELECT case_key, coding_id, pass, unit, field, value, unknown_reason, evidence_ids,"
+        " excerpts, confidence, status, excluded, reason, model, prompt_id, prompt_fingerprint,"
+        " batch_id FROM brief_coding WHERE brief_run_id = %s AND (%s::text IS NULL OR pass = %s)"
+        " ORDER BY case_key, pass, unit",
+        (brief_run_id, pass_, pass_),
+    )
+    cols = [d.name for d in cur.description or []]
+    return [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
+
+
+def coded_cases(conn: psycopg.Connection[Any], brief_run_id: str, pass_: str) -> set[str]:
+    rows = conn.execute(
+        "SELECT DISTINCT case_key FROM brief_coding WHERE brief_run_id = %s AND pass = %s",
+        (brief_run_id, pass_),
+    ).fetchall()
+    return {str(r[0]) for r in rows}
+
+
+# --- reliability and the cost model ------------------------------------------------------------
+def save_reliability(
+    conn: psycopg.Connection[Any], pilot: dict[str, Any], rows: Sequence[dict[str, Any]]
+) -> None:
+    with conn.transaction():
+        conn.execute(
+            "DELETE FROM brief_reliability WHERE brief_run_id = %s", (pilot["brief_run_id"],)
+        )
+        for r in rows:
+            conn.execute(
+                "INSERT INTO brief_reliability (brief_run_id, brief_id, brief_version,"
+                " selection_id, field, statistic, alpha, n_cases, n_units, n_pairable,"
+                " n_excluded, disagreements, raw_agreement, ci, assessed, labels, reason, rates,"
+                " alpha_version, codebook_version, frame_version, code_commit,"
+                " prompt_fingerprints, models) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,"
+                " %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    pilot["brief_run_id"],
+                    pilot["brief_id"],
+                    pilot["brief_version"],
+                    pilot["selection_id"],
+                    r["field"],
+                    r["statistic"],
+                    r["alpha"],
+                    r["n_cases"],
+                    r["n_units"],
+                    r["n_pairable"],
+                    r["n_excluded"],
+                    r["disagreements"],
+                    r["raw_agreement"],
+                    Jsonb(r["ci"]),
+                    r["assessed"],
+                    list(r["labels"]),
+                    r["reason"],
+                    Jsonb(r["rates"]),
+                    r["alpha_version"],
+                    pilot["codebook_version"],
+                    pilot["frame_version"],
+                    pilot["code_commit"],
+                    Jsonb(pilot["prompt_fingerprints"]),
+                    Jsonb(pilot["models"]),
+                ),
+            )
+
+
+def reliability(conn: psycopg.Connection[Any], brief_run_id: str) -> list[dict[str, Any]]:
+    cur = conn.execute(
+        "SELECT field, statistic, alpha, n_cases, n_units, n_pairable, n_excluded, disagreements,"
+        " raw_agreement, ci, assessed, labels, reason, rates FROM brief_reliability"
+        " WHERE brief_run_id = %s ORDER BY field, statistic",
+        (brief_run_id,),
+    )
+    cols = [d.name for d in cur.description or []]
+    return [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
+
+
+def save_cost_model(
+    conn: psycopg.Connection[Any],
+    *,
+    brief_id: str,
+    brief_version: int,
+    brief_run_id: str,
+    model_version: str,
+    n_cases: int,
+    per_case: dict[str, Any],
+    projection: dict[str, Any],
+    h6: bool,
+    prices_as_of: str | None,
+    code_commit: str | None,
+) -> None:
+    conn.execute(
+        "INSERT INTO brief_case_cost_model (brief_id, brief_version, brief_run_id, model_version,"
+        " n_cases, per_case, projection, h6, prices_as_of, code_commit) VALUES (%s, %s, %s, %s,"
+        " %s, %s, %s, %s, %s, %s)",
+        (
+            brief_id,
+            brief_version,
+            brief_run_id,
+            model_version,
+            n_cases,
+            Jsonb(per_case),
+            Jsonb(projection),
+            h6,
+            prices_as_of,
+            code_commit,
+        ),
+    )
+
+
+def latest_cost_model(
+    conn: psycopg.Connection[Any], brief_id: str | None = None
+) -> dict[str, Any] | None:
+    """The latest measured per-case cost (of `brief_id`, else of any brief on this instance)."""
+    cur = conn.execute(
+        "SELECT brief_id, brief_version, brief_run_id, model_version, n_cases, per_case,"
+        " projection, h6, prices_as_of, created_at FROM brief_case_cost_model"
+        " WHERE (%s::text IS NULL OR brief_id = %s) ORDER BY created_at DESC, id DESC LIMIT 1",
+        (brief_id, brief_id),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return None
+    return dict(zip([d.name for d in cur.description or []], row, strict=True))

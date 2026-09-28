@@ -29,6 +29,10 @@
     pigtail brief preregister ID --file PATH [--commit SHA]  record the pre-registration (R8.2)
     pigtail brief selection show ID [--version N] [--json]   views A, B (winners, losers, balance,
                                                              sensitivity) and context view C
+    pigtail brief pilot ID [--cases N] [--approve-paid] [--dry-run]
+                                                             M23 pilot (pigtail.briefs.pilot_cli)
+    pigtail brief pilot-summary ID [--label L]               counts-only ops lines
+    pigtail brief decay [ID] [--all] [--due]                 evidence decay (R19.8)
     pigtail brief schema                                     print schemas/brief/v1.2.json
     pigtail brief migrate-store --from DIR [--dry-run]       move briefs to PIGTAIL_BRIEFS_DIR
 
@@ -404,6 +408,24 @@ def _selection_state(settings: Any, brief: Brief) -> SelectionState | None:
         return None  # `_last_run_version` already warned; estimate a pending selection
 
 
+def _case_model(settings: Any, brief_id: str) -> Any:
+    """The coding stages' per-case cost model (M23, ADR-086): the latest pilot's measured model
+    (this brief's, else any brief's on this instance), or None (planning) without one."""
+    if not settings.database_url:
+        return None
+    import psycopg
+
+    from pigtail.forensics.cost import CaseCostModel
+    from pigtail.forensics.store import latest_cost_model
+
+    try:
+        with psycopg.connect(settings.database_url, connect_timeout=3) as conn:
+            row = latest_cost_model(conn, brief_id) or latest_cost_model(conn)
+    except psycopg.Error:
+        return None  # not migrated yet, or no database: the planning model
+    return CaseCostModel.from_dict(row["per_case"]) if row is not None else None
+
+
 def _warn_launch_lookup_off() -> None:
     """ADR-082: the pre-registered selection rule includes the launch lookup; say so when the
     Show HN connector it needs is off. ADR-085: likewise for Product Hunt (no PH_API_TOKEN) and
@@ -460,6 +482,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         last_run_version=_last_run_version(s, brief.brief_id),
         brief_spent_usd=_brief_spent(s, brief.brief_id),
         selection=_selection_state(s, brief),
+        case_model=_case_model(s, brief.brief_id),
     )
     out = est.to_dict()
     recorded = None
@@ -788,6 +811,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         last_run_version=_last_run_version(s, brief.brief_id),
         brief_spent_usd=_brief_spent(s, brief.brief_id),
         selection=_selection_state(s, brief),
+        case_model=_case_model(s, brief.brief_id),
     )
     scope = run_scope(est, stages)
     out: dict[str, Any] = {"estimate": est.to_dict(), "run_scope": scope}
@@ -1532,6 +1556,10 @@ def add_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> No
     _add_shortlist_commands(bs)
     _add_preregister_command(bs)
     _add_selection_commands(bs)
+
+    from pigtail.briefs import pilot_cli
+
+    pilot_cli.add_commands(bs)
 
     bs.add_parser("schema", help="print the brief JSON Schema (v1.2)").set_defaults(func=cmd_schema)
 
