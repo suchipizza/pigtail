@@ -575,6 +575,76 @@ counts as complete, so after you **pre-register the new version** (its content h
 `pigtail run --brief my-project` runs only the selection on it. A second carry-forward to the
 same version is refused.
 
+## Pilot: the first cases, double-coded (M23; PRD §9.4, R7.2, R15.11, R19.8; ADR-086)
+
+Once a brief version has a stored selection (`pigtail brief selection show <id>`), pilot its
+first cases before the full run. The pilot collects project-level evidence for each case, codes
+every case twice (coder A and coder B, different prompts and evidence orders, both on the
+extraction model through the Message Batches API), adjudicates the disagreements, computes
+Krippendorff's alpha per field, measures the cost per case and projects the full brief's cost
+against your cap.
+
+```sh
+pigtail brief pilot <id> --dry-run            # the estimate and the cases; nothing starts
+pigtail brief pilot <id> --approve-paid       # run (or resume) the pilot of 5 cases
+pigtail brief pilot <id> --cases 7 --approve-paid --wait-minutes 30
+pigtail brief pilot-summary <id> --label "brief 1"   # counts-only lines for your ops notes
+pigtail brief decay <id>                      # evidence decay so far (+1/+7/+30 days)
+pigtail brief decay <id> --due                # run the decay checks that are due now
+```
+
+**Which cases** (`pilot-cases-v1`): from the latest stored selection, the top headline pair of
+view A (winner and its nearest matched loser), the top headline pair of view B, then the first
+exemplar pair, then the next pairs in the same order, until `--cases` (default 5). View B's
+undeclared-launch sub-population and view C are never sampled. The same selection always gives
+the same cases.
+
+**What is collected** (project-level only until CB-12 and CB-06b are done, ADR-073.2): the repo
+metadata, the README now and at the last commit before the case's anchor T, the releases around
+T with their notes, the launch events the selection already stored (no comments, no post text),
+and the project's homepage (one request; robots.txt respected; social and profile pages are never
+fetched). HN comments and mentions, Bluesky mention text, per-repo event actors, Reddit and X are
+listed as gaps in the report, per case. Every item is snapshotted with a content hash. GitHub
+requests use your GitHub budget (per-hour caps and rate limits); without `GITHUB_TOKEN` those
+items are gaps. `PIGTAIL_CONNECTOR_PROJECT_PAGE_ENABLED=false` turns the homepage fetch off. The
+pipeline checks robots.txt but does not read a site's terms: the evidence records
+`TM-29:<host>:<date>:robots=allowed;terms=not-reviewed`, so you can review them.
+
+**Money.** The estimate is printed first: per case and stage (coder A, coder B, adjudication),
+calls, GitHub requests, your brief's cap (`budget.money_usd`) and the monthly cap
+(`BUDGET_USD_MONTH`), and the projection for the full brief. Nothing paid starts without
+`--approve-paid`. An estimate above either cap is refused before anything starts (H6), and every
+batch is checked against both caps before it is submitted; a refused batch pauses the pilot with
+a checkpoint (exit 4). Before any pilot the numbers are planning assumptions (about USD 0.08 per
+case in batch); after it, the measured cost per case replaces them in `pigtail brief estimate`
+and `pigtail run`.
+
+**Resuming.** Run the same command again. Finished cases are not fetched again, and batches
+already submitted are collected by their stored ids, never resubmitted (exit 5 means a batch is
+still running). Exit codes: 0 done; 3 approval needed; 4 a cap, the GitHub budget, or **H6**: the
+full-brief projection is above your cap (the pilot finished, the report says so; going on needs
+your approval of spend above the cap); 5 a batch is still running; 6 another pilot of this brief
+is running.
+
+**Reports stay private** (ADR-073.1): `PIGTAIL_DATA_DIR/reports/<brief>/v<version>/pilot-<date>.json`
+and `.md` hold, per case, the coded fields with their citations (at most one short excerpt per
+source), both coders' values and the adjudicated value with its reason, the gaps, and the cost per
+case and stage; per field, alpha with its 95 % interval and its labels; the projection. The
+command refuses a report directory inside a git working tree unless git ignores it. With 5 cases
+every alpha is labelled "pilot, n = 5" and "reliability not assessed" (the codebook needs 30
+pairable units): it shows the method works, not how reliable the codebook is. Everything is
+labelled "LLM-coded, not human-validated".
+
+**Evidence decay** (R19.8): each item with a URL is re-checked 1, 7 and 30 days after capture
+(a conditional request; nothing is stored), by the scheduler's `evidence_decay` job or by
+`pigtail brief decay <id> --due`. `pigtail brief decay <id>` prints the share still retrievable,
+changed and gone per source and age, and writes it next to the pilot report. The +1 and +7 day
+results are ready a week after the pilot; the +30 day results a month after it. If more than 10 %
+of items are gone at 7 days, the refresh cadence for new breakouts should be shortened (an ADR).
+
+**Opt-outs** reach the pilot: a repo's cases, codings, evidence links, gaps, decay checks, its
+evidence snapshots and the cached model outputs of its cases are deleted with it.
+
 ## LLM backend (`LLM_BACKEND`, PRD F15)
 **Redaction on the LLM path (CB-06; ADR-066 follow-up, M21b, ADR-074).** Before any input leaves the
 process, e-mails, phone numbers, profile URLs, DIDs and @mentions are removed; people become
