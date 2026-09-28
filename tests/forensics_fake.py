@@ -28,6 +28,7 @@ import httpx
 from psycopg.types.json import Jsonb
 
 from pigtail.llm.api import BatchItemResult, BatchStatus, build_params
+from pigtail.llm.errors import BilledBackendError
 from pigtail.llm.pricing import TokenUsage, cost_usd
 from pigtail.llm.types import BackendResponse
 
@@ -342,6 +343,10 @@ class CodingBatchBackend:
     prefix: str = "msgbatch_m23_"
     # requests for which the API answers `invalid_request_error` (as the live pilot saw it)
     fail_when: Callable[[dict[str, Any]], bool] | None = None
+    # requests that end `max_tokens` after MAX_TOKENS_OUT billed output tokens, in a batch and
+    # as a standard call (the second live pilot failure, ADR-087)
+    max_tokens_when: Callable[[dict[str, Any]], bool] | None = None
+    standard_calls: list[dict[str, Any]] = field(default_factory=list)
 
     def params(self, **kw: Any) -> dict[str, Any]:
         return build_params(max_tokens=16000, **kw)
@@ -351,7 +356,22 @@ class CodingBatchBackend:
 
     def complete(self, **kw: Any) -> BackendResponse:
         p = self.params(**kw)
+        self.standard_calls.append(p)
+        if self.max_tokens_when is not None and self.max_tokens_when(p):
+            raise BilledBackendError(
+                "api stop_reason=max_tokens", self._billed(p, None), kind="max_tokens"
+            )
         return self._resp(p, None)
+
+    def _billed(self, params: dict[str, Any], batch_id: str | None) -> BackendResponse:
+        """A `max_tokens` response: no data, the usage the API bills for it."""
+        usage = TokenUsage(input=MAX_TOKENS_IN, output=MAX_TOKENS_OUT)
+        model = params["model"]
+        return BackendResponse(
+            data={}, model=model, input_tokens=usage.input, output_tokens=usage.output,
+            cost_usd=cost_usd(model, usage, batch=batch_id is not None) or 0.0,
+            raw_meta={"stop_reason": "max_tokens"}, batch_id=batch_id,
+        )  # fmt: skip
 
     def _resp(self, params: dict[str, Any], batch_id: str | None) -> BackendResponse:
         usage = TokenUsage(input=6000, output=3000, cache_write=1400, cache_read=1400)
@@ -382,7 +402,16 @@ class CodingBatchBackend:
                     message=GRAMMAR_ERROR,
                 )  # fmt: skip
                 continue
+            if self.max_tokens_when is not None and self.max_tokens_when(params):
+                yield BatchItemResult(
+                    cid, "errored", error="max_tokens", retryable=True,
+                    message="api stop_reason=max_tokens", billed=self._billed(params, batch_id),
+                )  # fmt: skip
+                continue
             yield BatchItemResult(cid, "succeeded", response=self._resp(params, batch_id))
+
+
+MAX_TOKENS_IN, MAX_TOKENS_OUT = 9_083, 16_000  # the live request of 2026-09-28 (ADR-087)
 
 
 GRAMMAR_ERROR = (
@@ -412,7 +441,7 @@ def seed_selection(conn: Any, brief: Any) -> str:
         "INSERT INTO brief_selection (id, brief_id, brief_version, brief_hash, data_version,"
         " as_of, selection_version, outcome_model_version, params_version, inputs_hash,"
         " result_hash, params, summary, balance, sensitivity) VALUES (%s, %s, %s, %s, 'dv1-x',"
-        " '2026-09-28', 'selection-v12', '2.1', '1.1.0', %s, %s, '{}', '{}', '{}', '{}')",
+        " '2026-09-28', 'selection-v13', '2.1', '1.1.0', %s, %s, '{}', '{}', '{}', '{}')",
         (sid, brief.brief_id, brief.version, brief.content_hash(), "0" * 64, "1" * 64),
     )
     rows = [

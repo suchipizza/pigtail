@@ -622,3 +622,56 @@ def test_m23_zero_cost_models_are_never_used_for_estimates(env: Env) -> None:
     _sel, _cases, est, err = plan(env.conn, env.brief, OPTS, env.deps())
     assert err is None and est is not None and est["cost_model"]["source"] == "planning"
     assert est["per_case_usd"]["total"] and est["per_case_usd"]["total"] > 0
+
+
+def test_m23_max_tokens_is_billed_counted_and_fails_only_that_case(env: Env) -> None:
+    """ADR-087 (the second live pilot failure): coder A of one case ends `max_tokens` in its
+    batch and again in its standard fallback. Both responses were billed: the ledger holds their
+    tokens and cost (`error_billed`, batch and standard price), the budget guard's spend and the
+    monthly usage count them, and the pilot finishes on the other cases with that case failed
+    (the error named), never aborting the run."""
+    from pigtail.briefs.budget import BudgetGuard, month_start
+    from pigtail.llm.pricing import TokenUsage, cost_usd
+    from tests.forensics_fake import MAX_TOKENS_IN, MAX_TOKENS_OUT
+
+    env.backend.max_tokens_when = _fail_theta_a
+    out = run_pilot(env.brief, env.deps(), OPTS)
+    assert out.exit_code == 0 and out.status == "succeeded", out.message
+    rid = out.brief_run_id
+    assert out.summary["coding_failed_cases"] == 1 and out.summary["cases_coded"] == 4
+    assert "coding failed for 1 case" in out.message
+    # the batch result and the standard fallback, both billed and recorded
+    assert len(env.backend.standard_calls) == 1
+    rows = q(env, "SELECT batch_id IS NOT NULL, input_tokens, output_tokens, cost_usd"
+                  " FROM llm_cost_ledger WHERE brief_run_id = %s AND status = 'error_billed'"
+                  " ORDER BY 1", rid)  # fmt: skip
+    usage = TokenUsage(input=MAX_TOKENS_IN, output=MAX_TOKENS_OUT)
+    std = cost_usd("claude-sonnet-5", usage) or 0.0
+    batch = cost_usd("claude-sonnet-5", usage, batch=True) or 0.0
+    assert [(b, i, o) for b, i, o, _c in rows] == [
+        (False, MAX_TOKENS_IN, MAX_TOKENS_OUT),
+        (True, MAX_TOKENS_IN, MAX_TOKENS_OUT),
+    ]
+    assert [float(c) for *_x, c in rows] == pytest.approx([std, batch], abs=1e-6)
+    assert std > 0 and batch == pytest.approx(std / 2)
+    billed = std + batch
+    # no zero-cost error rows for them
+    assert q(env, "SELECT count(*) FROM llm_cost_ledger WHERE brief_run_id = %s"
+                  " AND status = 'error'", rid)[0][0] == 0  # fmt: skip
+    # the budget counts them: the brief's ledger total, the run's spend, the monthly usage
+    total = float(q(env, "SELECT sum(cost_usd) FROM llm_cost_ledger WHERE brief_run_id = %s",
+                    rid)[0][0])  # fmt: skip
+    guard = BudgetGuard(env.brief.budget, env.llm, clock=lambda: NOW,
+                        brief_ledger=lambda: PgCostLedger(env.conn).brief_total(
+                            env.brief.brief_id))  # fmt: skip
+    assert guard.refresh() == pytest.approx(total) and total > billed
+    month = env.llm.usage_since("api", month_start(NOW))["cost_usd"]
+    assert month == pytest.approx(total, abs=1e-5)
+    assert q(env, "SELECT spend FROM brief_runs WHERE id = %s", rid)[0][0]["api_usd"] == (
+        pytest.approx(total, abs=1e-5))  # fmt: skip
+    # the case's failure is recorded with its type
+    detail = q(env, "SELECT DISTINCT detail FROM brief_coding WHERE brief_run_id = %s"
+                    " AND excluded = 'coding_failed'", rid)  # fmt: skip
+    assert len(detail) == 1 and detail[0][0]["failure"] == "max_tokens"
+    assert detail[0][0]["error"]["type"] == "max_tokens"
+    assert "max_tokens" in (detail[0][0]["error"]["message"] or "")

@@ -324,7 +324,7 @@ def test_a_pre_registration_under_the_old_selection_params_is_refused(
     monkeypatch.setattr(selmod.Context, "params", old_params)
     prereg(capture_db.conn, b, tmp_path)
     monkeypatch.setattr(selmod.Context, "params", new_params)
-    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v12"):
+    with pytest.raises(PreregistrationMissing, match=r"selection rule changed.*selection-v13"):
         require(capture_db.conn, b)
     fake = FakeShowHN(HITS)
     with pytest.raises(PreregistrationMissing):

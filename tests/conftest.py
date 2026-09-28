@@ -35,6 +35,7 @@ class FakeBackend:
         json_schema: dict[str, Any],
         model: str,
         context: str = "",
+        thinking: str = "disabled",
     ) -> BackendResponse:
         self.calls.append(
             {
@@ -43,6 +44,7 @@ class FakeBackend:
                 "schema": json_schema,
                 "model": model,
                 "context": context,
+                "thinking": thinking,
             }
         )
         item = self.script.pop(0)

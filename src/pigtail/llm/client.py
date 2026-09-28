@@ -17,6 +17,11 @@ Every call:
    ledger and returns the output with its provenance record (model id, prompt version and
    batch id with every output, Directive §6.3).
 
+Every request carries its job's thinking setting (ADR-087, `pigtail.llm.thinking`): the label of
+what was sent is in the cache key and in each output's provenance. A response that was billed
+but can't be used (`max_tokens`, `refusal`, non-JSON) is recorded with its real usage and cost
+as `error_billed` before the call fails or the item is marked failed.
+
 `run_batch` does the same for many inputs through the Message Batches API (R15.9) when the
 backend supports it and the job isn't time-sensitive; otherwise it makes standard calls. The
 result cache is the source of truth: a batch fills it, and a resumed run first collects the
@@ -45,6 +50,8 @@ from pigtail.llm.batch import (
 from pigtail.llm.errors import (
     BackendError,
     BatchPending,
+    BilledBackendError,
+    LLMError,
     QueuePaused,
     StructuredOutputError,
     UsageLimitReached,
@@ -52,6 +59,7 @@ from pigtail.llm.errors import (
 from pigtail.llm.redact import REDACTION_VERSION, alias_redact
 from pigtail.llm.stages import UnknownJob, stage_for, time_sensitive
 from pigtail.llm.store import LLMStore, UsageRow
+from pigtail.llm.thinking import DEFAULT_MODE, ThinkingMode, label, mode_for
 from pigtail.llm.trim import Trimmed, TrimPolicy, trim_text
 from pigtail.llm.types import (
     Backend,
@@ -119,10 +127,13 @@ class LLMClient:
         batch_store: BatchStore | None = None,
         cost_sink: CostSink | None = None,
         use_batch: bool = True,
+        thinking_synthesis: ThinkingMode = DEFAULT_MODE,
     ) -> None:
         """`models` maps a stage (relevance, extraction, synthesis) to its model (R15.8);
         `model` is a fallback for stages missing from `models` and for jobs without a stage
-        (tests and ad-hoc calls). With neither, a job without a stage is an error."""
+        (tests and ad-hoc calls). With neither, a job without a stage is an error.
+        `thinking_synthesis` is the thinking setting of the synthesis jobs
+        (`LLM_THINKING_SYNTHESIS`, ADR-087); every other job's is fixed in code."""
         if default_backend not in backends:
             raise ValueError(f"default backend {default_backend!r} not configured")
         self.backends = dict(backends)
@@ -137,6 +148,7 @@ class LLMClient:
         self.batch_store: BatchStore = batch_store or MemoryBatchStore()
         self.cost_sink = cost_sink
         self.use_batch = use_batch
+        self.thinking_synthesis: ThinkingMode = thinking_synthesis
 
     # --- routing ---------------------------------------------------------------------------
     def backend_for(self, job: str) -> Backend:
@@ -172,12 +184,47 @@ class LLMClient:
             and not time_sensitive(job)
         )
 
-    @staticmethod
+    def thinking_mode(self, job: str) -> ThinkingMode:
+        """ADR-087: the job's thinking setting (`pigtail.llm.thinking.mode_for`)."""
+        return mode_for(job, self.thinking_synthesis)
+
+    def thinking_label(self, job: str, model: str, backend: str) -> str:
+        """What the request carries for thinking (`api`), or `cli-default` (`subscription`: the
+        CLI has no per-call switch)."""
+        if backend != "api":
+            return "cli-default"
+        return label(self.thinking_mode(job), model)
+
     def cache_key(
-        backend: str, model: str, prompt: PromptSpec, schema_h: str, input_hash: str
+        self,
+        backend: str,
+        model: str,
+        prompt: PromptSpec,
+        schema_h: str,
+        input_hash: str,
+        *,
+        job: str | None = None,
     ) -> str:
+        """The result-cache key; it includes the thinking setting sent for `job` (ADR-087), so
+        an output made under another setting is not served. Without `job`, the default setting
+        (`disabled`): the selection's title and Product Hunt checks compute their keys so, in
+        code guarded by the anchor-rule hash, and their setting is `disabled` (a test keeps the
+        two keys equal)."""
+        if job is not None:
+            sent = self.thinking_label(job, model, backend)
+        else:
+            sent = label(DEFAULT_MODE, model) if backend == "api" else "cli-default"
         return "|".join(
-            (prompt.id, prompt.version, prompt.fingerprint, input_hash, schema_h, model, backend)
+            (
+                prompt.id,
+                prompt.version,
+                prompt.fingerprint,
+                input_hash,
+                schema_h,
+                model,
+                backend,
+                "thinking=" + sent,
+            )
         )
 
     # --- helpers ---------------------------------------------------------------------------
@@ -293,7 +340,8 @@ class LLMClient:
         stage = self.stage_of(job)
         model = model or self.model_for(job)
         input_hash = sha256_text(safe_input)
-        key = self.cache_key(backend.name, model, prompt, schema_hash(schema), input_hash)
+        key = self.cache_key(backend.name, model, prompt, schema_hash(schema), input_hash, job=job)
+        thinking = self.thinking_label(job, model, backend.name)
 
         def rec(status: str, used_model: str, resp: BackendResponse | None = None) -> None:
             self._record(
@@ -322,6 +370,7 @@ class LLMClient:
                 cached=True,
                 stage=stage,
                 trim_version=trim_version,
+                thinking=thinking,
             )
 
         paused = self.store.paused_until(backend.name)
@@ -339,10 +388,14 @@ class LLMClient:
                     json_schema=json_schema,
                     model=model,
                     context=prompt.context,
+                    thinking=self.thinking_mode(job),
                 )
             except UsageLimitReached as e:
                 self._pause_on_limit(backend.name, job, e)
                 rec("limit", model)
+                raise
+            except BilledBackendError as e:  # billed: record what it cost (ADR-087)
+                rec("error_billed", e.response.model or model, e.response)
                 raise
             except BackendError:
                 rec("error", model)
@@ -366,6 +419,7 @@ class LLMClient:
                 cached=False,
                 stage=stage,
                 trim_version=trim_version,
+                thinking=thinking,
             )
         raise StructuredOutputError(f"output failed schema validation: {last_err}")
 
@@ -410,18 +464,21 @@ class LLMClient:
             if before_submit is not None and est_usd_per_item is not None:
                 before_submit(job, len(items), est_usd_per_item * len(items))
             for it in items:
-                run.results[it.ref] = self.complete(
-                    prompt,
-                    it.input_text,
-                    schema,
-                    job=job,
-                    namespace=it.namespace,
-                    evidence_id=it.evidence_id,
-                    brief_run_id=brief_run_id,
-                    case_ref=it.case_ref,
-                    trim=trim,
-                    trim_terms=trim_terms,
-                )
+                try:
+                    run.results[it.ref] = self.complete(
+                        prompt,
+                        it.input_text,
+                        schema,
+                        job=job,
+                        namespace=it.namespace,
+                        evidence_id=it.evidence_id,
+                        brief_run_id=brief_run_id,
+                        case_ref=it.case_ref,
+                        trim=trim,
+                        trim_terms=trim_terms,
+                    )
+                except (BackendError, StructuredOutputError) as e:
+                    _item_failed(run, it.ref, e)
             return run
 
         backend = self.backend_for(job)
@@ -432,9 +489,8 @@ class LLMClient:
         for it in items:
             text, tv = self._prepare(it.input_text, it.namespace, trim, trim_terms)
             ih = sha256_text(text)
-            prepared.append(
-                _Prepared(it, text, ih, self.cache_key(backend.name, model, prompt, sh, ih), tv)
-            )
+            key = self.cache_key(backend.name, model, prompt, sh, ih, job=job)
+            prepared.append(_Prepared(it, text, ih, key, tv))
         by_key: dict[str, list[_Prepared]] = {}
         for p in prepared:
             by_key.setdefault(p.key, []).append(p)
@@ -477,6 +533,7 @@ class LLMClient:
                     json_schema=json_schema,
                     model=model,
                     context=prompt.context,
+                    thinking=self.thinking_mode(job),
                 )
                 requests.append((cid, params))
                 records.append(
@@ -558,23 +615,29 @@ class LLMClient:
                         stage=stage,
                         batch_id=self._batch_of(run.batch_ids, k),
                         trim_version=p.trim_version,
+                        thinking=self.thinking_label(job, model, backend.name),
                     )
                     continue
                 err, retryable, msg = failed_types.get(k, ("missing", True, None))
                 if fallback_standard and retryable:
                     run.standard_fallbacks += 1
-                    run.results[p.item.ref] = self._complete_safe(
-                        prompt,
-                        p.text,
-                        schema,
-                        job=job,
-                        model=model,
-                        use_cache=True,
-                        evidence_id=p.item.evidence_id,
-                        brief_run_id=brief_run_id,
-                        case_ref=p.item.case_ref,
-                        trim_version=p.trim_version,
-                    )
+                    try:
+                        run.results[p.item.ref] = self._complete_safe(
+                            prompt,
+                            p.text,
+                            schema,
+                            job=job,
+                            model=model,
+                            use_cache=True,
+                            evidence_id=p.item.evidence_id,
+                            brief_run_id=brief_run_id,
+                            case_ref=p.item.case_ref,
+                            trim_version=p.trim_version,
+                        )
+                    except (BackendError, StructuredOutputError) as e:
+                        # the fallback failed too (e.g. max_tokens): a failure of this item,
+                        # with its error recorded, never the end of the whole run (ADR-087)
+                        _item_failed(run, p.item.ref, e)
                     hit = self.store.cache_get(k)
                 else:
                     run.failed[p.item.ref] = err
@@ -629,13 +692,17 @@ class LLMClient:
                     batch_id, r.custom_id, res.kind, res.error, getattr(res, "message", None)
                 )
                 if res.kind == "errored":
+                    # a `succeeded` result that can't be used was billed (batch price): record
+                    # its usage and cost (ADR-087); an API error carries no usage
+                    billed = getattr(res, "billed", None)
                     self._record(
                         backend=backend.name,
                         job=rec.job,
                         stage=stage,
-                        model=rec.model,
+                        model=billed.model if billed is not None else rec.model,
                         prompt=prompt,
-                        status="error",
+                        status="error_billed" if billed is not None else "error",
+                        resp=billed,
                         brief_run_id=brief_run_id,
                         case_ref=r.case_ref,
                     )
@@ -690,6 +757,7 @@ class LLMClient:
         stage: str | None = None,
         batch_id: str | None = None,
         trim_version: str | None = None,
+        thinking: str | None = None,
     ) -> LLMResult[T]:
         return LLMResult(
             output=output,
@@ -705,7 +773,22 @@ class LLMClient:
             stage=stage,
             batch_id=batch_id,
             trim_version=trim_version,
+            thinking=thinking,
         )
+
+
+def _item_failed(run: BatchRun, ref: str, e: LLMError) -> None:
+    """Record one item's failed standard call in `run` (type and scrubbed message)."""
+    from pigtail.llm.errors import safe_error_message
+
+    if isinstance(e, BilledBackendError):
+        kind = e.kind
+    elif isinstance(e, StructuredOutputError):
+        kind = "invalid_output"
+    else:
+        kind = "backend_error"
+    run.failed[ref] = kind
+    run.errors[ref] = {"type": kind, "message": safe_error_message(e)}
 
 
 def build_client(
@@ -753,4 +836,5 @@ def build_client(
         batch_store=batch_store,
         cost_sink=cost_sink,
         use_batch=s.llm_batch,
+        thinking_synthesis=s.llm_thinking_synthesis,
     )

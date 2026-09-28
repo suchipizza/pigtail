@@ -733,7 +733,7 @@ def link_cache(
         if ci is None:
             continue
         key = client.cache_key(
-            res.backend, client.model_for(job), prompt, schema_hash(schema), res.input_hash
+            res.backend, client.model_for(job), prompt, schema_hash(schema), res.input_hash, job=job
         )
         for it in ci.items:
             client.store.link_evidence(key, it.evidence_id)

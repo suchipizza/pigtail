@@ -134,7 +134,10 @@ from pigtail.briefs.model import DIMENSIONS, RANKABLE, THRESHOLD_PERCENTILE, Bri
 #      rows re-plan or leave the topic incomplete, Bluesky reads to the list's end, only
 #      resolveHandle's "Unable to resolve handle" 400 is unresolvable; anchor-v11 (ADR-085
 #      addendum 5, verifier round 8)
-SELECTION_VERSION = "selection-v12"
+# v13: the thinking setting of the selection's Haiku jobs (distribution surface, title and
+#      Product Hunt checks) and what it sends on the resolved model are in the parameters; the
+#      rule itself is unchanged (ADR-087)
+SELECTION_VERSION = "selection-v13"
 # view A's metric: follow-through relative to launch size (ADR-083)
 FOLLOW_THROUGH_METRIC_VERSION = "follow-through-v1"
 OUTCOME_MODEL_VERSION = "2.1"

@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pigtail.llm.types import BackendResponse
 
 
 class LLMError(Exception):
@@ -10,6 +14,18 @@ class LLMError(Exception):
 
 class BackendError(LLMError):
     """The backend failed in a way that is not a usage limit."""
+
+
+class BilledBackendError(BackendError):
+    """A response came back and was billed, but can't be used: `stop_reason` `max_tokens` or
+    `refusal`, or text that isn't a JSON object (ADR-087). `response` carries the usage and cost
+    the API reported (data empty), so the ledger records the spend; `kind` is `max_tokens`,
+    `refusal` or `non_json_output`."""
+
+    def __init__(self, message: str, response: BackendResponse, kind: str) -> None:
+        super().__init__(message)
+        self.response = response
+        self.kind = kind
 
 
 class StructuredOutputError(LLMError):

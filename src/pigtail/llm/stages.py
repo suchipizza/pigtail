@@ -17,6 +17,8 @@ so it is a standard call, never batched.
 **Batch or standard (R15.9).** Every stage that isn't time-sensitive goes through the Message
 Batches API on the `api` backend. Time-sensitive jobs use standard calls: interactive requests
 (`brief_expansion`, `smoke`) and launch mode (any job whose name starts with `launch_`, R19.4).
+
+**Thinking** is set per job in `pigtail.llm.thinking` (ADR-087): disabled for every job here.
 """
 
 from __future__ import annotations

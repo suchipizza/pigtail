@@ -8,6 +8,8 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
+from pigtail.llm.thinking import ThinkingMode
+
 
 @dataclass(frozen=True)
 class PromptSpec:
@@ -67,6 +69,7 @@ class LLMResult[T: BaseModel]:
     batch_id: str | None = None  # R15.9: the batch the output came from (None: standard call)
     trim_version: str | None = None  # R15.10: evidence-trimming version applied to the input
     redaction_version: str | None = None  # CB-06: identifier redaction applied to the input
+    thinking: str | None = None  # ADR-087: the thinking setting sent (`thinking.label`)
 
     def provenance(self) -> dict[str, str | None]:
         """Version record stored alongside every coded output (R7.4; Directive §6.3: model id,
@@ -82,6 +85,7 @@ class LLMResult[T: BaseModel]:
             "batch_id": self.batch_id,
             "trim_version": self.trim_version,
             "redaction_version": self.redaction_version,
+            "thinking": self.thinking,
         }
 
 
@@ -96,6 +100,7 @@ class Backend(Protocol):
         json_schema: dict[str, Any],
         model: str,
         context: str = "",
+        thinking: ThinkingMode = "disabled",
     ) -> BackendResponse: ...
 
 
