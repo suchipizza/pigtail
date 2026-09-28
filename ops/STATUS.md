@@ -39,3 +39,10 @@
 **Costs to date:** USD 0 in API or hosting. Research measurements used about 2,100 GitHub API requests on your logged-in `gh` account (within limits) and about 11 GB of downloads.
 
 **Process incidents:** twice, a commit was pushed after the private-data scan failed (no real secret or personal data either time). Both fixed; the check now runs separately before any commit.
+
+## Update 2026-09-28
+
+- **M22 accepted** (verifier round 9). Brief 1's one-time outcome sort ran after pre-registration amendment 2: 20 winners / 20 matched losers in views A (follow-through), B (launch) and B-undeclared.
+- **M23 pilot:** 5 cases double-coded and adjudicated. Pooled pattern-seed α = 0.85 (60 units, assessed); per-field α on 5 cases is "not assessed" (n too small), 12 fields below 0.70; all "LLM-coded, not human-validated". 29 evidence items; person-level sources recorded as gaps (held until CB-12/CB-06b). Evidence decay: 72 checks scheduled (+1/+7/+30 days).
+- **Costs to date:** API USD 2.76 in September, all brief 1 (incl. USD 1.38 of billed failed attempts found and back-filled). Full-brief coding projected ≈ USD 18 (clean-run basis; the tool's conservative figure USD 36.37), within the USD 90 cap.
+- **Incidents fixed:** coder schema too large for structured outputs; adaptive thinking on claude-sonnet-5 consumed the output budget (now disabled for structured jobs, ADR-087); billed errors now ledgered.
