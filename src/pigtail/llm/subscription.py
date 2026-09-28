@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from pigtail.llm.errors import BackendError, UsageLimitReached
+from pigtail.llm.thinking import ThinkingMode
 from pigtail.llm.types import BackendResponse
 
 # Env vars that would make the CLI bill an API or 3P provider instead of the subscription.
@@ -106,8 +107,10 @@ class SubscriptionBackend:
         json_schema: dict[str, Any],
         model: str,
         context: str = "",
+        thinking: ThinkingMode = "disabled",
     ) -> BackendResponse:
         # No prompt caching or batches through the CLI: the context joins the system prompt.
+        # The CLI has no per-call thinking switch: `thinking` (ADR-087) applies to `api` only.
         full_system = f"{system}\n\n{context}" if context else system
         cmd = self.command(system=full_system, json_schema=json_schema, model=model)
         # Empty working dir so no project CLAUDE.md or settings leak into product calls.

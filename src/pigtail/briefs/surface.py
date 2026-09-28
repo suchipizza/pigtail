@@ -220,7 +220,7 @@ class SurfaceCoder:
         backend = self.llm.backend_for(JOB).name
         model = self.llm.model_for(JOB)
         ih = sha256_text(self.llm.redact(text, NAMESPACE))
-        return self.llm.cache_key(backend, model, PROMPT, schema_hash(SurfaceOutput), ih)
+        return self.llm.cache_key(backend, model, PROMPT, schema_hash(SurfaceOutput), ih, job=JOB)
 
     def blocked(self) -> str | None:
         """Why the coding can't run at all (no client), or None. Approval and the caps are
@@ -382,6 +382,9 @@ class SurfaceCoder:
             "prompt_version": PROMPT.version,
             "prompt_fingerprint": PROMPT.fingerprint,
             "schema_sha": schema_hash(SurfaceOutput),
+            "thinking": (  # ADR-087
+                self.llm.thinking_label(JOB, model, backend) if self.llm is not None else None
+            ),
             "batch_id": batch_id,
             "cached": cached,
         }
@@ -432,6 +435,7 @@ UNAVAILABLE = (
 def surface_params() -> dict[str, Any]:
     """The coding as it goes into the pre-registered selection parameters (ADR-084)."""
     from pigtail.briefs.confirm import resolved_model
+    from pigtail.llm.thinking import job_params
 
     return {
         "version": SURFACE_VERSION,
@@ -445,6 +449,8 @@ def surface_params() -> dict[str, Any]:
         "prompt_version": PROMPT.version,
         "prompt_fingerprint": PROMPT.fingerprint,
         "schema_sha": schema_hash(SurfaceOutput),
+        # ADR-087: the thinking setting and what it sends on the resolved model
+        "thinking": job_params(JOB, resolved_model(JOB)),
         "repos_per_request": CHUNK,
         "use": "balance only: SMD per level next to language; never a matching key; never "
         "excludes a pair",

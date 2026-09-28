@@ -56,6 +56,7 @@ from pydantic import BaseModel, Field
 from pigtail.briefs.budget import BudgetStop
 from pigtail.llm import BatchItem, BatchPending, LLMClient, LLMError, PromptSpec
 from pigtail.llm.pricing import TokenUsage, cost_usd
+from pigtail.llm.thinking import job_params
 from pigtail.llm.types import schema_hash, sha256_text
 
 CONFIRMATION_VERSION = "confirm-v2"  # v2: rule 2 skips logins that overlap the repo name
@@ -451,6 +452,7 @@ def confirmation_params() -> dict[str, Any]:
             "prompt_version": PROMPT.version,
             "prompt_fingerprint": PROMPT.fingerprint,
             "schema_sha": schema_hash(TitleMatchVerdict),
+            "thinking": job_params(JOB, resolved_model(JOB)),  # ADR-087
             "confirms_only": "true",
         },
     }
@@ -588,6 +590,7 @@ def ph_confirmation_params() -> dict[str, Any]:
             "prompt_version": PH_PROMPT.version,
             "prompt_fingerprint": PH_PROMPT.fingerprint,
             "schema_sha": schema_hash(TitleMatchVerdict),
+            "thinking": job_params(PH_JOB, resolved_model(PH_JOB)),  # ADR-087
             "text_chars": PH_TEXT_CHARS,
             "confirms_only": "true",
         },

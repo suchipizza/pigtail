@@ -158,7 +158,12 @@ calls (expansion) and launch mode use standard calls; `LLM_BATCH=0` sends standa
 everywhere. The system prompt and the codebook are sent as a cached prefix (prompt caching), and
 evidence is trimmed before sending (reposts deduplicated, long threads cut to their first and
 last items, only relevant excerpts of long items; R15.10). Every output records its model, prompt
-version and batch id.
+version and batch id. Every structured job runs with thinking disabled (ADR-087; on
+`claude-opus-5-5`, which can't disable thinking, at low effort instead), and the setting sent is
+recorded with each output; `LLM_THINKING_SYNTHESIS=adaptive` turns adaptive thinking on for the
+synthesis jobs only (patterns, report, plan). A response the API billed but pigtail can't use
+(`max_tokens`, `refusal`) is recorded in the cost ledger with its tokens and cost
+(`error_billed`) and counts against the budget caps.
 
 Before every run, look at the estimate:
 ```bash

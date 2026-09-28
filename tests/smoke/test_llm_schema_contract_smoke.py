@@ -21,6 +21,7 @@ import pytest
 from pigtail.config import stage_models
 from pigtail.llm.api import build_params
 from pigtail.llm.stages import stage_for
+from pigtail.llm.thinking import mode_for
 from pigtail.llm.types import schema_of
 from tests.llm_contract import product_schemas
 
@@ -43,6 +44,7 @@ def test_structured_output_schema_is_accepted_live(name: str, job: str, schema: 
         json_schema=schema_of(schema),
         model=model,
         max_tokens=1,
+        thinking=mode_for(job),  # the job's thinking setting (ADR-087)
     )
     client = anthropic.Anthropic(api_key=API_KEY, max_retries=2)
     try:

@@ -188,10 +188,11 @@ def test_flatten_units_novelty_and_missing_items() -> None:
 
 
 # --- prompts --------------------------------------------------------------------------------
-PINNED = {  # blind-v1 input spec included (ADR-086); flat unit output (addendum 1)
-    "A": "case-coder-a@3#1c7ae4d34bac",
-    "B": "case-coder-b@3#7d06803578f2",
-    "adjudicator": "case-adjudicator@3#5c1bf110bb6b",
+PINNED = {  # blind-v1 input spec included (ADR-086); flat unit output (addendum 1);
+    # the thinking setting sent on the extraction model (ADR-087)
+    "A": "case-coder-a@3#1c7ae4d34bac+thinking:disabled",
+    "B": "case-coder-b@3#7d06803578f2+thinking:disabled",
+    "adjudicator": "case-adjudicator@3#5c1bf110bb6b+thinking:disabled",
 }
 
 

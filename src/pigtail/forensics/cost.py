@@ -75,6 +75,9 @@ class CallTokens:
 # than the nested 1.0.0 form); the adjudicator sees the evidence plus the disagreeing units
 # (~12 units, ~3,000 tokens) and writes ~1,500; 90 % of cases have at least one disagreement.
 # One call per coder pass and case (the flat schema fits one call; ADR-086 addendum 1).
+# Observed 2026-09-28 (one live coder request, thinking disabled, ADR-087): 9,083 input tokens,
+# 4,941 output tokens, `end_turn`. The planning numbers are kept (one request is not a
+# measurement; the pilot's measured model replaces them).
 PLAN_CODER = (11_200, 3_000, 4_500)  # (input incl. prefix, prefix, output)
 PLAN_ADJ = (13_700, 3_000, 1_500)
 PLAN_ADJ_SHARE = 0.9
@@ -190,7 +193,8 @@ STAGE_OF_PROMPT = {
 def ledger_by_case(conn: Any, brief_run_id: str) -> dict[str, dict[str, StageTotals]]:
     """Actual cost per case (coding id) and stage from `llm_cost_ledger` (every model call of the
     pilot run; cached results cost nothing and have no row; failed requests (`error`) made no
-    model call and are left out)."""
+    model call and are left out; billed failures (`error_billed`: `max_tokens`, `refusal`,
+    non-JSON, ADR-087) were paid for and count, so a case's cost includes its failed calls)."""
     rows = conn.execute(
         "SELECT COALESCE(case_ref, '-'), prompt_id, count(*), count(batch_id), sum(input_tokens),"
         " sum(output_tokens), sum(cache_write_tokens), sum(cache_read_tokens), sum(cost_usd)"

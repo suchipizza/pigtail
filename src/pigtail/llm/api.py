@@ -29,8 +29,14 @@ from typing import Any
 
 import anthropic
 
-from pigtail.llm.errors import BackendError, UsageLimitReached, safe_error_message
+from pigtail.llm.errors import (
+    BackendError,
+    BilledBackendError,
+    UsageLimitReached,
+    safe_error_message,
+)
 from pigtail.llm.pricing import PRICES, TokenUsage, cost_usd, estimate_cost
+from pigtail.llm.thinking import DEFAULT_MODE, ThinkingMode, request_fields
 from pigtail.llm.types import BackendResponse
 
 __all__ = [
@@ -54,19 +60,27 @@ def build_params(
     model: str,
     max_tokens: int,
     context: str = "",
+    thinking: ThinkingMode = DEFAULT_MODE,
 ) -> dict[str, Any]:
-    """Messages API parameters for one structured call; the stable prefix is cache-marked."""
+    """Messages API parameters for one structured call; the stable prefix is cache-marked and
+    the job's thinking setting applied (`pigtail.llm.thinking.request_fields`)."""
     blocks: list[dict[str, Any]] = [{"type": "text", "text": system}]
     if context:
         blocks.append({"type": "text", "text": context})
     blocks[-1]["cache_control"] = dict(CACHE_CONTROL)
-    return {
+    extra = request_fields(thinking, model)
+    output_config: dict[str, Any] = {"format": {"type": "json_schema", "schema": json_schema}}
+    output_config.update(extra.get("output_config") or {})
+    params: dict[str, Any] = {
         "model": model,
         "max_tokens": max_tokens,
         "system": blocks,
         "messages": [{"role": "user", "content": prompt}],
-        "output_config": {"format": {"type": "json_schema", "schema": json_schema}},
+        "output_config": output_config,
     }
+    if "thinking" in extra:
+        params["thinking"] = dict(extra["thinking"])
+    return params
 
 
 def _usage(msg: Any) -> TokenUsage:
@@ -79,17 +93,7 @@ def _usage(msg: Any) -> TokenUsage:
     )
 
 
-def parse_message(msg: Any, *, batch_id: str | None = None) -> BackendResponse:
-    """A Messages API response (standard or from a batch) as a `BackendResponse`."""
-    if msg.stop_reason in ("refusal", "max_tokens"):
-        raise BackendError(f"api stop_reason={msg.stop_reason}")
-    text = "".join(b.text for b in msg.content if b.type == "text")
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError as e:
-        raise BackendError("api returned non-JSON output") from e
-    if not isinstance(data, dict):
-        raise BackendError("structured output is not a JSON object")
+def _response(msg: Any, data: dict[str, Any], batch_id: str | None, **meta: Any) -> BackendResponse:
     usage = _usage(msg)
     return BackendResponse(
         data=data,
@@ -97,11 +101,34 @@ def parse_message(msg: Any, *, batch_id: str | None = None) -> BackendResponse:
         input_tokens=usage.input,
         output_tokens=usage.output,
         cost_usd=cost_usd(msg.model, usage, batch=batch_id is not None) or 0.0,
-        raw_meta={"id": msg.id},
+        raw_meta={"id": msg.id, **meta},
         cache_write_tokens=usage.cache_write,
         cache_read_tokens=usage.cache_read,
         batch_id=batch_id,
     )
+
+
+def parse_message(msg: Any, *, batch_id: str | None = None) -> BackendResponse:
+    """A Messages API response (standard or from a batch) as a `BackendResponse`. A response
+    that can't be used raises `BilledBackendError` with the usage it was billed for."""
+
+    def billed(message: str, kind: str) -> BilledBackendError:
+        return BilledBackendError(
+            message,
+            _response(msg, {}, batch_id, stop_reason=msg.stop_reason),
+            kind=kind,
+        )
+
+    if msg.stop_reason in ("refusal", "max_tokens"):
+        raise billed(f"api stop_reason={msg.stop_reason}", str(msg.stop_reason))
+    text = "".join(b.text for b in msg.content if b.type == "text")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise billed("api returned non-JSON output", "non_json_output") from e
+    if not isinstance(data, dict):
+        raise billed("structured output is not a JSON object", "non_json_output")
+    return _response(msg, data, batch_id)
 
 
 @dataclass(frozen=True)
@@ -120,6 +147,9 @@ class BatchItemResult:
     custom_id: str
     kind: str  # succeeded | errored | canceled | expired
     response: BackendResponse | None = None
+    # a `succeeded` result that can't be used (max_tokens, refusal, non-JSON): its usage and
+    # batch-price cost, recorded as `error_billed` (ADR-087)
+    billed: BackendResponse | None = None
     error: str | None = None  # error type only, never content
     retryable: bool = False
     message: str | None = None  # the API's error message, scrubbed and cut (safe_error_message)
@@ -153,6 +183,7 @@ class ApiBackend:
         json_schema: dict[str, Any],
         model: str,
         context: str = "",
+        thinking: ThinkingMode = DEFAULT_MODE,
     ) -> dict[str, Any]:
         return build_params(
             system=system,
@@ -161,6 +192,7 @@ class ApiBackend:
             model=model,
             max_tokens=self.max_tokens,
             context=context,
+            thinking=thinking,
         )
 
     def complete(
@@ -171,9 +203,15 @@ class ApiBackend:
         json_schema: dict[str, Any],
         model: str,
         context: str = "",
+        thinking: ThinkingMode = DEFAULT_MODE,
     ) -> BackendResponse:
         params = self.params(
-            system=system, prompt=prompt, json_schema=json_schema, model=model, context=context
+            system=system,
+            prompt=prompt,
+            json_schema=json_schema,
+            model=model,
+            context=context,
+            thinking=thinking,
         )
         try:
             msg = self.client.messages.create(**params)
@@ -233,13 +271,14 @@ class ApiBackend:
             if res.type == "succeeded":
                 try:
                     resp = parse_message(res.message, batch_id=batch_id)
-                except BackendError as e:
+                except BilledBackendError as e:
                     yield BatchItemResult(
                         r.custom_id,
                         "errored",
-                        error="output_error",
+                        error=e.kind,
                         retryable=True,
                         message=safe_error_message(e),
+                        billed=e.response,
                     )
                     continue
                 yield BatchItemResult(r.custom_id, "succeeded", response=resp)

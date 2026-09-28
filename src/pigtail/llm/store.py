@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS llm_usage (
     model TEXT NOT NULL,
     prompt_id TEXT NOT NULL,
     prompt_version TEXT NOT NULL,
-    status TEXT NOT NULL,          -- ok | cached | limit | error | invalid_output
+    status TEXT NOT NULL,  -- ok | cached | limit | error | error_billed | invalid_output
     input_tokens INTEGER NOT NULL DEFAULT 0,
     output_tokens INTEGER NOT NULL DEFAULT 0,
     cost_usd REAL NOT NULL DEFAULT 0
@@ -374,9 +374,9 @@ class LLMStore:
         with self._lock:
             rows = self._db.execute(
                 "SELECT backend,"
-                " SUM(status IN ('ok', 'invalid_output', 'error')),"
+                " SUM(status IN ('ok', 'invalid_output', 'error', 'error_billed')),"
                 " SUM(status = 'cached'), SUM(status = 'limit'),"
-                " SUM(status IN ('error', 'invalid_output')),"
+                " SUM(status IN ('error', 'error_billed', 'invalid_output')),"
                 " SUM(input_tokens), SUM(output_tokens), SUM(cost_usd)"
                 " FROM llm_usage GROUP BY backend"
             ).fetchall()
@@ -395,13 +395,15 @@ class LLMStore:
         """Backend calls, tokens and cost recorded since `since` (M12 BudgetGuard, ADR-053.1).
 
         Cache hits cost nothing and limit hits carry no tokens, so they are not counted.
+        Billed failures (`error_billed`: `max_tokens`, `refusal`, non-JSON) count with the usage
+        the API reported (ADR-087).
         """
         with self._lock:
             row = self._db.execute(
                 "SELECT COUNT(*), SUM(input_tokens), SUM(output_tokens), SUM(cost_usd),"
                 " SUM(cache_write_tokens), SUM(cache_read_tokens)"
                 " FROM llm_usage WHERE backend = ? AND ts >= ?"
-                " AND status IN ('ok', 'invalid_output', 'error')",
+                " AND status IN ('ok', 'invalid_output', 'error', 'error_billed')",
                 (backend, _ts(since)),
             ).fetchone()
         calls, tin, tout, cost, cw, cr = row
@@ -421,7 +423,8 @@ class LLMStore:
                 " SUM(cache_write_tokens), SUM(cache_read_tokens),"
                 " SUM(batch_id IS NOT NULL), SUM(cost_usd)"
                 " FROM llm_usage WHERE brief_run_id = ?"
-                " AND status IN ('ok', 'invalid_output', 'error') GROUP BY 1 ORDER BY 1",
+                " AND status IN ('ok', 'invalid_output', 'error', 'error_billed')"
+                " GROUP BY 1 ORDER BY 1",
                 (brief_run_id,),
             ).fetchall()
         keys = (
@@ -449,7 +452,7 @@ class LLMStore:
             row = self._db.execute(
                 "SELECT SUM(input_tokens + output_tokens) FROM llm_usage"
                 " WHERE backend = ? AND ts >= ? AND ts < ?"
-                " AND status IN ('ok', 'invalid_output', 'error')",
+                " AND status IN ('ok', 'invalid_output', 'error', 'error_billed')",
                 (backend, _ts(start), _ts(end)),
             ).fetchone()
         return float(row[0] or 0)

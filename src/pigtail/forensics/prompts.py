@@ -298,8 +298,26 @@ def blind_text(text: str) -> str:
     return re.sub(BLIND_TEXT_PATTERN, BLIND_REPLACEMENT, text)
 
 
+PROMPT_JOBS = {"A": JOB_CODING, "B": JOB_CODING, "adjudicator": JOB_ADJUDICATION}
+
+
 def fingerprints() -> dict[str, str]:
-    return {k: f"{p.id}@{p.version}#{p.fingerprint}" for k, p in PROMPTS.items()}
+    """`<id>@<version>#<fingerprint>+thinking:<sent>` per prompt: the thinking setting sent on
+    the resolved extraction model is part of what a coding was made under (ADR-087), so a pilot
+    coded under another setting is redone (ADR-086 addendum 1 item 4)."""
+    import os
+
+    from pigtail.config import stage_models
+    from pigtail.llm.stages import stage_for
+    from pigtail.llm.thinking import label, mode_for
+
+    models = stage_models(dict(os.environ))
+    out = {}
+    for k, p in PROMPTS.items():
+        job = PROMPT_JOBS[k]
+        sent = label(mode_for(job), models[stage_for(job)])
+        out[k] = f"{p.id}@{p.version}#{p.fingerprint}+thinking:{sent}"
+    return out
 
 
 # --- rendering -------------------------------------------------------------------------------

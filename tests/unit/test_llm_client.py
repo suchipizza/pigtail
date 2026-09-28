@@ -28,6 +28,7 @@ def test_r15_4_structured_output_validated_and_provenance(prompt):
         "batch_id",
         "trim_version",
         "redaction_version",  # ADR-066 follow-up: per-call aliases
+        "thinking",  # ADR-087: the thinking setting sent
     }
 
 

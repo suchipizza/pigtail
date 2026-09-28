@@ -82,6 +82,8 @@ class Settings:
     # R15.9: non-time-sensitive stages go through the Message Batches API on `api` (LLM_BATCH=0
     # sends standard calls instead, e.g. for a quick test).
     llm_batch: bool = True
+    # ADR-087: thinking of the synthesis jobs (`LLM_THINKING_SYNTHESIS`: disabled | adaptive)
+    llm_thinking_synthesis: Literal["disabled", "adaptive"] = "disabled"
     llm_limit_pause_seconds: int = 1800
     data_dir: Path = Path("data")
     pseudonym_key: str | None = None
@@ -124,6 +126,8 @@ class Settings:
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
+        from pigtail.llm.thinking import synthesis_mode  # lazy: pigtail.llm imports config
+
         e = dict(os.environ) if env is None else env
         data_dir = Path(e.get("PIGTAIL_DATA_DIR", "data"))
         briefs_dir, briefs_src = resolve_briefs_dir(e, data_dir)
@@ -134,6 +138,7 @@ class Settings:
             llm_model=fallback,
             llm_models=stage_models(e),
             llm_batch=_flag(e.get("LLM_BATCH", "1"), "LLM_BATCH"),
+            llm_thinking_synthesis=synthesis_mode(e),
             llm_limit_pause_seconds=int(e.get("LLM_LIMIT_PAUSE_SECONDS", "1800")),
             data_dir=data_dir,
             pseudonym_key=optout_key_from_env(e),
