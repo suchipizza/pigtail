@@ -605,3 +605,92 @@ def add_commands(bs: argparse._SubParsersAction[argparse.ArgumentParser]) -> Non
     p.add_argument("--due", action="store_true", help="run the checks that are due first")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_decay)
+
+
+def cmd_report_brief(args: argparse.Namespace) -> int:
+    """`pigtail report brief <id>` (M24, ADR-089): the private D2 report of a coded brief."""
+    import psycopg
+
+    from pigtail.briefs.cli import _llm_client, _settings
+    from pigtail.capture.db import CaptureDB
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.capture.snapshots import build_store
+    from pigtail.forensics.report_brief import ReportDeps, ReportOptions, run_report
+
+    s = _settings()
+    try:
+        brief = _brief(args)
+    except (BriefNotFound, BriefInvalid) as e:
+        print(str(e), file=sys.stderr)
+        return EXIT_INVALID
+    if not s.database_url:
+        print("DATABASE_URL is not set", file=sys.stderr)
+        return EXIT_USAGE
+    if args.max_usd is not None and args.max_usd <= 0:
+        print("--max-usd must be above 0", file=sys.stderr)
+        return EXIT_USAGE
+    try:
+        client = _llm_client()
+    except ValueError as e:
+        print(f"LLM client not configured: {e}", file=sys.stderr)
+        return EXIT_USAGE
+    opts = ReportOptions(
+        approve_paid=args.approve_paid,
+        dry_run=args.dry_run,
+        max_usd=args.max_usd,
+        run_id=args.run,
+        wait_seconds=args.wait_minutes * 60 if args.wait_minutes is not None else None,
+        final=args.final,
+    )
+    with psycopg.connect(s.database_url, autocommit=True) as conn:
+        db = CaptureDB(conn)
+        snaps = build_store(s)
+        deps = ReportDeps(
+            conn=conn,
+            client=client,
+            snapshots=snaps,
+            data_dir=s.data_dir,
+            month_cap_usd=s.budget_usd_month,
+        )
+        if args.dry_run:
+            outcome = run_report(brief, deps, opts)
+        else:
+            with RunRecorder("brief.report", {"final": args.final}, sink=db.upsert_run) as rec:
+                deps.run_record_id = rec.id
+                outcome = run_report(brief, deps, opts)
+    if args.json:
+        _print(outcome.to_dict())
+    else:
+        est = outcome.estimate or {}
+        if est:
+            print(
+                f"Report estimate ({est.get('model')}, {est.get('mode')}): {est.get('narratives')} "
+                f"narratives, ${est.get('per_narrative_usd')} each, total ${est.get('total_usd')} "
+                f"(x1.25 contingency: ${est.get('total_with_contingency_usd')})"
+            )
+        print(f"\n{outcome.status}: {outcome.message}")
+        for k, v in outcome.report_paths.items():
+            print(f"private report ({k}): {v}")
+        if outcome.summary:
+            print(json.dumps(outcome.summary, indent=2, default=str))
+    if outcome.exit_code != 0:
+        print(outcome.message, file=sys.stderr)
+    return outcome.exit_code
+
+
+def add_report_brief(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    p = sub.add_parser("brief", help="a coded brief's private D2 report (M24; narratives paid)")
+    p.add_argument("brief_id")
+    p.add_argument("--version", type=int, help="brief version (default: latest)")
+    p.add_argument("--run", help="the coding run (default: the latest finished one)")
+    p.add_argument("--approve-paid", action="store_true", help="approve the narratives' estimate")
+    p.add_argument("--dry-run", action="store_true", help="show the estimate and cases only")
+    p.add_argument("--wait-minutes", type=float, help="poll the batch this long, then leave it")
+    p.add_argument("--max-usd", type=float, help="hard stop on this report run's API spend")
+    p.add_argument(
+        "--final",
+        action="store_true",
+        help="mark the report final (R19.9) and purge the unreferenced cache (R19.10, logged)",
+    )
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_report_brief)

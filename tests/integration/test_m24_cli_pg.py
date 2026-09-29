@@ -46,3 +46,13 @@ def test_m24_t1_cli_code_dry_run_approval_cap_and_run(
         "SELECT DISTINCT reason FROM brief_case_gap WHERE source = 'hn_stories'"
     ).fetchall()
     assert gaps == [("connector_off",)]
+    # [M24-T5] the report: dry run shows the estimate and changes nothing; approval needed
+    assert main(["report", "brief", BID, "--dry-run", "--json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["status"] == "dry_run" and d["estimate"]["narratives"] == 5
+    assert "cache_purge_preview" in d["summary"]
+    assert main(["report", "brief", BID]) == 3
+    capsys.readouterr()
+    assert (
+        db.conn.execute("SELECT count(*) FROM brief_runs WHERE kind = 'report'").fetchone()[0] == 0
+    )
