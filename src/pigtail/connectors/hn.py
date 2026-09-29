@@ -655,3 +655,39 @@ class HNShowDiscoveryConnector(Connector):
                 "points": st.points,
                 "repo_full_names": [st.repo_full_name] if st.repo_full_name else [],
             }
+
+
+class HNStoryMetaConnector(HNShowDiscoveryConnector):
+    """HN stories by item id, project-level story metadata only (M24 report facts, ADR-089).
+
+    A subclass, so the selection's guarded connector (`HNShowDiscoveryConnector`, in the
+    pre-registered anchor-rule hash, ADR-083.6) is unchanged. Same terms (TM-03), limiter and
+    privacy rules: only `SHOW_HN_FIELDS` are asked for (title, url, points, time), `author`,
+    `_tags` and highlights are never requested or read, and the caller drops the raw page right
+    after parsing (CB-24)."""
+
+    def stories_by_id(
+        self,
+        item_ids: list[int],
+        *,
+        front_page: bool = False,
+        evidence_url: str | None = None,
+    ) -> Fetched:
+        """The stories with these ids, one request for up to `HITS_PER_PAGE`
+        (`tags=(story_<id>,...)`). With `front_page`, only those Algolia tags `front_page`;
+        that tag reflects Algolia's front-page listing, so its absence is not evidence that a
+        story never reached the front page."""
+        ids = sorted({int(i) for i in item_ids})
+        if not ids or len(ids) > HITS_PER_PAGE:
+            raise ValueError(f"1..{HITS_PER_PAGE} item ids per request")
+        group = "(" + ",".join(f"story_{i}" for i in ids) + ")"
+        return self.fetch(
+            f"{ALGOLIA_BASE}/search",
+            params={
+                "tags": f"front_page,{group}" if front_page else group,
+                "hitsPerPage": len(ids),
+                "attributesToRetrieve": ",".join(SHOW_HN_FIELDS),
+                "attributesToHighlight": "",
+            },
+            evidence_url=evidence_url,
+        )
