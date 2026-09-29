@@ -17,7 +17,6 @@ PENDING_STAGES = {  # v2 milestones (WORK_ORDER v2.0)
     "panel": "M13",
     "extract": "M15",
     "analyze": "M15",
-    "plan": "M16",
 }
 # `pigtail report` subcommands: hn-frontpage (M1-T22), inventory (M11); neighbourhood report: M15.
 REPORT_MILESTONE = "M15"
@@ -1505,6 +1504,9 @@ def build_parser() -> argparse.ArgumentParser:
     from pigtail.briefs.pilot_cli import add_report_brief
 
     add_report_brief(rep_sub)  # `pigtail report brief <id>` (M24, ADR-089)
+    from pigtail.briefs.plan_cli import add_plan_parser
+
+    add_plan_parser(sub)  # `pigtail plan <id>`, `pigtail plan lock <id>` (M25, ADR-091)
 
     for stage, milestone in PENDING_STAGES.items():
         sp = sub.add_parser(stage, help=f"(not yet implemented; {milestone})")
