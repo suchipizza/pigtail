@@ -43,7 +43,9 @@ EMAIL_ALLOW = re.compile(
     r"|^noreply@anthropic\.com$"
     # Role/organizational addresses published by platforms are not personal data.
     r"|^(noreply|no-reply|security|privacy|hello|info|support|contact|legal|api|press|abuse"
-    r"|dmca|copyright|help|feedback|partners|developers?)@",
+    r"|dmca|copyright|help|feedback|partners|developers?)@"
+    # the SSH user of git remotes (`git@github.com:owner/name.git`), not a mailbox (M23b)
+    r"|^git@(github\.com|gitlab\.com|bitbucket\.org)$",
     re.IGNORECASE,
 )
 

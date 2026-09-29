@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 from psycopg import sql
+from psycopg.types.json import Jsonb
 
 from pigtail.capture.snapshots import LocalSnapshotStore
 from pigtail.llm.store import LLMStore
@@ -242,7 +243,29 @@ def seed(db: Any, store: LocalSnapshotStore, repo: tuple[int, str]) -> dict[str,
         " VALUES (%s, %s, 'brief_synthetic', 1, %s, %s, %s, 'homepage', 1, %s)",
         (ce[0] if ce else None, run, name.lower(), key, hid, t + timedelta(days=1)),
     )
-    return {"key": key, "evidence": [page, hist, search, site]}
+    # M23b (0033): an exploratory download value of the case, linked to its download series
+    # by the record's evidence list (the URL names only a package, not the repo)
+    dls = put_ev(
+        db, store, f"npm range {hid}".encode(), fetched_at=t, retention_class="project_level",
+        source="npm_downloads",
+        url=f"https://api.npmjs.org/downloads/range/2026-09-01:2026-09-30/fake-pkg-{hid}",
+    )  # fmt: skip
+    ref = put_ev(  # the shared reference series is not the repo's and stays
+        db, store, b"npm reference range", fetched_at=t, retention_class="project_level",
+        source="npm_downloads", url="https://api.npmjs.org/downloads/range/x/reference",
+    )  # fmt: skip
+    q(
+        "INSERT INTO brief_secondary_outcome (selection_id, candidate_ref, repo_full_name,"
+        " repo_host_id, repo_id, metric, status, value, record, rule_version, as_of)"
+        " VALUES (%s, %s, %s, %s, %s, 'adopt.npm_downloads_launch@0-2', 'observed', 12, %s,"
+        " 'downloads-v1', %s)",
+        (sel, "gh:" + name.lower(), name.lower(), hid, key, Jsonb({"evidence": [
+            {"evidence_id": dls.id, "content_hash": dls.content_hash, "kind": "downloads"},
+            {"evidence_id": ref.id, "content_hash": ref.content_hash,
+             "kind": "reference_downloads"},
+        ]}), t.date()),
+    )  # fmt: skip
+    return {"key": key, "evidence": [page, hist, search, site, dls], "reference": ref}
 
 
 def rows_of(db: Any, t: RepoTable, repo: tuple[int, str]) -> int:
@@ -290,8 +313,10 @@ def test_cb13c_purge_repo_reaches_every_registered_table(capture_db, tmp_path, p
     for ev in x["evidence"]:
         assert not store.exists(ev.content_hash)
         assert db.conn.execute("SELECT 1 FROM evidence WHERE id = %s", (ev.id,)).fetchone() is None
-    assert res.counts["evidence_deleted"] == 4  # M23: the homepage item via its pilot link
-    assert res.counts["llm_cache_rows_deleted"] == 4
+    # M23: the homepage item via its pilot link; M23b: the download series via its value
+    assert res.counts["evidence_deleted"] == 5
+    assert res.counts["llm_cache_rows_deleted"] == 5
+    assert store.exists(x["reference"].content_hash)  # M23b: the shared reference series stays
     assert res.counts["repo_star_daily_rows_deleted"] == 1 and res.counts["cases_deleted"] == 1
     assert res.counts["launch_mode_window_rows_deleted"] == 1
     # the other repo is untouched

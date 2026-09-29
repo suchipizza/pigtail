@@ -1,4 +1,4 @@
-# Per-source terms memos (TM-01 … TM-34)
+# Per-source terms memos (TM-01 … TM-35)
 
 Part of the compliance pack: see [README.md](README.md).
 
@@ -617,6 +617,35 @@ AUP §7 applies as in TM-01.
 - Deletion: nothing post-level is kept (no URI, text or handle), so an upstream deletion leaves only a role-coded time on a repo, a non-identifying coded fact (retention policy §4).
 - **Differences from TM-06's conditions:** TM-06 asks for authenticated search with the operator's own credentials; this search is unauthenticated on the public AppView, which the owner verified works. TM-06's Jetstream deletion sync and DID pseudonymisation concern stored person-level content, which this search does not keep. The owner accepted that this narrow use sits outside ADR-073.2's hold (ADR-085 addendum 3): nothing person-level is stored and raw answers are dropped, as for the HN first-mention search.
 
+### TM-35: pypistats.org JSON API (PyPI daily downloads, recent history only)
+
+**Decision: CLEARED-WITH-CONDITIONS (2026-09-29, engineering agent, ADR-090; for the exploratory download outcome of M23b).** Accessed 2026-09-29.
+
+**Who runs it:** the site says "This service is hosted and operated by The Python Software Foundation" (https://pypistats.org/about); its code is `psf/pypistats.org` (Apache-2.0). The data are "sourced from the Python Software Foundation's publicly available download stats on Google BigQuery" (same page), i.e. the tables of TM-07 (CC BY 4.0).
+
+**Clauses relied on** (https://pypistats.org/api/, sections "Etiquette" and "Rate Limiting")
+> "If you plan on using the API to download historical data for every python package in the database … DON'T."
+> "If you want to regularly fetch download counts for a particular package or set of packages, cache your results."
+> "…you should not need to fetch results from the same API endpoint more than once per day."
+> "IP-based rate limiting is imposed application-wide."
+- The API and about pages say time series are kept for 180 days ("Time series data is retained only for 180 days"). A live answer on 2026-09-29 held 184 days, so pigtail reads the coverage from each run's reference answer instead of assuming it.
+- No terms-of-use page exists (`/terms` answers 404), and no page restricts commercial use; the PSF operates the site. `robots.txt` answers 404 (no rules).
+- The documented `start_date`/`end_date` parameters are commented out on the page and ignored by the API (live check 2026-09-29): every call returns the whole retained series.
+
+**Reading.** The etiquette forbids bulk history downloads for all packages and asks for caching and at most one request per endpoint per day; it explicitly anticipates regular fetches "for a particular package or set of packages". pigtail's use is that: the packages mapped from one brief's view-A cases (tens, not the package universe), once. TM-07's condition "Do not bulk-query pypistats.org" is the same rule. The data's licence is CC BY 4.0 (TM-07), so attribution applies.
+
+**Conditions (implemented in `pigtail.connectors.downloads.PypiStatsConnector` and `pigtail.briefs.downloads`)**
+- Shortlisted, mapped packages only (plus one reference package per run for the coverage window); never a package list, never all packages.
+- At most one request per endpoint per UTC day: a same-day snapshot is reused (`same_day_reuse`); a final value is never fetched again.
+- Client-side limiter of one request every 20 s. The site's limit is not published and its 429 carries no `Retry-After`; on 2026-09-29 a handful of requests within a minute from one IP were refused for a few minutes. On a 429 the connector backs off in half-minutes (up to 4 retries), then stops.
+- The descriptive pigtail User-Agent with the project URL on every request.
+- Only the `without_mirrors` series is read (`mirrors=false`); snapshots are aggregate counts (`project_level`).
+- Coverage recorded on every value (`coverage_start`, `coverage_end`, gap days, and that a day without a row means no downloads); windows before `coverage_start` are `unknown` (`outside_source_history`).
+- Attribution in reports: "PyPI / Linehaul (PSF), CC BY 4.0, via pypistats.org", with the licence link.
+- Re-check this memo if the site publishes terms or changes its etiquette, or if pigtail ever wants more than a brief's packages.
+
+**Not used:** the PyPI JSON API (`pypi.org/pypi/<name>/json`, which would let pigtail check a package's project URLs on the registry side) has no memo yet, so the repo→package mapping relies on the repo's own manifest URLs (ADR-090).
+
 ---
 
 ## Questions for the owner's lawyer (gate H2)
@@ -649,3 +678,4 @@ New questions from TM-32 and TM-33 go straight into `legal-review-questions.md`:
 - 2026-09-27 — ADR-085 addendum 5 (verifier M22 round 8): TM-16 wording corrected: the cache is a systematic list of post ids and dates for two topics; name hashes of guessable names can be reversed; "any significant portion of the Content" is an open reading pending the owner's email (H5), with the clause quoted, its URL and the date; the scope condition updated (slug-route posts of any date stored per candidate; the listing kept per instance); retention 30 days (was 90); the per-topic density summary; "~10-hour scan" replaced by "not yet measured".
 - 2026-09-27 — ADR-085 addendum 4 (owner decision: reuse the Product Hunt category scan across runs and briefs): TM-16 conditions gain the shared topic-listing cache, storing the minimum (post id, topic, dates and the SHA-256 of the normalized name; nothing readable of the listing's content; month-sized scan intervals; 14-day reuse, 90-day retention) and a note for the owner's H5 email (the site terms' "significant portion of the Content").
 - 2026-09-27 — ADR-085 addendum 3 (owner decisions after verifier M22 round 7): TM-34 updated: declared handles resolved in memory (`resolveHandle`), no `since`/`until`, the post text read in memory for the launch-wording test and never stored, the README counts only with exactly one account, the stored count of posts without launch wording, and the owner's acceptance of the ADR-073.2 reading.
+- 2026-09-29 — new memo TM-35 (pypistats.org JSON API: CLEARED-WITH-CONDITIONS for a brief's mapped packages, one request per endpoint per day, one request every 20 s, coverage recorded, CC BY 4.0 attribution; ADR-090, M23b). TM-08 unchanged (npm downloads API and registry manifests used within its operating limits).
