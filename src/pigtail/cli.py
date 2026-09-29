@@ -1502,6 +1502,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     inv.add_argument("--json", action="store_true", help="JSON instead of a Markdown table")
     inv.set_defaults(func=cmd_report_inventory)
+    from pigtail.briefs.pilot_cli import add_report_brief
+
+    add_report_brief(rep_sub)  # `pigtail report brief <id>` (M24, ADR-089)
 
     for stage, milestone in PENDING_STAGES.items():
         sp = sub.add_parser(stage, help=f"(not yet implemented; {milestone})")

@@ -272,3 +272,75 @@ def test_m24_code_end_to_end_reuses_the_pilot(env: Env) -> None:  # noqa: F811
         pilot.brief_run_id
     )
     assert datetime.fromisoformat(tr["bursts"][0]["onset_day"]).date() == date(2026, 3, 10)
+
+
+def test_m24_code_anchorless_exemplar_and_resume_after_crash(
+    env: Env,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """[M24-T1] regression (ADR-089 addendum 2): a selected case without an anchor (an exemplar
+    the selection stored with `anchor: null`) gets `readme_at_anchor` as a `no_anchor` gap,
+    its releases without a window, facts from its first launch event, and is coded; a crash in
+    the evidence stage leaves the run resumable, with nothing paid twice."""
+    from pigtail.forensics.evidence import EvidenceStage
+
+    env.conn.execute(
+        "UPDATE brief_selection_case SET detail = jsonb_set(detail, '{anchor}', 'null')"
+        " WHERE candidate_ref = 'gh:org-p/zeta-ex'"
+    )
+    seed_stars(env)
+    real = EvidenceStage.collect
+    calls = {"n": 0}
+
+    def flaky(self: Any, pilot: Any, case: Any, cand: Any) -> Any:
+        calls["n"] += 1
+        if calls["n"] == 4:
+            raise RuntimeError("simulated crash in the evidence stage")
+        return real(self, pilot, case, cand)
+
+    monkeypatch.setattr(EvidenceStage, "collect", flaky)
+    with pytest.raises(RuntimeError):
+        run_pilot(env.brief, deps(env), FULL)
+    assert env.backend.submitted == []  # nothing paid before the crash
+    rid = q(env, "SELECT id FROM brief_runs WHERE kind = 'coding'")[0][0]
+    done = q(
+        env,
+        "SELECT count(*) FROM brief_pilot_case WHERE brief_run_id = %s"
+        " AND evidence_status = 'done'",
+        rid,
+    )[0][0]
+    assert done == 3
+    fetched = len(env.gh_fake.requests)
+    out = run_pilot(env.brief, deps(env), FULL)  # the same command resumes the same run
+    assert out.exit_code == 0, out.message
+    assert out.brief_run_id == rid
+    assert calls["n"] == 4 + 8  # only the 8 cases not done were collected again
+    assert len(env.gh_fake.requests) > fetched
+    cases = {c.candidate_ref: c for c in fstore.load_cases(env.conn, rid)}
+    z = cases["gh:org-p/zeta-ex"]
+    assert z.anchor_at is None
+    gaps = dict(
+        q(
+            env,
+            "SELECT source, reason FROM brief_case_gap WHERE brief_run_id = %s AND case_key = %s",
+            rid,
+            z.case_key,
+        )
+    )
+    assert gaps["readme_at_anchor"] == "no_anchor"
+    kinds = {
+        r[0]
+        for r in q(
+            env,
+            "SELECT kind FROM brief_case_evidence WHERE brief_run_id = %s AND case_key = %s",
+            rid,
+            z.case_key,
+        )
+    }
+    assert {"releases", "readme_current", "launch_events"} <= kinds
+    assert z.facts is not None and z.facts["anchor_source"] == "first_launch_event"
+    assert z.facts["assets"]["assets"]["demo_media"]["value"] == "unknown"
+    assert z.facts["trajectory"]["anchor"] is not None
+    assert z.case_key in fstore.coded_cases(env.conn, rid, "final")
+    prompts = [p["messages"][0]["content"] for b in env.backend.submitted for _c, p in b]
+    assert any("Reference date T: unknown (no anchor)" in t for t in prompts)

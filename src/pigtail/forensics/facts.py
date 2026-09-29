@@ -807,7 +807,9 @@ class FactsStage:
                 for e in events
                 if e.at is not None and (e.launch or e.kind == "first_mention")
             ]
-            anchor_at = _t(c.anchor.get("at"))
+            # no anchor in the selection: the first launch event stands in (ADR-089 add. 2)
+            first = next((e.at for e in events if e.launch and e.at is not None), None)
+            anchor_at = _t(c.anchor.get("at")) or first
             anchor_traj = (
                 trajectory(series, anchor_at, created=created, as_of=as_of) if anchor_at else None
             )
@@ -856,6 +858,13 @@ class FactsStage:
             "version": FACTS_VERSION,
             "rules": RULES,
             "anchor": {k: v for k, v in c.anchor.items() if k != "relaunch_events"},
+            "anchor_source": "selection"
+            if c.anchor.get("at")
+            else (
+                "first_launch_event"
+                if any(e.launch and e.at is not None for e in events)
+                else "none"
+            ),
             "events": [e.to_dict() for e in events],
             "assets": assets,
             "amplifiers": amps,
