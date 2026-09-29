@@ -252,6 +252,9 @@ def cmd_refresh_facts(args: argparse.Namespace) -> int:
         db = CaptureDB(conn)
         snaps = build_store(s)
         with RunRecorder("brief.refresh_facts", {}, sink=db.upsert_run) as rec:
+            from pigtail.briefs.cli import _connectors
+
+            github, _hn, _gha = _connectors(s, db, rec, need_github=False)
             deps = PilotDeps(
                 conn=conn,
                 client=_llm_client(),
@@ -259,6 +262,7 @@ def cmd_refresh_facts(args: argparse.Namespace) -> int:
                 data_dir=s.data_dir,
                 run_record_id=rec.id,
                 hn=_story_meta(snaps, db, rec),
+                github=github,  # a former repo URL is resolved through GitHub (events-v3)
             )
             try:
                 out = refresh_facts(brief, deps, getattr(args, "run", None))

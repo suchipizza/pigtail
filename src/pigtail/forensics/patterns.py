@@ -214,29 +214,52 @@ def _pairs_count(
     return out
 
 
+BORDERLINE = 0.75  # measured precision in [0.70, 0.75): "borderline" (verifier M24 round 2)
+
+
 def alpha_of(
     feature: str,
     rel: Sequence[Mapping[str, Any]],
     asset_precision: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if feature.startswith("asset.") and asset_precision is not None:
-        m = (asset_precision.get("per_asset") or {}).get(feature.split(".", 1)[1]) or {}
-        prec = m.get("precision")
-        labels = [
-            f"rule-based ({asset_precision.get('rule', 'assets')}), precision "
-            f"{'unknown' if prec is None else prec} on the synthetic labelled set "
-            f"({asset_precision.get('set')}), not a sample of real READMEs"
-        ]
+        a = feature.split(".", 1)[1]
+        real = asset_precision.get("real") or {}
+        rm = (real.get("per_asset") or {}).get(a) or {}
+        prec = rm.get("precision")
+        syn = ((asset_precision.get("per_asset") or {}).get(a) or {}).get("precision")
+        if prec is None:
+            labels = [f"rule-based, precision not measured on real data ({rm.get('note', '-')})"]
+        else:
+            labels = [
+                f"rule-based, measured precision {prec} ({real.get('source')}, rules "
+                f"{real.get('rule_measured')}; tightened since, not re-measured)"
+            ]
+        labels.append(f"synthetic regression set {asset_precision.get('set')}: {syn}")
         if prec is None or prec < LOW_ALPHA:
             labels.append("low reliability")
-        return {"alpha": None, "precision": prec, "labels": labels}
+        elif prec < BORDERLINE:
+            labels.append("borderline")
+        return {
+            "alpha": None,
+            "precision": prec,
+            "real_precision": prec,  # the plan reads this key (M25)
+            "synthetic_precision": syn,
+            "labels": labels,
+        }
     if not is_coded(feature):
         return {"alpha": None, "labels": [DETERMINISTIC]}
     for r in rel:
         if r["field"] == feature and r["statistic"] == "nominal":
             labels = list(r.get("labels") or [])
-            low = r["alpha"] is not None and r["alpha"] < LOW_ALPHA
-            if low and "low reliability" not in labels:
+            if not r["assessed"]:
+                # below the minimum: "not assessed" alone (verifier M24 round 2 fix 3)
+                labels = [x for x in labels if x != "low reliability"]
+            elif (
+                r["alpha"] is not None
+                and r["alpha"] < LOW_ALPHA
+                and "low reliability" not in labels
+            ):
                 labels.append("low reliability")
             return {"alpha": r["alpha"], "labels": labels, "assessed": bool(r["assessed"])}
     return {"alpha": None, "labels": ["reliability not assessed"]}
