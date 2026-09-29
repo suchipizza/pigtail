@@ -61,6 +61,8 @@ TABLES: tuple[TableSpec, ...] = (
     # M22 selection (0022): outcome sort, winners, matched losers, balance, sensitivity
     TableSpec("brief_selection", "operational", None, "created_at"),
     TableSpec("brief_selection_case", "operational", "repo_full_name", None),
+    # M23b (0033, ADR-090): exploratory secondary outcomes (download counts) per selection case
+    TableSpec("brief_secondary_outcome", "operational", "repo_full_name", "updated_at"),
     # the shared Product Hunt topic-listing cache (0027, ADR-085 addendum 4): products, not
     # repos; ids, dates and hashed normalized names only, and the scanned month intervals
     TableSpec("ph_topic_post", "cache", None, "last_seen_at"),

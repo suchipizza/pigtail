@@ -717,6 +717,28 @@ reports; nothing recorded is changed. Keep brief content and names out of notes.
 **Opt-outs** reach the pilot: a repo's cases, codings, evidence links, gaps, decay checks, its
 evidence snapshots and the cached model outputs of its cases are deleted with it.
 
+### Download counts as an exploratory secondary outcome (M23b, ADR-090)
+
+For a stored selection, `pigtail brief downloads` adds npm and PyPI download counts for view A's
+cases: days 0–2 (launch size) and days 3–29 (follow-through) from the same anchor, as absolute
+numbers. They are **exploratory**: not pre-registered, never used by the outcome sort, and the
+stored selection is not changed. Free official APIs only (npm, TM-08; pypistats.org, TM-35; your
+GitHub token reads the repo's `package.json`, `pyproject.toml` or `setup.cfg`); no model call.
+
+```sh
+pigtail brief downloads <id> --dry-run        # the request estimate; nothing is fetched
+pigtail brief downloads <id>                  # fill (or resume) winners, losers, exemplars
+pigtail brief downloads <id> --all-roles      # every view-A case
+```
+
+A repo counts for npm only when npm's own manifest points back to it, and for PyPI only when
+its manifest's URLs do; anything ambiguous is `unknown` with a reason. pypistats keeps about 180
+days, so older launches are `unknown` (`outside_source_history`; every value records
+`coverage_start`); it runs at one request every 20 s. PyPI via BigQuery stays off (paid).
+`PIGTAIL_CONNECTOR_NPM_DOWNLOADS_ENABLED=false` / `PIGTAIL_CONNECTOR_PYPISTATS_ENABLED=false`
+turn a source off. Run it again later: `pending` windows are filled once they have settled, and
+an observed value is never overwritten.
+
 ## LLM backend (`LLM_BACKEND`, PRD F15)
 **Redaction on the LLM path (CB-06; ADR-066 follow-up, M21b, ADR-074).** Before any input leaves the
 process, e-mails, phone numbers, profile URLs, DIDs and @mentions are removed; people become

@@ -592,6 +592,16 @@ def _repo_evidence(
             " OR repo_host_id = %(host_id)s OR lower(repo_full_name) = ANY(%(names)s)"
         )
     )
+    # M23b (0033): evidence behind the repo's secondary outcomes (its manifests, its packages'
+    # registry manifests and download series; not the shared reference-package series)
+    parts.append(
+        sql.SQL(
+            "SELECT e->>'evidence_id' FROM brief_secondary_outcome s,"
+            " jsonb_array_elements(s.record->'evidence') e"
+            " WHERE (s.repo_id = %(key)s OR s.repo_host_id = %(host_id)s"
+            " OR s.repo_full_name = ANY(%(names)s)) AND e->>'kind' <> 'reference_downloads'"
+        )
+    )
     if names:
         cond, p = _url_cond("url", names)
         params |= p

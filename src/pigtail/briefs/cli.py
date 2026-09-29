@@ -33,6 +33,8 @@
                                                              M23 pilot (pigtail.briefs.pilot_cli)
     pigtail brief pilot-summary ID [--label L]               counts-only ops lines
     pigtail brief decay [ID] [--all] [--due]                 evidence decay (R19.8)
+    pigtail brief downloads ID [--selection SEL] [--dry-run] npm/PyPI downloads of a stored
+                                                             selection, exploratory (ADR-090)
     pigtail brief schema                                     print schemas/brief/v1.2.json
     pigtail brief migrate-store --from DIR [--dry-run]       move briefs to PIGTAIL_BRIEFS_DIR
 
@@ -1580,6 +1582,10 @@ def add_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> No
     from pigtail.briefs import pilot_cli
 
     pilot_cli.add_commands(bs)
+
+    from pigtail.briefs import downloads_cli
+
+    downloads_cli.add_commands(bs)
 
     bs.add_parser("schema", help="print the brief JSON Schema (v1.2)").set_defaults(func=cmd_schema)
 

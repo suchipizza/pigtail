@@ -157,6 +157,25 @@ REPO_TABLES: tuple[RepoTable, ...] = (
     RepoTable(
         "brief_selection_case", "repo_host_id", "host_id", "delete", "selection_case_rows_deleted"
     ),
+    # M23b (0033, ADR-090): the repo's exploratory secondary outcomes (download counts) in every
+    # stored selection, by id, name and GitHub id; their evidence goes with the repo's evidence
+    RepoTable(
+        "brief_secondary_outcome", "repo_id", "id", "delete", "secondary_outcome_rows_deleted"
+    ),
+    RepoTable(
+        "brief_secondary_outcome",
+        "repo_full_name",
+        "name",
+        "delete",
+        "secondary_outcome_rows_deleted",
+    ),
+    RepoTable(
+        "brief_secondary_outcome",
+        "repo_host_id",
+        "host_id",
+        "delete",
+        "secondary_outcome_rows_deleted",
+    ),
     # mention scope (Directive §8.3, migration 0019): an opted-out repo leaves every shortlist
     RepoTable("brief_shortlist_entry", "repo_id", "id", "delete", "shortlist_entry_rows_deleted"),
     RepoTable(

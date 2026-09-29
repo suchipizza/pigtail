@@ -71,6 +71,9 @@ TABLE_LEVELS: dict[str, Level] = {
     # and statistics; repo names only in the case rows)
     "brief_selection": "project",
     "brief_selection_case": "project",
+    # M23b (0033, ADR-090): exploratory download counts per selection case (public registry
+    # aggregates, package names, evidence ids and hashes; no person-level value)
+    "brief_secondary_outcome": "project",
     # the shared Product Hunt topic-listing cache (0027, ADR-085 addendum 4): per topic and
     # listed post its id, dates and the SHA-256 of its normalized name (nothing readable of the
     # listing's content), and the scanned month intervals; no name, tagline, count or person
