@@ -216,8 +216,10 @@ class EvidenceStage:
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         run_id: str | None = None,
         code_commit: str | None = None,
+        schedule_decay: bool = True,
     ) -> None:
         self.conn = conn
+        self.schedule_decay = schedule_decay
         self.db = CaptureDB(conn)
         self.snaps = snapshots
         self.github = github
@@ -259,7 +261,13 @@ class EvidenceStage:
 
         def item(row: EvidenceRow) -> None:
             fstore.add_evidence(
-                self.conn, pilot, case, row, captured_at=now, code_commit=self.code_commit
+                self.conn,
+                pilot,
+                case,
+                row,
+                captured_at=now,
+                code_commit=self.code_commit,
+                schedule_decay=self.schedule_decay,
             )
             res.items.append(row.evidence_id)
 
@@ -611,13 +619,17 @@ def rendered_items(
     conn: psycopg.Connection[Any], snaps: SnapshotStore, brief_run_id: str, case: PilotCase
 ) -> tuple[list[RenderedItem], list[str]]:
     """The case's items as the coders see them (owner login replaced by `[owner]`; redaction
-    happens in the LLM client, on the whole input), and the kinds whose snapshot is gone."""
+    happens in the LLM client, on the whole input), and the kinds whose snapshot is gone.
+    Report-only kinds (`hn_stories`, `star_trajectory`; M24) are never offered to the coders:
+    they carry outcome-proximal numbers (blind-v1) and are not part of the coding frame."""
     from pigtail.capture.snapshots import SnapshotError
 
     items: list[RenderedItem] = []
     missing: list[str] = []
     total = 0
     for r in fstore.evidence_rows(conn, brief_run_id, case.case_key):
+        if r["kind"] not in SOURCE_LABEL:
+            continue
         try:
             data = snaps.get(r["content_hash"])
         except (SnapshotError, KeyError):

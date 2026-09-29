@@ -35,6 +35,8 @@ class PilotCase:
     star_anomaly_flag: str | None = None
     evidence_status: str = "pending"
     evidence_stats: dict[str, Any] = field(default_factory=dict)
+    facts: dict[str, Any] | None = None  # report facts (M24, `report-facts-v1`)
+    reused_from: str | None = None  # the pilot run this case's coding was copied from
 
     @property
     def anchor_at(self) -> datetime:
@@ -130,34 +132,40 @@ def find_resumable(
     selection_id: str,
     cases_requested: int,
     statuses: Sequence[str],
+    kind: str = "pilot",
 ) -> str | None:
-    """The latest unfinished pilot run of this brief version, selection and size."""
+    """The latest pilot (or full coding, `kind` `coding`) run of this brief version, selection
+    and size in one of `statuses`."""
     row = conn.execute(
         "SELECT r.id FROM brief_runs r JOIN brief_pilot p ON p.brief_run_id = r.id"
-        " WHERE r.kind = 'pilot' AND r.brief_id = %s AND r.brief_version = %s"
+        " WHERE r.kind = %s AND r.brief_id = %s AND r.brief_version = %s"
         " AND p.selection_id = %s AND p.cases_requested = %s AND r.status = ANY(%s)"
         " ORDER BY r.created_at DESC, r.id DESC LIMIT 1",
-        (brief_id, brief_version, selection_id, cases_requested, list(statuses)),
+        (kind, brief_id, brief_version, selection_id, cases_requested, list(statuses)),
     ).fetchone()
     return str(row[0]) if row else None
 
 
 def latest_pilot(
-    conn: psycopg.Connection[Any], brief_id: str, brief_version: int | None = None
+    conn: psycopg.Connection[Any],
+    brief_id: str,
+    brief_version: int | None = None,
+    kind: str = "pilot",
 ) -> dict[str, Any] | None:
+    """The latest run of `kind` (`pilot`, or `coding` for the full coding of M24)."""
     q = (
         "SELECT p.brief_run_id FROM brief_pilot p JOIN brief_runs r ON r.id = p.brief_run_id"
-        " WHERE p.brief_id = %s AND (%s::int IS NULL OR p.brief_version = %s)"
+        " WHERE r.kind = %s AND p.brief_id = %s AND (%s::int IS NULL OR p.brief_version = %s)"
         " ORDER BY p.created_at DESC, p.brief_run_id DESC LIMIT 1"
     )
-    row = conn.execute(q, (brief_id, brief_version, brief_version)).fetchone()
+    row = conn.execute(q, (kind, brief_id, brief_version, brief_version)).fetchone()
     return pilot_row(conn, str(row[0])) if row else None
 
 
 def load_cases(conn: psycopg.Connection[Any], brief_run_id: str) -> list[PilotCase]:
     rows = conn.execute(
         "SELECT case_key, view, candidate_ref, repo_full_name, repo_id, repo_host_id, position,"
-        " role, pair_id, anchor, coding_id, evidence_status, evidence_stats"
+        " role, pair_id, anchor, coding_id, evidence_status, evidence_stats, facts, reused_from"
         " FROM brief_pilot_case WHERE brief_run_id = %s ORDER BY position",
         (brief_run_id,),
     ).fetchall()
@@ -181,9 +189,25 @@ def load_cases(conn: psycopg.Connection[Any], brief_run_id: str) -> list[PilotCa
                 star_anomaly_flag=flag,
                 evidence_status=r[11],
                 evidence_stats=dict(r[12] or {}),
+                facts=dict(r[13]) if r[13] is not None else None,
+                reused_from=r[14],
             )
         )
     return out
+
+
+def set_case_facts(
+    conn: psycopg.Connection[Any],
+    brief_run_id: str,
+    case_key: str,
+    facts: dict[str, Any],
+    version: str,
+) -> None:
+    conn.execute(
+        "UPDATE brief_pilot_case SET facts = %s, facts_version = %s"
+        " WHERE brief_run_id = %s AND case_key = %s",
+        (Jsonb(facts), version, brief_run_id, case_key),
+    )
 
 
 def set_case_evidence(
@@ -336,8 +360,10 @@ def add_evidence(
     *,
     captured_at: datetime,
     code_commit: str | None,
+    schedule_decay: bool = True,
 ) -> int:
-    """Insert one case item (idempotent per case and kind) and its decay schedule."""
+    """Insert one case item (idempotent per case and kind) and, for a pilot, its decay schedule
+    (the full coding run of M24 schedules none: the decay study is the pilot's, ADR-089)."""
     got = conn.execute(
         "INSERT INTO brief_case_evidence (brief_run_id, case_key, brief_id, brief_version,"
         " selection_id, candidate_ref, repo_full_name, repo_id, repo_host_id, kind, evidence_id,"
@@ -370,7 +396,7 @@ def add_evidence(
     ).fetchone()
     assert got is not None
     ce_id = int(got[0])
-    if row.decay_url:
+    if row.decay_url and schedule_decay:
         for d in DECAY_OFFSETS_DAYS:
             conn.execute(
                 "INSERT INTO brief_evidence_decay (case_evidence_id, brief_run_id, brief_id,"
@@ -697,3 +723,107 @@ def latest_cost_model(
     if row is None:
         return None
     return dict(zip([d.name for d in cur.description or []], row, strict=True))
+
+
+# --- reuse of a finished pilot's cases by the full coding (M24, ADR-089) -----------------------
+_EVIDENCE_COLS = (
+    "brief_id, brief_version, selection_id, candidate_ref, repo_full_name, repo_id, repo_host_id,"
+    " kind, evidence_id, content_hash, decay_url, upstream_hash, etag, last_modified, item_date,"
+    " captured_at, detail, code_commit"
+)
+_GAP_COLS = "candidate_ref, repo_full_name, repo_id, repo_host_id, source, reason, detail"
+_CODING_COLS = (
+    "brief_id, brief_version, selection_id, case_key, candidate_ref, repo_full_name, repo_id,"
+    " repo_host_id, pass, unit, field, value, unknown_reason, evidence_ids, excerpts, confidence,"
+    " status, excluded, reason, model, llm_backend, prompt_id, prompt_version,"
+    " prompt_fingerprint, batch_id, input_hash, codebook_version, frame_version, code_commit,"
+    " coded_at"
+)
+
+
+def reusable_pilot(
+    conn: psycopg.Connection[Any],
+    *,
+    brief_id: str,
+    brief_version: int,
+    selection_id: str,
+    fingerprints: dict[str, str],
+    frame_version: str,
+) -> tuple[str, set[str]] | None:
+    """The latest finished pilot of this selection coded under the same prompts (fingerprints,
+    thinking setting included) and frame, and the keys of its cases coded by both passes with a
+    final value (no failed request): the full coding copies them instead of paying again."""
+    rows = conn.execute(
+        "SELECT p.brief_run_id, p.prompt_fingerprints, p.frame_version FROM brief_pilot p"
+        " JOIN brief_runs r ON r.id = p.brief_run_id WHERE r.kind = 'pilot'"
+        " AND r.status = 'succeeded' AND p.brief_id = %s AND p.brief_version = %s"
+        " AND p.selection_id = %s ORDER BY p.created_at DESC, p.brief_run_id DESC",
+        (brief_id, brief_version, selection_id),
+    ).fetchall()
+    for rid, fps, fv in rows:
+        if dict(fps or {}) != fingerprints or fv != frame_version:
+            continue
+        keys = conn.execute(
+            "SELECT case_key FROM brief_coding WHERE brief_run_id = %s GROUP BY case_key"
+            " HAVING bool_or(pass = 'A') AND bool_or(pass = 'B') AND bool_or(pass = 'final')"
+            " AND NOT bool_or(excluded IS NOT DISTINCT FROM 'coding_failed')",
+            (rid,),
+        ).fetchall()
+        done = {str(k[0]) for k in keys}
+        ev = conn.execute(
+            "SELECT case_key FROM brief_pilot_case WHERE brief_run_id = %s"
+            " AND evidence_status = 'done'",
+            (rid,),
+        ).fetchall()
+        return str(rid), done & {str(k[0]) for k in ev}
+    return None
+
+
+def copy_pilot_case(
+    conn: psycopg.Connection[Any], src_run_id: str, dst_run_id: str, case: PilotCase
+) -> list[str]:
+    """Copy one case's evidence links, gaps and coded rows (every pass, with their original
+    provenance: model, prompt fingerprint, batch id, commit) from a finished pilot into the
+    full coding run, under the new run's blind coding id. Nothing is fetched or called; no decay
+    check is scheduled again. Returns the case's evidence ids (for the retention link)."""
+    k = case.case_key
+    with conn.transaction():
+        conn.execute(
+            f"INSERT INTO brief_case_evidence (brief_run_id, case_key, {_EVIDENCE_COLS})"
+            f" SELECT %s, case_key, {_EVIDENCE_COLS} FROM brief_case_evidence"
+            " WHERE brief_run_id = %s AND case_key = %s"
+            " ON CONFLICT (brief_run_id, case_key, kind) DO NOTHING",
+            (dst_run_id, src_run_id, k),
+        )
+        conn.execute(
+            f"INSERT INTO brief_case_gap (brief_run_id, case_key, {_GAP_COLS})"
+            f" SELECT %s, case_key, {_GAP_COLS} FROM brief_case_gap"
+            " WHERE brief_run_id = %s AND case_key = %s"
+            " ON CONFLICT (brief_run_id, case_key, source) DO NOTHING",
+            (dst_run_id, src_run_id, k),
+        )
+        conn.execute(
+            f"INSERT INTO brief_coding (brief_run_id, coding_id, detail, {_CODING_COLS})"
+            f" SELECT %s, %s, detail || jsonb_build_object('reused_from', %s::text),"
+            f" {_CODING_COLS} FROM brief_coding WHERE brief_run_id = %s AND case_key = %s"
+            " ON CONFLICT (brief_run_id, case_key, pass, unit) DO NOTHING",
+            (dst_run_id, case.coding_id, src_run_id, src_run_id, k),
+        )
+        row = conn.execute(
+            "SELECT evidence_stats FROM brief_pilot_case WHERE brief_run_id = %s AND case_key = %s",
+            (src_run_id, k),
+        ).fetchone()
+        stats = dict(row[0] or {}) if row else {}
+        conn.execute(
+            "UPDATE brief_pilot_case SET evidence_status = 'done', evidence_stats = %s,"
+            " reused_from = %s WHERE brief_run_id = %s AND case_key = %s",
+            (Jsonb(stats), src_run_id, dst_run_id, k),
+        )
+    case.evidence_status = "done"
+    case.evidence_stats = stats
+    case.reused_from = src_run_id
+    ids = conn.execute(
+        "SELECT evidence_id FROM brief_case_evidence WHERE brief_run_id = %s AND case_key = %s",
+        (dst_run_id, k),
+    ).fetchall()
+    return [str(r[0]) for r in ids]

@@ -62,6 +62,7 @@ from pigtail.forensics.cost import (
     model_rows,
     projection,
 )
+from pigtail.forensics.facts import FACTS_VERSION
 from pigtail.forensics.frame import CODEBOOK_VERSION, FRAME_VERSION, Adjudication, CaseCoding
 from pigtail.forensics.prompts import ADJUDICATOR, JOB_ADJUDICATION, JOB_CODING, fingerprints
 from pigtail.forensics.store import PilotCase
@@ -70,6 +71,11 @@ from pigtail.llm.errors import LLMError, safe_error_message
 from pigtail.llm.pricing import cost_usd
 
 CASE_RULE_VERSION = "pilot-cases-v1"
+# `pigtail brief code` (M24, ADR-089): every case the full brief needs, the set the pilot's
+# projection counted (`cost.full_brief_cases`)
+CASE_RULE_FULL = "full-cases-v1"
+RULE_PILOT, RULE_FULL = "pilot", "full"
+VIEW_ORDER = ("follow_through", "launch", "launch_undeclared")
 HEADLINE_VIEWS = ("follow_through", "launch")  # view A, view B
 VIEW_LABEL = {"follow_through": "A", "launch": "B", "launch_undeclared": "B-undeclared"}
 DEFAULT_CASES = 5
@@ -190,6 +196,46 @@ def select_cases(rows: Sequence[Mapping[str, Any]], n: int = DEFAULT_CASES) -> l
     return [_case(r, i + 1) for i, r in enumerate(chosen)]
 
 
+def select_all_cases(rows: Sequence[Mapping[str, Any]]) -> list[PilotCase]:
+    """Every case of the full brief (`full-cases-v1`): each selection row whose role is a
+    winner, matched loser, exemplar or exemplar matched loser, in every view (the set
+    `cost.full_brief_cases` counts; a repo in two views is two cases, since T differs). Order:
+    view (A, B, B-undeclared, then any other by name), field pairs before exemplar pairs, pairs
+    by the winner's rank then pair id, the winner (or exemplar) before its losers (smallest pair
+    distance first), rows without a pair last by candidate ref. Deterministic."""
+    from pigtail.forensics.cost import SELECTED_ROLES
+
+    keep = [r for r in rows if r["role"] in SELECTED_ROLES]
+    vo = {v: i for i, v in enumerate(VIEW_ORDER)}
+    rank_of: dict[tuple[str, str, int], float] = {}
+    for r in keep:
+        if r.get("pair_id") is not None and r["role"] in ("winner", "exemplar"):
+            key = (str(r["view"]), str(r.get("pair_panel")), int(r["pair_id"]))
+            rk = r.get("rank")
+            rank_of[key] = float(rk) if rk is not None else math.inf
+
+    def order(r: Mapping[str, Any]) -> tuple[Any, ...]:
+        view = str(r["view"])
+        ref = str(r["candidate_ref"])
+        if r.get("pair_id") is None:
+            return (vo.get(view, len(vo)), view, 2, math.inf, 0, 0, (0.0, ""), ref)
+        panel = str(r.get("pair_panel"))
+        pid = int(r["pair_id"])
+        side = 0 if r["role"] in ("winner", "exemplar") else 1
+        return (
+            vo.get(view, len(vo)),
+            view,
+            0 if panel == "field" else 1,
+            rank_of.get((view, panel, pid), math.inf),
+            pid,
+            side,
+            _pair_loser_key(r) if side else (0.0, ""),
+            ref,
+        )
+
+    return [_case(r, i + 1) for i, r in enumerate(sorted(keep, key=order))]
+
+
 # --- estimate ---------------------------------------------------------------------------------
 def estimate(
     brief: Brief,
@@ -222,9 +268,15 @@ def estimate(
         month_cap_usd=month_cap_usd,
         batch=batch,
     )
+    from pigtail.forensics.cost import CONTINGENCY_FACTOR
+
     return {
         "label": "estimate",
         "cases": n_cases,
+        "contingency_factor": CONTINGENCY_FACTOR,
+        "total_with_contingency_usd": (
+            None if total is None or not api else round(total * CONTINGENCY_FACTOR, 4)
+        ),
         "cost_model": model.to_dict(),
         "extraction_model": extraction_model,
         "mode": "batch" if batch and api else "standard",
@@ -248,13 +300,15 @@ def estimate(
 def render_estimate(e: dict[str, Any]) -> str:
     p = e["full_brief_projection"]
     per = e["per_case_usd"]
+    what = "Full coding" if e.get("rule") == CASE_RULE_FULL else "Pilot"
     lines = [
-        f"Pilot estimate ({e['cost_model']['source']} cost model, {e['extraction_model']}, "
-        f"{e['mode']}): {e['cases']} cases",
+        f"{what} estimate ({e['cost_model']['source']} cost model, {e['extraction_model']}, "
+        f"{e['mode']}): {e['cases']} cases to code",
         f"  per case: coder A ${per['coder_a']}, coder B ${per['coder_b']}, adjudication "
         f"${per['adjudication']} (share {e['cost_model']['adjudication_share']}), total "
         f"${per['total']}",
-        f"  LLM calls: {e['llm_calls']}; total ${e['total_usd']}",
+        f"  LLM calls: {e['llm_calls']}; total ${e['total_usd']} (x{e['contingency_factor']} "
+        f"contingency: ${e['total_with_contingency_usd']})",
         f"  GitHub requests: {e['github_requests']}",
         f"  caps: brief ${e['caps']['brief_usd']['spent']} spent of "
         f"${e['caps']['brief_usd']['cap']}; month ${e['caps']['month_usd']['spent']} of "
@@ -262,6 +316,15 @@ def render_estimate(e: dict[str, Any]) -> str:
         f"Full brief ({p['full_brief_cases']} cases): projected ${p['projected_total_usd']} of "
         f"the ${p['cap_usd']} cap" + (" — over the cap (H6)" if p["h6"] else " (within)"),
     ]
+    if e.get("rule") == CASE_RULE_FULL:
+        r = e.get("reuse") or {}
+        lines.insert(
+            1,
+            f"  cases: {e.get('cases_total')} in the full brief; {r.get('cases', 0)} reused from "
+            f"pilot {r.get('pilot_run') or '-'} (not paid again)",
+        )
+        if e.get("max_usd") is not None:
+            lines.append(f"  run cap (--max-usd): ${e['max_usd']}")
     return "\n".join(lines)
 
 
@@ -274,6 +337,8 @@ class PilotOptions:
     wait_seconds: float | None = None
     poll_seconds: float = 60.0
     bootstrap_resamples: int = 10_000
+    rule: str = RULE_PILOT  # `full`: `pigtail brief code` (every case, full-cases-v1; M24)
+    max_usd: float | None = None  # hard stop on this run's own API spend (ADR-088: USD 25)
 
 
 @dataclass
@@ -291,6 +356,7 @@ class PilotDeps:
     extraction_model: str | None = None
     synthesis_model: str = "claude-opus-5-5"
     code_commit: str | None = None  # the commit running this invocation (default: git HEAD)
+    hn: Any = None  # HNStoryMetaConnector for the report facts (M24; None: HN titles are a gap)
 
 
 @dataclass
@@ -339,9 +405,13 @@ def plan(
             None,
             (f"no stored selection for {brief.brief_id} v{brief.version}: run the selection first"),
         )
-    cases = select_cases(sel_cases(conn, sel["id"]), opts.cases)
+    full = opts.rule == RULE_FULL
+    rows = sel_cases(conn, sel["id"])
+    cases = select_all_cases(rows) if full else select_cases(rows, opts.cases)
     if not cases:
-        return sel, [], None, "the selection has no headline pair to pilot"
+        why = "no case to code" if full else "no headline pair to pilot"
+        return sel, [], None, f"the selection has {why}"
+    reuse = reusable_cases(conn, brief, sel["id"], cases) if full else None
     model = _cost_model(conn, brief.brief_id)
     from pigtail.briefs.budget import month_spend
 
@@ -354,9 +424,10 @@ def plan(
         )["usd"]
     )
     ext = deps.extraction_model or deps.client.model_for(JOB_CODING)
+    to_code = len(cases) - (len(reuse[1]) if reuse else 0)
     est = estimate(
         brief,
-        len(cases),
+        to_code,
         model,
         extraction_model=ext,
         synthesis_model=deps.synthesis_model,
@@ -366,7 +437,36 @@ def plan(
         month_cap_usd=deps.month_cap_usd,
         batch=deps.client.batches_for(JOB_CODING),
     )
+    est["rule"] = CASE_RULE_FULL if full else CASE_RULE_VERSION
+    if full:
+        est["cases_total"] = len(cases)
+        est["reuse"] = {
+            "pilot_run": reuse[0] if reuse else None,
+            "cases": len(reuse[1]) if reuse else 0,
+            "rule": "a finished pilot of the same selection, prompts, thinking setting and frame",
+        }
+        est["max_usd"] = opts.max_usd
     return sel, cases, est, None
+
+
+def reusable_cases(
+    conn: psycopg.Connection[Any], brief: Brief, selection_id: str, cases: Sequence[PilotCase]
+) -> tuple[str, set[str]] | None:
+    """(pilot run, case keys) of the full coding's cases already coded by a finished pilot of
+    the same selection under the current prompts and frame (copied, never paid again)."""
+    assert brief.version is not None
+    got = fstore.reusable_pilot(
+        conn,
+        brief_id=brief.brief_id,
+        brief_version=brief.version,
+        selection_id=selection_id,
+        fingerprints=fingerprints(),
+        frame_version=FRAME_VERSION,
+    )
+    if got is None:
+        return None
+    keys = got[1] & {c.case_key for c in cases}
+    return (got[0], keys) if keys else None
 
 
 def _lock(conn: psycopg.Connection[Any], brief_id: str) -> bool:
@@ -410,13 +510,16 @@ def _run_locked(
 
     conn = deps.conn
     assert brief.version is not None
+    full = opts.rule == RULE_FULL
+    kind = "coding" if full else "pilot"
+    size = len(cases) if full else opts.cases
     rid = fstore.find_resumable(
-        conn, brief.brief_id, brief.version, sel["id"], opts.cases, RESUMABLE
+        conn, brief.brief_id, brief.version, sel["id"], size, RESUMABLE, kind=kind
     )
     runs = BriefRuns(conn)
     if rid is None:  # a finished pilot of the same selection and size is not paid for again
         done = fstore.find_resumable(
-            conn, brief.brief_id, brief.version, sel["id"], opts.cases, ("succeeded",)
+            conn, brief.brief_id, brief.version, sel["id"], size, ("succeeded",), kind=kind
         )
         row = (fstore.pilot_row(conn, done) or {}) if done is not None else {}
         if done is not None and int((row.get("summary") or {}).get("coding_failed_cases") or 0):
@@ -426,8 +529,13 @@ def _run_locked(
                 done,
                 "complete",
                 EXIT_OK,
-                f"this pilot is done (run {done}); nothing to do. Its report is in the private "
-                "report directory; `pigtail brief decay` follows its evidence",
+                (
+                    f"this coding run is done (run {done}); nothing to do. Its report is in the "
+                    "private report directory; `pigtail report brief` writes the D2 report"
+                    if full
+                    else f"this pilot is done (run {done}); nothing to do. Its report is in the "
+                    "private report directory; `pigtail brief decay` follows its evidence"
+                ),
                 estimate=est,
                 summary=dict(row.get("summary") or {}),
             )
@@ -438,7 +546,7 @@ def _run_locked(
             rid,
             "needs_approval",
             EXIT_APPROVAL,
-            "the pilot has paid steps (LLM calls on the api backend); nothing "
+            f"the {kind} run has paid steps (LLM calls on the api backend); nothing "
             "was started: approve the estimate with --approve-paid (H6 above "
             "the caps)",
             estimate=est,
@@ -454,8 +562,12 @@ def _run_locked(
     )
     commit = deps.code_commit if deps.code_commit is not None else git_commit()
     if rid is None:
-        try:  # the whole pilot must fit both caps before anything starts
-            guard.check_llm("pilot estimate", est_usd=est["total_usd"])
+        # the whole run must fit both caps (and --max-usd) before anything starts; the full
+        # coding is checked on its estimate with the x1.25 contingency (ADR-086 addendum 3)
+        need = est["total_with_contingency_usd"] if full else est["total_usd"]
+        try:
+            guard.check_llm(f"{kind} estimate", est_usd=need)
+            _check_run_cap(opts.max_usd, 0.0, need, f"{kind} estimate")
         except BudgetStop as e:
             return PilotOutcome(
                 None, "refused_budget", EXIT_BUDGET, str(e), estimate=est, stop=e.to_dict()
@@ -466,7 +578,7 @@ def _run_locked(
             data_version=None,
             estimate=est,
             approved_paid=approved,
-            kind="pilot",
+            kind=kind,
             code_commit=commit,
             codebook_version=CODEBOOK_VERSION,
             prompt_versions=fingerprints(),
@@ -482,27 +594,75 @@ def _run_locked(
             brief_hash=brief.content_hash(),
             selection_id=sel["id"],
             data_version=_sel_data_version(conn, sel["id"]),
-            cases_requested=opts.cases,
-            case_rule_version=CASE_RULE_VERSION,
-            frame_version=FRAME_VERSION,
+            cases_requested=size,
+            case_rule_version=CASE_RULE_FULL if full else CASE_RULE_VERSION,
+            frame_version=f"{FRAME_VERSION}+{FACTS_VERSION}" if full else FRAME_VERSION,
             codebook_version=CODEBOOK_VERSION,
             code_commit=commit,
             prompt_fingerprints=fingerprints(),
             models={"coder_a": ext, "coder_b": ext, "adjudicator": ext},
             cases=cases,
         )
-        kind = "create"
+        if full:
+            _reuse_pilot_cases(brief, deps, rid, sel["id"], cases)
+        inv = "create"
     else:
         conn.execute(
             "UPDATE brief_runs SET resumes = resumes + 1, approved_paid = approved_paid OR %s"
             " WHERE id = %s",
             (opts.approve_paid, rid),
         )
-        kind = "resume"
+        inv = "resume"
     fstore.add_invocation(
-        conn, rid, commit=commit, at=deps.clock(), kind=kind, run_record_id=deps.run_record_id
+        conn, rid, commit=commit, at=deps.clock(), kind=inv, run_record_id=deps.run_record_id
     )
     return _steps(brief, deps, opts, rid, guard, est, commit)
+
+
+def _check_run_cap(max_usd: float | None, spent: float, est_usd: float | None, step: str) -> None:
+    """`--max-usd`: this run's own API spend plus the next estimate must stay under it (a hard
+    stop like the brief's cap; ADR-088 pre-approved USD 25 for M24)."""
+    if max_usd is None or est_usd is None:
+        return
+    if spent + est_usd > max_usd + 1e-9:
+        raise BudgetStop(
+            "money",
+            step,
+            f"${spent:.2f} spent by this run + ${est_usd:.2f} would exceed --max-usd "
+            f"${max_usd:.2f}; stop (H6: going on needs the owner's approval)",
+        )
+
+
+def run_spend(conn: psycopg.Connection[Any], rid: str) -> float:
+    """This run's recorded API spend (every billed ledger row of the run)."""
+    row = conn.execute(
+        "SELECT COALESCE(sum(cost_usd), 0) FROM llm_cost_ledger WHERE brief_run_id = %s"
+        " AND backend = 'api'",
+        (rid,),
+    ).fetchone()
+    return float(row[0]) if row else 0.0
+
+
+def _reuse_pilot_cases(
+    brief: Brief, deps: PilotDeps, rid: str, selection_id: str, cases: Sequence[PilotCase]
+) -> None:
+    """Copy the cases a finished pilot already coded under the same prompts and frame (their
+    evidence links, gaps and coded rows), so they are neither fetched nor paid again."""
+    from pigtail.capture.db import CaptureDB
+    from pigtail.privacy.snapshot_retention import link
+
+    conn = deps.conn
+    reuse = reusable_cases(conn, brief, selection_id, cases)
+    if reuse is None:
+        return
+    src, keys = reuse
+    n = 0
+    for c in cases:
+        if c.case_key in keys:
+            ids = fstore.copy_pilot_case(conn, src, rid, c)
+            link(CaptureDB(conn), rid, ids)  # R19.9 retention anchor
+            n += 1
+    fstore.update_summary(conn, rid, reused={"pilot_run": src, "cases": n})
 
 
 def _sel_data_version(conn: psycopg.Connection[Any], sid: str) -> str | None:
@@ -543,6 +703,7 @@ def _steps(
     _set_run(conn, rid, "running", stop=None)
     # 1. case evidence
     cands = {c.ref: c for c in CandidateStore(conn, brief.brief_id, brief.version).all()}
+    full = opts.rule == RULE_FULL
     stage = EvidenceStage(
         conn,
         snapshots=deps.snapshots,
@@ -551,11 +712,25 @@ def _steps(
         clock=deps.clock,
         run_id=deps.run_record_id,
         code_commit=commit,
+        schedule_decay=not full,  # the decay study is the pilot's (ADR-089)
     )
     try:
         if any(c.evidence_status != "done" for c in cases):
             fstore.mark_step(conn, rid, "case_evidence")
         stage.run(pilot, cases, cands)
+        if full and any(c.facts is None for c in cases):
+            # 1b. report facts (M24): deterministic, no LLM; HN titles and the star trajectory
+            from pigtail.forensics.facts import FactsStage
+
+            fstore.mark_step(conn, rid, "report_facts")
+            FactsStage(
+                conn,
+                snapshots=deps.snapshots,
+                hn=deps.hn,
+                clock=deps.clock,
+                run_id=deps.run_record_id,
+                code_commit=commit,
+            ).run(pilot, cases)
     except BudgetExhausted as e:
         stop: dict[str, Any] = {"kind": "github_budget", "step": "case evidence", "detail": str(e)}
         _set_run(conn, rid, "paused_budget", stop=stop)
@@ -580,7 +755,13 @@ def _steps(
     # money checks for the api backend only (the subscription backend costs no money; its usage
     # limits pause the queue, R15.5)
     paid = deps.client.backend_for(JOB_CODING).name == "api"
-    before = guard.before_submit if paid else None
+    before = None
+    if paid:
+
+        def before(job: str, requests: int, est_usd: float | None) -> None:
+            guard.before_submit(job, requests, est_usd)
+            _check_run_cap(opts.max_usd, run_spend(conn, rid), est_usd, f"{job} batch")
+
     recode = _prepare_recode(conn, rid, pilot)
     try:
         coded = fstore.coded_cases(conn, rid, "B")
@@ -707,7 +888,7 @@ def _steps(
     rel = coding.reliability_rows(rows, len(cases), resamples=opts.bootstrap_resamples)
     fstore.save_reliability(conn, {**pilot, "code_commit": commit}, rel)
     # 6. cost and projection
-    return _finish(brief, deps, rid, pilot, cases, rows, rel, guard, est, commit)
+    return _finish(brief, deps, rid, pilot, cases, rows, rel, guard, est, commit, full=full)
 
 
 def _prepare_recode(
@@ -955,19 +1136,23 @@ def _finish(
     guard: BudgetGuard,
     est: dict[str, Any],
     commit: str | None = None,
+    *,
+    full: bool = False,
 ) -> PilotOutcome:
     from pigtail.forensics.report import pilot_markdown, write_report
 
     conn = deps.conn
     assert brief.version is not None
     fstore.mark_step(conn, rid, "cost_and_projection")
+    # cases copied from a pilot were paid there: they are no calls of this run's cost model
+    paid_cases = [c for c in cases if c.reused_from is None]
     by_case = ledger_by_case(conn, rid)
     gh = {c.coding_id: dict(c.evidence_stats.get("requests") or {}) for c in cases}
     model, proj = measure_and_project(
         conn,
         brief,
         pilot,
-        cases,
+        paid_cases,
         rows,
         synthesis_model=deps.synthesis_model,
         batch=deps.client.batches_for(JOB_CODING),
@@ -975,8 +1160,12 @@ def _finish(
         month_spent_usd=guard.month_spent(),
         month_cap_usd=deps.month_cap_usd,
         commit=commit,
+        coded_extra=len(cases) - len(paid_cases),
     )
     cost = _cost_report(cases, by_case, gh, model, model_per_case=proj.get("per_case_usd"))
+    if full:
+        cost["reused_cases"] = len(cases) - len(paid_cases)
+        cost["reused_note"] = "cases copied from a finished pilot: their cost is the pilot's"
     total = float(cost["total_usd"])
     coded = [c for c in cases if c.case_key in _fully_coded(rows)]
     decay = conn.execute(
@@ -990,11 +1179,13 @@ def _finish(
     report = _report(
         brief, pilot, cases, rows, rel, cost, proj, decay_n, now, errors=errors, conn=conn
     )
+    if full:
+        report["facts"] = {c.coding_id: c.facts for c in cases}
     paths = write_report(
         deps.data_dir,
         brief.brief_id,
         brief.version,
-        "pilot",
+        "coding" if full else "pilot",
         report,
         pilot_markdown(report),
         day=now.date(),
@@ -1189,6 +1380,7 @@ def measure_and_project(
     commit: str | None,
     superseded_before: datetime = ADR087_AT,
     store: bool = True,
+    coded_extra: int = 0,
 ) -> tuple[CaseCostModel | None, dict[str, Any]]:
     """The measured per-case model (`case-cost-v3`: per call, current settings only; ADR-086
     addendum 3) and the full-brief projection, stored when `store` (never from zero cost)."""
@@ -1215,7 +1407,7 @@ def measure_and_project(
         extraction_model=pilot["models"]["coder_a"],
         synthesis_model=synthesis_model,
         full_cases=full["total"],
-        coded_cases=len(coded),
+        coded_cases=len(coded) + coded_extra,
         brief_spent_usd=PgCostLedger(conn).brief_total(brief.brief_id),
         cap_usd=brief.budget.money_usd,
         month_spent_usd=month_spent_usd,

@@ -4,6 +4,14 @@
                         [--dry-run] [--wait-minutes M] [--json]
         the pilot of a brief's first cases: case evidence, double coding, adjudication, alpha,
         cost report and full-brief projection; the estimate is shown first
+    pigtail brief code ID [--version N] [--selection SEL] [--approve-paid] [--dry-run]
+                       [--wait-minutes M] [--max-usd USD] [--json]
+        the full coding of a brief (M24, ADR-089): every winner, matched loser, exemplar and
+        exemplar loser of every view (`full-cases-v1`), with the pilot's machinery (evidence,
+        double coding, adjudication, alpha, batch, cache, budget stops, resumable checkpoints);
+        cases a finished pilot already coded are copied, not paid again; report facts (launch
+        events, assets, amplifiers, star trajectory and bursts) per case; the estimate (with
+        the x1.25 contingency) is shown first; --max-usd is a hard stop on this run's spend
     pigtail brief pilot-summary ID [--version N] [--label TEXT] [--json]
         counts-only lines for ops/COSTS.md and ops/STATUS.md (no case detail)
     pigtail brief decay [ID] [--version N] [--all] [--due] [--json]
@@ -83,8 +91,13 @@ def cmd_pilot(args: argparse.Namespace) -> int:
             "DATABASE_URL is not set: the pilot keeps its checkpoints in Postgres", file=sys.stderr
         )
         return EXIT_USAGE
-    if args.cases < 1 or args.cases > 200:
+    rule = getattr(args, "rule", "pilot")
+    if rule == "pilot" and (args.cases < 1 or args.cases > 200):
         print("--cases must be between 1 and 200", file=sys.stderr)
+        return EXIT_USAGE
+    max_usd = getattr(args, "max_usd", None)
+    if max_usd is not None and max_usd <= 0:
+        print("--max-usd must be above 0", file=sys.stderr)
         return EXIT_USAGE
     try:
         client = _llm_client()
@@ -96,6 +109,8 @@ def cmd_pilot(args: argparse.Namespace) -> int:
         approve_paid=args.approve_paid,
         selection_id=args.selection,
         wait_seconds=args.wait_minutes * 60 if args.wait_minutes is not None else None,
+        rule=rule,
+        max_usd=max_usd,
     )
     out: dict[str, Any] = {}
     if args.dry_run:
@@ -131,12 +146,22 @@ def cmd_pilot(args: argparse.Namespace) -> int:
             _print(out)
         else:
             print(render_estimate(est))
-            print(
-                "\nCases (pilot-cases-v1): "
-                + ", ".join(
-                    f"{c.position}. view {c.view} {c.role} (pair {c.pair_id})" for c in cases
+            if rule == "pilot":
+                print(
+                    "\nCases (pilot-cases-v1): "
+                    + ", ".join(
+                        f"{c.position}. view {c.view} {c.role} (pair {c.pair_id})" for c in cases
+                    )
                 )
-            )
+            else:
+                by: dict[str, int] = {}
+                for c in cases:
+                    k = f"view {c.view} {c.role}"
+                    by[k] = by.get(k, 0) + 1
+                print(
+                    f"\nCases (full-cases-v1): {len(cases)}: "
+                    + ", ".join(f"{k} {n}" for k, n in sorted(by.items()))
+                )
             print("\nDRY RUN: nothing was started, fetched or stored.")
         return 0
     from pigtail.db.migrate import migrate
@@ -146,9 +171,11 @@ def cmd_pilot(args: argparse.Namespace) -> int:
     try:
         db = CaptureDB(conn)
         snaps = build_store(s)
-        config = {"brief_version": brief.version, "cases": args.cases}
-        with RunRecorder("brief.pilot", config, sink=db.upsert_run) as rec:
+        config = {"brief_version": brief.version, "cases": args.cases, "rule": rule}
+        name = "brief.code" if rule == "full" else "brief.pilot"
+        with RunRecorder(name, config, sink=db.upsert_run) as rec:
             github, _hn, _gha = _connectors(s, db, rec, need_github=False)
+            hn = _story_meta(snaps, db, rec) if rule == "full" else None
             deps = PilotDeps(
                 conn=conn,
                 client=client,
@@ -159,6 +186,7 @@ def cmd_pilot(args: argparse.Namespace) -> int:
                 month_cap_usd=s.budget_usd_month,
                 run_record_id=rec.id,
                 synthesis_model=s.llm_models["synthesis"],
+                hn=hn,
             )
             _sel, _cases, est, err = plan(conn, brief, opts, deps)
             if est is not None and not args.json:
@@ -175,6 +203,24 @@ def cmd_pilot(args: argparse.Namespace) -> int:
     if outcome.exit_code != 0:
         print(outcome.message, file=sys.stderr)
     return outcome.exit_code
+
+
+def _story_meta(snaps: Any, db: Any, recorder: Any) -> Any:
+    """The HN story-metadata connector for the report facts (off with the Show HN connector)."""
+    from pigtail.connectors.hn import HNShowDiscoveryConnector, HNStoryMetaConnector
+
+    if not HNShowDiscoveryConnector.enabled_from_env(os.environ):
+        return None
+    return HNStoryMetaConnector(
+        store=snaps, pseudonymizer=None, run=recorder, evidence_sink=db.upsert_evidence
+    )
+
+
+def cmd_code(args: argparse.Namespace) -> int:
+    """`pigtail brief code`: the pilot command with the full case rule (M24, ADR-089)."""
+    args.rule = "full"
+    args.cases = 0
+    return cmd_pilot(args)
 
 
 def cmd_pilot_summary(args: argparse.Namespace) -> int:
@@ -501,6 +547,21 @@ def add_commands(bs: argparse._SubParsersAction[argparse.ArgumentParser]) -> Non
     p.add_argument("--wait-minutes", type=float, help="poll batches this long, then leave them")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_pilot)
+
+    p = bs.add_parser(
+        "code", help="full coding of every selected case (M24): evidence, facts, coding, alpha"
+    )
+    p.add_argument("brief_id")
+    p.add_argument("--version", type=int, help="brief version (default: latest)")
+    p.add_argument("--selection", help="a stored selection id (default: the latest)")
+    p.add_argument("--approve-paid", action="store_true", help="approve the paid steps shown")
+    p.add_argument("--dry-run", action="store_true", help="show the estimate and cases only")
+    p.add_argument("--wait-minutes", type=float, help="poll batches this long, then leave them")
+    p.add_argument(
+        "--max-usd", type=float, help="hard stop on this run's API spend (e.g. 25, ADR-088)"
+    )
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_code)
 
     p = bs.add_parser("pilot-summary", help="counts-only lines for ops/COSTS.md and STATUS.md")
     p.add_argument("brief_id")

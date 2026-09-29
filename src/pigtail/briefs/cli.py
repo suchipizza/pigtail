@@ -31,6 +31,8 @@
                                                              sensitivity) and context view C
     pigtail brief pilot ID [--cases N] [--approve-paid] [--dry-run]
                                                              M23 pilot (pigtail.briefs.pilot_cli)
+    pigtail brief code ID [--approve-paid] [--dry-run] [--max-usd U]
+                                                             M24 full coding (pilot_cli)
     pigtail brief pilot-summary ID [--label L]               counts-only ops lines
     pigtail brief decay [ID] [--all] [--due]                 evidence decay (R19.8)
     pigtail brief downloads ID [--selection SEL] [--dry-run] npm/PyPI downloads of a stored
