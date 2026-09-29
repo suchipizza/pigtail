@@ -480,9 +480,11 @@ def run_report(brief: Brief, deps: ReportDeps, opts: ReportOptions) -> ReportOut
     est["max_usd"] = opts.max_usd
     if opts.dry_run:
         from pigtail.capture.db import CaptureDB
-        from pigtail.privacy.cache_purge import purge_unreferenced
+        from pigtail.privacy.cache_purge import purge_unreferenced, report_refs
 
-        preview = purge_unreferenced(CaptureDB(conn), deps.snapshots, apply=False)
+        preview = purge_unreferenced(
+            CaptureDB(conn), deps.snapshots, apply=False, extra_refs=report_refs(deps.data_dir)
+        )
         return ReportOutcome(
             "dry_run",
             EXIT_OK,
@@ -658,7 +660,7 @@ def finalize(
 ) -> dict[str, Any]:
     """Mark the report final (R19.9 anchor) and purge the unreferenced cache (R19.10, logged)."""
     from pigtail.capture.db import CaptureDB
-    from pigtail.privacy.cache_purge import purge_unreferenced
+    from pigtail.privacy.cache_purge import purge_unreferenced, report_refs
     from pigtail.privacy.snapshot_retention import mark_report_final
 
     assert brief.version is not None
@@ -671,7 +673,14 @@ def finalize(
         brief_run_id=report_rid,
         run_id=deps.run_record_id,
     )
-    res = purge_unreferenced(db, deps.snapshots, apply=True, run_id=deps.run_record_id)
+    # the report just written sits under data_dir, so its citations are kept too (M24-T7)
+    res = purge_unreferenced(
+        db,
+        deps.snapshots,
+        apply=True,
+        run_id=deps.run_record_id,
+        extra_refs=report_refs(deps.data_dir),
+    )
     out = {"report_final": True, "cache_purge": res.to_dict(), "report": dict(paths)}
     return out
 

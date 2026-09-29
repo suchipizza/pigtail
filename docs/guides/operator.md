@@ -739,6 +739,38 @@ days, so older launches are `unknown` (`outside_source_history`; every value rec
 turn a source off. Run it again later: `pending` windows are filled once they have settled, and
 an observed value is never overwritten.
 
+### The launch plan (D3, M25, ADR-091)
+
+`pigtail plan` turns a brief version's stored report into a launch plan. It is deterministic (no
+model call, no network, USD 0): the same brief version, report and plan inputs give the same
+plan, byte for byte. It reads the report JSON and, when `DATABASE_URL` is set, the report's
+coding run and selection (evidence ids per pattern, why each case is similar).
+
+```sh
+pigtail plan <id>                                   # latest report of the latest version
+pigtail plan <id> --report latest --inputs plan-inputs.yaml --append verdict.md --json
+pigtail plan lock <id>                              # pre-register the latest plan's predictions
+```
+
+Plan inputs (all optional; the plan names the missing ones and lays the calendar out around a
+symbolic launch day L, L-28 … L+42):
+
+```yaml
+available_assets: [demo_media, install_one_liner, quick_start_section]  # asset names of the report
+time_budget_hours_per_week: 6
+launch_window: {start: 2026-11-03, end: 2026-11-20}
+modules_active: [cli]            # to check the preconditions of conditional patterns
+```
+
+The plan (`plan-<date>-<version>.{md,json}`) is written beside the report in
+`PIGTAIL_DATA_DIR/reports/<brief>/v<N>/`, private (0600, never in git). It recommends only the
+report's patterns with sufficient evidence, a positive winner-vs-loser contrast and at least 3
+supporting cases; channels in the brief's `channels.avoid` are never recommended or scheduled; a
+channel is scheduled only when its launch pattern is recommended. Thin sections say
+"insufficient evidence in this neighbourhood". `plan lock` writes a write-once
+`plan-lock-<version>.json` with the predictions' SHA-256 and the time (and a `plan.lock` run
+record when a database is configured); the predictions are scored after launch (launch mode).
+
 ## LLM backend (`LLM_BACKEND`, PRD F15)
 **Redaction on the LLM path (CB-06; ADR-066 follow-up, M21b, ADR-074).** Before any input leaves the
 process, e-mails, phone numbers, profile URLs, DIDs and @mentions are removed; people become
