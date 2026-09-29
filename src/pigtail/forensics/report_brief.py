@@ -877,16 +877,17 @@ def build_report(
 
     precision = {**measure(), "rule": "assets-v2"}
     flags = {c.case_key: _flags(c, sel_rows) for c in cases}
-    pats = run_patterns(
-        cases, finals, sel_rows, rel, secondary, asset_precision=precision, flags=flags
-    )
     # a full coding run's alpha rows carry "full run, n = N" (rows stored before the fix say
-    # "pilot"; relabelled here, the stored rows unchanged)
+    # "pilot"; relabelled here, the stored rows unchanged), before the pattern step so the
+    # pattern rows carry the same labels as the reliability block (M25 fix 3)
     if run.get("case_rule_version") != "pilot-cases-v1":
         rel = [
             {**r, "labels": [re.sub(r"^pilot, n = ", "full run, n = ", x) for x in r["labels"]]}
             for r in rel
         ]
+    pats = run_patterns(
+        cases, finals, sel_rows, rel, secondary, asset_precision=precision, flags=flags
+    )
     reused = sorted({c.reused_from for c in cases if c.reused_from})
     reused_usd = sum(run_spend(conn, r) for r in reused)
     return {

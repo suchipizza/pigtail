@@ -31,7 +31,9 @@ def _ev(i: int, tag: str) -> str:
     return f"ev_{(i * 7919 + sum(map(ord, tag))) % 16**24:024x}"
 
 
-def _facts(i: int, winner: bool, demo: bool, ph: bool, launch: bool = True) -> dict[str, Any]:
+def _facts(
+    i: int, winner: bool, demo: bool, ph: bool, launch: bool = True, shots: bool = False
+) -> dict[str, Any]:
     t0 = L0 + timedelta(days=7 * i)
     events: list[dict[str, Any]] = []
     if launch:
@@ -52,6 +54,9 @@ def _facts(i: int, winner: bool, demo: bool, ph: bool, launch: bool = True) -> d
                 "demo_media": {"value": "present" if demo else "absent",
                                "evidence_id": _ev(i, "readme"),
                                **({"excerpt": "![demo](docs/demo.gif)"} if demo else {})},
+                "screenshots": {"value": "present" if shots else "absent",
+                                "evidence_id": _ev(i, "readme"),
+                                **({"excerpt": "![screenshot](docs/ui.png)"} if shots else {})},
                 "install_one_liner": {"value": "present" if winner else "absent",
                                       "evidence_id": _ev(i, "readme"),
                                       **({"excerpt": "pip install synthetic-tool"}
@@ -84,7 +89,9 @@ def world(n: int = 12, *, ph_winners: int = 8) -> tuple[list[PilotCase], dict[An
                 candidate_ref=f"gh:org-s/{ref}", repo_full_name=f"org-s/{ref}", repo_id=None,
                 repo_host_id=None, position=2 * i - (1 if win else 0), role=role, pair_id=i,
                 anchor={}, coding_id=f"cod_{i:08x}{int(win):08x}",
-                facts=_facts(i, win, demo, win and i <= ph_winners),
+                # screenshots: common practice (winners 9/12, losers 8/12: d = 0.08)
+                facts=_facts(i, win, demo, win and i <= ph_winners,
+                             shots=i <= 9 if win else 2 <= i <= 9),
             )  # fmt: skip
             cases.append(c)
             rows[("follow_through", c.candidate_ref)] = {
@@ -100,7 +107,14 @@ def world(n: int = 12, *, ph_winners: int = 8) -> tuple[list[PilotCase], dict[An
 
 def report(brief: Brief, n: int = 12, **kw: Any) -> dict[str, Any]:
     cases, rows = world(n, **kw)
-    pats = run_patterns(cases, {}, rows, [])
+    # a coded pattern: MC-07 in every winner and in losers 1-2; its stored alpha row still says
+    # "pilot" while the report's reliability block says "full run" (M25 fix 3)
+    finals = {c.case_key: {"pattern.MC-07": "yes" if c.role == "winner" or c.pair_id in (1, 2)
+                           else "no"} for c in cases}  # fmt: skip
+    rel = [{"field": "pattern.MC-07", "statistic": "nominal", "alpha": 0.81, "assessed": True,
+            "labels": ["LLM-coded, not human-validated", f"pilot, n = {2 * n}"]}]  # fmt: skip
+    flags = {"follow_through:gh:org-s/w2": ["definition_sensitive"]}
+    pats = run_patterns(cases, finals, rows, rel, flags=flags)
     chosen = narrative_cases(cases, rows)
     return {
         "provenance": {
@@ -116,7 +130,8 @@ def report(brief: Brief, n: int = 12, **kw: Any) -> dict[str, Any]:
                        for c, lab in chosen],
         "comparison": [comparison_row(c, lab) for c, lab in chosen],
         "patterns": {k: v for k, v in pats.items() if k != "case_features"},
-        "reliability": [],
+        "reliability": [{**rel[0], "labels": ["LLM-coded, not human-validated",
+                                              f"full run, n = {2 * n}"]}],
         "evidence_index": {},
         "limitations": [],
     }  # fmt: skip
