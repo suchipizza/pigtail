@@ -47,7 +47,10 @@ def test_m25_d3_2_every_recommendation_cites_pattern_cases_n_contrast_reliabilit
         assert r["winners"]["n_known"] >= 10 and r["matched_losers"]["n_known"] >= 10
         assert "winners vs" in r["loser_contrast"] and r["d"] > 0
         assert r["reliability_labels"] and r["counterexamples"] is not None
-        assert r["evidence_ids"] and all(e.startswith("ev_") for e in r["evidence_ids"])
+        assert all(e.startswith("ev_") for e in r["evidence_ids"])
+        assert r["evidence_ids"] or r["evidence_note"]  # fix 4: ids, or why none
+        if r["feature"].startswith(("asset.", "launch.", "readme.")):
+            assert r["evidence_ids"]
     md = plan_markdown(plan)
     assert "deterministic rule (no alpha)" in md and "Counterexamples:" in md
     # conditions of the project are never recommended (organisation owner is in every case)
@@ -94,9 +97,10 @@ def test_m25_d3_6_calendar_from_winners_launch_events() -> None:
     )  # fmt: skip
     plan = _plan(inputs=inputs)
     cal = plan["calendar"]
-    assert cal["status"] == "ok" and cal["launch_day"] == "2026-11-03"
+    assert cal["status"] == "ok" and cal["launch_day"].startswith("2026-11-03")
     assert cal["channels_scheduled"] == ["Product Hunt"]  # Show HN: d = 0, reference only
-    assert [x["where"] for x in cal["channels_reference_only"]] == ["Hacker News (Show HN)"]
+    assert cal["channels_reference_only"] == []
+    assert [x["where"] for x in cal["table_stakes"]] == ["Hacker News (Show HN)"]
     hn = next(c for c in plan["launch_timing"]["channels"] if c["kind"] == "show_hn")
     assert hn["winners"] == 10 and hn["median_offset_days"] == 0 and hn["hours_utc"]["min"] == 15
     assert hn["losers"] == 10  # the loser contrast is shown, not hidden
@@ -270,3 +274,98 @@ def test_m25_cli_parses_plan_and_lock() -> None:
     assert a.brief_id == "b1" and a.target is None and a.report == "latest"
     a = build_parser().parse_args(["plan", "lock", "b1"])
     assert a.brief_id == "lock" and a.target == "b1"
+
+
+# --- M25 fixes after the first run on a real brief (ADR-091 addendum 1) ------------------------
+def test_m25_fix1_plain_language_names_with_ids() -> None:
+    """Headings show the registry's plain-language name, a one-sentence definition and the id."""
+    plan = _plan()
+    md = plan_markdown(plan)
+    assert "Active multi-channel first-party promotion [pattern.MC-07]" in md
+    assert "Quick-start section [readme.quick_start_section]" in md
+    mc = next(r for r in plan["recommended_patterns"]["patterns"]
+              if r["feature"] == "pattern.MC-07")  # fmt: skip
+    assert mc["definition"].startswith("The maker actively promotes")
+    assert f"_{mc['definition']}_" in md
+
+
+def test_m25_fix1_registry_mirror_matches_schema() -> None:
+    from pigtail.forensics.feature_names import PATTERNS
+
+    reg = json.loads((Path(__file__).resolve().parents[2] / "schemas" / "mechanisms"
+                      / "candidates-v0.json").read_text())  # fmt: skip
+    cards = {c["id"]: (c["name"], c["description"]) for c in reg["cards"]}
+    assert cards == PATTERNS
+
+
+def test_m25_fix2_threshold_and_common_practice() -> None:
+    """rank-v2: d >= 0.15, winner-only > loser-only discordant pairs, >= 3 supporting cases;
+    a practice both sides mostly do is common practice with its n, never recommended."""
+    from pigtail.forensics.plan import MIN_D
+
+    plan = _plan()
+    rp = plan["recommended_patterns"]
+    assert MIN_D == 0.15
+    for r in rp["patterns"]:
+        assert r["d"] >= MIN_D and r["discordant_margin"] > 0
+    common = {x["feature"]: x for x in rp["common_practice"]}
+    # screenshots 9/12 vs 8/12 (d = 0.08) and Show HN 12/12 vs 12/12
+    assert {"asset.screenshots", "launch.show_hn"} <= set(common)
+    assert common["asset.screenshots"]["winners"]["n_present"] == 9
+    rec = {r["feature"] for r in rp["patterns"]}
+    assert not rec & set(common)
+    md = plan_markdown(plan)
+    assert "### Common practice (winners and losers both do it; table stakes, not a " in md
+    assert "Screenshots in the README [asset.screenshots] (view A): 9/12 winners vs 8/12" in md
+
+
+def test_m25_fix3_reliability_label_from_the_report() -> None:
+    plan = _plan()
+    mc = next(r for r in plan["recommended_patterns"]["patterns"]
+              if r["feature"] == "pattern.MC-07")  # fmt: skip
+    assert "full run, n = 24" in mc["reliability_labels"]
+    assert not any(x.startswith("pilot, n =") for x in mc["reliability_labels"])
+    assert "pilot, n =" not in plan_markdown(plan)
+
+
+def test_m25_fix4_evidence_found_for_flagged_case_names_or_explained() -> None:
+    plan = _plan()
+    demo = next(r for r in plan["recommended_patterns"]["patterns"]
+                if r["feature"] == "asset.demo_media")  # fmt: skip
+    assert "org-s/w2 [definition-sensitive]" in demo["cited_cases"]
+    assert pf._ev(2, "readme") in demo["evidence_ids"]
+    mc = next(r for r in plan["recommended_patterns"]["patterns"]
+              if r["feature"] == "pattern.MC-07")  # fmt: skip
+    assert mc["evidence_ids"] == [] and "carry no evidence id" in mc["evidence_note"]
+    assert "not loaded (no database context)" not in plan_markdown(plan)
+    b = pf.example_brief()
+    no_ctx = build_plan(b, pf.report(b), report_hash=H)
+    assert all(r["evidence_note"] == "not loaded (no database context)"
+               for r in no_ctx["recommended_patterns"]["patterns"])  # fmt: skip
+
+
+def test_m25_fix5_calendar_l_is_first_scheduled_channel_and_table_stakes_undated() -> None:
+    plan = _plan()
+    cal = plan["calendar"]
+    ph = next(e for e in cal["entries"] if e["action"].startswith("Product Hunt"))
+    assert ph["when"] == "L" and ph["phase"] == "launch day"  # shifted from +1.71 d to L
+    assert not any("first public launch post" in e["action"] for e in cal["entries"])
+    assert not any(e["action"].startswith("Hacker News") for e in cal["entries"])
+    assert cal["table_stakes"][0]["note"] == "table stakes: do it; the evidence doesn't say when"
+    assert "table stakes: do it; the evidence doesn't say when" in plan_markdown(plan)
+
+
+def test_m25_fix6_order_by_margin_then_d_language_weakens_below_holds() -> None:
+    b = pf.example_brief()
+    rep = pf.report(b)
+    for f in rep["patterns"]["views"]["A"]["features"]:
+        if f["feature"] == "asset.install_one_liner":
+            f["language_check"]["result"] = "weakens"
+    plan = build_plan(b, rep, report_hash=H, ctx=pf.context())
+    rows = plan["recommended_patterns"]["patterns"]
+    order = [r["feature"] for r in rows]
+    assert order == ["readme.quick_start_section", "pattern.MC-07", "asset.demo_media",
+                     "launch.product_hunt", "asset.install_one_liner"]  # fmt: skip
+    margins = [r["discordant_margin"] for r in rows[:-1]]
+    assert margins == sorted(margins, reverse=True)
+    assert any("weakens" in x for x in rows[-1]["reliability_labels"])
