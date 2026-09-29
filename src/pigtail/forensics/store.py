@@ -39,8 +39,11 @@ class PilotCase:
     reused_from: str | None = None  # the pilot run this case's coding was copied from
 
     @property
-    def anchor_at(self) -> datetime:
-        return datetime.fromisoformat(str(self.anchor["at"]))
+    def anchor_at(self) -> datetime | None:
+        """T, or None for a case the selection stored without an anchor (an exemplar can have
+        none): its anchor-relative items are gaps (`no_anchor`), ADR-089 addendum 2."""
+        at = (self.anchor or {}).get("at")
+        return datetime.fromisoformat(str(at)) if at else None
 
     @property
     def owner(self) -> str:

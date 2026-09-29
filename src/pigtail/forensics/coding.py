@@ -93,9 +93,9 @@ def build_inputs(
     out: dict[str, CaseInput] = {}
     for c in cases:
         items, missing = render(c)
-        at = str(c.anchor.get("at", ""))
+        at = str(c.anchor.get("at") or "")
         prec = str(c.anchor.get("precision", "day"))
-        anchor = f"{at[:16]} UTC ({prec} precision)"
+        anchor = f"{at[:16]} UTC ({prec} precision)" if at else "unknown (no anchor)"
         out[c.case_key] = CaseInput(
             c,
             items,
@@ -420,7 +420,8 @@ def adjudication_items(
                     ],
                 }
             )
-        at = str(ci.case.anchor.get("at", ""))[:16] + " UTC"
+        raw = str(ci.case.anchor.get("at") or "")
+        at = raw[:16] + " UTC" if raw else "unknown (no anchor)"
         text = adjudication_input(ci.case.coding_id, at, ci.items, units)
         texts[case_key] = text
         items.append(

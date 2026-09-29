@@ -376,13 +376,16 @@ class EvidenceStage:
             gap("readme_current", f"fetch_failed:{e.status}")
         except PARSE_ERRORS:
             gap("readme_current", "parse_failed")
-        # 3. README at the last commit touching it before T
-        if path is None:
+        # 3. README at the last commit touching it before T (none without an anchor)
+        anchor_at = case.anchor_at
+        if anchor_at is None:
+            gap("readme_at_anchor", "no_anchor")
+        elif path is None:
             gap("readme_at_anchor", "no_readme")
         else:
             try:
                 res.req("core")
-                c = gh.commits_page(full, path=path, until=case.anchor_at, repo_id=case.repo_id)
+                c = gh.commits_page(full, path=path, until=anchor_at, repo_id=case.repo_id)
                 try:
                     refs = parse_commit_refs(c.data)
                 finally:
@@ -412,8 +415,10 @@ class EvidenceStage:
                 gap("readme_at_anchor", f"fetch_failed:{e.status}")
             except PARSE_ERRORS:
                 gap("readme_at_anchor", "parse_failed")
-        # 4. releases around T, with notes (raw pages dropped: they embed authors)
-        lo, hi = case.anchor_at - RELEASE_WINDOW_BEFORE, case.anchor_at + RELEASE_WINDOW_AFTER
+        # 4. releases around T, with notes (raw pages dropped: they embed authors); without an
+        #    anchor, the newest releases of the first pages, no window (ADR-089 addendum 2)
+        lo = None if anchor_at is None else anchor_at - RELEASE_WINDOW_BEFORE
+        hi = None if anchor_at is None else anchor_at + RELEASE_WINDOW_AFTER
         kept: list[dict[str, Any]] = []
         first_hash: str | None = None
         status = "complete"
@@ -427,7 +432,9 @@ class EvidenceStage:
                 finally:
                     drop(self.db, gh.store, f3.evidence.id, f3.content_hash, self._dlog())
                 for n in notes:
-                    if n.published_at is None or not lo <= n.published_at <= hi:
+                    if n.published_at is None or (
+                        lo is not None and hi is not None and not lo <= n.published_at <= hi
+                    ):
                         continue
                     kept.append(
                         {
@@ -439,7 +446,7 @@ class EvidenceStage:
                         }
                     )
                 dates = [n.published_at for n in notes if n.published_at is not None]
-                if len(notes) < 100 or (dates and min(dates) < lo):
+                if len(notes) < 100 or (lo is not None and dates and min(dates) < lo):
                     break
             else:
                 status = "truncated"
@@ -454,6 +461,7 @@ class EvidenceStage:
             doc = {
                 "repo": f"[owner]/{full.partition('/')[2]}",
                 "window": {"from": _iso(lo), "to": _iso(hi)},
+                **({} if anchor_at is not None else {"no_anchor": True}),
                 "status": status,
                 "releases": kept,
             }
@@ -474,7 +482,7 @@ class EvidenceStage:
                     ev.content_hash,
                     (kept[-1]["published_at"] or "")[:10]
                     if kept
-                    else case.anchor_at.date().isoformat(),
+                    else (anchor_at or self.clock()).date().isoformat(),
                     decay_url=f"{releases_url(full)}?per_page=100&page=1",
                     upstream_hash=first_hash,
                     detail={"releases": len(kept), "status": status},
@@ -598,10 +606,13 @@ def _render(kind: str, data: bytes) -> str:
     doc = json.loads(data)
     if kind == "releases":
         rels = doc.get("releases") or []
-        head = (
-            f"Releases published {doc['window']['from'][:10]} .. {doc['window']['to'][:10]}: "
-            f"{len(rels)} (list {doc.get('status')})"
+        w = doc.get("window") or {}
+        span = (
+            f"{w['from'][:10]} .. {w['to'][:10]}"
+            if w.get("from") and w.get("to")
+            else "at any date (the case has no anchor)"
         )
+        head = f"Releases published {span}: {len(rels)} (list {doc.get('status')})"
         parts = [head]
         for r in rels:
             pre = " (prerelease)" if r.get("prerelease") else ""
