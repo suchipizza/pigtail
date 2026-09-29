@@ -69,14 +69,22 @@ from pigtail.forensics.evidence import _derived_url, store_derived
 from pigtail.forensics.store import EvidenceRow, PilotCase
 from pigtail.pseudonymize import scrub_identifiers
 
-FACTS_VERSION = "report-facts-v1"
-RULES = {
+FACTS_VERSION = "report-facts-v2"
+RULES_V1 = {
     "events": "events-v1",
     "assets": "assets-v1",
     "amplifiers": "amplifiers-v1",
     "trajectory": "trajectory-v1",
     "bursts": "velocity-v0",
     "explain": "explain-v1",
+}
+RULES = {
+    "events": "events-v2",
+    "assets": "assets-v2",
+    "amplifiers": "amplifiers-v2",
+    "trajectory": "trajectory-v1",
+    "bursts": "velocity-v0+size-v1",
+    "explain": "explain-v2",
 }
 TITLE_MAX_WORDS = 25
 EXCERPT_MAX = 300
@@ -97,6 +105,7 @@ WHERE = {
     "first_mention": "Hacker News (first mention of the repo)",
     "anchor": "anchor T of the view",
 }
+HN_KINDS = ("show_hn", "launch_hn", "first_mention")
 LAUNCH_KINDS = ("show_hn", "launch_hn", "product_hunt", "bluesky_maintainer_post", "release_launch")
 _EXPLAIN_ORDER = {k: i for i, k in enumerate((*LAUNCH_KINDS, "release", "first_mention"))}
 
@@ -136,11 +145,27 @@ class Event:
     title_evidence_id: str | None = None
     title_missing: str | None = None
     detail: dict[str, Any] | None = None
+    # HN stories only (events-v2): True when the story links the repo or the project's own
+    # homepage, or the selection matched it by URL; False: a title-only match; None: unchecked
+    confirmed: bool | None = None
+
+    @property
+    def counts(self) -> bool:
+        """A launch event the patterns, amplifiers and burst explanations may use: confirmed,
+        or a kind that needs no confirmation (events-v2)."""
+        if self.kind in HN_KINDS:
+            return self.launch and self.confirmed is True
+        return self.launch
 
     def to_dict(self) -> dict[str, Any]:
+        where = WHERE.get(self.kind, self.kind)
+        if self.kind in HN_KINDS and self.confirmed is not True:
+            where += " — unconfirmed (title match)"
         return {
             "kind": self.kind,
-            "where": WHERE.get(self.kind, self.kind),
+            "where": where,
+            "confirmed": self.confirmed if self.kind in HN_KINDS else True,
+            "counts": self.counts,
             "ref": self.ref,
             "at": _iso(self.at),
             "launch": self.launch,
@@ -169,6 +194,10 @@ def events_from_docs(
             have.evidence_ids.extend(e.evidence_ids)
             have.title = have.title or e.title
             have.at = have.at or e.at
+            if e.confirmed is True:
+                have.confirmed = True
+            if e.detail:
+                have.detail = {**(have.detail or {}), **e.detail}
             return
         out[key] = e
 
@@ -191,7 +220,18 @@ def events_from_docs(
             )
         elif src == "hn_launch_lookup" and sig.get("hn_item_id") is not None:
             kind = "launch_hn" if sig.get("kind") == "launch_hn" else "show_hn"
-            add(Event(kind, str(sig["hn_item_id"]), _t(sig.get("time")), list(lev), True))
+            by_url = str(sig.get("match") or "").startswith("url")
+            add(
+                Event(
+                    kind,
+                    str(sig["hn_item_id"]),
+                    _t(sig.get("time")),
+                    list(lev),
+                    True,
+                    confirmed=True if by_url else None,
+                    detail={"match": sig.get("match")},
+                )
+            )
         elif src == "ph_launch":
             for p in sig.get("posts") or []:
                 if p.get("confirmed") is not True:
@@ -310,36 +350,48 @@ def source_status(launch_doc: Mapping[str, Any] | None) -> dict[str, str | None]
     return out
 
 
-# --- assets at launch (assets-v1) --------------------------------------------------------------
+# --- assets at launch (assets-v2) --------------------------------------------------------------
+# v2 (ADR-089 addendum 4, after verifier M24 round 1 measured v1 at ~56 % precision): logos,
+# banners, icons and wordmarks are not screenshots; a docs site must be on the project's own host
+# (its homepage's domain, `<owner>.github.io`, or a host naming the repo); an install one-liner is
+# one line naming the project and not a development install; a "featured in" claim needs a press
+# or newsletter context; a comparison is a table with check marks or a table under a comparison
+# heading ("vs" in lower case, so "VS Code" is not one); release notes count "at launch" only up
+# to T + 1 day (later ones are listed as after launch).
 _DEMO = re.compile(
     r"(?i)(\.(gif|mp4|webm|mov)\b|youtube\.com/watch|youtu\.be/|vimeo\.com/|loom\.com/share"
     r"|asciinema\.org/a/|<video\b)"
 )
 _BADGE = re.compile(r"(?i)(shields\.io|badge|travis-ci|codecov|circleci|badgen|/actions/workflows)")
-_IMAGE = re.compile(r"(?i)(!\[[^\]]*\]\([^)]+\.(png|jpe?g|webp|svg)[^)]*\)|<img\b[^>]*>)")
+_IMAGE = re.compile(r"(?i)(!\[[^\]]*\]\([^)]+\.(png|jpe?g|webp)[^)]*\)|<img\b[^>]*>)")
+_LOGO = re.compile(r"(?i)(logo|banner|icon|wordmark|favicon|avatar|brand|sponsor|\.svg\b)")
 _INSTALL = re.compile(
-    r"(?i)(^|`|\$\s*)\s*(pip3? install|pipx install|uv (tool|pip) install|uvx |npm (i|install)\b"
-    r"|npx |yarn (global )?add|pnpm (add|dlx)|bun (add|x)\b|brew install|cargo (install|binstall)"
-    r"|go install|gem install|docker run|curl [^\n`]*\|\s*(ba|z)?sh|wget [^\n`]*\|\s*(ba)?sh"
-    r"|winget install|scoop install|nix (run|profile install)|conda install|dotnet tool install"
-    r"|composer (global )?require|deno (install|run))"
+    r"(?i)^\s*(?:\$\s*)?(pip3? install|pipx install|uv (tool|pip) install|uvx |npm (i|install) "
+    r"(-g|--global)\b|npx |yarn global add|pnpm (add -g|dlx)|bunx? |brew install|"
+    r"cargo (install|binstall)|go install|gem install|curl [^\n`]*\|\s*(ba|z)?sh|"
+    r"wget [^\n`]*\|\s*(ba)?sh|winget install|scoop install|nix (run|profile install)|"
+    r"conda install|dotnet tool install|composer global require|deno (install|run)|docker run)"
 )
+_INLINE_CODE = re.compile(r"`([^`\n]+)`")
 _BENCH_HEADING = re.compile(r"(?im)^\s{0,3}#{1,6}\s.*\b(benchmarks?|performance)\b")
 _BENCH_LINE = re.compile(r"(?i)\bbenchmark(s|ed|ing)?\b.*\d|\d.*\bbenchmark(s|ed|ing)?\b")
-_DOCS = re.compile(
-    r"(?i)https?://(?!github\.com|raw\.githubusercontent|img\.shields)[^\s)\]\"'>]*"
-    r"(readthedocs\.io|\.github\.io|gitbook\.io|mintlify|docs\.[a-z0-9-]+\.[a-z]+|/docs\b)"
-)
+_URL = re.compile(r"https?://([^\s/)\]\"'>]+)([^\s)\]\"'>]*)")
+_DOCS_HINT = re.compile(r"(?i)(^docs?\.|\.readthedocs\.io$|\.gitbook\.io$|\.mintlify\.app$)")
 _TABLE_SEP = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$")
 _CHECKS = re.compile(r"(✅|❌|✔|✓|✗|✘|:white_check_mark:|:x:|:heavy_check_mark:)")
 _COMPARE_HEADING = re.compile(
-    r"(?im)^\s{0,3}#{1,6}\s.*(comparison|compared|\bvs\.?\b|alternatives|why not)"
+    r"^\s{0,3}#{1,6}\s.*((?i:comparison|compared (to|with)|alternatives)|\bvs\.?\s)"
 )
 _ANY_IMAGE = re.compile(r"(?i)(!\[[^\]]*\]\([^)]+\)|<img\b)")
-_FEATURED = re.compile(r"(?i)\b(featured|mentioned|covered|as seen)\s+(in|on|by)\b")
+_FEATURED = re.compile(r"(?i)\b(featured|as seen|highlighted|covered)\s+(in|on|by)\b")
+_PRESS = re.compile(
+    r"(?i)(newsletter|weekly|digest|magazine|podcast|press|blog|news|techcrunch|hacker news|"
+    r"product hunt|changelog|console\.dev|tldr)"
+)
 _HEADING = re.compile(r"^\s{0,3}(#{1,3})\s+(.+?)\s*#*\s*$")
 _QUICKSTART = re.compile(r"(?i)(quick\s*start|getting started|installation|install|usage)")
 _FEATURES = re.compile(r"(?i)\bfeatures?\b")
+NOTES_AT_LAUNCH_AFTER = timedelta(days=1)  # release notes up to T + 1 day count "at launch"
 
 ASSETS = (
     "demo_media",
@@ -350,6 +402,34 @@ ASSETS = (
     "comparison_table",
     "featured_in_claim",
 )
+
+
+@dataclass(frozen=True)
+class Project:
+    """What the asset rules need to know about the project itself (no person data)."""
+
+    name: str = ""  # the repo name (without owner)
+    owner: str = ""  # the owner login (already `[owner]` in scrubbed text)
+    homepage_host: str | None = None
+
+    def name_forms(self) -> set[str]:
+        n = self.name.lower()
+        if not n:
+            return set()
+        return {n, n.replace("-", "_"), n.replace("_", "-"), n.replace("-", "").replace("_", "")}
+
+    def own_host(self, host: str) -> bool:
+        h = host.lower().split(":")[0]
+        if self.homepage_host:
+            hp = self.homepage_host.lower()
+            base = ".".join(hp.split(".")[-2:])
+            if h in (hp, base) or h.endswith("." + base):
+                return True
+        if h.endswith(".github.io") and (
+            h.split(".")[0] in ("[owner]", self.owner.lower()) or not self.owner
+        ):
+            return True
+        return any(f in h for f in self.name_forms() if len(f) >= 4)
 
 
 def _excerpt(line: str) -> str:
@@ -363,9 +443,9 @@ def _first_line(text: str, rx: re.Pattern[str], skip: Callable[[str], bool] | No
     return ""
 
 
-def _tables(text: str) -> list[list[str]]:
+def _tables(text: str) -> list[tuple[int, list[str]]]:
     lines = text.splitlines()
-    out: list[list[str]] = []
+    out: list[tuple[int, list[str]]] = []
     for i, ln in enumerate(lines):
         if _TABLE_SEP.match(ln) and i > 0 and "|" in lines[i - 1]:
             j = i + 1
@@ -373,36 +453,83 @@ def _tables(text: str) -> list[list[str]]:
             while j < len(lines) and "|" in lines[j]:
                 rows.append(lines[j])
                 j += 1
-            out.append(rows)
+            out.append((i - 1, rows))
     return out
 
 
-def detect_assets(text: str) -> dict[str, str]:
-    """asset -> the first matching line (empty: none) in one text (`assets-v1`)."""
-    found: dict[str, str] = {}
-    found["demo_media"] = _first_line(text, _DEMO)
-    found["screenshots"] = _first_line(text, _IMAGE, skip=lambda ln: bool(_BADGE.search(ln)))
-    found["install_one_liner"] = _first_line(text, _INSTALL)
-    bench = _first_line(text, _BENCH_HEADING) or _first_line(text, _BENCH_LINE)
-    found["benchmarks"] = bench
-    found["docs_site"] = _first_line(text, _DOCS)
-    cmp_line = ""
-    for rows in _tables(text):
+def _install_line(text: str, proj: Project) -> str:
+    """One line (a code line or an inline code span) that installs or runs *this* project."""
+    names = proj.name_forms()
+    cands: list[str] = []
+    for ln in text.splitlines():
+        cands.append(ln)
+        cands.extend(m.group(1) for m in _INLINE_CODE.finditer(ln))
+    for c in cands:
+        s = c.strip()
+        if s.endswith("\\") or not _INSTALL.match(s):
+            continue
+        low = s.lower()
+        own = bool(proj.homepage_host and proj.homepage_host.lower() in low)
+        if names and not any(n in low for n in names) and not own:
+            continue
+        return s
+    return ""
+
+
+def _docs_line(text: str, proj: Project) -> str:
+    for ln in text.splitlines():
+        for m in _URL.finditer(ln):
+            host, path = m.group(1), m.group(2)
+            if "github.com" in host or "githubusercontent" in host or "shields.io" in host:
+                continue
+            docsy = bool(_DOCS_HINT.search(host)) or bool(re.search(r"(?i)/docs?\b", path))
+            if docsy and proj.own_host(host):
+                return ln
+    return ""
+
+
+def _screenshot_line(text: str) -> str:
+    for ln in text.splitlines():
+        for m in _IMAGE.finditer(ln):
+            img = m.group(0)
+            if _BADGE.search(img) or _LOGO.search(img):
+                continue
+            return ln
+    return ""
+
+
+def _comparison_line(text: str) -> str:
+    lines = text.splitlines()
+    for start, rows in _tables(text):
         hit = next((r for r in rows if _CHECKS.search(r)), "")
         if hit:
-            cmp_line = hit
-            break
-    if not cmp_line and _tables(text):
-        head = _first_line(text, _COMPARE_HEADING)
-        cmp_line = head
-    found["comparison_table"] = cmp_line
-    found["featured_in_claim"] = _first_line(text, _FEATURED)
+            return hit
+        # a table directly under a comparison heading (only blank or text lines between)
+        for k in range(start - 1, max(-1, start - 6), -1):
+            if _HEADING.match(lines[k]) or lines[k].lstrip().startswith("#"):
+                if _COMPARE_HEADING.match(lines[k]):
+                    return lines[k]
+                break
+    return ""
+
+
+def detect_assets(text: str, proj: Project | None = None) -> dict[str, str]:
+    """asset -> the first matching line (empty: none) in one text (`assets-v2`)."""
+    proj = proj or Project()
+    found: dict[str, str] = {}
+    found["demo_media"] = _first_line(text, _DEMO)
+    found["screenshots"] = _screenshot_line(text)
+    found["install_one_liner"] = _install_line(text, proj)
+    found["benchmarks"] = _first_line(text, _BENCH_HEADING) or _first_line(text, _BENCH_LINE)
+    found["docs_site"] = _docs_line(text, proj)
+    found["comparison_table"] = _comparison_line(text)
+    found["featured_in_claim"] = _first_line(text, _FEATURED, skip=lambda ln: not _PRESS.search(ln))
     return found
 
 
 def readme_structure(text: str) -> dict[str, Any]:
     """Headings (levels 1-3, <= 80 characters, at most 30), counts and the quick-start and
-    features sections of a README (as found; `assets-v1`)."""
+    features sections of a README (as found)."""
     heads: list[dict[str, Any]] = []
     in_code = False
     code_blocks = 0
@@ -433,12 +560,16 @@ def readme_structure(text: str) -> dict[str, Any]:
 def assets_at_launch(
     readme: tuple[str, str] | None,
     release_notes: tuple[str, str] | None,
+    proj: Project | None = None,
+    after_notes: tuple[str, str] | None = None,
 ) -> dict[str, Any]:
-    """`assets-v1` over the README at T (evidence id, scrubbed text) and the release notes of
-    the release window (evidence id, text). Release notes can only turn an asset `present`."""
+    """`assets-v2` over the README at T (evidence id, scrubbed text) and the release notes
+    published up to T + 1 day (evidence id, text). Release notes can only turn an asset
+    `present`. Assets found only in later release notes (`after_notes`) are listed under
+    `after_launch`, never as at launch."""
     out: dict[str, Any] = {}
-    r_found = detect_assets(readme[1]) if readme else {}
-    n_found = detect_assets(release_notes[1]) if release_notes else {}
+    r_found = detect_assets(readme[1], proj) if readme else {}
+    n_found = detect_assets(release_notes[1], proj) if release_notes else {}
     for a in ASSETS:
         if readme and r_found.get(a):
             out[a] = {
@@ -452,7 +583,7 @@ def assets_at_launch(
                 "value": "present",
                 "evidence_id": release_notes[0],
                 "excerpt": _excerpt(n_found[a]),
-                "source": "releases",
+                "source": "release_notes_until_t_plus_1d",
             }
         elif readme:
             out[a] = {
@@ -468,16 +599,27 @@ def assets_at_launch(
                 "excerpt": None,
                 "reason": "no README at the anchor",
             }
+    later: dict[str, Any] = {}
+    if after_notes:
+        a_found = detect_assets(after_notes[1], proj)
+        for a in ASSETS:
+            if a_found.get(a) and out[a]["value"] != "present":
+                later[a] = {"evidence_id": after_notes[0], "excerpt": _excerpt(a_found[a])}
     return {
         "rule": RULES["assets"],
         "assets": out,
+        "all_unknown": all(v["value"] == "unknown" for v in out.values()),
+        "after_launch": later,
         "readme_structure": (
             {"evidence_id": readme[0], **readme_structure(readme[1])} if readme else None
         ),
     }
 
 
-# --- amplifiers (amplifiers-v1) ----------------------------------------------------------------
+# --- amplifiers (amplifiers-v2) ----------------------------------------------------------------
+COMMUNITY_KINDS = ("show_hn", "launch_hn", "product_hunt", "bluesky_maintainer_post")
+
+
 def amplifiers(
     events: Sequence[Event],
     *,
@@ -487,17 +629,17 @@ def amplifiers(
     meta_ev: str | None,
     assets: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
-    launch = [e for e in events if e.launch]
+    """Roles and buckets only (`amplifiers-v2`): unconfirmed HN title matches and releases are
+    never amplification (a release is the project's own channel, listed as such)."""
+    launch = [e for e in events if e.counts]
     first_party = [
         e for e in launch if e.kind in ("show_hn", "launch_hn", "bluesky_maintainer_post")
     ]
-    venues = sorted({WHERE[e.kind] for e in launch if e.kind in WHERE})
-    fp = [
-        e
-        for e in events
-        if e.ref in front_page and e.kind in ("show_hn", "launch_hn", "first_mention")
-    ]
+    community = [e for e in launch if e.kind in COMMUNITY_KINDS]
+    venues = sorted({WHERE[e.kind] for e in community})
+    fp = [e for e in events if e.ref in front_page and e.kind in HN_KINDS and e.confirmed]
     feat = (assets.get("assets") or {}).get("featured_in_claim") or {}
+    unconfirmed = [e for e in events if e.kind in HN_KINDS and e.launch and not e.confirmed]
 
     def ev_ids(es: Sequence[Event]) -> list[str]:
         return sorted({i for e in es for i in e.evidence_ids})
@@ -506,24 +648,29 @@ def amplifiers(
         {
             "role": "maintainer",
             "value": "present" if first_party else "unknown",
-            "basis": "first-party launch posts (Show HN / Launch HN are first-party by definition; "
-            "declared-maintainer Bluesky posts)",
+            "basis": "confirmed first-party launch posts (Show HN / Launch HN linking the repo or "
+            "its homepage; declared-maintainer Bluesky posts)",
             "events": [f"{e.kind}:{e.ref}" for e in first_party],
             "evidence_ids": ev_ids(first_party),
-            **({} if first_party else {"reason": "no first-party post observed"}),
+            **({} if first_party else {"reason": "no confirmed first-party post"}),
+            **(
+                {"unconfirmed_title_matches": [f"{e.kind}:{e.ref}" for e in unconfirmed]}
+                if unconfirmed
+                else {}
+            ),
         },
         {
             "role": "community",
             "value": "present" if venues else "unknown",
             "venues": venues,
-            "basis": "venues of the launch events",
-            "evidence_ids": ev_ids(launch),
-            **({} if venues else {"reason": "no launch event observed"}),
+            "basis": "community venues of the confirmed launch events (releases excluded)",
+            "evidence_ids": ev_ids(community),
+            **({} if venues else {"reason": "no confirmed community launch event"}),
         },
         {
             "role": "hn_front_page",
             "value": "present" if fp else "unknown",
-            "basis": "Algolia front_page tag",
+            "basis": "Algolia front_page tag on a confirmed story",
             "evidence_ids": [front_page_ev] if fp and front_page_ev else [],
             **(
                 {}
@@ -542,7 +689,8 @@ def amplifiers(
         {
             "role": "newsletter",
             "value": "claimed" if feat.get("value") == "present" else "unknown",
-            "basis": "a first-party 'featured in' claim only; no newsletter source is collected",
+            "basis": "a first-party 'featured in' claim in a press or newsletter context only; "
+            "no newsletter source is collected",
             "evidence_ids": [feat["evidence_id"]] if feat.get("value") == "present" else [],
             **(
                 {"excerpt": feat.get("excerpt")}
@@ -613,11 +761,18 @@ def trajectory(
 
 
 def explain(onset_day: date, events: Sequence[Event]) -> dict[str, Any] | None:
-    """`explain-v1`: the event closest to the onset day within [-3 d, +1 d] (launch events before
-    releases before mentions, then the earlier), or None."""
+    """`explain-v2`: among the events that count (confirmed HN stories, Product Hunt, declared
+    maintainers' Bluesky posts, releases of the whole history), the one whose endpoint day is
+    closest to the onset day within [-3 d, +1 d] (launch events before releases before
+    mentions, then the earlier). When a launch event and a release are within 24 h of each
+    other, the launch event is preferred and the release is named with it (`also`)."""
     cands = []
     for e in events:
         if e.at is None:
+            continue
+        if e.kind in HN_KINDS and e.confirmed is not True:
+            continue  # an unconfirmed title match never explains a burst
+        if e.launch and not e.counts:
             continue
         delta = (_day(e.at) - onset_day).days
         if -EXPLAIN_BEFORE_DAYS <= delta <= EXPLAIN_AFTER_DAYS:
@@ -625,15 +780,36 @@ def explain(onset_day: date, events: Sequence[Event]) -> dict[str, Any] | None:
     if not cands:
         return None
     cands.sort(key=lambda c: c[:4])
-    e = cands[0][5]
-    return {"event": f"{e.kind}:{e.ref}", "kind": e.kind, "days_from_onset": cands[0][4]}
+    best = cands[0]
+    e = best[5]
+    releases = [c for c in cands if c[5].kind in ("release", "release_launch")]
+    launches = [c for c in cands if c[5].kind in COMMUNITY_KINDS]
+    also: list[str] = []
+    if e.kind in ("release", "release_launch") and e.at is not None:
+        near = [c for c in launches if c[2] is not None and abs(c[2] - e.at) <= timedelta(hours=24)]
+        if near:
+            also.append(f"{e.kind}:{e.ref}")
+            best = sorted(near, key=lambda c: c[:4])[0]
+            e = best[5]
+    elif e.kind in COMMUNITY_KINDS and e.at is not None:
+        also = [
+            f"{c[5].kind}:{c[5].ref}"
+            for c in releases
+            if c[2] is not None and abs(c[2] - e.at) <= timedelta(hours=24)
+        ]
+    out: dict[str, Any] = {"event": f"{e.kind}:{e.ref}", "kind": e.kind, "days_from_onset": best[4]}
+    if also:
+        out["also"] = also
+    return out
 
 
 def bursts(
     series: Mapping[date, int], events: Sequence[Event], *, created: date | None
 ) -> list[dict[str, Any]]:
-    """Every `velocity-v0` burst of the series, each with the event that best explains it or
-    `unexplained` (day-level attribution)."""
+    """Every `velocity-v0` burst of the series with its whole size (`size-v1`: net stars from
+    the onset day to the last day before the rate is back at baseline, or to the series' end
+    for an open burst; the first 48 h are kept as `stars_48h`), and the event that best
+    explains it or `unexplained` (day-level attribution)."""
     from pigtail.analysis.bursts import segment
 
     if not series:
@@ -642,11 +818,18 @@ def bursts(
     out = []
     for b in seg.bursts:
         why = explain(b.onset.day, events)
+        days = [b.onset.day + timedelta(days=i) for i in range((b.last_day - b.onset.day).days + 1)]
+        known = [d for d in days if d in series]
         out.append(
             {
                 "onset_day": b.onset.day.isoformat(),
                 "onset_precision": b.onset.precision,
                 "end_day": None if b.end is None else b.end.isoformat(),
+                "last_day": b.last_day.isoformat(),
+                "open": b.end is None,
+                "days": len(days),
+                "stars_total": sum(series[d] for d in known),
+                "stars_total_complete": len(known) == len(days),
                 "peak_day": None if b.peak_day is None else b.peak_day.isoformat(),
                 "peak_stars": b.peak_stars,
                 "stars_48h": b.stars_48h,
@@ -655,10 +838,41 @@ def bursts(
                 "shape": b.shape,
                 "explained_by": why["event"] if why else "unexplained",
                 "explained_kind": why["kind"] if why else None,
+                "explained_also": why.get("also", []) if why else [],
                 "days_from_onset": why["days_from_onset"] if why else None,
                 "label": DAY_LEVEL,
             }
         )
+    return out
+
+
+def _host(url: str | None) -> str | None:
+    from urllib.parse import urlsplit
+
+    if not url:
+        return None
+    try:
+        return urlsplit(url).hostname
+    except ValueError:
+        return None
+
+
+def _release_history(cand: Any, events: Sequence[Event]) -> list[Event]:
+    """Every release of the repo's history the selection stored (tag, date; `gh_releases`), not
+    already an event: the candidates that explain-v2 considers besides the case's own events."""
+    have = {e.ref for e in events if e.kind in ("release", "release_launch")}
+    out: list[Event] = []
+    for sig in (getattr(cand, "sources", None) or []) if cand is not None else []:
+        if sig.get("source") != "gh_releases":
+            continue
+        for r in sig.get("releases") or []:
+            tag = str(r.get("tag"))
+            at = _t(r.get("published_at"))
+            if tag in have or at is None:
+                continue
+            have.add(tag)
+            kind = "release_launch" if r.get("launch") else "release"
+            out.append(Event(kind, tag, at, [], kind == "release_launch"))
     return out
 
 
@@ -686,14 +900,21 @@ class FactsStage:
         self.run_id = run_id
         self.code_commit = code_commit
 
-    def run(self, pilot: dict[str, Any], cases: Sequence[PilotCase]) -> dict[str, int]:
+    def run(
+        self,
+        pilot: dict[str, Any],
+        cases: Sequence[PilotCase],
+        candidates: Mapping[str, Any] | None = None,
+    ) -> dict[str, int]:
+        """Cases without facts or with facts of an older version (`--refresh-facts`)."""
         from pigtail.privacy.snapshot_retention import link
 
         done = 0
         for c in cases:
-            if c.facts is not None:
+            if c.facts is not None and c.facts.get("version") == FACTS_VERSION:
                 continue
-            facts, new_ids = self.case_facts(pilot, c)
+            cand = (candidates or {}).get(c.candidate_ref)
+            facts, new_ids = self.case_facts(pilot, c, cand)
             if new_ids:
                 link(self.db, pilot["brief_run_id"], new_ids)
             fstore.set_case_facts(
@@ -716,7 +937,11 @@ class FactsStage:
         except (SnapshotError, KeyError):
             return None
 
-    def case_facts(self, pilot: dict[str, Any], c: PilotCase) -> tuple[dict[str, Any], list[str]]:
+    def case_facts(
+        self, pilot: dict[str, Any], c: PilotCase, cand: Any = None
+    ) -> tuple[dict[str, Any], list[str]]:
+        from urllib.parse import urlsplit
+
         from pigtail.connectors.github import parse_readme_json, parse_repo_node
 
         rid = pilot["brief_run_id"]
@@ -734,6 +959,21 @@ class FactsStage:
         launch_doc, launch_ev = doc("launch_events")
         rel_doc, rel_ev = doc("releases")
         events = events_from_docs(launch_doc, launch_ev, rel_doc, rel_ev)
+        # metadata (owner type, creation, homepage for the HN and docs rules)
+        meta_row = items.get("repo_metadata")
+        meta_data = self._bytes(meta_row)
+        owner_type, created, homepage = None, None, None
+        if meta_row is not None and meta_data is not None:
+            node = (json.loads(meta_data).get("data") or {}).get("r0")
+            m = parse_repo_node(node)
+            if m is not None:
+                owner_type = m.owner_type
+                created = _day(m.created_at) if m.created_at else None
+                homepage = m.homepage
+        if not homepage and cand is not None:
+            homepage = (getattr(cand, "metadata", None) or {}).get("homepage")
+        hp_host = urlsplit(homepage).hostname if homepage else None
+        proj = Project(c.repo_full_name.partition("/")[2], c.owner, hp_host)
         # HN story titles (and Algolia's front-page tag)
         front: set[str] = set()
         hn_ev = None
@@ -754,32 +994,40 @@ class FactsStage:
                     if st is None or e.kind not in ("show_hn", "launch_hn", "first_mention"):
                         continue
                     e.evidence_ids.append(hn_ev)
+                    host = st.get("url_host")
+                    ok = bool(st.get("links_repo")) or bool(host and proj.own_host(host))
+                    if ok:
+                        e.confirmed = True
+                    elif e.confirmed is None:
+                        e.confirmed = False  # a title-only match (events-v2)
                     if st.get("title"):
                         e.title, e.title_truncated = title_words(st["title"])
                         e.title_evidence_id, e.title_missing = hn_ev, None
                     if e.at is None:
                         e.at = _t(st.get("time"))
-        # metadata, README at T, release notes
-        meta_row = items.get("repo_metadata")
-        meta_data = self._bytes(meta_row)
-        owner_type, created = None, None
-        if meta_row is not None and meta_data is not None:
-            node = (json.loads(meta_data).get("data") or {}).get("r0")
-            m = parse_repo_node(node)
-            if m is not None:
-                owner_type = m.owner_type
-                created = _day(m.created_at) if m.created_at else None
+        # README at T, release notes (at launch: up to T + 1 day)
         readme = None
         r_row = items.get("readme_at_anchor")
         r_data = self._bytes(r_row)
         if r_row is not None and r_data is not None:
             text = scrub_identifiers(strip_owner(parse_readme_json(r_data).text, c.owner) or "")
             readme = (str(r_row["evidence_id"]), text)
-        notes = None
-        if rel_doc and rel_ev:
-            parts = [str(r.get("notes") or "") for r in rel_doc.get("releases") or []]
-            notes = (rel_ev, "\n".join(parts))
-        assets = assets_at_launch(readme, notes)
+        notes = after = None
+        t_at = _t(c.anchor.get("at")) or next(
+            (e.at for e in events if e.counts and e.at is not None), None
+        )
+        if rel_doc and rel_ev and t_at is not None:
+            cut = t_at + NOTES_AT_LAUNCH_AFTER
+            rels = rel_doc.get("releases") or []
+            early = [
+                str(r.get("notes") or "") for r in rels if (_t(r.get("published_at")) or cut) <= cut
+            ]
+            late = [
+                str(r.get("notes") or "") for r in rels if (_t(r.get("published_at")) or cut) > cut
+            ]
+            notes = (rel_ev, "\n".join(early)) if early else None
+            after = (rel_ev, "\n".join(late)) if late else None
+        assets = assets_at_launch(readme, notes, proj, after)
         amps = amplifiers(
             events,
             front_page=front,
@@ -813,13 +1061,17 @@ class FactsStage:
             anchor_traj = (
                 trajectory(series, anchor_at, created=created, as_of=as_of) if anchor_at else None
             )
-            bs = bursts(series, events, created=created)
+            history = _release_history(cand, events)
+            bs = bursts(series, [*events, *history], created=created)
             tdoc = {
                 "repo": f"[owner]/{c.repo_full_name.partition('/')[2]}",
                 "series": {d.isoformat(): n for d, n in sorted(series.items())},
                 "as_of": as_of.isoformat(),
                 "created_day": None if created is None else created.isoformat(),
                 "bursts": bs,
+                "explanation_releases": [
+                    {"tag": e.ref, "published_at": _iso(e.at)} for e in history
+                ],
                 "rules": {k: RULES[k] for k in ("trajectory", "bursts", "explain")},
                 "label": STAR_LABEL,
             }
@@ -946,6 +1198,7 @@ class FactsStage:
                         "time": _iso(st.created_at),
                         "points": st.points,
                         "links_repo": (st.repo_full_name or "").lower() == c.repo_full_name,
+                        "url_host": _host(st.url),
                     }
         except FetchError as e:
             gaps["hn_stories"] = f"fetch_failed:{e.status}"

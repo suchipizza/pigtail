@@ -154,7 +154,8 @@ def feature_evidence(
         ids = {
             i
             for e in f.get("events") or []
-            if e.get("kind") == kind and e.get("launch")
+            # report-facts-v2: an unconfirmed HN title match does not count (`counts` false)
+            if e.get("kind") == kind and e.get("counts", e.get("launch"))
             for i in e.get("evidence_ids") or []
         }
         return sorted(ids)
@@ -579,7 +580,9 @@ def launch_timing(report: Mapping[str, Any]) -> dict[str, Any]:
             continue
         evs = []
         for e in (n.get("facts") or {}).get("launch_events") or []:
-            kind = KIND_OF_WHERE.get(str(e.get("where")))
+            if e.get("counts") is False:  # unconfirmed HN title match (report-facts-v2)
+                continue
+            kind = e.get("kind") or KIND_OF_WHERE.get(str(e.get("where")))
             t = _t(e.get("when"))
             if kind is None or kind in ("first_mention", "anchor", "release") or t is None:
                 continue

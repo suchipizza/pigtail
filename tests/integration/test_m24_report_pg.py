@@ -106,7 +106,7 @@ def test_m24_t5_report_end_to_end(env: Env) -> None:  # noqa: F811
     p = rep["provenance"]
     assert p["brief_version"] == env.brief.version and p["data_version"] == "dv1-x"
     assert p["code_commit"] == "c0ffee1"
-    assert p["frame_version"] == "pilot-frame-v1+report-facts-v1"
+    assert p["frame_version"] == "pilot-frame-v1+report-facts-v2"
     assert p["narrative_thinking"] == "adaptive+effort:low"  # claude-opus-5-5, disabled
     assert p["label"] == "attention-based"
     assert p["cost_usd"]["report_run"] > 0 and p["cost_usd"]["coding_run"] > 0
@@ -253,3 +253,66 @@ def test_m24_t7_purge_keeps_evidence_referenced_only_by_outcomes_facts_or_report
     gone = q(env, "SELECT count(*) FROM brief_coding c, unnest(c.evidence_ids) i JOIN evidence e"
                   " ON e.id = i WHERE e.deletion_state <> 'present'")[0][0]  # fmt: skip
     assert gone == 0
+
+
+def test_m24_r1_report_fixes(env: Env) -> None:  # noqa: F811
+    """Verifier M24 round 1 fixes 1, 3, 4, 6 and 8 and the refresh (ADR-089 addendum 4): the
+    selection record and diagnostics, definition-sensitive flags wherever a case appears, the
+    distribution-example labels, asset precision, unknown assets, the per-field alpha panel with
+    the full-run label, stale facts refused until `--refresh-facts`."""
+    from pigtail.forensics.pilot import refresh_facts
+
+    _coded(env)
+    env.conn.execute(
+        "UPDATE brief_selection_case SET sensitivity_flags = ARRAY['definition_sensitive']"
+        " WHERE candidate_ref = 'gh:org-p/alpha-cli' AND view = 'follow_through'"
+    )
+    # stale facts (an older fact version): refused until refreshed, no LLM call
+    env.conn.execute(
+        "UPDATE brief_pilot_case SET facts = jsonb_set(facts, '{version}', '\"report-facts-v1\"')"
+        " WHERE candidate_ref = 'gh:org-p/beta-tool'"
+    )
+    n = len(env.backend.submitted)
+    out = run_report(env.brief, rdeps(env), ReportOptions(approve_paid=True))
+    assert out.status == "refused" and "--refresh-facts" in out.message
+    res = refresh_facts(env.brief, deps(env, FakeAlgolia()))
+    assert res["cases_with_facts"] >= 1 and len(env.backend.submitted) == n
+    # a case whose README at T is missing: its assets print as unknown, never "none detected"
+    env.conn.execute(
+        "UPDATE brief_pilot_case SET facts = jsonb_set(facts, '{assets,all_unknown}', 'true')"
+        " WHERE candidate_ref = 'gh:org-p/gamma-lib' AND view = 'follow_through'"
+    )
+    out = run_report(env.brief, rdeps(env), ReportOptions(approve_paid=True))
+    assert out.exit_code == 0, out.message
+    text = Path(out.report_paths["md"]).read_text()
+    rep = json.loads(Path(out.report_paths["json"]).read_text())
+    # fix 1: selection record and diagnostics; flags in narratives, table and counterexamples
+    assert "## Selection record and diagnostics" in text
+    assert "relevance-filter precision" in text and "Sensitivity check" in text
+    assert "Balance after matching" in text
+    diag = rep["selection_diagnostics"]
+    assert {"success_definition", "shortlist", "balance", "sensitivity"} <= set(diag)
+    nar = {x["case"]: x for x in rep["narratives"]}
+    assert "[definition-sensitive]" in nar["org-p/alpha-cli"]["label"]
+    row = next(c for c in rep["comparison"] if c["case"] == "org-p/alpha-cli")
+    assert row["definition_sensitive"] is True
+    assert "org-p/alpha-cli [definition-sensitive]" in json.dumps(rep["patterns"])
+    assert rep["definition_sensitive_cases"] == ["org-p/alpha-cli (view A)"]
+    # fix 6: unknown assets, "none found" on an empty counterexample side
+    assert "assets at launch: unknown (no README at T)" in text
+    assert "none detected []" not in text
+    g = next(c for c in rep["comparison"] if c["case"] == "org-p/gamma-lib")
+    assert g["assets"] == ["unknown (no README at T)"]
+    # fix 3: distribution-example tables carry the labels, alpha and "not assessable"
+    ex = rep["patterns"]["distribution_examples"]["A"]["features"]
+    assert all(f["transferability"]["label"] == "not assessable" for f in ex if not f["sufficient"])
+    assert "insufficient evidence in this neighbourhood" in text.split("### Distribution")[1]
+    # fix 4: asset findings carry the measured precision, not "no alpha"
+    feats = rep["patterns"]["views"]["A"]["features"]
+    a = next(f for f in feats if f["feature"] == "asset.screenshots")
+    assert "precision" in a["reliability"]
+    assert "synthetic labelled set" in a["reliability"]["labels"][0]
+    assert "| screenshots |" in text
+    # fix 8: the alpha panel, labelled for the full run
+    assert "## Methods and data quality: per-field agreement" in text
+    assert "full run, n = 11" in text and "pilot, n = 11" not in text

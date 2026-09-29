@@ -51,7 +51,8 @@ from pigtail.llm import BatchPending, LLMClient
 from pigtail.llm.client import BatchItem
 from pigtail.llm.types import PromptSpec
 
-REPORT_VERSION = "brief-report-v1"
+REPORT_VERSION = "brief-report-v2"
+SENSITIVE = "definition-sensitive"
 CHECK_VERSION = "narrative-check-v1"
 JOB_REPORT = "report"
 TOP_PAIRS = 10
@@ -93,9 +94,14 @@ only), and how its stars moved around those events. Rules:
 3. Say "unknown" (or leave the point out) where the fact sheet says unknown; never guess.
 4. Never name, quote or describe a person, handle or account; roles and buckets only.
 5. No advice, no evaluation, no comparison with other cases.
+6. A launch event with `counts: false` is an unconfirmed title match (the story does not link
+   the project): say it is unconfirmed, never present it as the project's post or launch.
+7. `assets_after_launch` appeared after the launch: never describe them as present at launch.
+8. A burst's size is `stars_total` over `days` (with its peak); `stars_in_first_48h` is only
+   its start. Say "unexplained" when no event explains it.
 """
 TEMPLATE = "{input}\n\nReturn `sentences`: each with `text` and `evidence_ids`."
-NARRATIVE = PromptSpec("case-narrative", "1", SYSTEM, TEMPLATE, CONTEXT)
+NARRATIVE = PromptSpec("case-narrative", "2", SYSTEM, TEMPLATE, CONTEXT)  # 2: rules 6-8
 
 
 # --- which cases get a narrative -----------------------------------------------------------------
@@ -164,10 +170,18 @@ def fact_sheet(c: PilotCase, label: str) -> dict[str, Any]:
         if not e.get("launch") and e.get("kind") != "first_mention":
             continue
         key = f"{e['kind']}:{e['ref']}"
+        counts = e.get("counts", True)
+        title = e.get("title") or f"unknown ({e.get('title_missing') or 'not stored'})"
         rec: dict[str, Any] = {
+            "kind": e["kind"],
             "where": e["where"],
             "when": e.get("at"),
-            "title": e.get("title") or f"unknown ({e.get('title_missing') or 'not stored'})",
+            "confirmed": e.get("confirmed", True),
+            "counts": counts,
+            "title": title
+            if counts or e["kind"] == "first_mention"
+            else f"{title} (unconfirmed title match: the story does not link the repo or its "
+            "homepage; not counted as the project's launch)",
             "evidence_ids": sorted(
                 set(e.get("evidence_ids") or [])
                 | ({e["title_evidence_id"]} if e.get("title_evidence_id") else set())
@@ -183,8 +197,9 @@ def fact_sheet(c: PilotCase, label: str) -> dict[str, Any]:
             rec["stars_before"] = before if before is not None else "unknown"
             rec["evidence_ids"] = sorted({*rec["evidence_ids"], tev})
         events.append(rec)
+    af = f.get("assets") or {}
     assets = []
-    for name, a in ((f.get("assets") or {}).get("assets") or {}).items():
+    for name, a in (af.get("assets") or {}).items():
         assets.append(
             {
                 "asset": name,
@@ -212,19 +227,33 @@ def fact_sheet(c: PilotCase, label: str) -> dict[str, Any]:
         }
         for a in f.get("amplifiers") or []
     ]
-    bursts = sorted(tr.get("bursts") or [], key=lambda b: -(b.get("stars_48h") or 0))[:5]
+    bursts = sorted(
+        tr.get("bursts") or [],
+        key=lambda b: -(b.get("stars_total") or b.get("stars_48h") or 0),
+    )[:5]
     return {
         "case": c.coding_id,
         "role": label,
         "launch_events": events,
-        "assets_at_launch": assets,
+        "assets_at_launch": assets,  # a list, as report v1 (the plan reads it)
+        "assets_status": "unknown (no README at T)" if af.get("all_unknown") else "detected",
+        "assets_after_launch": [
+            {"asset": k, "excerpt": v.get("excerpt"), "evidence_ids": [v["evidence_id"]]}
+            for k, v in (af.get("after_launch") or {}).items()
+        ],
         "readme_at_launch": readme,
         "amplifiers": amps,
         "largest_bursts": [
             {
                 "onset_day": b["onset_day"],
-                "stars_in_48h": b["stars_48h"],
+                "days": b.get("days"),
+                "stars_total": b.get("stars_total"),
+                "stars_total_complete": b.get("stars_total_complete"),
+                "peak_day": b.get("peak_day"),
+                "peak_stars": b.get("peak_stars"),
+                "stars_in_first_48h": b["stars_48h"],
                 "explained_by": b["explained_by"],
+                "explained_also": b.get("explained_also") or [],
                 "label": b.get("label"),
                 "evidence_ids": [tev] if tev else [],
             }
@@ -306,9 +335,9 @@ def resolvable_ids(
 
 
 # --- comparison table ----------------------------------------------------------------------
-def comparison_row(c: PilotCase, label: str) -> dict[str, Any]:
+def comparison_row(c: PilotCase, label: str, sensitive: bool = False) -> dict[str, Any]:
     f = c.facts or {}
-    launch = [e for e in f.get("events") or [] if e.get("launch") and e.get("at")]
+    launch = [e for e in f.get("events") or [] if e.get("counts", e.get("launch")) and e.get("at")]
     first = launch[0] if launch else None
     tr = f.get("trajectory") or {}
     per = {p["event"]: p for p in tr.get("per_event") or []}
@@ -316,17 +345,20 @@ def comparison_row(c: PilotCase, label: str) -> dict[str, Any]:
     if first is not None:
         p = per.get(f"{first['kind']}:{first['ref']}") or {}
         gains = {k: v.get("value") for k, v in (p.get("gained") or {}).items()}
-    assets = [
-        a
-        for a, v in ((f.get("assets") or {}).get("assets") or {}).items()
-        if v.get("value") == "present"
-    ]
+    af = f.get("assets") or {}
+    assets = (
+        ["unknown (no README at T)"]
+        if af.get("all_unknown")
+        else [a for a, v in (af.get("assets") or {}).items() if v.get("value") == "present"]
+    )
     amps = [a["role"] for a in f.get("amplifiers") or [] if a["value"] in ("present", "claimed")]
     bursts = tr.get("bursts") or []
     return {
         "case": c.repo_full_name,
         "view": _vl(c.view),
         "role": label,
+        "definition_sensitive": sensitive,
+        "unconfirmed_hn_matches": sum(1 for e in f.get("events") or [] if e.get("counts") is False),
         "first_launch": None
         if first is None
         else {"where": first["where"], "when": first["at"], "title": first.get("title")},
@@ -336,6 +368,7 @@ def comparison_row(c: PilotCase, label: str) -> dict[str, Any]:
         "stars_after_first_launch": gains,
         "bursts": len(bursts),
         "bursts_explained": sum(1 for b in bursts if b.get("explained_by") != "unexplained"),
+        "largest_burst_stars": max((b.get("stars_total") or 0 for b in bursts), default=None),
         "evidence_ids": sorted(set((f.get("evidence") or {}).values())),
     }
 
@@ -376,6 +409,117 @@ class ReportOutcome:
 
     def to_dict(self) -> dict[str, Any]:
         return dict(self.__dict__)
+
+
+def _flags(c: PilotCase, sel_rows: Mapping[tuple[str, str], Mapping[str, Any]]) -> list[str]:
+    row = sel_rows.get((c.view, c.candidate_ref)) or {}
+    flags = list(row.get("sensitivity_flags") or [])
+    sens = (row.get("detail") or {}).get("sensitivity") or {}
+    flags += [f for f in sens.get("flags") or [] if f not in flags]
+    return flags
+
+
+def _sensitive(c: PilotCase, sel_rows: Mapping[tuple[str, str], Mapping[str, Any]]) -> bool:
+    return "definition_sensitive" in _flags(c, sel_rows)
+
+
+def selection_diagnostics(
+    conn: psycopg.Connection[Any], brief: Brief, selection_id: str
+) -> dict[str, Any]:
+    """The D2 header's selection record, read from the stored selection and shortlist (no new
+    spend): the success definition, the reference population, the shortlist record and the
+    relevance filter's precision (R4.7), the balance diagnostics per view (SMD against the
+    target; dependent contrasts where a loser serves several winners) and the sensitivity check
+    (verifier M24 round 1 fix 1)."""
+    from pigtail.briefs.shortlist import Shortlist
+
+    row = conn.execute(
+        "SELECT params, summary, balance, sensitivity, selection_version, as_of"
+        " FROM brief_selection WHERE id = %s",
+        (selection_id,),
+    ).fetchone()
+    _params, summary, balance, sensitivity, version, as_of = row or ({}, {}, {}, {}, None, None)
+    out: dict[str, Any] = {
+        "selection_version": version,
+        "as_of": None if as_of is None else str(as_of),
+        "success_definition": brief.success.model_dump(mode="json"),
+        "summary": summary or {},
+    }
+    try:
+        sl = Shortlist(conn, brief)
+        view = sl.view()
+        dec: dict[str, int] = {}
+        for d in sl.latest().values():
+            dec[d.decision] = dec.get(d.decision, 0) + 1
+        out["shortlist"] = {
+            "status": view.get("status"),
+            "counts": view.get("counts"),
+            "decisions": dict(sorted(dec.items())),
+        }
+        out["relevance_precision"] = view.get("precision")
+    except Exception as e:  # a brief without a stored shortlist (e.g. a synthetic test)
+        out["shortlist"] = {"status": None, "error": type(e).__name__}
+        out["relevance_precision"] = None
+    bal: dict[str, Any] = {}
+    for vkey, b in (balance or {}).items():
+        if not isinstance(b, dict):
+            continue
+        after = b.get("after_matching") or {}
+        target = b.get("target")
+        bal[vkey] = {
+            "target": target,
+            "covariates": {
+                k: {
+                    "smd": v.get("smd"),
+                    "meets_target": v.get("meets_target"),
+                    "label": v.get("label"),
+                }
+                for k, v in after.items()
+                if isinstance(v, dict)
+            },
+            "covariates_missing_target": b.get("covariates_missing_target") or [],
+            "pairs": b.get("pairs"),
+            "headline_pairs": b.get("headline_pairs"),
+            "unmatched_winners": b.get("unmatched_winners"),
+            "exact_match_ok": (b.get("exact_match") or {}).get("ok"),
+        }
+    dep = conn.execute(
+        "SELECT view, count(*) FROM (SELECT view, candidate_ref FROM brief_selection_case"
+        " WHERE selection_id = %s AND role = 'matched_loser' AND headline IS TRUE"
+        " GROUP BY view, candidate_ref HAVING count(DISTINCT pair_id) > 1) x GROUP BY view",
+        (selection_id,),
+    ).fetchall()
+    for v, n in dep:
+        bal.setdefault(str(v), {})["dependent_contrasts"] = {
+            "losers_in_several_pairs": int(n),
+            "label": "dependent contrasts: a matched loser serves more than one winner",
+        }
+    out["balance"] = bal
+    sens: dict[str, Any] = {}
+    for vkey, sv in (sensitivity or {}).items():
+        if not isinstance(sv, dict):
+            continue
+        sens[vkey] = {
+            "ran": sv.get("ran"),
+            "min_jaccard": sv.get("min_jaccard"),
+            "mean_jaccard": sv.get("mean_jaccard"),
+            "share_winners_stable": sv.get("share_winners_stable"),
+            "definition_sensitive": sv.get("definition_sensitive"),
+            "sensitive_to_star_anomaly": sv.get("sensitive_to_star_anomaly"),
+            "excluded_anomaly_flagged": sv.get("excluded_anomaly_flagged"),
+            "alternatives": [
+                {
+                    k: a.get(k)
+                    for k in ("key", "label", "ran", "jaccard", "winners", "changed")
+                    if k in a
+                }
+                for a in sv.get("alternatives") or []
+                if isinstance(a, dict)
+            ],
+            "note": sv.get("note"),
+        }
+    out["sensitivity"] = sens
+    return out
 
 
 def coding_run(
@@ -466,6 +610,8 @@ def run_report(brief: Brief, deps: ReportDeps, opts: ReportOptions) -> ReportOut
         )
     rid = str(run["brief_run_id"])
     cases = fstore.load_cases(conn, rid)
+    from pigtail.forensics.facts import FACTS_VERSION
+
     missing = [c.case_key for c in cases if c.facts is None]
     if missing:
         return ReportOutcome(
@@ -474,8 +620,19 @@ def run_report(brief: Brief, deps: ReportDeps, opts: ReportOptions) -> ReportOut
             f"{len(missing)} case(s) have no report "
             "facts: run `pigtail brief code` again to finish them",
         )
+    stale = [c.case_key for c in cases if (c.facts or {}).get("version") != FACTS_VERSION]
+    if stale:
+        return ReportOutcome(
+            "refused",
+            EXIT_FAILED,
+            f"{len(stale)} case(s) have report facts of an older version: run `pigtail brief "
+            f"code {brief.brief_id} --refresh-facts` first (no LLM call)",
+        )
     sel_rows = {(r["view"], r["candidate_ref"]): r for r in sel_cases(conn, run["selection_id"])}
-    chosen = narrative_cases(cases, sel_rows)
+    chosen = [
+        (c, lab + (f" [{SENSITIVE}]" if _sensitive(c, sel_rows) else ""))
+        for c, lab in narrative_cases(cases, sel_rows)
+    ]
     est = narrative_estimate(deps.client, len(chosen))
     est["max_usd"] = opts.max_usd
     if opts.dry_run:
@@ -716,7 +873,20 @@ def build_report(
         secondary = secondary_outcomes(conn, run["selection_id"])
     except psycopg.Error:
         secondary = {}
-    pats = run_patterns(cases, finals, sel_rows, rel, secondary)
+    from pigtail.forensics.assets_labelled import measure
+
+    precision = {**measure(), "rule": "assets-v2"}
+    flags = {c.case_key: _flags(c, sel_rows) for c in cases}
+    pats = run_patterns(
+        cases, finals, sel_rows, rel, secondary, asset_precision=precision, flags=flags
+    )
+    # a full coding run's alpha rows carry "full run, n = N" (rows stored before the fix say
+    # "pilot"; relabelled here, the stored rows unchanged)
+    if run.get("case_rule_version") != "pilot-cases-v1":
+        rel = [
+            {**r, "labels": [re.sub(r"^pilot, n = ", "full run, n = ", x) for x in r["labels"]]}
+            for r in rel
+        ]
     reused = sorted({c.reused_from for c in cases if c.reused_from})
     reused_usd = sum(run_spend(conn, r) for r in reused)
     return {
@@ -760,7 +930,12 @@ def build_report(
             }
             for c, lab in chosen
         ],
-        "comparison": [comparison_row(c, lab) for c, lab in chosen],
+        "comparison": [comparison_row(c, lab, _sensitive(c, sel_rows)) for c, lab in chosen],
+        "selection_diagnostics": selection_diagnostics(conn, brief, run["selection_id"]),
+        "asset_rule_precision": precision,
+        "definition_sensitive_cases": sorted(
+            c.repo_full_name + f" (view {_vl(c.view)})" for c in cases if _sensitive(c, sel_rows)
+        ),
         "patterns": {k: v for k, v in pats.items() if k != "case_features"},
         "reliability": rel,
         "evidence_index": {k: {kk: str(vv) for kk, vv in v.items()} for k, v in resolved.items()},
@@ -781,6 +956,12 @@ LIMITATIONS = [
     "embedded as HTML without a file extension, demos on the homepage only, and assets added "
     "after T are not seen.",
     "Stars before an event are unknown when the star history doesn't reach the creation day.",
+    "HN launch events: a story that links neither the repo nor its homepage is an unconfirmed "
+    "title match, shown as such and never counted; HN posts not titled Show HN / Launch HN and "
+    "posts under a repo's former name are not searched (events-v2).",
+    "Asset rules (assets-v2) are measured on a synthetic labelled set of the known error types, "
+    "not on a sample of real READMEs; their real precision needs a hand check (v1 measured "
+    "about 56 %).",
     "Patterns are associations between winners and matched losers in one neighbourhood, not "
     "causes; star trajectories are the outcome itself and are never a pattern feature.",
     "LLM-coded, not human-validated (no H3 calibration sample). Narratives only restate the "
@@ -792,6 +973,96 @@ LIMITATIONS = [
 def _cell(v: Any) -> str:
     s = "" if v is None else str(v)
     return s.replace("|", "\\|").replace("\n", " ")
+
+
+def _diagnostics_md(d: Mapping[str, Any]) -> list[str]:
+    out = ["## Selection record and diagnostics", ""]
+    out.append(f"- success definition: {_cell(d.get('success_definition'))}")
+    summ = d.get("summary") or {}
+    out.append(f"- selection {d.get('selection_version')} as of {d.get('as_of')}: {_cell(summ)}")
+    sl = d.get("shortlist") or {}
+    out.append(
+        f"- shortlist record: status {sl.get('status')}; counts {_cell(sl.get('counts'))}; "
+        f"reviewer decisions {_cell(sl.get('decisions'))}"
+    )
+    pr = d.get("relevance_precision") or {}
+    if pr:
+        meets = pr.get("meets_target")
+        out.append(
+            f"- relevance-filter precision: {pr.get('value')} ({pr.get('kept')}/"
+            f"{pr.get('decided')} kept) against the {pr.get('target')} target — "
+            f"{'meets' if meets else 'below target' if meets is False else 'not measured'}; "
+            f"{pr.get('label')}"
+        )
+    else:
+        out.append("- relevance-filter precision: not available (no stored shortlist)")
+    out += ["", "Balance after matching (SMD per covariate; target shown; no p-values):", ""]
+    for v, b in (d.get("balance") or {}).items():
+        covs = b.get("covariates") or {}
+        cells = ", ".join(
+            f"{k} {c.get('smd')}" + (" ✗" if c.get("meets_target") is False else "")
+            for k, c in covs.items()
+        )
+        dep = b.get("dependent_contrasts")
+        out.append(
+            f"- view {_vl(v)} (target {b.get('target')}): {cells or '-'}; missing the target: "
+            f"{', '.join(b.get('covariates_missing_target') or []) or 'none'}; headline pairs "
+            f"{b.get('headline_pairs')}; exact match ok {b.get('exact_match_ok')}"
+            + (f"; {dep['label']} ({dep['losers_in_several_pairs']})" if dep else "")
+        )
+    out += ["", "Sensitivity check (alternative success definitions; descriptive):", ""]
+    for v, sv in (d.get("sensitivity") or {}).items():
+        out.append(
+            f"- view {_vl(v)}: {sv.get('ran')} alternatives ran; winners stable "
+            f"{sv.get('share_winners_stable')}; Jaccard min {sv.get('min_jaccard')} / mean "
+            f"{sv.get('mean_jaccard')}; definition-sensitive cases {sv.get('definition_sensitive')}"
+            f"; sensitive to the star-anomaly filter {sv.get('sensitive_to_star_anomaly')}"
+        )
+        for a in sv.get("alternatives") or []:
+            out.append(f"  - {_cell(a)}")
+    out.append("")
+    return out
+
+
+def _alpha_md(rel: Sequence[Mapping[str, Any]]) -> list[str]:
+    out = [
+        "## Methods and data quality: per-field agreement (Krippendorff's α)",
+        "",
+        "| field | statistic | α | 95 % CI | pairable units | cases | labels |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for r in rel:
+        ci = r.get("ci") or {}
+        a = "-" if r.get("alpha") is None else f"{r['alpha']:.3f}"
+        lo, hi = ci.get("low"), ci.get("high")
+        cis = "-" if lo is None else f"{lo:.2f}–{hi:.2f}"
+        labels = list(r.get("labels") or [])
+        if r.get("alpha") is not None and r["alpha"] < 0.70 and "low reliability" not in labels:
+            labels.append("low reliability")
+        out.append(
+            f"| {r['field']} | {r['statistic']} | {a} | {cis} | {r.get('n_pairable')} | "
+            f"{r.get('n_cases')} | {_cell('; '.join(labels))} |"
+        )
+    out.append("")
+    return out
+
+
+def _asset_precision_md(pr: Mapping[str, Any]) -> list[str]:
+    out = [
+        f"Asset rules ({pr.get('rule')}) measured on the synthetic labelled set {pr.get('set')} "
+        f"({pr.get('note')}):",
+        "",
+        "| asset | examples | precision | recall |",
+        "|---|---|---|---|",
+    ]
+    for a, m in (pr.get("per_asset") or {}).items():
+        out.append(f"| {a} | {m['examples']} | {m['precision']} | {m['recall']} |")
+    out.append("")
+    return out
+
+
+def _names(xs: Sequence[str]) -> str:
+    return ", ".join(xs) if xs else "none found"
 
 
 def report_markdown(r: Mapping[str, Any]) -> str:
@@ -817,6 +1088,14 @@ def report_markdown(r: Mapping[str, Any]) -> str:
         f"{cost['coding_run']}; reused pilot {cost['reused_pilot_runs']}; this report "
         f"{cost['report_run']} |",
         "",
+    ]
+    if r.get("selection_diagnostics"):
+        out += _diagnostics_md(r["selection_diagnostics"])
+    sens = r.get("definition_sensitive_cases") or []
+    out += [
+        f"Definition-sensitive cases (their role changes under an alternative success "
+        f"definition; flagged [{SENSITIVE}] wherever they appear): {len(sens)}.",
+        "",
         "## (a) Case narratives",
         "",
     ]
@@ -838,42 +1117,64 @@ def report_markdown(r: Mapping[str, Any]) -> str:
                 + (f" — stars before {e.get('stars_before')}, gained {gain}" if gain else "")
                 + f" [{', '.join(e['evidence_ids'])}]"
             )
-        present = [a for a in f["assets_at_launch"] if a["value"] == "present"]
-        out.append(
-            "- assets at launch: "
-            + (
-                ", ".join(f"{a['asset']} (“{a.get('excerpt', '')}”)" for a in present)
-                or "none detected"
+        assets = f["assets_at_launch"]
+        if f.get("assets_status", "detected") != "detected":
+            out.append(f"- assets at launch: {f['assets_status']}")
+        else:
+            present = [a for a in assets if a["value"] == "present"]
+            out.append(
+                "- assets at launch (README at T and release notes up to T + 1 day): "
+                + (
+                    ", ".join(f"{a['asset']} (“{a.get('excerpt', '')}”)" for a in present)
+                    or "none detected"
+                )
+                + " ["
+                + ", ".join(sorted({i for a in assets for i in a["evidence_ids"]}))
+                + "]"
             )
-            + " ["
-            + ", ".join(sorted({i for a in f["assets_at_launch"] for i in a["evidence_ids"]}))
-            + "]"
-        )
+        for a in f.get("assets_after_launch") or []:
+            out.append(
+                f"- after launch (release notes later than T + 1 day, not at launch): "
+                f"{a['asset']} (“{a.get('excerpt')}”) [{', '.join(a['evidence_ids'])}]"
+            )
         out.append(
             "- amplifiers: " + "; ".join(f"{a['role']}: {a['value']}" for a in f["amplifiers"])
         )
         for b in f["largest_bursts"]:
+            size = (
+                f"{b.get('stars_total')} stars over {b.get('days')} days"
+                + ("" if b.get("stars_total_complete", True) else " (some days missing)")
+                + f", peak {b.get('peak_stars')} on {b.get('peak_day')}"
+                if b.get("stars_total") is not None
+                else f"{b.get('stars_in_first_48h')} stars in the first 48 h"
+            )
+            also = b.get("explained_also") or []
             out.append(
-                f"- burst {b['onset_day']}: {b['stars_in_48h']} stars in 48 h, explained by "
-                f"{b['explained_by']} ({b['label']}) [{', '.join(b['evidence_ids'])}]"
+                f"- burst from {b['onset_day']}: {size}; explained by {b['explained_by']}"
+                + (f" (with {', '.join(also)} within 24 h)" if also else "")
+                + f" ({b['label']}) [{', '.join(b['evidence_ids'])}]"
             )
         out.append("")
     out += [
         "## (b) Comparison table",
         "",
-        "| case | view | role | first launch | title | assets | amplifiers | stars +1/+7/+30 d "
-        "| bursts (explained) |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| case | view | role | first launch (confirmed) | title | assets | amplifiers | "
+        "stars +1/+7/+30 d | bursts (explained) | largest burst |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for c in r["comparison"]:
         fl = c["first_launch"] or {}
         g = c["stars_after_first_launch"]
+        flag = f" [{SENSITIVE}]" if c.get("definition_sensitive") else ""
+        unc = c.get("unconfirmed_hn_matches") or 0
         out.append(
-            f"| {_cell(c['case'])} | {c['view']} | {_cell(c['role'])} | "
-            f"{_cell(fl.get('where'))} {_cell(fl.get('when'))} | {_cell(fl.get('title'))} | "
+            f"| {_cell(c['case'])}{flag} | {c['view']} | {_cell(c['role'])} | "
+            f"{_cell(fl.get('where'))} {_cell(fl.get('when'))}"
+            + (f" ({unc} unconfirmed HN match(es) not counted)" if unc else "")
+            + f" | {_cell(fl.get('title'))} | "
             f"{_cell(', '.join(c['assets']))} | {_cell(', '.join(c['amplifiers']))} | "
             f"{g.get('+1d')}/{g.get('+7d')}/{g.get('+30d')} | {c['bursts']} "
-            f"({c['bursts_explained']}) |"
+            f"({c['bursts_explained']}) | {c.get('largest_burst_stars')} |"
         )
     pats = r["patterns"]
     out += [
@@ -882,9 +1183,12 @@ def report_markdown(r: Mapping[str, Any]) -> str:
         "",
         f"Outcome dimension: attention ({pats['outcome_label']}). Minimum evidence: "
         f"{pats['min_evidence']['known_per_side']} known per side and "
-        f"{pats['min_evidence']['present_total']} present in total (ADR-050.3).",
+        f"{pats['min_evidence']['present_total']} present in total (ADR-050.3). "
+        "Unconfirmed HN title matches never count as a launch event.",
         "",
     ]
+    if r.get("asset_rule_precision"):
+        out += _asset_precision_md(r["asset_rule_precision"])
     for vl, v in pats["views"].items():
         out += [
             f"### View {vl} ({v['view']}): {v['winners']} winners, {v['matched_losers']} "
@@ -911,13 +1215,10 @@ def report_markdown(r: Mapping[str, Any]) -> str:
             if not f["sufficient"]:
                 continue
             ce = f["counterexamples"]
-            if ce["none_found"]:
-                out.append(f"- {f['feature']}: none found")
-            else:
-                out.append(
-                    f"- {f['feature']}: winners without: {', '.join(ce['winners_without']) or '-'}"
-                    f"; losers with: {', '.join(ce['losers_with']) or '-'}"
-                )
+            out.append(
+                f"- {f['feature']}: winners without: {_names(ce['winners_without'])}; "
+                f"losers with: {_names(ce['losers_with'])}"
+            )
         out += ["", "Absolute numbers (median [min–max], n):", ""]
         for side, nums in v["absolute_numbers"].items():
             for m, s in nums.items():
@@ -930,23 +1231,31 @@ def report_markdown(r: Mapping[str, Any]) -> str:
                 f"pre-registered, not used by the sort). PyPI data: {PYPI_ATTRIBUTION}.",
                 "",
             ]
-            for side, nums in sec.items():
-                for m, s in nums.items():
-                    out.append(f"- {side} {m}: {s['median']} [{s['min']}–{s['max']}], n = {s['n']}")
+            evs = sec.get("evidence_ids") or {}
+            for side in ("winners", "matched_losers"):
+                for m, s in (sec.get(side) or {}).items():
+                    ids = (evs.get(side) or {}).get(m) or []
+                    out.append(
+                        f"- {side} {m}: {s['median']} [{s['min']}–{s['max']}], n = {s['n']} "
+                        f"[{', '.join(ids) or 'no evidence id stored'}]"
+                    )
         out.append("")
     for vl, v in pats["distribution_examples"].items():
         out += [
             f"### Distribution examples (view {vl}): {v['exemplars']} exemplars, "
             f"{v['matched_losers']} matched losers",
             "",
-            "| feature | exemplars | losers | d | transferability |",
-            "|---|---|---|---|---|",
+            "| feature | exemplars | losers | d | α | labels | transferability |",
+            "|---|---|---|---|---|---|---|",
         ]
         for f in v["features"]:
             t = f["transferability"]
+            rel = f["reliability"]
+            a = "-" if rel.get("alpha") is None else f"{rel['alpha']:.2f}"
             out.append(
                 f"| {f['feature']} | {f['winners']['n_present']}/{f['winners']['n_known']} | "
                 f"{f['matched_losers']['n_present']}/{f['matched_losers']['n_known']} | {f['d']} "
+                f"| {a} | {_cell('; '.join(f['labels'] + rel.get('labels', [])))} "
                 f"| {t['label']} {_cell(', '.join(t.get('conditions') or []))} |"
             )
         out.append("")
@@ -956,6 +1265,9 @@ def report_markdown(r: Mapping[str, Any]) -> str:
         f"- D3 plan: {r['placeholders']['d3_plan']}",
         f"- Fast-path verdict: {r['placeholders']['fast_path_verdict']}",
         "",
+    ]
+    out += _alpha_md(r.get("reliability") or [])
+    out += [
         "## Limitations",
         "",
         *[f"- {x}" for x in r["limitations"]],

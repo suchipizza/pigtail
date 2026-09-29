@@ -137,3 +137,27 @@ def test_m24_downloads_secondary_exploratory() -> None:
     assert out["downloads_present"] and "exploratory" in out["outcome_label"]
     # never a pattern feature
     assert not any("download" in f["feature"] for f in a["features"])
+
+
+def test_m24_r1_downloads_cite_evidence() -> None:
+    """[M24-T4] verifier round 1 fix 7: every download figure cites its evidence ids."""
+    cases, rows = _world()
+    rec = {
+        "value": 500,
+        "exploratory": True,
+        "evidence": [{"evidence_id": "ev_npm1", "content_hash": "0" * 64}],
+    }
+    out = run_patterns(cases, {}, rows, [], {"w1": {"adopt.npm_downloads_follow@3-30": rec}})
+    sec = out["views"]["A"]["secondary_exploratory"]
+    assert sec["evidence_ids"]["winners"] == {"adopt.npm_downloads_follow@3-30": ["ev_npm1"]}
+
+
+def test_m24_r1_unconfirmed_hn_match_is_not_a_launch() -> None:
+    """[M24-T4] verifier round 1 fix 2: an unconfirmed HN title match is `unknown`, never
+    `present`, in the launch patterns."""
+    facts = _facts("present")
+    facts["events"] = [{"kind": "show_hn", "launch": True, "counts": False}]
+    feats = case_features({}, facts)
+    assert feats["launch.show_hn"] == "unknown"
+    facts["events"].append({"kind": "show_hn", "launch": True, "counts": True})
+    assert case_features({}, facts)["launch.show_hn"] == "present"

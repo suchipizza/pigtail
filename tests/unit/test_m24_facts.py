@@ -7,6 +7,7 @@ from datetime import UTC, date, datetime, timedelta
 
 from pigtail.forensics.facts import (
     Event,
+    Project,
     assets_at_launch,
     detect_assets,
     events_from_docs,
@@ -50,7 +51,7 @@ Featured in a weekly newsletter.
 
 
 def test_m24_t2_assets_detected_with_verbatim_lines() -> None:
-    found = detect_assets(README)
+    found = detect_assets(README, Project("widget", "[owner]", None))
     assert "demo.gif" in found["demo_media"]
     assert found["install_one_liner"].strip() == "pipx install widget"
     assert "Benchmarks" in found["benchmarks"]
@@ -175,14 +176,50 @@ def test_m24_t2_trajectory_pending_and_incomplete() -> None:
 
 
 def test_m24_t2_explain_rule() -> None:
-    def ev(kind: str, day: int, ref: str = "r") -> Event:
-        return Event(kind, ref, datetime(2026, 3, day, 20, tzinfo=UTC), [], kind != "release")
+    """[M24-T2] explain-v2: unconfirmed HN title matches never explain a burst; a launch event
+    within 24 h of a release is preferred and the release named with it."""
+
+    def ev(kind: str, day: int, ref: str = "r", confirmed: bool | None = True) -> Event:
+        at = datetime(2026, 3, day, 20, tzinfo=UTC)
+        launch = kind not in ("release", "first_mention")
+        return Event(kind, ref, at, [], launch, confirmed=confirmed)
 
     onset = date(2026, 3, 10)
     got = explain(onset, [ev("release", 10, "v1"), ev("show_hn", 10, "7"), ev("show_hn", 2)])
-    assert got == {"event": "show_hn:7", "kind": "show_hn", "days_from_onset": 0}
+    assert got == {
+        "event": "show_hn:7",
+        "kind": "show_hn",
+        "days_from_onset": 0,
+        "also": ["release:v1"],
+    }
+    # the release is closer, but a launch event is within 24 h of it: the launch is preferred
+    got = explain(onset, [ev("release", 10, "v2"), ev("product_hunt", 9, "p")])
+    assert got is not None and got["event"] == "product_hunt:p" and got["also"] == ["release:v2"]
+    # an unconfirmed title match is ignored; the release explains it
+    got = explain(onset, [ev("release", 10, "v1"), ev("show_hn", 10, "9", confirmed=False)])
+    assert got is not None and got["event"] == "release:v1"
+    assert explain(onset, [ev("show_hn", 10, "9", confirmed=None)]) is None
     assert explain(onset, [ev("show_hn", 2)]) is None  # more than 3 days before: unexplained
     assert explain(onset, [ev("release", 12)]) is None  # more than 1 day after
+
+
+def test_m24_t2_burst_size_is_the_whole_burst() -> None:
+    """[M24-T2] size-v1: a ramp-up burst's total stars cover every day until the rate is back
+    at baseline, not only the first 48 h."""
+    from pigtail.forensics.facts import bursts
+
+    s = {}
+    d = date(2026, 1, 1)
+    while d <= date(2026, 4, 30):
+        s[d] = 1
+        d += timedelta(days=1)
+    ramp = [60, 60, 500, 2000, 3000, 1500, 400]
+    for i, n in enumerate(ramp):
+        s[date(2026, 3, 10) + timedelta(days=i)] = n
+    b = bursts(s, [], created=date(2026, 1, 1))[0]
+    assert b["stars_48h"] == 120
+    assert b["stars_total"] == sum(ramp) and b["stars_total_complete"]
+    assert b["peak_stars"] == 3000 and b["explained_by"] == "unexplained"
 
 
 def test_m24_t1_full_case_rule_deterministic_under_shuffle() -> None:
@@ -226,3 +263,34 @@ def test_m24_t1_full_case_rule_deterministic_under_shuffle() -> None:
         shuffled = rows[:]
         random.Random(seed).shuffle(shuffled)
         assert [c.candidate_ref for c in select_all_cases(shuffled)] == want
+
+
+def test_m24_r1_asset_rules_on_the_labelled_set() -> None:
+    """[M24-T2] verifier round 1 fix 4: assets-v2 measured on the labelled set; the v1 error
+    types (logos, third-party docs, "mentioned in chat", "VS Code", dev installs) are negatives
+    and every rule is at least 0.70 precise on it."""
+    from pigtail.forensics.assets_labelled import EXAMPLES, measure
+
+    m = measure()
+    for a, r in m["per_asset"].items():
+        assert r["examples"] >= 5, a
+        assert r["precision"] is not None and r["precision"] >= 0.70, (a, r)
+    negatives = [e for e in EXAMPLES if not e.label]
+    assert len(negatives) >= 20
+    p = Project("tinyqueue", "[owner]", "tinyqueue.dev")
+    assert detect_assets("![logo](assets/logo.png)", p)["screenshots"] == ""
+    assert detect_assets("https://docs.python.org/3/library/queue.html", p)["docs_site"] == ""
+    assert detect_assets("People mentioned in chat that it works.", p)["featured_in_claim"] == ""
+    assert detect_assets("```sh\nnpm install\n```", p)["install_one_liner"] == ""
+    vs = "### VS Code (GitHub Copilot)\n\n| key | value |\n|---|---|\n| a | b |"
+    assert detect_assets(vs, p)["comparison_table"] == ""
+
+
+def test_m24_r1_release_notes_after_t_are_not_at_launch() -> None:
+    """[M24-T2] verifier round 1 fix 4: release notes later than T + 1 day are listed as after
+    launch, never as at launch."""
+    readme = ("ev_r", "# tinyqueue\n\nA queue.\n")
+    late = ("ev_n", "| | tinyqueue | x |\n|---|---|---|\n| a | ✅ | ❌ |")
+    out = assets_at_launch(readme, None, Project("tinyqueue"), late)
+    assert out["assets"]["comparison_table"]["value"] == "absent"
+    assert out["after_launch"]["comparison_table"]["evidence_id"] == "ev_n"
