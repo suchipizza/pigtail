@@ -200,7 +200,7 @@ def test_m24_code_end_to_end_reuses_the_pilot(env: Env) -> None:  # noqa: F811
     # --- report facts ---
     for c in cases:
         f = c.facts
-        assert f is not None and f["version"] == "report-facts-v2"
+        assert f is not None and f["version"] == "report-facts-v3"
         ev_ids = set(f["evidence"].values())
         for eid in ev_ids:  # every cited item resolves to a present snapshot
             row = q(env, "SELECT content_hash, deletion_state FROM evidence WHERE id = %s", eid)
@@ -271,7 +271,7 @@ def test_m24_code_end_to_end_reuses_the_pilot(env: Env) -> None:  # noqa: F811
     js = Path(out.report_paths["json"])
     assert js.name == f"coding-{NOW.date().isoformat()}.json"
     report = json.loads(js.read_text())
-    assert report["provenance"]["frame_version"] == "pilot-frame-v1+report-facts-v2"
+    assert report["provenance"]["frame_version"] == "pilot-frame-v1+report-facts-v3"
     assert report["cost"]["reused_cases"] == 5
     assert len(report["facts"]) == 11
     assert HANDLE not in js.read_text()

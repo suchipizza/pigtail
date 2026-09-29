@@ -56,7 +56,7 @@ def test_m24_t2_assets_detected_with_verbatim_lines() -> None:
     assert found["install_one_liner"].strip() == "pipx install widget"
     assert "Benchmarks" in found["benchmarks"]
     assert "readthedocs" in found["docs_site"]
-    assert "✅" in found["comparison_table"]
+    assert "widget" in found["comparison_table"] and "other" in found["comparison_table"]
     assert "Featured in" in found["featured_in_claim"]
     assert found["screenshots"] == ""  # the only other image is a badge
 
@@ -294,3 +294,75 @@ def test_m24_r1_release_notes_after_t_are_not_at_launch() -> None:
     out = assets_at_launch(readme, None, Project("tinyqueue"), late)
     assert out["assets"]["comparison_table"]["value"] == "absent"
     assert out["after_launch"]["comparison_table"]["evidence_id"] == "ev_n"
+
+
+def test_m24_r2_hn_confirmation_is_repo_or_homepage_only() -> None:
+    """[M24-T2] verifier round 2 fix 1 (events-v3): a story is the case's only when its URL is
+    the repo, a former URL GitHub resolves to it, or under the recorded homepage (exact host and
+    path prefix). A host that merely contains the repo's name stays unconfirmed."""
+    from dataclasses import dataclass as dc
+
+    from pigtail.forensics.facts import FactsStage, links_homepage
+    from pigtail.forensics.store import PilotCase
+
+    assert links_homepage("https://tinyqueue.dev/blog/launch", "https://tinyqueue.dev/")
+    assert links_homepage("https://www.tinyqueue.dev/", "tinyqueue.dev")
+    assert links_homepage("https://acme.dev/tq/docs", "https://acme.dev/tq")
+    assert not links_homepage("https://acme.dev/other", "https://acme.dev/tq")
+    assert not links_homepage("https://tinyqueue-cloud.io/", "https://tinyqueue.dev/")
+    assert not links_homepage("https://tinyqueue.io/", "https://tinyqueue.dev/")
+
+    @dc
+    class Meta:
+        host_id: int
+
+    class FakeGitHub:
+        def repos_metadata(self, names: list[str]) -> dict[str, Meta]:
+            return {"old-owner/tq-old": Meta(42)} if "old-owner/tq-old" in names else {}
+
+    stage = object.__new__(FactsStage)
+    stage.github = FakeGitHub()
+    case = PilotCase(
+        "follow_through:gh:org/tinyqueue",
+        "follow_through",
+        "gh:org/tinyqueue",
+        "org/tinyqueue",
+        None,
+        42,
+        1,
+        "winner",
+        1,
+        {},
+    )
+    hp = "https://tinyqueue.dev/"
+
+    def basis(url: str, links: bool = False) -> str | None:
+        return stage._confirmation({"url": url, "links_repo": links}, case, hp, 42)
+
+    assert basis("https://github.com/org/tinyqueue", links=True) == "links_repo"
+    assert basis("https://github.com/old-owner/tq-old") == "links_repo_renamed"
+    assert basis("https://github.com/someone/else") is None
+    assert basis("https://tinyqueue.dev/launch") == "links_homepage"
+    # the verifier's cases: a host containing the name, not the homepage, is not confirmation
+    assert basis("https://tinyqueue.ai/") is None
+    assert basis("https://get-tinyqueue.com/pm") is None
+    stage.github = None
+    assert basis("https://github.com/old-owner/tq-old") is None  # no way to resolve it
+
+
+def test_m24_r2_open_burst_first_7_days() -> None:
+    """[M24-T2] verifier round 2 fix 4 (size-v2): a burst that never returns to baseline by
+    the series' end is `open`; its first 7 days are measured separately from its total so far."""
+    from pigtail.forensics.facts import bursts
+
+    s = {}
+    d = date(2026, 1, 1)
+    while d < date(2026, 3, 10):
+        s[d] = 1
+        d += timedelta(days=1)
+    for i in range(60):  # a long growth phase that never calms down
+        s[date(2026, 3, 10) + timedelta(days=i)] = 300 + i
+    b = bursts(s, [], created=date(2026, 1, 1))[0]
+    assert b["open"] is True and b["end_day"] is None
+    assert b["stars_first_7d"] == sum(300 + i for i in range(7)) and b["first_7d_complete"]
+    assert b["stars_total"] == sum(300 + i for i in range(60))

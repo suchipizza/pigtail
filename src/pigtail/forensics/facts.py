@@ -69,7 +69,7 @@ from pigtail.forensics.evidence import _derived_url, store_derived
 from pigtail.forensics.store import EvidenceRow, PilotCase
 from pigtail.pseudonymize import scrub_identifiers
 
-FACTS_VERSION = "report-facts-v2"
+FACTS_VERSION = "report-facts-v3"
 RULES_V1 = {
     "events": "events-v1",
     "assets": "assets-v1",
@@ -79,11 +79,11 @@ RULES_V1 = {
     "explain": "explain-v1",
 }
 RULES = {
-    "events": "events-v2",
-    "assets": "assets-v2",
+    "events": "events-v3",
+    "assets": "assets-v3",
     "amplifiers": "amplifiers-v2",
     "trajectory": "trajectory-v1",
-    "bursts": "velocity-v0+size-v1",
+    "bursts": "velocity-v0+size-v2",
     "explain": "explain-v2",
 }
 TITLE_MAX_WORDS = 25
@@ -364,7 +364,16 @@ _DEMO = re.compile(
 )
 _BADGE = re.compile(r"(?i)(shields\.io|badge|travis-ci|codecov|circleci|badgen|/actions/workflows)")
 _IMAGE = re.compile(r"(?i)(!\[[^\]]*\]\([^)]+\.(png|jpe?g|webp)[^)]*\)|<img\b[^>]*>)")
-_LOGO = re.compile(r"(?i)(logo|banner|icon|wordmark|favicon|avatar|brand|sponsor|\.svg\b)")
+_LOGO = re.compile(
+    r"(?i)(logo|banner|icon|wordmark|favicon|avatar|brand|sponsor|\.svg\b|diagram|architecture|"
+    r"cover|flowchart|schema)"
+)
+_SIZE_ATTR = re.compile(r"(?i)\b(width|height)\s*=\s*[\"']?(\d+)")
+_PLACEHOLDER_VIDEO = re.compile(r"(?i)(watch\?v=(x{3,}|\.\.\.|VIDEO_?ID|your)|youtu\.be/(x{3,}))")
+_MEASURE = re.compile(
+    r"(?i)\d[\d.,]*\s*(x|×|%|ms|µs|us|ns|s|sec|seconds|min|ops/s|/s|req/s|rps|qps|"
+    r"tokens?/s|tok/s|mb|gb|kb|k|m)\b"
+)
 _INSTALL = re.compile(
     r"(?i)^\s*(?:\$\s*)?(pip3? install|pipx install|uv (tool|pip) install|uvx |npm (i|install) "
     r"(-g|--global)\b|npx |yarn global add|pnpm (add -g|dlx)|bunx? |brew install|"
@@ -373,7 +382,7 @@ _INSTALL = re.compile(
     r"conda install|dotnet tool install|composer global require|deno (install|run)|docker run)"
 )
 _INLINE_CODE = re.compile(r"`([^`\n]+)`")
-_BENCH_HEADING = re.compile(r"(?im)^\s{0,3}#{1,6}\s.*\b(benchmarks?|performance)\b")
+_BENCH_HEADING = re.compile(r"(?i)^\s{0,3}#{1,6}\s.*\bbenchmarks?\b")
 _BENCH_LINE = re.compile(r"(?i)\bbenchmark(s|ed|ing)?\b.*\d|\d.*\bbenchmark(s|ed|ing)?\b")
 _URL = re.compile(r"https?://([^\s/)\]\"'>]+)([^\s)\]\"'>]*)")
 _DOCS_HINT = re.compile(r"(?i)(^docs?\.|\.readthedocs\.io$|\.gitbook\.io$|\.mintlify\.app$)")
@@ -489,40 +498,129 @@ def _docs_line(text: str, proj: Project) -> str:
 
 
 def _screenshot_line(text: str) -> str:
+    """assets-v3: an image that is not a badge, logo, banner, icon, wordmark, diagram,
+    architecture figure or cover, and not declared smaller than 100 px."""
     for ln in text.splitlines():
         for m in _IMAGE.finditer(ln):
             img = m.group(0)
             if _BADGE.search(img) or _LOGO.search(img):
                 continue
+            sizes = [int(x.group(2)) for x in _SIZE_ATTR.finditer(img)]
+            if sizes and min(sizes) < 100:
+                continue
             return ln
     return ""
 
 
-def _comparison_line(text: str) -> str:
-    lines = text.splitlines()
-    for start, rows in _tables(text):
-        hit = next((r for r in rows if _CHECKS.search(r)), "")
-        if hit:
-            return hit
-        # a table directly under a comparison heading (only blank or text lines between)
-        for k in range(start - 1, max(-1, start - 6), -1):
-            if _HEADING.match(lines[k]) or lines[k].lstrip().startswith("#"):
-                if _COMPARE_HEADING.match(lines[k]):
-                    return lines[k]
-                break
+def _prose_lines(text: str) -> list[str]:
+    """The lines outside fenced code blocks (a `# comment` in code is not a heading)."""
+    out: list[str] = []
+    fenced = False
+    for ln in text.splitlines():
+        if ln.strip().startswith("```"):
+            fenced = not fenced
+            continue
+        if not fenced:
+            out.append(ln)
+    return out
+
+
+def _benchmark_line(text: str) -> str:
+    """assets-v3: a "benchmark(s)" heading whose section reports a measured quantity with a
+    unit, or a prose line that names a benchmark and gives such a result. A "performance"
+    heading or the word alone is not a benchmark."""
+    lines = _prose_lines(text)
+    for i, ln in enumerate(lines):
+        if _BENCH_HEADING.match(ln):
+            for nxt in lines[i + 1 :]:
+                if _HEADING.match(nxt) or nxt.lstrip().startswith("#"):
+                    break
+                if _MEASURE.search(nxt):
+                    return ln
+    for ln in lines:
+        if re.search(r"(?i)\bbenchmark(s|ed|ing)?\b", ln) and _MEASURE.search(ln):
+            return ln
     return ""
 
 
+def _cells(row: str) -> list[str]:
+    return [c.strip() for c in row.strip().strip("|").split("|")]
+
+
+def _comparison_line(text: str, proj: Project) -> str:
+    """assets-v3: a table that compares the project with other named tools: the project's name
+    is a column header next to at least one other named column, or a row label next to at least
+    one other row. A table of the project's own types, plans or platforms is not a comparison."""
+    names = proj.name_forms()
+    if not names:
+        return ""
+
+    def is_name(cell: str) -> bool:
+        c = re.sub(r"[`*_\[\]]", "", cell).strip().lower()
+        return c in names or any(c.startswith(n + " ") for n in names)
+
+    def other_tool(cell: str) -> bool:
+        c = re.sub(r"[`*_\[\]:]", "", cell).strip().lower()
+        return bool(c) and not is_name(cell) and c not in _GENERIC_COLUMNS
+
+    for _start, rows in _tables(text):
+        head = _cells(rows[0])
+        if any(is_name(c) for c in head) and any(other_tool(c) for c in head):
+            return rows[0]
+        labels = [_cells(r)[0] for r in rows[1:] if _cells(r)]
+        if any(is_name(c) for c in labels) and any(other_tool(c) for c in labels):
+            return next(r for r in rows[1:] if _cells(r) and is_name(_cells(r)[0]))
+    return ""
+
+
+_GENERIC_COLUMNS = frozenset(
+    [
+        "feature",
+        "features",
+        "description",
+        "value",
+        "key",
+        "option",
+        "options",
+        "name",
+        "type",
+        "status",
+        "notes",
+        "note",
+        "default",
+        "details",
+        "detail",
+        "setting",
+        "settings",
+        "parameter",
+        "parameters",
+        "command",
+        "commands",
+        "usage",
+        "example",
+        "examples",
+        "variable",
+        "variables",
+        "flag",
+        "flags",
+        "field",
+        "fields",
+    ]
+)
+
+
 def detect_assets(text: str, proj: Project | None = None) -> dict[str, str]:
-    """asset -> the first matching line (empty: none) in one text (`assets-v2`)."""
+    """asset -> the first matching line (empty: none) in one text (`assets-v3`)."""
     proj = proj or Project()
     found: dict[str, str] = {}
-    found["demo_media"] = _first_line(text, _DEMO)
+    found["demo_media"] = _first_line(
+        text, _DEMO, skip=lambda ln: bool(_PLACEHOLDER_VIDEO.search(ln))
+    )
     found["screenshots"] = _screenshot_line(text)
     found["install_one_liner"] = _install_line(text, proj)
-    found["benchmarks"] = _first_line(text, _BENCH_HEADING) or _first_line(text, _BENCH_LINE)
+    found["benchmarks"] = _benchmark_line(text)
     found["docs_site"] = _docs_line(text, proj)
-    found["comparison_table"] = _comparison_line(text)
+    found["comparison_table"] = _comparison_line(text, proj)
     found["featured_in_claim"] = _first_line(text, _FEATURED, skip=lambda ln: not _PRESS.search(ln))
     return found
 
@@ -830,6 +928,8 @@ def bursts(
                 "days": len(days),
                 "stars_total": sum(series[d] for d in known),
                 "stars_total_complete": len(known) == len(days),
+                "stars_first_7d": sum(series[d] for d in days[:7] if d in series),
+                "first_7d_complete": all(d in series for d in days[:7]) and len(days) >= 7,
                 "peak_day": None if b.peak_day is None else b.peak_day.isoformat(),
                 "peak_stars": b.peak_stars,
                 "stars_48h": b.stars_48h,
@@ -844,6 +944,23 @@ def bursts(
             }
         )
     return out
+
+
+def links_homepage(url: str, homepage: str) -> bool:
+    """events-v3: `url` is on the recorded homepage's exact host (a leading `www.` ignored) and
+    under its path."""
+    from urllib.parse import urlsplit
+
+    try:
+        u, h = urlsplit(url), urlsplit(homepage if "//" in homepage else "https://" + homepage)
+    except ValueError:
+        return False
+    uh = (u.hostname or "").lower().removeprefix("www.")
+    hh = (h.hostname or "").lower().removeprefix("www.")
+    if not uh or uh != hh:
+        return False
+    hp = h.path.rstrip("/")
+    return not hp or u.path == hp or u.path.startswith(hp + "/")
 
 
 def _host(url: str | None) -> str | None:
@@ -888,6 +1005,7 @@ class FactsStage:
         *,
         snapshots: SnapshotStore,
         hn: Any = None,
+        github: Any = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         run_id: str | None = None,
         code_commit: str | None = None,
@@ -896,6 +1014,7 @@ class FactsStage:
         self.db = CaptureDB(conn)
         self.snaps = snapshots
         self.hn = hn
+        self.github = github  # resolves a renamed repo's former URL (GraphQL follows renames)
         self.clock = clock
         self.run_id = run_id
         self.code_commit = code_commit
@@ -984,6 +1103,7 @@ class FactsStage:
                 if e.kind in ("show_hn", "launch_hn", "first_mention") and e.ref.isdigit()
             }
         )
+        host_id_hint = c.repo_host_id if c.repo_host_id is not None else self._host_id(pilot, c)
         if hn_ids:
             got = self._hn_stories(pilot, c, hn_ids, gaps)
             if got is not None:
@@ -994,12 +1114,12 @@ class FactsStage:
                     if st is None or e.kind not in ("show_hn", "launch_hn", "first_mention"):
                         continue
                     e.evidence_ids.append(hn_ev)
-                    host = st.get("url_host")
-                    ok = bool(st.get("links_repo")) or bool(host and proj.own_host(host))
-                    if ok:
+                    basis = self._confirmation(st, c, homepage, host_id_hint)
+                    if basis is not None:
                         e.confirmed = True
+                        e.detail = {**(e.detail or {}), "confirmation": basis}
                     elif e.confirmed is None:
-                        e.confirmed = False  # a title-only match (events-v2)
+                        e.confirmed = False  # a title-only match (events-v3)
                     if st.get("title"):
                         e.title, e.title_truncated = title_words(st["title"])
                         e.title_evidence_id, e.title_missing = hn_ev, None
@@ -1129,6 +1249,35 @@ class FactsStage:
         }
         return facts, new_ids
 
+    def _confirmation(
+        self,
+        story: Mapping[str, Any],
+        c: PilotCase,
+        homepage: str | None,
+        host_id: int | None,
+    ) -> str | None:
+        """events-v3: the basis on which an HN story is the case's (None: a title-only match).
+        `links_repo`: its URL is github.com/<owner>/<repo>; `links_repo_renamed`: a GitHub URL
+        that GitHub resolves to this repo (a former name); `links_homepage`: the recorded
+        homepage's exact host and path prefix. A host that merely contains the repo's name is
+        never confirmation."""
+        from pigtail.connectors.hn import normalize_github_repo
+
+        if story.get("links_repo"):
+            return "links_repo"
+        url = story.get("url")
+        gh = normalize_github_repo(url) if url else None
+        if gh and gh.lower() != c.repo_full_name and self.github is not None and host_id:
+            try:
+                meta = self.github.repos_metadata([gh]).get(gh.lower())
+            except Exception:  # a network or budget failure leaves it unconfirmed
+                meta = None
+            if meta is not None and int(meta.host_id) == int(host_id):
+                return "links_repo_renamed"
+        if url and homepage and links_homepage(str(url), homepage):
+            return "links_homepage"
+        return None
+
     def _host_id(self, pilot: Mapping[str, Any], c: PilotCase) -> int | None:
         """The repo's GitHub id from the brief's candidate row (the selection's case rows the
         case rule reads don't carry it)."""
@@ -1199,6 +1348,7 @@ class FactsStage:
                         "points": st.points,
                         "links_repo": (st.repo_full_name or "").lower() == c.repo_full_name,
                         "url_host": _host(st.url),
+                        "url": st.url,
                     }
         except FetchError as e:
             gaps["hn_stories"] = f"fetch_failed:{e.status}"

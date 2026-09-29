@@ -79,6 +79,63 @@ def make_client(sub: list[Any], api: list[Any] | None = None, **kw: Any) -> LLMC
     )
 
 
+# --- hermetic environment (verifier M24 round 2): the instance's .env never reaches a test ------
+# An operator who runs the suite in a shell with the instance's `.env` loaded would otherwise leak
+# its backend, models, keys, tokens, data directories, caps and connector flags into tests that
+# assume the code defaults (20 failures seen). Cleared once, at collection, before any test
+# module reads them. Kept: the test controls (the database and object-store endpoints the
+# fixtures use, PIGTAIL_REQUIRE_*, PIGTAIL_RUN_SMOKE) and, only for an explicit smoke run, the API
+# key the live smoke tests read.
+_ENV_PREFIXES = (
+    "PIGTAIL_",
+    "LLM_",
+    "ANTHROPIC_",
+    "CLAUDE_CODE_",
+    "GITHUB_",
+    "GCP_",
+    "GOOGLE_",
+    "REDDIT_",
+    "PH_",
+    "BACKUP_",
+    "ALERT_",
+    "SMTP_",
+    "COMPOSE_",
+    "OPTOUT_",
+    "PSEUDONYM_",
+)
+_ENV_NAMES = (
+    "AGENT_BACKEND",
+    "SNAPSHOT_BACKEND",
+    "BUDGET_USD_MONTH",
+    "SNAPSHOT_AFTER_REPORT_DAYS",
+    "PERSON_LEVEL_RETENTION_DAYS",
+    "LLM_CACHE_RETENTION_DAYS",
+    "LOG_RETENTION_DAYS",
+    "GHARCHIVE_RAW_RETENTION_DAYS",
+    "S3_SSE_KEK",
+)
+_ENV_KEEP = ("PIGTAIL_REQUIRE_DB", "PIGTAIL_REQUIRE_S3", "PIGTAIL_RUN_SMOKE")
+
+
+def _hermetic_env() -> list[str]:
+    import os as _os
+
+    smoke = _os.environ.get("PIGTAIL_RUN_SMOKE") == "1"
+    dropped = []
+    for k in list(_os.environ):
+        if k in _ENV_KEEP or k.startswith("PIGTAIL_REQUIRE_"):
+            continue
+        if smoke and k == "ANTHROPIC_API_KEY":
+            continue
+        if k in _ENV_NAMES or k.startswith(_ENV_PREFIXES):
+            del _os.environ[k]
+            dropped.append(k)
+    return dropped
+
+
+HERMETIC_DROPPED = _hermetic_env()
+
+
 # --- M21b (ADR-071.3): tests never touch the real briefs directory -----------------------------
 @pytest.fixture(autouse=True)
 def _isolated_briefs_dir(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):

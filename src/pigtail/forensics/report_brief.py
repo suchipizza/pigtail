@@ -97,11 +97,12 @@ only), and how its stars moved around those events. Rules:
 6. A launch event with `counts: false` is an unconfirmed title match (the story does not link
    the project): say it is unconfirmed, never present it as the project's post or launch.
 7. `assets_after_launch` appeared after the launch: never describe them as present at launch.
-8. A burst's size is `stars_total` over `days` (with its peak); `stars_in_first_48h` is only
-   its start. Say "unexplained" when no event explains it.
+8. Describe a burst by `stars_first_7_days` (the first 7 days from its onset) and its peak. An
+   `open` burst is still above its pre-burst baseline at the series' end: say so, and never
+   describe `stars_so_far` as the burst's size. Say "unexplained" when no event explains it.
 """
 TEMPLATE = "{input}\n\nReturn `sentences`: each with `text` and `evidence_ids`."
-NARRATIVE = PromptSpec("case-narrative", "2", SYSTEM, TEMPLATE, CONTEXT)  # 2: rules 6-8
+NARRATIVE = PromptSpec("case-narrative", "3", SYSTEM, TEMPLATE, CONTEXT)  # 3: rule 8, open
 
 
 # --- which cases get a narrative -----------------------------------------------------------------
@@ -229,7 +230,7 @@ def fact_sheet(c: PilotCase, label: str) -> dict[str, Any]:
     ]
     bursts = sorted(
         tr.get("bursts") or [],
-        key=lambda b: -(b.get("stars_total") or b.get("stars_48h") or 0),
+        key=lambda b: -(b.get("stars_first_7d") or b.get("stars_48h") or 0),
     )[:5]
     return {
         "case": c.coding_id,
@@ -246,9 +247,23 @@ def fact_sheet(c: PilotCase, label: str) -> dict[str, Any]:
         "largest_bursts": [
             {
                 "onset_day": b["onset_day"],
-                "days": b.get("days"),
-                "stars_total": b.get("stars_total"),
-                "stars_total_complete": b.get("stars_total_complete"),
+                "open": bool(b.get("open")),
+                "stars_first_7_days": b.get("stars_first_7d"),
+                "first_7_days_complete": b.get("first_7d_complete"),
+                # a closed burst's whole size; an open one's total is only "so far"
+                **(
+                    {
+                        "open_note": "still above the pre-burst baseline at the series' end",
+                        "stars_so_far": b.get("stars_total"),
+                        "days_so_far": b.get("days"),
+                    }
+                    if b.get("open")
+                    else {
+                        "days": b.get("days"),
+                        "stars_total": b.get("stars_total"),
+                        "stars_total_complete": b.get("stars_total_complete"),
+                    }
+                ),
                 "peak_day": b.get("peak_day"),
                 "peak_stars": b.get("peak_stars"),
                 "stars_in_first_48h": b["stars_48h"],
@@ -368,7 +383,10 @@ def comparison_row(c: PilotCase, label: str, sensitive: bool = False) -> dict[st
         "stars_after_first_launch": gains,
         "bursts": len(bursts),
         "bursts_explained": sum(1 for b in bursts if b.get("explained_by") != "unexplained"),
-        "largest_burst_stars": max((b.get("stars_total") or 0 for b in bursts), default=None),
+        # the largest burst by its first 7 days (an open burst's total is never its size)
+        "largest_burst_stars": max((b.get("stars_first_7d") or 0 for b in bursts), default=None),
+        "largest_burst_basis": "stars in the first 7 days from the onset",
+        "open_bursts": sum(1 for b in bursts if b.get("open")),
         "evidence_ids": sorted(set((f.get("evidence") or {}).values())),
     }
 
@@ -773,6 +791,7 @@ def run_report(brief: Brief, deps: ReportDeps, opts: ReportOptions) -> ReportOut
         thinking=thinking,
         synth=synth,
         now=deps.clock(),
+        snaps=deps.snapshots,
     )
     from pigtail.forensics.report import write_report
 
@@ -842,6 +861,18 @@ def finalize(
     return out
 
 
+def _present_ids(conn: psycopg.Connection[Any], ids: set[str]) -> dict[str, dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT id, source, url, content_hash, fetched_at FROM evidence WHERE id = ANY(%s)"
+        " AND deletion_state = 'present'",
+        (sorted(ids),),
+    ).fetchall()
+    return {
+        str(r[0]): {"source": r[1], "url": r[2], "content_hash": r[3], "fetched_at": r[4]}
+        for r in rows
+    }
+
+
 def build_report(
     conn: psycopg.Connection[Any],
     brief: Brief,
@@ -858,6 +889,7 @@ def build_report(
     thinking: str,
     synth: str,
     now: datetime,
+    snaps: Any = None,
 ) -> dict[str, Any]:
     from pigtail.briefs.downloads import secondary_outcomes
     from pigtail.forensics.patterns import run_patterns
@@ -873,9 +905,11 @@ def build_report(
         secondary = secondary_outcomes(conn, run["selection_id"])
     except psycopg.Error:
         secondary = {}
-    from pigtail.forensics.assets_labelled import measure
+    from pigtail.forensics.assets_labelled import REAL_PRECISION, measure
 
-    precision = {**measure(), "rule": "assets-v2"}
+    REAL_SOURCE = REAL_PRECISION["source"]
+
+    precision = {**measure(), "rule": "assets-v3"}
     flags = {c.case_key: _flags(c, sel_rows) for c in cases}
     # a full coding run's alpha rows carry "full run, n = N" (rows stored before the fix say
     # "pilot"; relabelled here, the stored rows unchanged), before the pattern step so the
@@ -888,6 +922,22 @@ def build_report(
     pats = run_patterns(
         cases, finals, sel_rows, rel, secondary, asset_precision=precision, flags=flags
     )
+    # the download figures' evidence joins the evidence index (verifier M24 round 2 fix 5)
+    dl_ids: set[str] = set()
+    for v in (pats.get("views") or {}).values():
+        for side in ((v.get("secondary_exploratory") or {}).get("evidence_ids") or {}).values():
+            for ids in side.values():
+                dl_ids |= set(ids)
+    missing = dl_ids - set(resolved)
+    if missing:
+        resolved = {
+            **resolved,
+            **(
+                resolvable_ids(conn, snaps, missing)
+                if snaps is not None
+                else _present_ids(conn, missing)
+            ),
+        }
     reused = sorted({c.reused_from for c in cases if c.reused_from})
     reused_usd = sum(run_spend(conn, r) for r in reused)
     return {
@@ -934,6 +984,11 @@ def build_report(
         "comparison": [comparison_row(c, lab, _sensitive(c, sel_rows)) for c, lab in chosen],
         "selection_diagnostics": selection_diagnostics(conn, brief, run["selection_id"]),
         "asset_rule_precision": precision,
+        # measured real-data precision per feature, as the plan reads it (M25)
+        "rule_precision": {
+            f"asset.{a}": {"precision": m.get("precision"), "source": REAL_SOURCE}
+            for a, m in REAL_PRECISION["per_asset"].items()
+        },
         "definition_sensitive_cases": sorted(
             c.repo_full_name + f" (view {_vl(c.view)})" for c in cases if _sensitive(c, sel_rows)
         ),
@@ -953,16 +1008,20 @@ LIMITATIONS = [
     "Project-level evidence only (ADR-073.2): HN comments and mentions, Bluesky post texts and "
     "per-repo event actors are held; amplification by accounts (by follower bucket) is unknown.",
     "HN front page: Algolia's front_page tag only; its absence is unknown, not absent.",
-    "Assets are detected by rules on the README at T and the release notes (assets-v1); images "
-    "embedded as HTML without a file extension, demos on the homepage only, and assets added "
-    "after T are not seen.",
+    "Assets are detected by rules (assets-v3) on the README at T and the release notes up to "
+    "T + 1 day; images embedded as HTML without a file extension, demos on the homepage only, "
+    "and assets added later are not seen at launch.",
     "Stars before an event are unknown when the star history doesn't reach the creation day.",
-    "HN launch events: a story that links neither the repo nor its homepage is an unconfirmed "
-    "title match, shown as such and never counted; HN posts not titled Show HN / Launch HN and "
-    "posts under a repo's former name are not searched (events-v2).",
-    "Asset rules (assets-v2) are measured on a synthetic labelled set of the known error types, "
-    "not on a sample of real READMEs; their real precision needs a hand check (v1 measured "
-    "about 56 %).",
+    "HN launch events (events-v3): a story counts only when its URL is the repo (or a former "
+    "URL GitHub resolves to it) or under the recorded homepage; any other story is an "
+    "unconfirmed title match, shown as such and never counted. HN posts not titled Show HN / "
+    "Launch HN are not searched.",
+    "Asset precision: measured by hand on real READMEs for the previous rules (assets-v2, "
+    "verifier round 2, n = 65: 0.78 overall; comparison table 0.56, screenshots 0.71, "
+    "benchmarks 0.70); the rules were tightened since (assets-v3) and have not been re-measured "
+    "on real data; the synthetic regression set only guards the known error types.",
+    "Bursts: an open burst is still above its pre-burst baseline at the series' end; its total "
+    "so far is not a burst size. Bursts are compared by their first 7 days.",
     "Patterns are associations between winners and matched losers in one neighbourhood, not "
     "causes; star trajectories are the outcome itself and are never a pattern feature.",
     "LLM-coded, not human-validated (no H3 calibration sample). Narratives only restate the "
@@ -1142,13 +1201,21 @@ def report_markdown(r: Mapping[str, Any]) -> str:
             "- amplifiers: " + "; ".join(f"{a['role']}: {a['value']}" for a in f["amplifiers"])
         )
         for b in f["largest_bursts"]:
+            first7 = b.get("stars_first_7_days")
             size = (
-                f"{b.get('stars_total')} stars over {b.get('days')} days"
-                + ("" if b.get("stars_total_complete", True) else " (some days missing)")
-                + f", peak {b.get('peak_stars')} on {b.get('peak_day')}"
-                if b.get("stars_total") is not None
+                f"{first7} stars in the first 7 days"
+                + ("" if b.get("first_7_days_complete", True) else " (some days missing)")
+                if first7 is not None
                 else f"{b.get('stars_in_first_48h')} stars in the first 48 h"
-            )
+            ) + f", peak {b.get('peak_stars')} on {b.get('peak_day')}"
+            if b.get("open"):
+                size += (
+                    f"; open: still above the pre-burst baseline at the series' end "
+                    f"({b.get('stars_so_far')} stars so far over {b.get('days_so_far')} days, "
+                    "not the burst's size)"
+                )
+            elif b.get("stars_total") is not None:
+                size += f"; {b.get('stars_total')} stars over its {b.get('days')} days"
             also = b.get("explained_also") or []
             out.append(
                 f"- burst from {b['onset_day']}: {size}; explained by {b['explained_by']}"
@@ -1160,7 +1227,7 @@ def report_markdown(r: Mapping[str, Any]) -> str:
         "## (b) Comparison table",
         "",
         "| case | view | role | first launch (confirmed) | title | assets | amplifiers | "
-        "stars +1/+7/+30 d | bursts (explained) | largest burst |",
+        "stars +1/+7/+30 d | bursts (explained) | largest burst, first 7 days |",
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for c in r["comparison"]:
@@ -1175,7 +1242,9 @@ def report_markdown(r: Mapping[str, Any]) -> str:
             + f" | {_cell(fl.get('title'))} | "
             f"{_cell(', '.join(c['assets']))} | {_cell(', '.join(c['amplifiers']))} | "
             f"{g.get('+1d')}/{g.get('+7d')}/{g.get('+30d')} | {c['bursts']} "
-            f"({c['bursts_explained']}) | {c.get('largest_burst_stars')} |"
+            f"({c['bursts_explained']}) | {c.get('largest_burst_stars')}"
+            + (f" ({c['open_bursts']} open)" if c.get("open_bursts") else "")
+            + " |"
         )
     pats = r["patterns"]
     out += [
