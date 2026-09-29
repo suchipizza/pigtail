@@ -53,7 +53,7 @@ from pigtail.forensics.facts import ASSETS
 from pigtail.forensics.frame import CODED_PATTERNS, DERIVED_PATTERNS, MODULES
 from pigtail.forensics.store import PilotCase
 
-PATTERNS_VERSION = "patterns-v1"
+PATTERNS_VERSION = "patterns-v2"
 TRANSFER_VERSION = "transfer-v1"
 MIN_KNOWN_PER_SIDE = 10  # ADR-050.3
 MIN_PRESENT_TOTAL = 3
@@ -113,11 +113,16 @@ def case_features(final: Mapping[str, str], facts: Mapping[str, Any] | None) -> 
     rs = (facts.get("assets") or {}).get("readme_structure")
     for k in ("quick_start_section", "features_section"):
         out[f"readme.{k}"] = "unknown" if rs is None else ("present" if rs.get(k) else "absent")
-    kinds = {e.get("kind") for e in facts.get("events") or [] if e.get("launch")}
+    evs = [e for e in facts.get("events") or [] if e.get("launch")]
+    # report-facts-v2: an unconfirmed HN title match never counts (`counts` false)
+    kinds = {e.get("kind") for e in evs if e.get("counts", True)}
+    unconfirmed = {e.get("kind") for e in evs if e.get("counts") is False}
     status = facts.get("source_status") or {}
     for k in LAUNCH_FEATURES:
         if k in kinds:
             out[f"launch.{k}"] = "present"
+        elif k in unconfirmed:
+            out[f"launch.{k}"] = "unknown"  # only a title-only match: not evidence either way
         elif k in ("show_hn", "launch_hn"):
             out[f"launch.{k}"] = "absent"  # the HN launch lookup runs for every repo (ADR-082)
         else:
@@ -209,7 +214,22 @@ def _pairs_count(
     return out
 
 
-def alpha_of(feature: str, rel: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def alpha_of(
+    feature: str,
+    rel: Sequence[Mapping[str, Any]],
+    asset_precision: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    if feature.startswith("asset.") and asset_precision is not None:
+        m = (asset_precision.get("per_asset") or {}).get(feature.split(".", 1)[1]) or {}
+        prec = m.get("precision")
+        labels = [
+            f"rule-based ({asset_precision.get('rule', 'assets')}), precision "
+            f"{'unknown' if prec is None else prec} on the synthetic labelled set "
+            f"({asset_precision.get('set')}), not a sample of real READMEs"
+        ]
+        if prec is None or prec < LOW_ALPHA:
+            labels.append("low reliability")
+        return {"alpha": None, "precision": prec, "labels": labels}
     if not is_coded(feature):
         return {"alpha": None, "labels": [DETERMINISTIC]}
     for r in rel:
@@ -278,6 +298,7 @@ def feature_row(
     names: Mapping[str, str],
     *,
     language: bool = True,
+    asset_precision: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     w = _side(feature, vc.winners, feats)
     lo = _side(feature, vc.losers, feats)
@@ -303,7 +324,7 @@ def feature_row(
             "winners_with": [names.get(k, k) for k in w.present],
             "losers_without": [names.get(k, k) for k in lo.absent],
         },
-        "reliability": alpha_of(feature, rel),
+        "reliability": alpha_of(feature, rel, asset_precision),
         "sufficient": ok,
         "labels": labels,
     }
@@ -378,6 +399,22 @@ def _numbers(keys: Sequence[str], values: Mapping[str, Mapping[str, Any]]) -> di
     return {m: numeric_summary(v) for m, v in sorted(per.items())}
 
 
+def _sec_evidence(
+    keys: Sequence[str], values: Mapping[str, Mapping[str, Any]]
+) -> dict[str, list[str]]:
+    """metric -> the evidence ids behind the observed values of these cases."""
+    out: dict[str, set[str]] = {}
+    for k in keys:
+        for metric, rec in (values.get(k) or {}).items():
+            if not isinstance(rec, dict) or not isinstance(rec.get("value"), int | float):
+                continue
+            for e in rec.get("evidence") or []:
+                eid = e.get("evidence_id") if isinstance(e, dict) else None
+                if eid:
+                    out.setdefault(metric, set()).add(str(eid))
+    return {m: sorted(v) for m, v in sorted(out.items())}
+
+
 def is_download_metric(metric: str) -> bool:
     m = metric.lower()
     return m.startswith("adopt") or "download" in m
@@ -389,6 +426,9 @@ def run_patterns(
     sel_rows: Mapping[tuple[str, str], Mapping[str, Any]],
     rel: Sequence[Mapping[str, Any]],
     secondary: Mapping[str, Mapping[str, Mapping[str, Any]]] | None = None,
+    *,
+    asset_precision: Mapping[str, Any] | None = None,
+    flags: Mapping[str, Sequence[str]] | None = None,
 ) -> dict[str, Any]:
     """The whole pattern step (module docstring). `finals`: case key -> unit -> final value;
     `sel_rows`: (view, candidate ref) -> the stored selection row; `secondary`: candidate ref
@@ -400,7 +440,16 @@ def run_patterns(
         if c.view == "follow_through"
     }
     feats = {c.case_key: case_features(finals.get(c.case_key, {}), c.facts) for c in cases}
-    names = {c.case_key: c.repo_full_name for c in cases}
+    # definition-sensitive cases are flagged wherever they are named (D2; sensitivity check)
+    names = {
+        c.case_key: c.repo_full_name
+        + (
+            " [definition-sensitive]"
+            if "definition_sensitive" in (flags or {}).get(c.case_key, [])
+            else ""
+        )
+        for c in cases
+    }
     by_key = {c.case_key: sel_rows.get((c.view, c.candidate_ref)) or {} for c in cases}
     views_out: dict[str, Any] = {}
     downloads = False
@@ -408,7 +457,10 @@ def run_patterns(
         vc = view_cases(cases, sel_rows, view)
         if not vc.winners:
             continue
-        rows = [feature_row(f, vc, feats, rel, names) for f in feature_names()]
+        rows = [
+            feature_row(f, vc, feats, rel, names, asset_precision=asset_precision)
+            for f in feature_names()
+        ]
         abs_w = absolute_numbers(vc.winners, by_key)
         abs_l = absolute_numbers(vc.losers, by_key)
         downloads = downloads or any(is_download_metric(m) for m in (*abs_w, *abs_l))
@@ -417,8 +469,15 @@ def run_patterns(
             sec = {
                 "winners": _numbers(vc.winners, sec_by_key),
                 "matched_losers": _numbers(vc.losers, sec_by_key),
+                # every figure cites the evidence behind its values (verifier round 1 fix 7)
+                "evidence_ids": {
+                    "winners": _sec_evidence(vc.winners, sec_by_key),
+                    "matched_losers": _sec_evidence(vc.losers, sec_by_key),
+                },
             }
-            downloads = downloads or any(v["n"] for side in sec.values() for v in side.values())
+            downloads = downloads or any(
+                v["n"] for side in ("winners", "matched_losers") for v in sec[side].values()
+            )
         views_out[label] = {
             "view": view,
             "outcome_dimension": "attention",
@@ -437,8 +496,15 @@ def run_patterns(
             continue
         rows = []
         for f in feature_names():
-            r = feature_row(f, ex, feats, rel, names, language=False)
-            r["transferability"] = transfer_label(f, ex, feats)
+            r = feature_row(
+                f, ex, feats, rel, names, language=False, asset_precision=asset_precision
+            )
+            # never a transferability label on insufficient evidence (verifier M24 round 1)
+            r["transferability"] = (
+                transfer_label(f, ex, feats)
+                if r["sufficient"]
+                else {"label": "not assessable", "why": INSUFFICIENT}
+            )
             rows.append(r)
         ex_out[label] = {
             "view": view,

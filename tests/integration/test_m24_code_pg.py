@@ -71,7 +71,11 @@ class FakeAlgolia:
                 {
                     "objectID": str(i),
                     "title": title,
-                    "url": f"https://github.com/{full}",
+                    "url": (
+                        "https://other-project.example.net/"
+                        if full == "org-p/delta-app"
+                        else f"https://github.com/{full}"
+                    ),
                     "points": POINTS,
                     "created_at_i": int(ANCHOR.timestamp()),
                     "author": HANDLE,  # never asked for; must never be read or stored
@@ -196,7 +200,7 @@ def test_m24_code_end_to_end_reuses_the_pilot(env: Env) -> None:  # noqa: F811
     # --- report facts ---
     for c in cases:
         f = c.facts
-        assert f is not None and f["version"] == "report-facts-v1"
+        assert f is not None and f["version"] == "report-facts-v2"
         ev_ids = set(f["evidence"].values())
         for eid in ev_ids:  # every cited item resolves to a present snapshot
             row = q(env, "SELECT content_hash, deletion_state FROM evidence WHERE id = %s", eid)
@@ -228,6 +232,17 @@ def test_m24_code_end_to_end_reuses_the_pilot(env: Env) -> None:  # noqa: F811
     assert gamma is not None
     gshow = next(e for e in gamma["events"] if e["kind"] == "show_hn")
     assert gshow["title_truncated"] is True and len(gshow["title"].split()) == TITLE_MAX_WORDS
+    # [M24-T2] a title-only HN match (the story links another project) is unconfirmed: it is
+    # not a counted launch event, not maintainer amplification and never explains a burst
+    delta = by["follow_through:gh:org-p/delta-app"]
+    assert delta is not None
+    dshow = next(e for e in delta["events"] if e["kind"] == "show_hn")
+    assert dshow["confirmed"] is False and dshow["counts"] is False
+    assert "unconfirmed (title match)" in dshow["where"]
+    damp = {a["role"]: a for a in delta["amplifiers"]}
+    assert "show_hn" not in " ".join(damp["maintainer"]["events"])
+    assert damp["maintainer"]["unconfirmed_title_matches"]
+    assert all(not b["explained_by"].startswith("show_hn") for b in delta["trajectory"]["bursts"])
     # assets at launch from the README at T: the fake README has `brew install <name>`
     inst = alpha["assets"]["assets"]["install_one_liner"]
     assert inst["value"] == "present" and "brew install" in inst["excerpt"]
@@ -256,7 +271,7 @@ def test_m24_code_end_to_end_reuses_the_pilot(env: Env) -> None:  # noqa: F811
     js = Path(out.report_paths["json"])
     assert js.name == f"coding-{NOW.date().isoformat()}.json"
     report = json.loads(js.read_text())
-    assert report["provenance"]["frame_version"] == "pilot-frame-v1+report-facts-v1"
+    assert report["provenance"]["frame_version"] == "pilot-frame-v1+report-facts-v2"
     assert report["cost"]["reused_cases"] == 5
     assert len(report["facts"]) == 11
     assert HANDLE not in js.read_text()

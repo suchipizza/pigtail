@@ -730,7 +730,7 @@ def _steps(
                 clock=deps.clock,
                 run_id=deps.run_record_id,
                 code_commit=commit,
-            ).run(pilot, cases)
+            ).run(pilot, cases, cands)
     except BudgetExhausted as e:
         stop: dict[str, Any] = {"kind": "github_budget", "step": "case evidence", "detail": str(e)}
         _set_run(conn, rid, "paused_budget", stop=stop)
@@ -885,7 +885,12 @@ def _steps(
         )
     # 5. alpha
     fstore.mark_step(conn, rid, "alpha")
-    rel = coding.reliability_rows(rows, len(cases), resamples=opts.bootstrap_resamples)
+    rel = coding.reliability_rows(
+        rows,
+        len(cases),
+        resamples=opts.bootstrap_resamples,
+        run_label=coding.FULL_LABEL if full else coding.PILOT_LABEL,
+    )
     fstore.save_reliability(conn, {**pilot, "code_commit": commit}, rel)
     # 6. cost and projection
     return _finish(brief, deps, rid, pilot, cases, rows, rel, guard, est, commit, full=full)
@@ -1430,6 +1435,51 @@ def measure_and_project(
             code_commit=commit,
         )
     return model, proj
+
+
+def refresh_facts(brief: Brief, deps: PilotDeps, run_id: str | None = None) -> dict[str, Any]:
+    """Recompute the report facts of a finished coding run under the current fact rules
+    (`pigtail brief code --refresh-facts`; ADR-089 addendum 4). No LLM call: the coded values
+    are untouched. Network: HN Algolia story metadata only (free). Cases whose facts are of the
+    current version are skipped; the run's frame version follows."""
+    from pigtail.briefs.candidates import CandidateStore
+    from pigtail.capture.runs import git_commit
+    from pigtail.forensics.facts import FactsStage
+
+    conn = deps.conn
+    assert brief.version is not None
+    if run_id is None:
+        row = conn.execute(
+            "SELECT p.brief_run_id FROM brief_pilot p JOIN brief_runs r ON r.id = p.brief_run_id"
+            " WHERE r.kind = 'coding' AND p.brief_id = %s AND p.brief_version = %s"
+            " ORDER BY p.created_at DESC LIMIT 1",
+            (brief.brief_id, brief.version),
+        ).fetchone()
+        if row is None:
+            raise ValueError("no coding run of this brief version: run `pigtail brief code`")
+        run_id = str(row[0])
+    pilot = fstore.pilot_row(conn, run_id)
+    if pilot is None:
+        raise ValueError(f"no coding run {run_id}")
+    commit = deps.code_commit if deps.code_commit is not None else git_commit()
+    fstore.add_invocation(conn, run_id, commit=commit, at=deps.clock(), kind="refresh_facts",
+                          run_record_id=deps.run_record_id)  # fmt: skip
+    fstore.mark_step(conn, run_id, "report_facts")
+    cases = fstore.load_cases(conn, run_id)
+    cands = {c.ref: c for c in CandidateStore(conn, brief.brief_id, brief.version).all()}
+    res = FactsStage(
+        conn,
+        snapshots=deps.snapshots,
+        hn=deps.hn,
+        clock=deps.clock,
+        run_id=deps.run_record_id,
+        code_commit=commit,
+    ).run(pilot, cases, cands)
+    frame = f"{FRAME_VERSION}+{FACTS_VERSION}"
+    conn.execute(
+        "UPDATE brief_pilot SET frame_version = %s WHERE brief_run_id = %s", (frame, run_id)
+    )
+    return {"coding_run": run_id, "frame_version": frame, **res, "cases": len(cases)}
 
 
 def rebuild_cost_model(

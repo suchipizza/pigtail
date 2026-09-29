@@ -70,6 +70,7 @@ from pigtail.llm.types import LLMResult, PromptSpec
 NAMESPACE = "github"  # the redaction namespace of @mentions in READMEs and release notes
 _BLOCK = re.compile(r"^### evidence_id: (\S+)\n", re.MULTILINE)
 PILOT_LABEL = "pilot, n = {n}"
+FULL_LABEL = "full run, n = {n}"  # `pigtail brief code` (M24; verifier round 1 fix 8)
 LLM_ONLY = "LLM-coded, not human-validated"
 MAX_REASON_CHARS = 500
 
@@ -628,7 +629,11 @@ def _binary(values: set[Any]) -> bool:
 
 
 def reliability_rows(
-    rows: Sequence[CodingRow], n_cases: int, *, resamples: int = ka.BOOTSTRAP_RESAMPLES
+    rows: Sequence[CodingRow],
+    n_cases: int,
+    *,
+    resamples: int = ka.BOOTSTRAP_RESAMPLES,
+    run_label: str = PILOT_LABEL,
 ) -> list[dict[str, Any]]:
     """Alpha per field (and C11a pooled), with the codebook's labels (module docstring)."""
     out: list[dict[str, Any]] = []
@@ -690,7 +695,7 @@ def reliability_rows(
                 if min(counts) < ka.MIN_RARER_BINARY:
                     reasons.append(f"rarer value {min(counts)} < {ka.MIN_RARER_BINARY}")
             assessed = not reasons
-            labels = [PILOT_LABEL.format(n=n_cases), LLM_ONLY]
+            labels = [run_label.format(n=n_cases), LLM_ONLY]
             if not assessed:
                 labels.append("reliability not assessed")
             if a is not None and a < ka.LOW_RELIABILITY_BELOW:

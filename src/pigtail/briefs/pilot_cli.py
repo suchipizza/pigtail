@@ -218,9 +218,58 @@ def _story_meta(snaps: Any, db: Any, recorder: Any) -> Any:
 
 def cmd_code(args: argparse.Namespace) -> int:
     """`pigtail brief code`: the pilot command with the full case rule (M24, ADR-089)."""
+    if getattr(args, "refresh_facts", False):
+        return cmd_refresh_facts(args)
     args.rule = "full"
     args.cases = 0
     return cmd_pilot(args)
+
+
+def cmd_refresh_facts(args: argparse.Namespace) -> int:
+    """`pigtail brief code ID --refresh-facts`: recompute a coding run's report facts under the
+    current rules; no LLM call (ADR-089 addendum 4)."""
+    import psycopg
+
+    from pigtail.briefs.cli import _llm_client, _settings
+    from pigtail.capture.db import CaptureDB
+    from pigtail.capture.runs import RunRecorder
+    from pigtail.capture.snapshots import build_store
+    from pigtail.forensics.pilot import PilotDeps, refresh_facts
+
+    s = _settings()
+    try:
+        brief = _brief(args)
+    except (BriefNotFound, BriefInvalid) as e:
+        print(str(e), file=sys.stderr)
+        return EXIT_INVALID
+    if not s.database_url:
+        print("DATABASE_URL is not set", file=sys.stderr)
+        return EXIT_USAGE
+    from pigtail.db.migrate import migrate
+
+    migrate(s.database_url)
+    with psycopg.connect(s.database_url, autocommit=True) as conn:
+        db = CaptureDB(conn)
+        snaps = build_store(s)
+        with RunRecorder("brief.refresh_facts", {}, sink=db.upsert_run) as rec:
+            deps = PilotDeps(
+                conn=conn,
+                client=_llm_client(),
+                snapshots=snaps,
+                data_dir=s.data_dir,
+                run_record_id=rec.id,
+                hn=_story_meta(snaps, db, rec),
+            )
+            try:
+                out = refresh_facts(brief, deps, getattr(args, "run", None))
+            except ValueError as e:
+                print(str(e), file=sys.stderr)
+                return EXIT_INVALID
+    if args.json:
+        _print(out)
+    else:
+        print(json.dumps(out, indent=2, default=str))
+    return 0
 
 
 def cmd_pilot_summary(args: argparse.Namespace) -> int:
@@ -560,6 +609,12 @@ def add_commands(bs: argparse._SubParsersAction[argparse.ArgumentParser]) -> Non
     p.add_argument(
         "--max-usd", type=float, help="hard stop on this run's API spend (e.g. 25, ADR-088)"
     )
+    p.add_argument(
+        "--refresh-facts",
+        action="store_true",
+        help="recompute the latest coding run's report facts under the current rules (no LLM)",
+    )
+    p.add_argument("--run", help="with --refresh-facts: the coding run (default: the latest)")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_code)
 
