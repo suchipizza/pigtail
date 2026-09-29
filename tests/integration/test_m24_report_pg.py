@@ -177,3 +177,79 @@ def test_m24_t6_final_marks_report_and_purges_unreferenced_cache(env: Env) -> No
     gone = q(env, "SELECT count(*) FROM brief_case_evidence ce JOIN evidence e ON e.id ="
                   " ce.evidence_id WHERE e.deletion_state <> 'present'")[0][0]  # fmt: skip
     assert referenced > 0 and gone == 0
+
+
+def _blob(e: Env, url: str, body: bytes) -> tuple[str, str]:
+    """A present synthetic snapshot and its evidence row; returns (evidence id, hash)."""
+    from pigtail.capture.models import Evidence, evidence_id
+    from pigtail.capture.snapshots import SnapshotMeta
+
+    meta = SnapshotMeta(source="npm_downloads", url=url, fetched_at=NOW, collector_version="x/0",
+                        terms_basis="t", content_type="application/json")  # fmt: skip
+    h = e.snaps.put(body, meta)
+    eid = evidence_id("npm_downloads", url, h)
+    e.db.upsert_evidence(Evidence(
+        id=eid, source="npm_downloads", url=url, fetched_at=NOW, content_hash=h,
+        snapshot_ref=e.snaps.ref(h), content_type="application/json", http_status=200,
+        reliability="high", terms_basis="t", retention_class="project_level",
+        deletion_state="present", collector_version="x/0", case_id=None, repo_id=None,
+        run_id=None,
+    ))  # fmt: skip
+    return eid, h
+
+
+def test_m24_t7_purge_keeps_evidence_referenced_only_by_outcomes_facts_or_report(
+    env: Env,  # noqa: F811
+) -> None:
+    """M24-T7: evidence cited only by a secondary outcome (ADR-090), only by a case's report
+    facts, or only by a stored report JSON is never purged; unreferenced evidence still is."""
+    from psycopg.types.json import Jsonb
+
+    from pigtail.capture.db import CaptureDB
+    from pigtail.privacy.cache_purge import purge_unreferenced, referenced_ids, report_refs
+
+    _coded(env)
+    base = "https://api.npmjs.org/downloads/range/x/"
+    by_outcome, h1 = _blob(env, base + "syn-a", b'{"a":1}')
+    by_fact, h2 = _blob(env, base + "syn-b", b'{"b":2}')
+    by_report, h3 = _blob(env, base + "syn-c", b'{"c":3}')
+    stale, h4 = _blob(env, base + "syn-d", b'{"d":4}')
+    rid, key, sel, ref = q(env, "SELECT p.brief_run_id, p.case_key, b.selection_id,"
+                                " p.candidate_ref FROM brief_pilot_case p JOIN brief_pilot b"
+                                " USING (brief_run_id) ORDER BY 1 DESC, 2 LIMIT 1")[0]  # fmt: skip
+    env.conn.execute(
+        "INSERT INTO brief_secondary_outcome (selection_id, candidate_ref, repo_full_name,"
+        " metric, status, value, record, rule_version, as_of) VALUES (%s, %s, %s,"
+        " 'adopt.npm_downloads_launch@0-2', 'observed', 5, %s, 'downloads-v1', %s)",
+        (sel, ref, ref[3:], Jsonb({"evidence": [{"evidence_id": by_outcome}]}), NOW.date()),
+    )
+    facts = q(env, "SELECT facts FROM brief_pilot_case WHERE brief_run_id = %s AND case_key = %s",
+              rid, key)[0][0]  # fmt: skip
+    facts = dict(facts or {})
+    facts["synthetic_extra"] = {"nested": [{"evidence_ids": [by_fact]}]}
+    env.conn.execute(
+        "UPDATE brief_pilot_case SET facts = %s WHERE brief_run_id = %s AND case_key = %s",
+        (Jsonb(facts), rid, key),
+    )
+    rep = Path(env.data_dir) / "reports" / "syn-brief" / "v1" / "report-2026-01-01.json"
+    rep.parent.mkdir(parents=True, exist_ok=True)
+    rep.write_text(json.dumps({"evidence_index": {by_report: {}}}))
+    db = CaptureDB(env.conn)
+    refs = referenced_ids(db, report_refs(env.data_dir))
+    assert {by_outcome, by_fact, by_report} <= refs and stale not in refs
+    # the dry-run preview no longer counts them, and matches what the purge then does
+    dry = run_report(env.brief, rdeps(env), ReportOptions(dry_run=True))
+    prev = dry.summary["cache_purge_preview"]
+    assert prev["version"] == "cache-purge-v2" and prev["blobs"] >= 1
+    res = purge_unreferenced(db, env.snaps, apply=True, extra_refs=report_refs(env.data_dir))
+    assert res.blobs == prev["blobs"]
+    for h in (h1, h2, h3):
+        assert env.snaps.exists(h)
+        assert q(env, "SELECT deletion_state FROM evidence WHERE content_hash = %s", h) == [
+            ("present",)
+        ]
+    assert not env.snaps.exists(h4)
+    # every coded citation still resolves
+    gone = q(env, "SELECT count(*) FROM brief_coding c, unnest(c.evidence_ids) i JOIN evidence e"
+                  " ON e.id = i WHERE e.deletion_state <> 'present'")[0][0]  # fmt: skip
+    assert gone == 0
