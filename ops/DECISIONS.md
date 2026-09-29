@@ -891,3 +891,31 @@ Addendum 1 (2026-09-29, builder, after the orchestrator's first run on a real br
 5. **Calendar.** L is the first scheduled channel's day (offsets shifted so the earliest scheduled median offset is 0); no generic launch-post row. A launch channel in common practice is listed as "table stakes: do it; the evidence doesn't say when", with no date. The losers-count rule of item 4 is unchanged.
 6. **Order.** Language check first (holds / not assessable, then weakens, then reverses, each labelled), then discordant-pair margin, then d, then view, then name.
 The `--append` file (fast-path verdict, including what it found that the pipeline didn't) is included verbatim, unchanged.
+Addendum 2 (2026-09-29, builder, after verifier round 2 failed M25; method level only). **Declared in code before any re-run** (`RANK_VERSION = "rank-v3"`, `PLAN_VERSION = "plan-v2"`, `HEADLINE`, `PERM_DRAWS`, `PERM_SEED`, `PERM_ALPHA`, `TIMING_MIN_WINNERS`, `TIMING_MAX_SPAN_H`; `plan.rules()`). A method change, not an outcome change (ADR-088.5).
+1. **rank-v3: the headline view is the basis.** A feature is recommended only on view A (headline 1, follow-through) under addendum 1's rule (sufficient, d ≥ 0.15, winner-only > loser-only discordant pairs, ≥ 3 supporting cases, a practice, channel not avoided). It must also show the same direction (d > 0) in every other view that can assess it (sufficient evidence), B-undeclared included as a check. B-undeclared is never a basis. Each recommendation lists every view's n, d and discordant pairs, including failures and reversals. A feature that passes only on view B (headline 2, launch size) is listed as "launch size only (view B), not a recommendation" and is never scheduled. A reversal elsewhere is listed with its reason. rank-v2's view shopping (any passing view, best view displayed) is withdrawn.
+2. **Multiplicity check.**
+   - Method: within-pair label permutation over view A's headline matched sets, which are read from the selection. In each set the winner label goes to a uniformly drawn member and the others become its losers. 2,000 draws with a fixed seed.
+   - Statistic: the number of eligible view-A features that pass the base rule. p = (1 + draws ≥ observed) / (1 + draws). The null mean is printed as the expected number of false recommendations.
+   - Both head section 2, with "these recommendations are not distinguishable from chance at this sample size; treat as hypotheses to test" when p ≥ 0.05 or when p can't be computed (no database context).
+   - Scope: the statistic counts view-A passes before the direction check, so the printed list, a subset, is judged against the same rule.
+   - Known property: the count has little power when the recommended features are strongly correlated (they pass or fail together under permutation); the banner then shows even for large contrasts.
+3. **Version and files.**
+   - `plan_version` hashes `rules()` (generator, rank rule, every threshold, the minimum evidence, permutation and timing parameters, and the feature registry's hash), the brief hash, the report hash, the inputs, the appended file and a digest of the database context the plan reads (evidence ids, similarity, pairs, stored values).
+   - A plan file with other bytes is never overwritten: a new `-rN` name is used, and identical bytes are left as they are.
+   - `--report PATH` writes the plan beside that report (refused inside a git working tree unless git ignores it).
+   - The lock records the full plan version and the rules.
+4. **Basis reliability.** Each recommendation states the reliability of the field it rests on:
+   - an LLM-coded field: α (with `low reliability` below 0.70);
+   - a deterministic rule: the real-data precision the report declares (`features[].reliability.real_precision` or `report.rule_precision[feature]`, a number or `{precision}`), labelled `low reliability` below 0.70 and `borderline` below 0.80;
+   - otherwise: "real-data precision not measured".
+   The synthetic-set precision is no longer shown as if it were a real-data figure.
+5. **Calendar.**
+   - Only confirmed events: an event with `counts: false` or `confirmed: false` is skipped.
+   - A channel is dated only when recommended on view A and ≥ 3 winners date it; the winners and losers using it are shown beside the timing.
+   - A timing window needs ≥ 5 winners within a 12-hour circular span of UTC hours; otherwise "no timing evidence".
+   - A recommended channel no winner dates is listed as undated.
+   - A view-A common-practice channel is table stakes, without a date.
+6. **Predictions and notes.**
+   - Predictions are made on view A only. A metric whose winners' median isn't above the losers' is listed as "no contrast" and is not lockable.
+   - p is computed per metric: the share of the view-A cases showing the top recommendation whose stored value reached the losers' median (needs the database context; otherwise unknown).
+   - Adaptation notes falsify each recommendation on its view's outcome (view A: the follow-through metric).

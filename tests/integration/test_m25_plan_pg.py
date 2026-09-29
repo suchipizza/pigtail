@@ -26,7 +26,7 @@ def test_m25_plan_from_the_m24_report_insufficient_and_reproducible(env: Env) ->
     assert rep.exit_code == 0, rep.message
     report = json.loads(Path(rep.report_paths["json"]).read_text())
     ctx = load_context(env.conn, report)
-    assert ctx.similarity and ctx.evidence
+    assert ctx.similarity and ctx.evidence and ctx.pairs.get("A")  # the fixture stores no values
     out = run_plan(env.brief, env.data_dir, conn=env.conn, day=NOW.date())
     assert out.exit_code == 0, out.message
     plan = json.loads(Path(out.paths["json"]).read_text())
