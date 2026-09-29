@@ -17,6 +17,7 @@ from pigtail.forensics.store import PilotCase
 
 EXAMPLE = Path(__file__).resolve().parents[1] / "docs" / "examples" / "brief-example.yaml"
 L0 = datetime(2026, 3, 3, 15, 0, tzinfo=UTC)  # a Tuesday
+VIEWS = {"A": "follow_through", "B": "launch"}
 
 
 def example_brief(**channels: Any) -> Brief:
@@ -31,39 +32,36 @@ def _ev(i: int, tag: str) -> str:
     return f"ev_{(i * 7919 + sum(map(ord, tag))) % 16**24:024x}"
 
 
-def _facts(
-    i: int, winner: bool, demo: bool, ph: bool, launch: bool = True, shots: bool = False
-) -> dict[str, Any]:
+def _facts(i: int, has: dict[str, bool]) -> dict[str, Any]:
     t0 = L0 + timedelta(days=7 * i)
     events: list[dict[str, Any]] = []
-    if launch:
+    if has["show_hn"]:
         events.append(
             {"kind": "show_hn", "where": "Hacker News (Show HN)", "ref": f"hn{i}", "launch": True,
              "at": t0.isoformat(), "title": "Show HN: a synthetic tool",
              "evidence_ids": [_ev(i, "hn")]}
         )  # fmt: skip
-    if ph:
+    if has["ph"]:
         events.append(
             {"kind": "product_hunt", "where": "Product Hunt", "ref": f"ph{i}", "launch": True,
              "at": (t0 + timedelta(days=2, hours=-7)).isoformat(), "title": None,
              "title_missing": "not stored (ADR-085)", "evidence_ids": [_ev(i, "ph")]}
         )  # fmt: skip
+
+    def asset(key: str, excerpt: str) -> dict[str, Any]:
+        on = has[key]
+        return {"value": "present" if on else "absent", "evidence_id": _ev(i, "readme"),
+                **({"excerpt": excerpt} if on else {})}  # fmt: skip
+
     return {
         "assets": {
             "assets": {
-                "demo_media": {"value": "present" if demo else "absent",
-                               "evidence_id": _ev(i, "readme"),
-                               **({"excerpt": "![demo](docs/demo.gif)"} if demo else {})},
-                "screenshots": {"value": "present" if shots else "absent",
-                                "evidence_id": _ev(i, "readme"),
-                                **({"excerpt": "![screenshot](docs/ui.png)"} if shots else {})},
-                "install_one_liner": {"value": "present" if winner else "absent",
-                                      "evidence_id": _ev(i, "readme"),
-                                      **({"excerpt": "pip install synthetic-tool"}
-                                         if winner else {})},
+                "demo_media": asset("demo", "![demo](docs/demo.gif)"),
+                "screenshots": asset("shots", "![screenshot](docs/ui.png)"),
+                "install_one_liner": asset("install", "pip install synthetic-tool"),
             },
             "readme_structure": {"evidence_id": _ev(i, "readme"), "headings": [],
-                                 "quick_start_section": winner, "features_section": False},
+                                 "quick_start_section": has["quick"], "features_section": False},
         },
         "events": events,
         "amplifiers": [{"role": "organization", "value": "present",
@@ -74,46 +72,83 @@ def _facts(
     }  # fmt: skip
 
 
-def world(n: int = 12, *, ph_winners: int = 8) -> tuple[list[PilotCase], dict[Any, Any]]:
-    """`n` view-A headline pairs: winners show a demo (all but pair 1), an install one-liner
-    and a quick-start section, and (the first `ph_winners`) a Product Hunt launch 2 days after
-    Show HN; losers show a demo in pairs 2 and 3 only and never launch on Product Hunt."""
+def _has(view: str, i: int, win: bool, ph_winners: int, mode: str) -> dict[str, bool]:
+    if mode == "indep":  # four modest contrasts on disjoint pairs (1-3, 4-6, 7-9, 10-12)
+        own = ("demo", "shots", "install", "quick")[min((i - 1) // 3, 3)]
+        return {"demo": win or own != "demo", "shots": win or own != "shots",
+                "install": win or own != "install", "quick": win or own != "quick",
+                "show_hn": True, "ph": False, "mc07": True}  # fmt: skip
+    if (
+        mode == "weak"
+    ):  # one modest contrast (demo: winners 1-7, losers 1-4); everything else shared
+        return {"demo": i <= (7 if win else 4), "shots": True, "install": True, "quick": True,
+                "show_hn": True, "ph": False, "mc07": True}  # fmt: skip
+    if view == "A":
+        return {
+            "demo": i != 1 if win else i in (2, 3),
+            "shots": i <= 9 if win else 2 <= i <= 9,  # common practice (9/12 vs 8/12)
+            "install": win,
+            "quick": win,
+            "show_hn": True,  # everyone: no contrast on view A
+            "ph": win and i <= ph_winners,
+            "mc07": win or i in (1, 2),
+        }
+    # view B (launch size): the demo reverses; Show HN separates (launch size only)
+    return {
+        "demo": i <= 2 if win else i >= 3,
+        "shots": i <= 9 if win else 2 <= i <= 9,
+        "install": win,
+        "quick": win,
+        "show_hn": win or i <= 3,
+        "ph": win and i <= ph_winners,
+        "mc07": win or i in (1, 2),
+    }
+
+
+def world(
+    n: int = 12, *, ph_winners: int = 8, mode: str = "strong", views: str = "AB"
+) -> tuple[list[PilotCase], dict[Any, Any], dict[str, dict[str, str]]]:
+    """`n` headline pairs per view (module docstring of the tests). Returns (cases, selection
+    rows, final codings)."""
     cases: list[PilotCase] = []
     rows: dict[Any, Any] = {}
-    for i in range(1, n + 1):
-        for role, ref in (("winner", f"w{i}"), ("matched_loser", f"l{i}")):
-            win = role == "winner"
-            demo = i != 1 if win else i in (2, 3)
-            c = PilotCase(
-                case_key=f"follow_through:gh:org-s/{ref}", view="follow_through",
-                candidate_ref=f"gh:org-s/{ref}", repo_full_name=f"org-s/{ref}", repo_id=None,
-                repo_host_id=None, position=2 * i - (1 if win else 0), role=role, pair_id=i,
-                anchor={}, coding_id=f"cod_{i:08x}{int(win):08x}",
-                # screenshots: common practice (winners 9/12, losers 8/12: d = 0.08)
-                facts=_facts(i, win, demo, win and i <= ph_winners,
-                             shots=i <= 9 if win else 2 <= i <= 9),
-            )  # fmt: skip
-            cases.append(c)
-            rows[("follow_through", c.candidate_ref)] = {
-                "pair_panel": "field", "rank": i if win else None, "headline": not win,
-                "distance": 1,
-                "detail": {"values": {"att.stars_follow@3-30": {"value": (900 if win else 40) + i},
-                                      "att.stars_launch@0-2": {"value": (300 if win else 20) + i}},
-                           "pair": {"distance": 0.1 * i, "same_language_group": True},
-                           "covariates": {"language": "Python", "launch_half_year": "2026H1"}},
-            }  # fmt: skip
-    return cases, rows
+    finals: dict[str, dict[str, str]] = {}
+    for vl in views:
+        view = VIEWS[vl]
+        for i in range(1, n + 1):
+            for role, ref in (("winner", f"w{i}"), ("matched_loser", f"l{i}")):
+                win = role == "winner"
+                has = _has(vl, i, win, ph_winners, mode)
+                c = PilotCase(
+                    case_key=f"{view}:gh:org-s/{ref}", view=view,
+                    candidate_ref=f"gh:org-s/{ref}", repo_full_name=f"org-s/{ref}",
+                    repo_id=None, repo_host_id=None, position=2 * i - (1 if win else 0),
+                    role=role, pair_id=i, anchor={},
+                    coding_id=f"cod_{i:06x}{int(win):02x}{ord(vl):08x}", facts=_facts(i, has),
+                )  # fmt: skip
+                cases.append(c)
+                finals[c.case_key] = {"pattern.MC-07": "yes" if has["mc07"] else "no"}
+                rows[(view, c.candidate_ref)] = {
+                    "pair_panel": "field", "rank": i if win else None, "headline": not win,
+                    "distance": 1, "role": role, "pair_id": i, "view": view,
+                    "repo_full_name": c.repo_full_name,
+                    "detail": {"values": {
+                        "att.stars_follow@3-30": {"value": (900 if win else 40) + i},
+                        # launch size: winners' median below the losers' (no contrast)
+                        "att.stars_launch@0-2": {"value": (20 if win else 30) + i}},
+                        "pair": {"distance": 0.1 * i, "same_language_group": True},
+                        "covariates": {"language": "Python", "launch_half_year": "2026H1"}},
+                }  # fmt: skip
+    return cases, rows, finals
 
 
 def report(brief: Brief, n: int = 12, **kw: Any) -> dict[str, Any]:
-    cases, rows = world(n, **kw)
-    # a coded pattern: MC-07 in every winner and in losers 1-2; its stored alpha row still says
-    # "pilot" while the report's reliability block says "full run" (M25 fix 3)
-    finals = {c.case_key: {"pattern.MC-07": "yes" if c.role == "winner" or c.pair_id in (1, 2)
-                           else "no"} for c in cases}  # fmt: skip
+    cases, rows, finals = world(n, **kw)
+    # MC-07's stored alpha row still says "pilot" while the report's reliability block says
+    # "full run" (M25 fix 3)
     rel = [{"field": "pattern.MC-07", "statistic": "nominal", "alpha": 0.81, "assessed": True,
             "labels": ["LLM-coded, not human-validated", f"pilot, n = {2 * n}"]}]  # fmt: skip
-    flags = {"follow_through:gh:org-s/w2": ["definition_sensitive"]}
+    flags = {"follow_through:gh:org-s/w10": ["definition_sensitive"]}
     pats = run_patterns(cases, finals, rows, rel, flags=flags)
     chosen = narrative_cases(cases, rows)
     return {
@@ -138,17 +173,23 @@ def report(brief: Brief, n: int = 12, **kw: Any) -> dict[str, Any]:
 
 
 def context(n: int = 12, **kw: Any) -> PlanContext:
+    """What `load_context` reads from the database, built from the same synthetic world."""
     from pigtail.forensics.patterns import feature_names
-    from pigtail.forensics.plan import similarity_of
+    from pigtail.forensics.plan import VIEW_LABEL, similarity_of
 
-    cases, rows = world(n, **kw)
+    cases, rows, _finals = world(n, **kw)
     ctx = PlanContext()
     for c in cases:
+        vl = VIEW_LABEL[c.view]
         for f in feature_names():
             ids = feature_evidence(f, c.facts, {})
             if ids:
-                ctx.evidence[("A", c.repo_full_name, f)] = ids
-        ctx.similarity[("A", c.repo_full_name)] = similarity_of(
-            rows[("follow_through", c.candidate_ref)]
-        )
+                ctx.evidence[(vl, c.repo_full_name, f)] = ids
+        row = rows[(c.view, c.candidate_ref)]
+        ctx.similarity[(vl, c.repo_full_name)] = similarity_of(row)
+        ctx.values[(vl, c.repo_full_name)] = {
+            m: float(r["value"]) for m, r in row["detail"]["values"].items()
+        }
+    for vl in ("A", "B"):
+        ctx.pairs[vl] = [(f"org-s/w{i}", [f"org-s/l{i}"]) for i in range(1, n + 1)]
     return ctx

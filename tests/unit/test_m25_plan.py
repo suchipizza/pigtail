@@ -60,7 +60,7 @@ def test_m25_d3_2_every_recommendation_cites_pattern_cases_n_contrast_reliabilit
 def test_m25_d3_2_ranking_and_channels_avoided() -> None:
     plan = _plan()
     order = [r["feature"] for r in plan["recommended_patterns"]["patterns"]]
-    assert order.index("asset.demo_media") < order.index("launch.product_hunt")  # d 0.75 > 0.67
+    assert order.index("asset.install_one_liner") < order.index("launch.product_hunt")
     ph = next(
         r for r in plan["recommended_patterns"]["patterns"] if r["feature"] == "launch.product_hunt"
     )
@@ -92,7 +92,7 @@ def test_m25_d3_insufficient_evidence_everywhere_on_a_thin_report() -> None:
 
 def test_m25_d3_6_calendar_from_winners_launch_events() -> None:
     inputs = PlanInputs.model_validate(
-        {"available_assets": ["demo_media"], "time_budget_hours_per_week": 5,
+        {"available_assets": ["install_one_liner"], "time_budget_hours_per_week": 5,
          "launch_window": {"start": "2026-11-03"}}
     )  # fmt: skip
     plan = _plan(inputs=inputs)
@@ -108,7 +108,7 @@ def test_m25_d3_6_calendar_from_winners_launch_events() -> None:
     assert "L (2026-11-03)" in whens and any(w.startswith("L-28 (2026-10-06)") for w in whens)
     assert cal["pre_launch_hours"] == 20.0
     gaps = {i["asset"]: i["status"] for i in plan["readiness_gaps"]["items"]}
-    assert gaps["demo_media"] == "ready" and gaps["install_one_liner"].startswith("gap")
+    assert gaps["install_one_liner"] == "ready" and gaps["quick_start_section"].startswith("gap")
     assert plan["provenance"]["inputs_missing"] == []
 
 
@@ -123,11 +123,12 @@ def test_m25_d3_missing_inputs_are_named_and_calendar_is_relative() -> None:
 
 
 def test_m25_d3_5_asset_checklist_examples_from_report_cases() -> None:
-    ac = _plan()["asset_checklist"]
+    b = pf.example_brief()
+    rep = pf.report(b, mode="indep")
+    ac = build_plan(b, rep, report_hash=H, ctx=pf.context(mode="indep"))["asset_checklist"]
     demo = next(i for i in ac["items"] if i["asset"] == "demo_media")
     assert demo["examples"] and all(e["evidence_ids"] for e in demo["examples"])
     assert demo["examples"][0]["excerpt"] == "![demo](docs/demo.gif)"
-    assert "org-s/w1" not in {e["case"] for e in demo["examples"]}  # it has no demo
 
 
 def test_m25_d3_7_predictions_from_matched_pair_distribution() -> None:
@@ -309,8 +310,10 @@ def test_m25_fix2_threshold_and_common_practice() -> None:
     for r in rp["patterns"]:
         assert r["d"] >= MIN_D and r["discordant_margin"] > 0
     common = {x["feature"]: x for x in rp["common_practice"]}
-    # screenshots 9/12 vs 8/12 (d = 0.08) and Show HN 12/12 vs 12/12
-    assert {"asset.screenshots", "launch.show_hn"} <= set(common)
+    # screenshots 9/12 vs 8/12 (d = 0.08); Show HN 12/12 vs 12/12 on view A but it separates
+    # on view B, so it is "launch size only", not common practice
+    assert set(common) == {"asset.screenshots"}
+    assert [x["feature"] for x in rp["launch_size_only"]] == ["launch.show_hn"]
     assert common["asset.screenshots"]["winners"]["n_present"] == 9
     rec = {r["feature"] for r in rp["patterns"]}
     assert not rec & set(common)
@@ -330,10 +333,10 @@ def test_m25_fix3_reliability_label_from_the_report() -> None:
 
 def test_m25_fix4_evidence_found_for_flagged_case_names_or_explained() -> None:
     plan = _plan()
-    demo = next(r for r in plan["recommended_patterns"]["patterns"]
-                if r["feature"] == "asset.demo_media")  # fmt: skip
-    assert "org-s/w2 [definition-sensitive]" in demo["cited_cases"]
-    assert pf._ev(2, "readme") in demo["evidence_ids"]
+    inst = next(r for r in plan["recommended_patterns"]["patterns"]
+                if r["feature"] == "asset.install_one_liner")  # fmt: skip
+    assert "org-s/w10 [definition-sensitive]" in inst["cited_cases"]
+    assert pf._ev(10, "readme") in inst["evidence_ids"]
     mc = next(r for r in plan["recommended_patterns"]["patterns"]
               if r["feature"] == "pattern.MC-07")  # fmt: skip
     assert mc["evidence_ids"] == [] and "carry no evidence id" in mc["evidence_note"]
@@ -364,8 +367,154 @@ def test_m25_fix6_order_by_margin_then_d_language_weakens_below_holds() -> None:
     plan = build_plan(b, rep, report_hash=H, ctx=pf.context())
     rows = plan["recommended_patterns"]["patterns"]
     order = [r["feature"] for r in rows]
-    assert order == ["readme.quick_start_section", "pattern.MC-07", "asset.demo_media",
-                     "launch.product_hunt", "asset.install_one_liner"]  # fmt: skip
+    assert order == ["readme.quick_start_section", "pattern.MC-07", "launch.product_hunt",
+                     "asset.install_one_liner"]  # fmt: skip
     margins = [r["discordant_margin"] for r in rows[:-1]]
     assert margins == sorted(margins, reverse=True)
     assert any("weakens" in x for x in rows[-1]["reliability_labels"])
+
+
+# --- rank-v3 and the verifier round 2 fixes (ADR-091 addendum 2) -------------------------------
+def test_m25_v3_a_basis_direction_all_views_and_launch_size_only() -> None:
+    """Recommend only on view A; the same direction in every other view that can assess it;
+    every view's n and d on each recommendation; B-only passes are "launch size only"."""
+    rp = _plan()["recommended_patterns"]
+    assert {r["view"] for r in rp["patterns"]} == {"A"}
+    assert rp["rule"] == "rank-v3"
+    why = {x["feature"]: x["why"] for x in rp["not_recommended"]}
+    assert why["asset.demo_media"].startswith("direction not the same in view B")  # reverses
+    for r in rp["patterns"]:
+        assert [v["view"] for v in r["views"]] == ["A", "B"]
+        assert all("d" in v and "winners" in v and "matched_losers" in v for v in r["views"])
+    lo = rp["launch_size_only"][0]
+    assert lo["label"] == "launch size only (view B), not a recommendation"
+    md = plan_markdown(_plan())
+    assert "### Launch size only (view B), not a recommendation" in md
+    assert "All views: view A (headline 1: basis)" in md
+
+
+def test_m25_v3_a_b_undeclared_is_never_a_basis() -> None:
+    b = pf.example_brief()
+    rep = pf.report(b)
+    views = rep["patterns"]["views"]
+    views["B-undeclared"] = json.loads(json.dumps(views["B"]))
+    views["B-undeclared"]["view"] = "launch_undeclared"
+    del views["A"]  # nothing on the headline view: nothing is recommended
+    plan = build_plan(b, rep, report_hash=H, ctx=pf.context())
+    assert plan["recommended_patterns"]["patterns"] == []
+
+
+def test_m25_v3_a_multiplicity_permutation_and_banner() -> None:
+    """Within-pair label permutation (2,000 draws, fixed seed) of the number of view-A
+    recommendations; the banner when p >= 0.05 or not computable."""
+    from pigtail.forensics.plan import CHANCE_BANNER, PERM_DRAWS, PERM_SEED
+
+    b = pf.example_brief()
+
+    def rp(mode: str, ctx: bool = True):  # type: ignore[no-untyped-def]
+        c = pf.context(mode=mode) if ctx else None
+        return build_plan(b, pf.report(b, mode=mode), report_hash=H, ctx=c)["recommended_patterns"]
+
+    indep = rp("indep")
+    m = indep["multiplicity"]
+    assert m["draws"] == PERM_DRAWS == 2000 and m["seed"] == PERM_SEED
+    assert m["observed"] == 4 and m["p"] < 0.05 and indep["banner"] is None
+    assert m == rp("indep")["multiplicity"]  # deterministic
+    weak = rp("weak")
+    assert weak["multiplicity"]["p"] >= 0.05 and weak["banner"] == CHANCE_BANNER
+    assert weak["multiplicity"]["expected_false"] > 0
+    blind = rp("indep", ctx=False)
+    assert blind["multiplicity"]["p"] is None and blind["banner"] == CHANCE_BANNER
+    md = plan_markdown(build_plan(b, pf.report(b, mode="weak"), report_hash=H,
+                                  ctx=pf.context(mode="weak")))  # fmt: skip
+    sec2 = md[md.index("## 2. Recommended patterns") :]
+    assert sec2.index("not distinguishable from chance") < sec2.index("permutation p = ")
+    assert sec2.index("permutation p = ") < sec2.index("### 1.")
+    assert "expected false recommendations under no effect" in sec2
+
+
+def test_m25_v3_b_version_hashes_rules_and_context_and_never_overwrites(tmp_path: Path) -> None:
+    from pigtail.forensics.plan import plan_version, rules
+
+    r = rules()
+    assert r["rank_rule"] == "rank-v3" and r["min_d"] == 0.15 and r["feature_registry"]
+    b = pf.example_brief()
+    v0 = plan_version("a" * 64, "b" * 64, PlanInputs(), None, pf.context().digest())
+    v1 = plan_version("a" * 64, "b" * 64, PlanInputs(), None, pf.context(n=11).digest())
+    assert v0 != v1  # the database context enters the version
+    rep = tmp_path / "copy" / "report-2026-09-29.json"
+    rep.parent.mkdir()
+    rep.write_text(json.dumps(pf.report(b)))
+    out = run_plan(b, tmp_path / "data", report_path=rep, day=date(2026, 9, 30))
+    assert Path(out.paths["md"]).parent == rep.parent  # --report decides the directory
+    Path(out.paths["md"]).write_text("edited by hand\n")
+    again = run_plan(b, tmp_path / "data", report_path=rep, day=date(2026, 9, 30))
+    assert again.paths["md"] != out.paths["md"] and again.paths["md"].endswith("-r2.md")
+    assert Path(out.paths["md"]).read_text() == "edited by hand\n"  # never overwritten
+    third = run_plan(b, tmp_path / "data", report_path=rep, day=date(2026, 9, 30))
+    assert third.paths == again.paths  # identical bytes: same file, nothing rewritten
+    lk = lock_predictions(Path(again.paths["json"]), now=datetime(2026, 10, 1, tzinfo=UTC))
+    rec = json.loads(Path(str(lk.path)).read_text())
+    assert rec["rules"]["rank_rule"] == "rank-v3" and len(rec["plan_version"]) == 64
+
+
+def test_m25_v3_c_basis_reliability_alpha_or_real_precision() -> None:
+    from pigtail.forensics.plan import NOT_MEASURED
+
+    b = pf.example_brief()
+    rep = pf.report(b)
+    recs = {r["feature"]: r for r in build_plan(b, rep, report_hash=H, ctx=pf.context())
+            ["recommended_patterns"]["patterns"]}  # fmt: skip
+    assert recs["pattern.MC-07"]["basis_reliability"]["text"].startswith("alpha 0.81")
+    assert recs["asset.install_one_liner"]["basis_reliability"]["text"] == NOT_MEASURED
+    rep["rule_precision"] = {"asset.install_one_liner": {"precision": 0.72},
+                             "readme.quick_start_section": 0.95}  # fmt: skip
+    recs = {r["feature"]: r for r in build_plan(b, rep, report_hash=H, ctx=pf.context())
+            ["recommended_patterns"]["patterns"]}  # fmt: skip
+    assert recs["asset.install_one_liner"]["basis_reliability"]["text"].startswith("borderline")
+    assert (
+        "0.95 real-data precision"
+        in recs["readme.quick_start_section"]["basis_reliability"]["text"]
+    )
+    assert "Basis reliability: borderline (0.72 real-data precision)" in plan_markdown(
+        build_plan(b, rep, report_hash=H, ctx=pf.context())
+    )
+
+
+def test_m25_v3_d_calendar_confirmed_events_and_timing_evidence() -> None:
+    from pigtail.forensics.plan import NO_TIMING, hour_window
+
+    assert hour_window([23, 1, 0]) == {"start": 23, "end": 1, "span_h": 2}
+    assert hour_window([1, 20])["span_h"] == 5  # 20 -> 1 across midnight
+    b = pf.example_brief()
+    # 4 winners with Product Hunt: dated (>= 3) but no timing window (< 5 winners)
+    plan = build_plan(b, pf.report(b, ph_winners=4), report_hash=H,
+                      ctx=pf.context(ph_winners=4))  # fmt: skip
+    ph = next(e for e in plan["calendar"]["entries"] if e["action"].startswith("Product Hunt"))
+    assert ph["timing_window"].startswith(NO_TIMING)
+    # unconfirmed events never schedule a channel
+    rep = pf.report(b)
+    for n in rep["narratives"]:
+        for e in n["facts"]["launch_events"]:
+            if e["where"] == "Product Hunt":
+                e["confirmed"] = False
+    plan = build_plan(b, rep, report_hash=H, ctx=pf.context())
+    assert plan["calendar"]["channels_scheduled"] == []
+    stakes = {x["where"]: x["note"] for x in plan["calendar"]["table_stakes"]}
+    assert NO_TIMING in stakes["Product Hunt"]  # recommended, but undated
+
+
+def test_m25_v3_predictions_band_p_per_metric_and_outcome_notes() -> None:
+    plan = _plan()
+    pr = plan["predictions"]
+    assert [i["metric"] for i in pr["items"]] == ["att.stars_follow@3-30"]  # view A only
+    assert [x["metric"] for x in pr["no_contrast"]] == ["att.stars_launch@0-2"]  # 26.5 < 36.5
+    for i in pr["items"]:
+        assert i["expected_band"]["low"] < i["expected_band"]["high"]
+        assert i["view"] == "A" and "view A cases with" in i["probability_basis"]
+    notes = plan["adaptation_notes"]["notes"]
+    assert all(n["outcome_metric"] == "att.stars_follow@3-30" for n in notes)
+    assert all("att.stars_follow@3-30" in n["falsified_if"] for n in notes)
+    b = pf.example_brief()
+    blind = build_plan(b, pf.report(b), report_hash=H)["predictions"]["items"][0]
+    assert blind["probability"] is None and "no database context" in blind["probability_basis"]

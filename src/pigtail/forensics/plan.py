@@ -14,19 +14,26 @@ sections in D3 order:
 1. **Similar projects**: the report's view-A headline winners and their nearest matched losers
    (and the exemplars), with why each is similar (the selection's field distance, covariates and
    pair distance) and how to open its D1 timeline.
-2. **Recommended patterns** (`rank-v2`, ADR-091 addendum 1): only the report's features, never a
-   new one, each titled with its plain-language name, a one-sentence definition and its id
-   (`feature_names`). A feature is recommended when its evidence is sufficient (ADR-050.3),
-   d >= `MIN_D` (0.15), winner-only discordant pairs outnumber loser-only ones, it is a practice
-   (not a condition of the project: modules, novelty claim, organisation owner; not an
-   anti-pattern), its channel is not in the brief's `channels.avoid`, and at least `MIN_CASES`
-   (3) cases support it. Ordered by language check (holds / not assessable, then weakens, then
-   reverses, labelled), then discordant-pair margin, then d. A sufficient practice that fails
-   the rule while at least half of both sides show it is **common practice** (table stakes, not
-   a differentiator), listed with its n. Each recommendation shows n among winners and losers,
-   the loser contrast, the discordant pairs, counterexamples, the report's current reliability
-   labels, preconditions met / unmet / unknown, evidence ids (or why there are none) and >= 3
-   cited cases.
+2. **Recommended patterns** (`rank-v3`, ADR-091 addenda 1-2): only the report's features,
+   titled with a plain-language name, a one-sentence definition and the id (`feature_names`).
+   **Basis: the headline view A only.** A feature is recommended when, on view A, its evidence
+   is sufficient (ADR-050.3), d >= `MIN_D` (0.15), winner-only discordant pairs outnumber
+   loser-only ones and >= `MIN_CASES` (3) cases support it; it is a practice (not a condition
+   of the project, not an anti-pattern) whose channel the brief doesn't avoid; and every other
+   view that can assess it (sufficient evidence: B, and B-undeclared as context) shows the same
+   direction (d > 0). B-undeclared is never a basis. A feature that passes only on view B is
+   listed as "launch size only (view B), not a recommendation". A sufficient practice that
+   fails on view A while at least half of both sides show it is **common practice** (table
+   stakes). Ordered by language check (holds / not assessable, then weakens, then reverses,
+   labelled), then discordant-pair margin, then d. Each shows every view's n, d and discordant
+   pairs, the loser contrast, counterexamples, the basis field's reliability (alpha for an
+   LLM-coded field; the report's declared real-data precision for a rule, else "real-data
+   precision not measured"), the report's current labels, preconditions, evidence ids (or why
+   none) and >= 3 cited cases. **Multiplicity check** (`permutation_check`): a within-pair
+   label permutation of view A's headline matched sets (`PERM_DRAWS` = 2,000, fixed seed) of
+   the number of view-A features passing the rule; the permutation p and the expected number
+   of false recommendations head the section, with a "not distinguishable from chance" banner
+   when p >= 0.05 or when it can't be computed (no database context).
 3. **Trending opportunities**, labelled experimental: positive contrasts the report shows only
    among the distribution examples (exemplars against their matched losers) or below the
    minimum evidence with >= 3 cases present, >= 3 known per side and a positive discordant
@@ -34,20 +41,24 @@ sections in D3 order:
 4. **Readiness gaps**: the recommended assets and README sections against `available_assets`.
 5. **Asset checklist**: the recommended assets with examples (verbatim excerpts and evidence ids)
    from the report's case fact sheets.
-6. **Sequenced plan**: launch day L (the launch window's first day, else symbolic), L-28 ... L+42:
-   pre-launch (assets, readiness), launch day and post-launch weeks with the channel order,
-   spacing and UTC timing windows of the winners' launch events in the report's fact sheets; a
-   channel is scheduled only when its launch pattern is recommended and >= `MIN_CASES` winners
-   give its timing, and L is the first scheduled channel's day; a common-practice channel is
-   table stakes, listed without a date.
-7. **Predictions**: per view and outcome metric, the matched pairs' outcome distribution (the
-   report's absolute numbers): the expected band (matched losers' median to winners' median) and
-   the observed range; per recommended pattern, the share of the cases showing it that were
-   winners (an empirical share in this neighbourhood, not a calibrated probability).
-   `pigtail plan lock` pre-registers them (R11.2: hashed and timestamped; `lock_predictions`).
-8. **Adaptation notes**: per recommended pattern, how to test it and what would falsify it.
-9. Markdown and JSON; versioned (`plan_version`: SHA-256 of the generator version, the brief
-   version's content hash, the report's hash, the inputs and the appended file).
+6. **Sequenced plan**: launch day L (the launch window's first day, else symbolic), L-28 ... L+42,
+   from the **confirmed** launch events of the report's fact sheets only; a channel is dated
+   only when it is recommended (view A) and >= `MIN_CASES` winners date it, and L is the first
+   scheduled channel's day; a timing window needs >= 5 winners within a 12 h (circular) span,
+   else "no timing evidence"; a common-practice channel is table stakes, without a date.
+7. **Predictions** (headline view A only): per outcome metric, the expected band (matched
+   losers' median to winners' median) and the observed range; a metric whose winners' median
+   is not above the losers' is "no contrast", not a prediction; p per metric = the share of the
+   view A cases showing the top recommendation that reached the losers' median (stored values;
+   an empirical share, not a calibrated probability). `pigtail plan lock` pre-registers them
+   (R11.2: hashed and timestamped, with the rules; `lock_predictions`).
+8. **Adaptation notes**: per recommendation, how to test it and what would falsify it on its
+   view's outcome (view A: follow-through).
+9. Markdown and JSON; versioned (`plan_version`: SHA-256 of `rules()` (generator, rank rule,
+   every threshold, the feature registry), the brief version's content hash, the report's hash,
+   the inputs, the appended file and the digest of the database context). The plan is written
+   beside the report passed with `--report` (else the brief version's report directory); a
+   file with other bytes is never overwritten (a new `-rN` name).
 
 Plus "Fast-path verdict": the file passed with `--append` (ADR-088.6), verbatim.
 
@@ -74,11 +85,26 @@ from pigtail.forensics.facts import ASSETS, WHERE
 from pigtail.forensics.feature_names import NOT_RECOMMENDABLE, describe, title
 from pigtail.forensics.patterns import CONDITION_FEATURES, INSUFFICIENT
 
-PLAN_VERSION = "plan-v1"
-RANK_VERSION = "rank-v2"
+PLAN_VERSION = "plan-v2"
+RANK_VERSION = "rank-v3"
 MIN_CASES = 3
-MIN_D = 0.15  # rank-v2 (ADR-091 addendum 1)
+MIN_D = 0.15  # rank-v2/v3 (ADR-091 addenda 1-2)
 COMMON_SHARE = 0.5  # both sides at least this share: common practice
+HEADLINE = "A"  # rank-v3: recommendations rest on the headline view A only (ADR-091 addendum 2)
+BASIS_ROLE = {"A": "headline 1: basis", "B": "headline 2: direction check",
+              "B-undeclared": "context: direction check, never a basis"}  # fmt: skip
+VIEW_OUTCOME = {"A": "follow", "B": "launch"}  # the metric id part of each view's outcome
+PERM_DRAWS = 2000  # within-pair label permutations (multiplicity check)
+PERM_SEED = 20260930
+PERM_ALPHA = 0.05
+CHANCE_BANNER = (
+    "these recommendations are not distinguishable from chance at this sample size; treat as "
+    "hypotheses to test"
+)
+TIMING_MIN_WINNERS = 5  # a timing window needs at least this many winners ...
+TIMING_MAX_SPAN_H = 12  # ... and a (circular) UTC hour span of at most this many hours
+NO_TIMING = "no timing evidence"
+NOT_MEASURED = "real-data precision not measured"
 MAX_CITED = 6
 MAX_RECOMMENDED = 12
 PRE_DAYS, POST_DAYS = 28, 42
@@ -137,10 +163,31 @@ def load_inputs(path: Path | None) -> PlanInputs:
 class PlanContext:
     """What the report JSON doesn't carry, read from the report's coding run and selection:
     `evidence[(view label, repo, feature)]` -> evidence ids; `similarity[(view label, repo)]`
-    -> why the case is similar (field distance, covariates, pair distance)."""
+    -> why the case is similar; `pairs[view label]` -> the headline matched sets (winner, its
+    headline matched losers), for the permutation check; `values[(view label, repo)]` -> the
+    stored outcome values (metric -> number), for the per-metric prediction shares."""
 
     evidence: dict[tuple[str, str, str], list[str]] = field(default_factory=dict)
     similarity: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
+    pairs: dict[str, list[tuple[str, list[str]]]] = field(default_factory=dict)
+    values: dict[tuple[str, str], dict[str, float]] = field(default_factory=dict)
+
+    def loaded(self) -> bool:
+        return bool(self.evidence or self.similarity or self.pairs)
+
+    def digest(self) -> str:
+        """SHA-256 of everything the plan reads from the database (enters the plan version)."""
+        return sha256_text(
+            canonical(
+                {
+                    "evidence": sorted([list(k), v] for k, v in self.evidence.items()),
+                    "similarity": sorted([list(k), v] for k, v in self.similarity.items()),
+                    "pairs": {k: sorted([w, sorted(ls)] for w, ls in v)
+                              for k, v in sorted(self.pairs.items())},
+                    "values": sorted([list(k), v] for k, v in self.values.items()),
+                }
+            )
+        )  # fmt: skip
 
 
 VIEW_LABEL = {"follow_through": "A", "launch": "B", "launch_undeclared": "B-undeclared"}
@@ -240,9 +287,31 @@ def load_context(conn: Any, report: Mapping[str, Any]) -> PlanContext:
             ids = feature_evidence(feat, c.facts, finals.get(c.case_key, {}))
             if ids:
                 ctx.evidence[(vl, c.repo_full_name, feat)] = ids
+    sets: dict[str, dict[int, dict[str, Any]]] = {}
     for row in sel_cases(conn, sel):
         vl = VIEW_LABEL.get(row["view"], row["view"])
-        ctx.similarity[(vl, row["repo_full_name"])] = similarity_of(row)
+        name = row["repo_full_name"]
+        ctx.similarity[(vl, name)] = similarity_of(row)
+        vals = {
+            m: float(rec["value"])
+            for m, rec in (((row.get("detail") or {}).get("values")) or {}).items()
+            if isinstance(rec, dict)
+            and isinstance(rec.get("value"), int | float)
+            and not isinstance(rec.get("value"), bool)
+        }
+        if vals:
+            ctx.values[(vl, name)] = vals
+        if row.get("pair_id") is None or (row.get("pair_panel") or "field") != "field":
+            continue
+        slot = sets.setdefault(vl, {}).setdefault(int(row["pair_id"]), {"w": None, "l": []})
+        if row["role"] == "winner":
+            slot["w"] = name
+        elif row["role"] == "matched_loser" and row.get("headline"):
+            slot["l"].append(name)
+    for vl, by_pair in sets.items():
+        ctx.pairs[vl] = [
+            (s["w"], sorted(s["l"])) for _pid, s in sorted(by_pair.items()) if s["w"] and s["l"]
+        ]
     return ctx
 
 
@@ -255,17 +324,43 @@ def canonical(obj: Any) -> str:
     return json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str)
 
 
+def rules() -> dict[str, Any]:
+    """Every rule and threshold a plan depends on (enters the plan version, and the lock)."""
+    from pigtail.forensics import feature_names as fn
+    from pigtail.forensics.patterns import MIN_KNOWN_PER_SIDE, MIN_PRESENT_TOTAL
+
+    return {
+        "generator": PLAN_VERSION,
+        "rank_rule": RANK_VERSION,
+        "min_d": MIN_D,
+        "min_supporting_cases": MIN_CASES,
+        "discordant_margin": "> 0",
+        "common_share": COMMON_SHARE,
+        "headline": HEADLINE,
+        "min_known_per_side": MIN_KNOWN_PER_SIDE,
+        "min_present_total": MIN_PRESENT_TOTAL,
+        "permutation": {"draws": PERM_DRAWS, "seed": PERM_SEED, "alpha": PERM_ALPHA},
+        "timing": {"min_winners": TIMING_MIN_WINNERS, "max_span_h": TIMING_MAX_SPAN_H},
+        "feature_registry": sha256_text(canonical([fn.PATTERNS, fn.OTHER, fn.MODULES])),
+    }
+
+
 def plan_version(
-    brief_hash: str, report_hash: str, inputs: PlanInputs, append_hash: str | None
+    brief_hash: str,
+    report_hash: str,
+    inputs: PlanInputs,
+    append_hash: str | None,
+    ctx_digest: str | None = None,
 ) -> str:
     return sha256_text(
         canonical(
             {
-                "generator": PLAN_VERSION,
+                "rules": rules(),
                 "brief": brief_hash,
                 "report": report_hash,
                 "inputs": inputs.model_dump(mode="json"),
                 "append": append_hash,
+                "context": ctx_digest,
             }
         )
     )
@@ -403,131 +498,220 @@ def _margin(f: Mapping[str, Any]) -> int:
     return int(p.get("winner_only") or 0) - int(p.get("loser_only") or 0)
 
 
+def _passes(f: Mapping[str, Any]) -> str | None:
+    """The rank rule on one view's row: None when it passes, else why not."""
+    d = f.get("d")
+    sup = f.get("supporting") or {}
+    support = len(sup.get("winners_with") or []) + len(sup.get("losers_without") or [])
+    if not f.get("sufficient"):
+        return INSUFFICIENT
+    if d is None or d < MIN_D:
+        return f"contrast below the threshold (d = {d} < {MIN_D})"
+    if _margin(f) <= 0:
+        p = f.get("pairs") or {}
+        return (
+            f"discordant pairs don't favour winners (winner only {p.get('winner_only')} vs "
+            f"loser only {p.get('loser_only')})"
+        )
+    if support < MIN_CASES:
+        return f"fewer than {MIN_CASES} supporting cases"
+    return None
+
+
+def _eligible(feat: str, avoid: set[str]) -> str | None:
+    if feat in NOT_RECOMMENDABLE:
+        return "anti-pattern: detection and contrast only, never recommended"
+    if not _is_practice(feat):
+        return "a condition of the project, not a practice"
+    if CHANNEL_OF.get(feat) in avoid:
+        return f"channel `{CHANNEL_OF[feat]}` is in the brief's channels to avoid"
+    return None
+
+
+def _view_rows(report: Mapping[str, Any]) -> dict[str, dict[str, Mapping[str, Any]]]:
+    views = (report.get("patterns") or {}).get("views") or {}
+    return {vl: {f["feature"]: f for f in (views.get(vl) or {}).get("features") or []}
+            for vl in VIEW_ORDER if views.get(vl)}  # fmt: skip
+
+
+def _all_views(
+    feat: str, rows: Mapping[str, Mapping[str, Mapping[str, Any]]]
+) -> list[dict[str, Any]]:
+    out = []
+    for vl in VIEW_ORDER:
+        f = (rows.get(vl) or {}).get(feat)
+        if f is None:
+            continue
+        p = f.get("pairs") or {}
+        out.append(
+            {
+                "view": vl,
+                "role": BASIS_ROLE[vl],
+                "winners": f["winners"],
+                "matched_losers": f["matched_losers"],
+                "d": f.get("d"),
+                "winner_only_pairs": p.get("winner_only"),
+                "loser_only_pairs": p.get("loser_only"),
+                "sufficient": bool(f.get("sufficient")),
+                "passes_rule": _passes(f) is None,
+                "language_check": (f.get("language_check") or {}).get("result"),
+            }
+        )
+    return out
+
+
+def _direction(feat: str, rows: Mapping[str, Mapping[str, Mapping[str, Any]]]) -> str | None:
+    """rank-v3: every other view that can assess the feature (sufficient evidence) must show
+    the same direction (d > 0); None when it does."""
+    bad = []
+    for vl in VIEW_ORDER:
+        f = (rows.get(vl) or {}).get(feat)
+        if vl == HEADLINE or f is None or not f.get("sufficient"):
+            continue
+        if f.get("d") is None or f["d"] <= 0:
+            bad.append(f"view {vl} (d = {f.get('d')})")
+    return None if not bad else "direction not the same in " + ", ".join(bad)
+
+
+def basis_reliability(
+    feat: str, f: Mapping[str, Any], report: Mapping[str, Any], labels: Sequence[str]
+) -> dict[str, Any]:
+    """(c) The reliability of the field a recommendation rests on: alpha for an LLM-coded
+    field; for a deterministic rule, the real-data precision the report declares (the row's
+    `reliability.real_precision`, or `report.rule_precision[feature]`), else "not measured"."""
+    rel = f.get("reliability") or {}
+    if feat.startswith(("module_active.", "pattern.")) or feat == "novelty_claim":
+        a = rel.get("alpha")
+        low = a is None or a < 0.70
+        return {
+            "kind": "alpha",
+            "value": a,
+            "text": ("alpha unknown" if a is None else f"alpha {a:.2f}")
+            + ("; low reliability" if low else "")
+            + "; LLM-coded, not human-validated",
+        }
+    rp = rel.get("real_precision")
+    if rp is None:
+        rp = (report.get("rule_precision") or {}).get(feat)
+    if isinstance(rp, Mapping):
+        rp = rp.get("precision", rp.get("value"))
+    if not isinstance(rp, int | float):
+        return {"kind": "precision", "value": None, "text": NOT_MEASURED}
+    v = round(float(rp), 2)
+    tag = "low reliability" if v < 0.70 else "borderline" if v < 0.80 else "measured"
+    return {"kind": "precision", "value": v, "text": f"{tag} ({v:.2f} real-data precision)"}
+
+
 def recommended_patterns(
     report: Mapping[str, Any], brief: Any, inputs: PlanInputs, ctx: PlanContext
 ) -> dict[str, Any]:
-    """`rank-v2` (ADR-091 addendum 1): see the module docstring."""
-    views = (report.get("patterns") or {}).get("views") or {}
+    """`rank-v3` (ADR-091 addendum 2): see the module docstring."""
+    rows = _view_rows(report)
     avoid = set(brief.channels.avoid or [])
     cur = current_labels(report)
-    cands: list[dict[str, Any]] = []
+    head = rows.get(HEADLINE) or {}
+    out: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
     common: list[dict[str, Any]] = []
-    for vl in VIEW_ORDER:
-        v = views.get(vl)
-        if not v:
+    launch_only: list[dict[str, Any]] = []
+    tested = sum(1 for vl in rows for feat in rows[vl] if _eligible(feat, avoid) is None)
+    for feat, f in head.items():
+        w, lo = f["winners"], f["matched_losers"]
+        not_ok = _eligible(feat, avoid)
+        if not_ok is not None:
+            if f.get("sufficient") and (f.get("d") or 0) > 0 and _is_practice(feat):
+                rejected.append({"view": HEADLINE, "feature": feat, "name": title(feat),
+                                 "d": f.get("d"), "winners": w, "matched_losers": lo,
+                                 "pairs": f.get("pairs"), "why": not_ok,
+                                 "views": _all_views(feat, rows)})  # fmt: skip
             continue
-        for f in v.get("features") or []:
-            feat = f["feature"]
-            d = f.get("d")
-            lang = f.get("language_check") or {}
-            sup = f.get("supporting") or {}
-            support = list(sup.get("winners_with") or []) + list(sup.get("losers_without") or [])
-            w, lo = f["winners"], f["matched_losers"]
-            margin = _margin(f)
-            if not f.get("sufficient"):
-                continue
-            why = None
-            if feat in NOT_RECOMMENDABLE:
-                why = "anti-pattern: detection and contrast only, never recommended"
-            elif not _is_practice(feat):
-                why = "a condition of the project, not a practice"
-            elif CHANNEL_OF.get(feat) in avoid:
-                why = f"channel `{CHANNEL_OF[feat]}` is in the brief's channels to avoid"
-            elif d is None or d < MIN_D:
-                why = f"contrast below the threshold (d = {d} < {MIN_D})"
-            elif margin <= 0:
-                why = (
-                    f"discordant pairs don't favour winners (winner only "
-                    f"{(f.get('pairs') or {}).get('winner_only')} vs loser only "
-                    f"{(f.get('pairs') or {}).get('loser_only')})"
+        why = _passes(f)
+        if why is None:
+            why = _direction(feat, rows)
+        if why is not None:
+            row = {"view": HEADLINE, "feature": feat, "name": title(feat), "d": f.get("d"),
+                   "winners": w, "matched_losers": lo, "pairs": f.get("pairs"), "why": why,
+                   "views": _all_views(feat, rows)}  # fmt: skip
+            b = (rows.get("B") or {}).get(feat)
+            if b is not None and _passes(b) is None and why == _passes(f):
+                common_a = bool(
+                    f.get("sufficient")
+                    and (w.get("share") or 0) >= COMMON_SHARE
+                    and (lo.get("share") or 0) >= COMMON_SHARE
                 )
-            elif len(support) < MIN_CASES:
-                why = f"fewer than {MIN_CASES} supporting cases"
-            if why is not None:
-                row = {
-                    "view": vl, "feature": feat, "name": title(feat), "d": d, "winners": w,
-                    "matched_losers": lo, "pairs": f.get("pairs"), "why": why,
-                }  # fmt: skip
-                both = (w.get("share") or 0) >= COMMON_SHARE and (
-                    lo.get("share") or 0
-                ) >= COMMON_SHARE
-                if both and _is_practice(feat) and feat not in NOT_RECOMMENDABLE:
-                    common.append(row)
-                elif (d or 0) > 0:
-                    rejected.append(row)
-                continue
-            cited = [c for c in sup.get("winners_with") or []][: MAX_CITED // 2 + 1]
-            cited += list(sup.get("losers_without") or [])[: MAX_CITED - len(cited)]
-            ev = sorted({i for c in cited for i in ctx.evidence.get((vl, _bare(c), feat), [])})
-            if ev:
-                ev_note = None
-            elif not (ctx.evidence or ctx.similarity):
-                ev_note = "not loaded (no database context)"
-            else:
-                ev_note = (
-                    "none attached: the cited cases' values of this feature carry no evidence id "
-                    "(an `absent` value or a derived field cites nothing)"
-                )
-            res = lang.get("result")
-            labels = _rel_labels(feat, f, cur)
-            if res in LANG_LABEL:
-                labels.append(LANG_LABEL[res])
-            name, definition = describe(feat)
-            cands.append(
-                {
-                    "view": vl,
-                    "feature": feat,
-                    "name": name,
-                    "title": title(feat),
-                    "definition": definition,
-                    "pattern_ref": f"report patterns, view {vl}, feature {feat}",
-                    "winners": w,
-                    "matched_losers": lo,
-                    "d": d,
-                    "discordant_margin": margin,
-                    "loser_contrast": f"{w['n_present']}/{w['n_known']} winners vs "
-                    f"{lo['n_present']}/{lo['n_known']} matched losers (d = {d})",
-                    "pairs": f.get("pairs"),
-                    "counterexamples": f.get("counterexamples"),
-                    "reliability": f.get("reliability"),
-                    "reliability_labels": labels,
-                    "language_check": res,
-                    "preconditions": _preconditions(feat, vl, report, brief, inputs, lang),
-                    "cited_cases": cited,
-                    "supporting_cases": len(support),
-                    "evidence_ids": ev,
-                    "evidence_note": ev_note,
-                    "p_winner_given_pattern": _p_winner(w, lo),
-                }
+                launch_only.append({**row, "common_on_a": common_a,
+                                    "label": "launch size only (view B), not a "
+                                    "recommendation"})  # fmt: skip
+            elif (
+                f.get("sufficient")
+                and (w.get("share") or 0) >= COMMON_SHARE
+                and (lo.get("share") or 0) >= COMMON_SHARE
+            ):
+                common.append(row)
+            elif f.get("sufficient") and ((f.get("d") or 0) > 0 or "direction" in why):
+                rejected.append(row)
+            continue
+        sup = f.get("supporting") or {}
+        support = list(sup.get("winners_with") or []) + list(sup.get("losers_without") or [])
+        cited = list(sup.get("winners_with") or [])[: MAX_CITED // 2 + 1]
+        cited += list(sup.get("losers_without") or [])[: MAX_CITED - len(cited)]
+        ev = sorted({i for c in cited for i in ctx.evidence.get((HEADLINE, _bare(c), feat), [])})
+        if ev:
+            ev_note = None
+        elif not ctx.loaded():
+            ev_note = "not loaded (no database context)"
+        else:
+            ev_note = (
+                "none attached: the cited cases' values of this feature carry no evidence id "
+                "(an `absent` value or a derived field cites nothing)"
             )
-    cands.sort(
+        lang = f.get("language_check") or {}
+        res = lang.get("result")
+        labels = _rel_labels(feat, f, cur)
+        if res in LANG_LABEL:
+            labels.append(LANG_LABEL[res])
+        name, definition = describe(feat)
+        out.append(
+            {
+                "view": HEADLINE,
+                "feature": feat,
+                "name": name,
+                "title": title(feat),
+                "definition": definition,
+                "pattern_ref": f"report patterns, view {HEADLINE}, feature {feat}",
+                "winners": w,
+                "matched_losers": lo,
+                "d": f.get("d"),
+                "discordant_margin": _margin(f),
+                "loser_contrast": f"{w['n_present']}/{w['n_known']} winners vs "
+                f"{lo['n_present']}/{lo['n_known']} matched losers (d = {f.get('d')})",
+                "pairs": f.get("pairs"),
+                "views": _all_views(feat, rows),
+                "counterexamples": f.get("counterexamples"),
+                "reliability": f.get("reliability"),
+                "basis_reliability": basis_reliability(feat, f, report, labels),
+                "reliability_labels": labels,
+                "language_check": res,
+                "preconditions": _preconditions(feat, HEADLINE, report, brief, inputs, lang),
+                "cited_cases": cited,
+                "supporting_cases": len(support),
+                "evidence_ids": ev,
+                "evidence_note": ev_note,
+                "p_winner_given_pattern": _p_winner(w, lo),
+            }
+        )
+    out.sort(
         key=lambda r: (
             LANG_TIER.get(str(r["language_check"]), 0),
             -r["discordant_margin"],
             -(r["d"] or 0),
-            VIEW_ORDER.index(r["view"]),
             r["feature"],
         )
     )
-    seen: dict[str, dict[str, Any]] = {}
-    out: list[dict[str, Any]] = []
-    for r in cands:
-        if r["feature"] in seen:
-            seen[r["feature"]].setdefault("also_in", []).append({"view": r["view"], "d": r["d"]})
-            continue
-        seen[r["feature"]] = r
-        out.append(r)
     for i, r in enumerate(out, 1):
         r["rank"] = i
-    rec = {r["feature"] for r in out}
-    common_seen: set[str] = set()
-    common_out = []
-    for r in common:
-        if r["feature"] in rec or r["feature"] in common_seen:
-            continue
-        common_seen.add(r["feature"])
-        common_out.append(r)
+    perm = permutation_check(report, brief, ctx)
+    p = perm.get("p")
     return {
         "status": "ok" if out else INSUFFICIENT,
         "rule": RANK_VERSION,
@@ -536,10 +720,98 @@ def recommended_patterns(
             "discordant_margin": "> 0",
             "min_supporting_cases": MIN_CASES,
             "common_practice_share": COMMON_SHARE,
+            "basis": f"view {HEADLINE} only; same direction in every other view that can "
+            "assess it; B-undeclared never a basis",
         },
+        "tested": {"features_x_views": tested, "views": list(rows)},
+        "multiplicity": perm,
+        "banner": CHANCE_BANNER if (out and (p is None or p >= PERM_ALPHA)) else None,
         "patterns": out[:MAX_RECOMMENDED],
-        "common_practice": common_out,
-        "not_recommended": [r for r in rejected if r["feature"] not in rec],
+        "common_practice": common,
+        "launch_size_only": launch_only,
+        "not_recommended": rejected,
+    }
+
+
+def _states(f: Mapping[str, Any]) -> dict[str, bool]:
+    """case name (bare) -> present? for the known cases of one report row."""
+    sup, ce = f.get("supporting") or {}, f.get("counterexamples") or {}
+    out = {_bare(c): True for c in [*(sup.get("winners_with") or []),
+                                    *(ce.get("losers_with") or [])]}  # fmt: skip
+    for c in [*(ce.get("winners_without") or []), *(sup.get("losers_without") or [])]:
+        out[_bare(c)] = False
+    return out
+
+
+def _rule_count(feats: Sequence[dict[str, bool]], sets: Sequence[tuple[str, Sequence[str]]]) -> int:
+    """How many features pass the base rule (sufficient, d >= MIN_D, margin > 0, >= MIN_CASES
+    supporting) for one assignment of winners (the first member of each set)."""
+    from pigtail.forensics.patterns import MIN_KNOWN_PER_SIDE, MIN_PRESENT_TOTAL
+
+    n = 0
+    for st in feats:
+        wp = wk = lp = lk = wo = lo_ = 0
+        for w, losers in sets:
+            a = st.get(w)
+            if a is not None:
+                wk += 1
+                wp += a
+            for lname in losers:
+                b = st.get(lname)
+                if b is not None:
+                    lk += 1
+                    lp += b
+                if a is not None and b is not None and a != b:
+                    wo += a
+                    lo_ += b
+        if wk < MIN_KNOWN_PER_SIDE or lk < MIN_KNOWN_PER_SIDE or wp + lp < MIN_PRESENT_TOTAL:
+            continue
+        if wp / wk - lp / lk < MIN_D or wo <= lo_:
+            continue
+        if wp + (lk - lp) < MIN_CASES:
+            continue
+        n += 1
+    return n
+
+
+def permutation_check(report: Mapping[str, Any], brief: Any, ctx: PlanContext) -> dict[str, Any]:
+    """Multiplicity check (ADR-091 addendum 2): within each headline matched set of view A,
+    the winner label goes to a random member (the others are its losers), `PERM_DRAWS` times
+    with a fixed seed; the statistic is the number of eligible view-A features that pass the
+    rank rule. p = (1 + draws with a count >= the observed one) / (1 + draws); the null mean is
+    the expected number of recommendations under no effect (expected false recommendations).
+    Needs the pair structure (database context); a winner may head several matched losers."""
+    import random
+
+    sets = ctx.pairs.get(HEADLINE) or []
+    if not sets:
+        return {"status": "not computed", "reason": "no database context (pair structure "
+                "unavailable)", "p": None, "expected_false": None}  # fmt: skip
+    avoid = set(brief.channels.avoid or [])
+    head = _view_rows(report).get(HEADLINE) or {}
+    feats = [_states(f) for feat, f in sorted(head.items()) if _eligible(feat, avoid) is None]
+    observed = _rule_count(feats, sets)
+    rng = random.Random(PERM_SEED)
+    null = []
+    for _ in range(PERM_DRAWS):
+        drawn = []
+        for w, losers in sets:
+            members = [w, *losers]
+            k = rng.randrange(len(members))
+            drawn.append((members[k], [m for i, m in enumerate(members) if i != k]))
+        null.append(_rule_count(feats, drawn))
+    ge = sum(1 for x in null if x >= observed)
+    return {
+        "status": "computed",
+        "method": "within-pair label permutation of view A's headline matched sets",
+        "draws": PERM_DRAWS,
+        "seed": PERM_SEED,
+        "features_tested": len(feats),
+        "matched_sets": len(sets),
+        "observed": observed,
+        "null_mean": round(statistics.mean(null), 3),
+        "expected_false": round(statistics.mean(null), 3),
+        "p": round((1 + ge) / (1 + PERM_DRAWS), 4),
     }
 
 
@@ -666,6 +938,17 @@ def asset_checklist(report: Mapping[str, Any], recs: Sequence[Mapping[str, Any]]
     return {"status": "ok" if items else INSUFFICIENT, "items": items}
 
 
+def hour_window(hours: Sequence[int]) -> dict[str, Any]:
+    """The smallest circular UTC-hour arc covering every hour: start, end, span (hours)."""
+    hs = sorted(set(hours))
+    if not hs:
+        return {"start": None, "end": None, "span_h": None}
+    gaps = [(hs[(i + 1) % len(hs)] - hs[i]) % 24 or 24 for i in range(len(hs))]
+    i = max(range(len(hs)), key=lambda k: (gaps[k], -k))
+    span = 0 if len(hs) == 1 else 24 - gaps[i]
+    return {"start": hs[(i + 1) % len(hs)], "end": hs[i], "span_h": span}
+
+
 def launch_timing(report: Mapping[str, Any]) -> dict[str, Any]:
     """Channel order, spacing and UTC timing windows of the winners' (and losers') launch
     events in the report's fact sheets (relative to each case's first launch event)."""
@@ -677,7 +960,9 @@ def launch_timing(report: Mapping[str, Any]) -> dict[str, Any]:
             continue
         evs = []
         for e in (n.get("facts") or {}).get("launch_events") or []:
-            if e.get("counts") is False:  # unconfirmed HN title match (report-facts-v2)
+            # confirmed events only: an unconfirmed match (title-only or domain-only) never
+            # schedules a channel (report-facts-v2 `counts`, `confirmed`)
+            if e.get("counts") is False or e.get("confirmed") is False:
                 continue
             kind = e.get("kind") or KIND_OF_WHERE.get(str(e.get("where")))
             t = _t(e.get("when"))
@@ -717,6 +1002,9 @@ def launch_timing(report: Mapping[str, Any]) -> dict[str, Any]:
                 "median_offset_days": _median([o["offset_days"] for o in obs]),
                 "first_for_winners": sum(1 for o in obs if o["offset_days"] == 0),
                 "hours_utc": {"min": hours[0], "median": _median(hours), "max": hours[-1]},
+                "window": hour_window(hours),
+                "timing_evidence": len(cases) >= TIMING_MIN_WINNERS
+                and (hour_window(hours)["span_h"] or 0) <= TIMING_MAX_SPAN_H,
                 "weekdays": dict(sorted(wd.items(), key=lambda x: WEEKDAYS.index(x[0]))),
                 "losers": len({o["case"] for o in lo}),
                 "loser_median_offset_days": _median([o["offset_days"] for o in lo]),
@@ -766,6 +1054,13 @@ def calendar(
         for f in sorted(com)
         if f.startswith("launch.") and CHANNEL_OF.get(f) not in avoid
     ]  # fmt: skip
+    timed = {f"launch.{c['kind']}" for c in ok_ch}
+    stakes += [
+        {"where": WHERE.get(f.split(".", 1)[1], f), "pattern": title(f),
+         "note": f"recommended (view {HEADLINE}); {NO_TIMING} in the report's fact sheets"}
+        for f in sorted(rec)
+        if f.startswith("launch.") and f not in timed and CHANNEL_OF.get(f) not in avoid
+    ]  # fmt: skip
     reference = [
         {"where": c["where"], "winners": c["winners"], "losers": c["losers"],
          "why": "not a recommended pattern (no sufficient winner-vs-loser contrast)"}
@@ -804,8 +1099,13 @@ def calendar(
                 "when": day(off),
                 "phase": "launch day" if off == 0 else "post-launch",
                 "action": f"{c['where']} ({title('launch.' + c['kind'])})",
-                "timing_window": f"{hrs['min']:02d}–{hrs['max']:02d} UTC (median "
-                f"{hrs['median']}); winners' weekdays: {wd}",
+                "timing_window": (
+                    f"{c['window']['start']:02d}–{c['window']['end']:02d} UTC (median "
+                    f"{hrs['median']}); winners' weekdays: {wd}"
+                    if c["timing_evidence"]
+                    else f"{NO_TIMING} ({c['winners']} winners, span {c['window']['span_h']} h;"
+                    f" needs >= {TIMING_MIN_WINNERS} winners within {TIMING_MAX_SPAN_H} h)"
+                ),
                 "basis": f"{c['winners']} winners (median offset {c['median_offset_days']} d "
                 f"from their first launch event); {c['losers']} matched losers used it",
                 "evidence_ids": c["evidence_ids"],
@@ -859,68 +1159,93 @@ def _window(metric: str) -> str:
     return f"days {a}–{b} after T" if b else f"day {a}"
 
 
-def predictions(report: Mapping[str, Any], recs: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def _outcome_metric(view: str, metrics: Sequence[str]) -> str | None:
+    key = VIEW_OUTCOME.get(view)
+    hit = [m for m in sorted(metrics) if key and key in m]
+    return hit[0] if hit else None
+
+
+def predictions(
+    report: Mapping[str, Any], recs: Sequence[Mapping[str, Any]], ctx: PlanContext
+) -> dict[str, Any]:
+    """Headline view A only. A metric whose winners' median is not above the matched losers'
+    median has no contrast and is not a prediction. p per metric: among view A's headline
+    cases that show the top recommended pattern, the share whose value of this metric is at or
+    above the matched losers' median (needs the stored values; database context)."""
     items: list[dict[str, Any]] = []
-    views = (report.get("patterns") or {}).get("views") or {}
-    for vl in VIEW_ORDER:
-        v = views.get(vl)
-        if not v:
+    no_contrast: list[dict[str, Any]] = []
+    v = ((report.get("patterns") or {}).get("views") or {}).get(HEADLINE)
+    top = recs[0] if recs else None
+    head = (_view_rows(report).get(HEADLINE) or {}).get(top["feature"]) if top else None
+    showing = sorted(c for c, s in _states(head).items() if s) if head else []
+    for m in sorted(
+        set(((v or {}).get("absolute_numbers") or {}).get("winners") or {})
+        & set(((v or {}).get("absolute_numbers") or {}).get("matched_losers") or {})
+    ):
+        w = v["absolute_numbers"]["winners"][m]  # type: ignore[index]
+        lo = v["absolute_numbers"]["matched_losers"][m]  # type: ignore[index]
+        if min(int(w.get("n") or 0), int(lo.get("n") or 0)) < MIN_CASES:
             continue
-        nums = v.get("absolute_numbers") or {}
-        w_all, l_all = nums.get("winners") or {}, nums.get("matched_losers") or {}
-        top = next((r for r in recs if r["view"] == vl), None)
-        for m in sorted(set(w_all) & set(l_all)):
-            w, lo = w_all[m], l_all[m]
-            if min(int(w.get("n") or 0), int(lo.get("n") or 0)) < MIN_CASES:
-                continue
-            pid = f"P-{vl}-{m}"
-            item: dict[str, Any] = {
-                "id": pid,
-                "view": vl,
-                "metric": m,
-                "window": _window(m),
-                "expected_band": {"low": lo["median"], "high": w["median"]},
-                "observed_range": {
-                    "min": min(lo["min"], w["min"]),
-                    "max": max(lo["max"], w["max"]),
-                },
-                "winners": w,
-                "matched_losers": lo,
-                "claim": f"{m} lands at or above the matched losers' median ({lo['median']})",
-            }
-            if top is not None:
-                p = top["p_winner_given_pattern"]
-                item["pattern"] = top["feature"]
-                item["probability"] = p["share"]
-                item["probability_basis"] = (
-                    f"{p['winners']}/{p['cases_with_pattern']} cases with {top['feature']} "
-                    f"were winners ({EMPIRICAL})"
-                )
-            else:
-                item["pattern"] = None
-                item["probability"] = None
-                item["probability_basis"] = "no recommended pattern in this view"
-            items.append(item)
+        if w["median"] is None or lo["median"] is None or w["median"] <= lo["median"]:
+            no_contrast.append(
+                {
+                    "metric": m,
+                    "winners_median": w["median"],
+                    "losers_median": lo["median"],
+                    "why": "no contrast: the "
+                    "winners' median is not above the matched losers' median",
+                }
+            )
+            continue
+        item: dict[str, Any] = {
+            "id": f"P-{HEADLINE}-{m}",
+            "view": HEADLINE,
+            "metric": m,
+            "outcome": m == _outcome_metric(HEADLINE, [m]),
+            "window": _window(m),
+            "expected_band": {"low": lo["median"], "high": w["median"]},
+            "observed_range": {"min": min(lo["min"], w["min"]), "max": max(lo["max"], w["max"])},
+            "winners": w,
+            "matched_losers": lo,
+            "claim": f"{m} lands at or above the matched losers' median ({lo['median']})",
+            "pattern": top["feature"] if top else None,
+        }
+        vals = [ctx.values.get((HEADLINE, c), {}).get(m) for c in showing]
+        known = [x for x in vals if x is not None]
+        if top is None:
+            item["probability"], item["probability_basis"] = None, "no recommended pattern"
+        elif not known:
+            item["probability"] = None
+            item["probability_basis"] = "unknown (no stored values: no database context)"
+        else:
+            k = sum(1 for x in known if x >= lo["median"])
+            item["probability"] = round(k / len(known), 4)
+            item["probability_basis"] = (
+                f"{k}/{len(known)} view A cases with {top['feature']} reached the matched "
+                f"losers' median of {m} ({EMPIRICAL})"
+            )
+        items.append(item)
     return {
         "status": "ok" if items else INSUFFICIENT,
         "outcome_label": (report.get("patterns") or {}).get("outcome_label"),
         "items": items,
+        "no_contrast": no_contrast,
         "lock": "pigtail plan lock <brief_id> pre-registers these (hash + timestamp; R11.2)",
     }
 
 
 def adaptation_notes(recs: Sequence[Mapping[str, Any]], preds: Mapping[str, Any]) -> dict[str, Any]:
+    """Each pattern is falsified on its view's outcome (view A: follow-through)."""
     notes = []
-    by_view: dict[str, Mapping[str, Any]] = {}
-    for p in preds.get("items") or []:
-        by_view.setdefault(p["view"], p)
+    items = list(preds.get("items") or [])
     for r in recs:
-        p = by_view.get(r["view"])
         feat = r["feature"]
+        m = _outcome_metric(r["view"], [p["metric"] for p in items if p["view"] == r["view"]])
+        p = next((x for x in items if x["metric"] == m and x["view"] == r["view"]), None)
         if feat.startswith("launch."):
             test = (
-                f"post on {WHERE.get(feat.split('.', 1)[1], feat)} as scheduled and compare "
-                "the stars gained on days +1/+7 with the winners' fact sheets"
+                f"post on {WHERE.get(feat.split('.', 1)[1], feat)} as scheduled and record the "
+                "event (launch mode)"
             )
         elif _asset_of(feat) is not None:
             test = (
@@ -928,18 +1253,20 @@ def adaptation_notes(recs: Sequence[Mapping[str, Any]], preds: Mapping[str, Any]
             )
         else:
             test = "apply the practice before L and record when and how (launch mode)"
-        fals = (
-            f"the outcome ({p['metric']}) lands below the matched losers' median "
-            f"({p['expected_band']['low']}) with the pattern in place"
-            if p
-            else "no outcome prediction in this view (insufficient evidence)"
-        )
+        if p:
+            fals = (
+                f"the view {r['view']} outcome ({p['metric']}) lands below the matched losers' "
+                f"median ({p['expected_band']['low']}) with the pattern in place"
+            )
+        else:
+            fals = (
+                f"no outcome prediction for view {r['view']} (no contrast or insufficient evidence)"
+            )
         fals += (
             f"; or a later run of this brief shows d <= 0 or a reversing language check for {feat}"
         )
-        notes.append(
-            {"pattern": feat, "view": r["view"], "how_to_test": test, "falsified_if": fals}
-        )
+        notes.append({"pattern": feat, "view": r["view"], "outcome_metric": m,
+                      "how_to_test": test, "falsified_if": fals})  # fmt: skip
     return {"status": "ok" if notes else INSUFFICIENT, "notes": notes}
 
 
@@ -961,12 +1288,12 @@ def build_plan(
     if p.get("brief_hash") and p["brief_hash"] != bh:
         raise ValueError("the report was written for another content of this brief version")
     append_hash = None if append_text is None else sha256_text(append_text)
-    version = plan_version(bh, report_hash, inputs, append_hash)
+    version = plan_version(bh, report_hash, inputs, append_hash, ctx.digest())
     rec = recommended_patterns(report, brief, inputs, ctx)
     recs = rec["patterns"]
     ready = readiness(recs, inputs)
     timing = launch_timing(report)
-    preds = predictions(report, recs)
+    preds = predictions(report, recs, ctx)
     return {
         "provenance": {
             "plan_version": version,
@@ -988,7 +1315,9 @@ def build_plan(
             "channels_avoid": list(brief.channels.avoid or []),
             "inputs": inputs.model_dump(mode="json"),
             "inputs_missing": inputs.missing(),
-            "context_loaded": bool(ctx.evidence or ctx.similarity),
+            "context_loaded": ctx.loaded(),
+            "context_digest": ctx.digest(),
+            "rules": rules(),
             "append_hash": append_hash,
             "llm": "none (deterministic)",
         },
@@ -1003,7 +1332,8 @@ def build_plan(
             timing,
             ready,
             [r["feature"] for r in recs],
-            [r["feature"] for r in rec["common_practice"]],
+            [r["feature"] for r in rec["common_practice"]]
+            + [r["feature"] for r in rec["launch_size_only"] if r.get("common_on_a")],
         ),
         "launch_timing": timing,
         "predictions": preds,
@@ -1021,8 +1351,10 @@ LIMITATIONS = [
     "pattern is recommended only from the report, never extrapolated.",
     "Probabilities are empirical shares of the report's cases, not calibrated forecasts; they "
     "are scored after launch (R11.2).",
-    "The calendar uses only the launch events of the cases with a fact sheet in the report "
-    "(exemplars and view A's best-ranked pairs); a channel is scheduled only with >= 3 winners.",
+    "The calendar uses only the confirmed launch events of the cases with a fact sheet in the "
+    "report (exemplars and view A's best-ranked pairs); a channel is scheduled only when it is "
+    "recommended on view A and >= 3 winners date it; a timing window needs >= 5 winners within "
+    "12 h.",
     "Timing windows are UTC hours and weekdays of the winners' posts, not causal effects.",
     "Reliability labels are the report's (LLM-coded features are not human-validated).",
 ]
@@ -1041,6 +1373,35 @@ def _nw(x: Mapping[str, Any]) -> str:
         f"losers (d = {x['d']}; discordant pairs {p.get('winner_only')} winner only / "
         f"{p.get('loser_only')} loser only)"
     )
+
+
+def _view_txt(v: Mapping[str, Any]) -> str:
+    w, lo = v["winners"], v["matched_losers"]
+    return (
+        f"view {v['view']} ({v['role']}): {w['n_present']}/{w['n_known']} vs "
+        f"{lo['n_present']}/{lo['n_known']}, d = {v['d']}, pairs {v['winner_only_pairs']}/"
+        f"{v['loser_only_pairs']}"
+        + ("" if v["sufficient"] else ", insufficient")
+        + (", passes" if v["passes_rule"] else "")
+    )
+
+
+def _multiplicity(rp: Mapping[str, Any]) -> list[str]:
+    m = rp["multiplicity"]
+    t = rp["tested"]
+    if m.get("p") is None:
+        line = f"Multiplicity check: not computed ({m.get('reason')})."
+    else:
+        line = (
+            f"Multiplicity check ({m['method']}, {m['draws']} draws, seed {m['seed']}): "
+            f"permutation p = {m['p']}; expected false recommendations under no effect = "
+            f"{m['expected_false']} (observed {m['observed']} passing view A of "
+            f"{m['features_tested']} eligible features)."
+        )
+    out = [line, f"Tested: {t['features_x_views']} features × views.", ""]
+    if rp.get("banner"):
+        out = [f"> **{rp['banner'].capitalize()}.**", "", *out]
+    return out
 
 
 def _ins(section: Mapping[str, Any]) -> list[str]:
@@ -1088,9 +1449,11 @@ def plan_markdown(plan: Mapping[str, Any]) -> str:
         "",
         "## 2. Recommended patterns",
         "",
-        f"Rule {rp['rule']}: sufficient evidence, d ≥ {th['min_d']}, more winner-only than "
-        f"loser-only discordant pairs, ≥ {th['min_supporting_cases']} supporting cases; ordered "
-        "by language check (holds first), then discordant-pair margin, then d.",
+        *_multiplicity(rp),
+        f"Rule {rp['rule']}: {th['basis']}; sufficient evidence, d ≥ {th['min_d']}, more "
+        f"winner-only than loser-only discordant pairs, ≥ {th['min_supporting_cases']} "
+        "supporting cases; ordered by language check (holds first), then discordant-pair "
+        "margin, then d.",
         "",
         *_ins(rp),
     ]
@@ -1116,8 +1479,10 @@ def plan_markdown(plan: Mapping[str, Any]) -> str:
             f"{_c((r['pairs'] or {}).get('loser_only'))} / {_c((r['pairs'] or {}).get('both'))}"
             f" / {_c((r['pairs'] or {}).get('neither'))}",
             f"- Counterexamples: {ce_txt}",
-            f"- Reliability: {'-' if a is None else f'alpha {a:.2f}'}; "
+            f"- Basis reliability: {r['basis_reliability']['text']}",
+            f"- Reliability labels: {'-' if a is None else f'alpha {a:.2f}'}; "
             f"{'; '.join(r['reliability_labels']) or '-'}",
+            "- All views: " + "; ".join(_view_txt(x) for x in r["views"]),
             f"- Language check: {r['language_check'] or '-'}",
             "- Preconditions: "
             + ("; ".join(f"{x['condition']}: {x['status']}" for x in r["preconditions"]) or "none"),
@@ -1136,6 +1501,12 @@ def plan_markdown(plan: Mapping[str, Any]) -> str:
     ]
     out += [
         f"- {x['name']} (view {x['view']}): {_nw(x)}; {x['why']}" for x in rp["common_practice"]
+    ] or ["- none"]
+    out.append("")
+    out += ["### Launch size only (view B), not a recommendation", ""]
+    out += [
+        f"- {x['name']}: " + "; ".join(_view_txt(v) for v in x["views"])
+        for x in rp["launch_size_only"]
     ] or ["- none"]
     out.append("")
     if rp["not_recommended"]:
@@ -1220,6 +1591,11 @@ def plan_markdown(plan: Mapping[str, Any]) -> str:
             f"{i['probability'] if i['probability'] is not None else 'unknown'} "
             f"({i['probability_basis']})."
         )
+    for x in pr.get("no_contrast") or []:
+        out.append(
+            f"- {x['metric']}: {x['why']} ({x['winners_median']} vs {x['losers_median']}); "
+            "not a prediction"
+        )
     an = plan["adaptation_notes"]
     out += ["", "## 8. Adaptation notes", "", *_ins(an)]
     for n in an["notes"]:
@@ -1248,17 +1624,35 @@ def latest_report(data_dir: Path, brief_id: str, version: int) -> Path | None:
 
 
 def write_plan(
-    data_dir: Path, brief_id: str, version: int, plan: Mapping[str, Any], *, day: date
+    data_dir: Path,
+    brief_id: str,
+    version: int,
+    plan: Mapping[str, Any],
+    *,
+    day: date,
+    out_dir: Path | None = None,
 ) -> dict[str, str]:
-    """`plan-<day>-<version12>.{json,md}` beside the report (0600, private)."""
-    from pigtail.forensics.report import _write, report_dir
+    """`plan-<day>-<version12>.{json,md}` beside the report (0600, private): in `out_dir` (the
+    directory of the report passed with `--report`) or the brief version's report directory.
+    An existing file with other bytes is never overwritten: the plan gets a new name
+    (`-r2`, `-r3`, ...); identical bytes are left as they are."""
+    from pigtail.forensics.report import _write, ensure_private, report_dir
 
-    d = report_dir(data_dir, brief_id, version)
-    stem = f"plan-{day.isoformat()}-{plan['provenance']['plan_version'][:12]}"
-    j, m = d / f"{stem}.json", d / f"{stem}.md"
-    _write(j, plan_json(plan))
-    _write(m, plan_markdown(plan))
-    return {"json": str(j), "md": str(m)}
+    d = ensure_private(out_dir) if out_dir is not None else report_dir(data_dir, brief_id, version)
+    texts = {"json": plan_json(plan), "md": plan_markdown(plan)}
+    base = f"plan-{day.isoformat()}-{plan['provenance']['plan_version'][:12]}"
+    for k in range(1, 1000):
+        stem = base if k == 1 else f"{base}-r{k}"
+        paths = {x: d / f"{stem}.{x}" for x in texts}
+        if all(not q.exists() or q.read_text(encoding="utf-8") == texts[x]
+               for x, q in paths.items()):  # fmt: skip
+            break
+    else:  # pragma: no cover
+        raise RuntimeError("no free plan file name")
+    for x, q in paths.items():
+        if not q.exists():
+            _write(q, texts[x])
+    return {x: str(q) for x, q in paths.items()}
 
 
 def latest_plan(data_dir: Path, brief_id: str, version: int) -> Path | None:
@@ -1310,6 +1704,7 @@ def lock_predictions(plan_path: Path, *, now: datetime) -> LockResult:
         "brief_version": plan["provenance"]["brief_version"],
         "brief_hash": plan["provenance"]["brief_hash"],
         "report_hash": plan["provenance"]["report_hash"],
+        "rules": plan["provenance"].get("rules"),
         "predictions": preds["items"],
         "predictions_sha256": digest,
         "locked_at": at,
@@ -1373,7 +1768,14 @@ def run_plan(
         )
     except ValueError as e:
         return PlanOutcome("refused", 1, str(e))
-    paths = write_plan(data_dir, brief.brief_id, brief.version, plan, day=day)
+    paths = write_plan(
+        data_dir,
+        brief.brief_id,
+        brief.version,
+        plan,
+        day=day,
+        out_dir=Path(report_path).parent if report_path is not None else None,
+    )
     return PlanOutcome(
         "written",
         0,
