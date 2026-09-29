@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pigtail.connectors.base import Connector
+from pigtail.connectors.downloads import NpmDownloadsConnector, PypiStatsConnector
 from pigtail.connectors.gharchive import GHArchiveConnector
 from pigtail.connectors.github import GitHubConnector, GitHubRepoEventsConnector
 from pigtail.connectors.hn import HNAlgoliaConnector, HNFirebaseConnector
@@ -19,5 +20,7 @@ CONNECTORS: dict[str, type[Connector]] = {
         GitHubConnector,
         GitHubRepoEventsConnector,
         ProjectPageConnector,
+        NpmDownloadsConnector,
+        PypiStatsConnector,
     )
 }
