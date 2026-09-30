@@ -20,7 +20,7 @@ pigtail ships a **method, not data**. Everyone runs their own instance with thei
 | `docker-compose.yml` | Postgres + S3-compatible snapshot storage (started for runs) |
 
 ## Kickoff (owner)
-1. Copy this package into your clone of https://github.com/suchipizza/pigtail. Keep the existing `LICENSE`. Then commit and push.
+1. Copy this package into your clone of https://github.com/suchipizza/pigtail-analysis. Keep the existing `LICENSE`. Then commit and push.
 2. Tick off what you can in `ops/HUMAN_INPUTS.md` → H1. At minimum: turn on FileVault, log in to Claude Code with your plan, make sure `ANTHROPIC_API_KEY` is **not** set, and check `/status`.
 3. Run `claude` in the repo and paste:
 

@@ -10,7 +10,7 @@
 # Exit status 1 (stale heartbeat) marks this unit failed, which is expected while it alerts.
 [Unit]
 Description=pigtail scheduler liveness check (heartbeat age)
-Documentation=https://github.com/suchipizza/pigtail/blob/main/docs/guides/operator.md
+Documentation=https://github.com/suchipizza/pigtail-analysis/blob/main/docs/guides/operator.md
 
 [Service]
 Type=oneshot

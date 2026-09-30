@@ -10,7 +10,7 @@ This deployment of pigtail is run by **[operator]** ("we"), [address], [country]
 Contact for privacy questions: **[privacy contact e-mail or form]**.
 [If applicable: our representative in the EU / Switzerland: [name, address]. Our data protection officer: [name, contact].]
 
-pigtail is open-source software (https://github.com/suchipizza/pigtail). Each organisation that runs pigtail decides what it collects and is responsible for its own copy. This notice covers **our** deployment only.
+pigtail is open-source software (https://github.com/suchipizza/pigtail-analysis). Each organisation that runs pigtail decides what it collects and is responsible for its own copy. This notice covers **our** deployment only.
 
 ## What this is about, in short
 

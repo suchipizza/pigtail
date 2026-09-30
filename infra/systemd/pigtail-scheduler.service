@@ -9,7 +9,7 @@
 #   curl -s http://127.0.0.1:8787/healthz
 [Unit]
 Description=pigtail scheduler loop (server path: batch jobs, launch mode, health, alerts)
-Documentation=https://github.com/suchipizza/pigtail/blob/main/docs/guides/operator.md
+Documentation=https://github.com/suchipizza/pigtail-analysis/blob/main/docs/guides/operator.md
 Wants=network-online.target
 After=network-online.target postgresql.service
 

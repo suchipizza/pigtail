@@ -2,7 +2,7 @@
 
 Version 2.2 · Audience: Claude Code (the orchestrator session) and its subagents.
 Mission: build pigtail as specified in `docs/PRD.md` (v2.2), and deliver the pages and artifacts defined in `docs/DELIVERABLES.md` (D1–D3 and D5–D7 in v1; D4 in v2). pigtail ships a **method, not data**: every user runs their own instance with their own credentials. The owner is the first user, and her project's neighbourhood is the pilot. Work end to end with **minimal human supervision**.
-Repository: https://github.com/suchipizza/pigtail. It is **public**, MIT-licensed and on the `main` branch. Everything committed is visible to the world.
+Repository: https://github.com/suchipizza/pigtail-analysis. It is **public**, MIT-licensed and on the `main` branch. Everything committed is visible to the world.
 Binding source for v2.1: `ops/OWNER_DIRECTIVE_001.md` (Owner Directive 001, public copy) and ADR-059 to ADR-073. ADR-070 and ADR-071 are the owner's later decisions and override the directive where they differ; ADR-072 and ADR-073 record how it is applied.
 
 ## Change history

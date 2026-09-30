@@ -120,7 +120,7 @@ def test_r2_1_user_agent_snapshot_evidence_and_cost(tmp_path, pz):
         c, _, costs = make(handler, tmp_path, pz, run=run, evidence_sink=evidence.append)
         f = c.fetch("https://api.example.org/items", case_id=None, repo_id="github:1")
     assert seen[0].headers["User-Agent"] == USER_AGENT
-    assert f"pigtail/{__version__} (+https://github.com/suchipizza/pigtail)" == USER_AGENT
+    assert f"pigtail/{__version__} (+https://github.com/suchipizza/pigtail-analysis)" == USER_AGENT
     # snapshot stored before parse, content-addressed
     assert (tmp_path / key_for(f.content_hash)).read_bytes() == f.data
     ev = f.evidence

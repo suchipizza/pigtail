@@ -16,7 +16,7 @@ Every connector gets, from this base class:
 - a **token-bucket rate limiter** running at `rate_per_second * (1 - safety_margin)`.
 - **retries** with exponential backoff and full jitter on 429/5xx and transport errors,
   honouring `Retry-After` (seconds or HTTP date).
-- a contact **User-Agent**: `pigtail/<version> (+https://github.com/suchipizza/pigtail)`.
+- a contact **User-Agent**: `pigtail/<version> (+https://github.com/suchipizza/pigtail-analysis)`.
 - **cost accounting**: each HTTP request emits a `CostEvent` to the cost hook and to the run.
 - **snapshot or drop**: `fetch()` stores the raw bytes in the content-addressed snapshot store and
   builds the `evidence` record *before* anything is parsed. If the snapshot cannot be stored the
@@ -90,7 +90,7 @@ from pigtail.privacy.roles import ROLE_RULE_VERSION, code_actor, owned_repos
 from pigtail.privacy.suppression import Suppressions
 from pigtail.pseudonymize import OptoutKey
 
-USER_AGENT = f"pigtail/{__version__} (+https://github.com/suchipizza/pigtail)"
+USER_AGENT = f"pigtail/{__version__} (+https://github.com/suchipizza/pigtail-analysis)"
 
 Record = dict[str, Any]
 

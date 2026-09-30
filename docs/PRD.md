@@ -1,7 +1,7 @@
 # pigtail — Product Requirements Document
 
 Version 2.2 · Owner: Noémie (also pigtail's first user) · Builders: autonomous Claude Code agents (see `WORK_ORDER.md`)
-Repository: https://github.com/suchipizza/pigtail (public, MIT)
+Repository: https://github.com/suchipizza/pigtail-analysis (public, MIT)
 Source plan: `docs/PLAN.md` (background only). Where this PRD and the plan disagree, this PRD wins. Where this PRD and an ADR in `ops/DECISIONS.md` disagree, the later-dated ADR wins until this PRD is updated.
 Binding source for v2.2: `ops/OWNER_DIRECTIVE_001.md` (Owner Directive 001, 2026-09-26; public copy with §4 redacted), logged as ADR-059 to ADR-069, plus the owner's later decisions ADR-070 and ADR-071, which override the directive where they differ, and the interpretations in ADR-072 and ADR-073. Changes below cite "Directive §n" and the ADR.
 User-facing deliverables (the pages and their acceptance criteria): `docs/DELIVERABLES.md`. The requirements below exist to deliver D1–D7.
@@ -355,7 +355,7 @@ Per Directive §11 and ADR-069 it runs in two steps: a **pilot of the first 5 ca
 - **Terms:** each connector documents the terms it relies on.
 - **Security:** secrets are kept only in environment variables or a secrets manager, never in the repo. Private data is never pushed to the public repository; a CI check scans for this. Backups are encrypted and go to external or private storage (ADR-044, ADR-048.5).
 - **Observability:** run reports, collector health, gaps, error rates and costs are visible in the UI (`/admin`) and in each run report.
-- **Public repository:** https://github.com/suchipizza/pigtail.
+- **Public repository:** https://github.com/suchipizza/pigtail-analysis.
   - Git contains only code, docs, templates, schemas, the codebook, the synthetic example brief and synthetic fixtures, pre-registrations and ops logs (Directive §8.6).
   - **Brief content never goes into git**, ops logs included (ADR-055.1, ADR-071.3).
   - A CI private-data scan blocks any snapshot, raw record, handle, secret or user brief.

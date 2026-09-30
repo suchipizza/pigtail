@@ -2,7 +2,7 @@
 
 Version 2.1 · This document defines what each user receives, starting with the owner, who is pigtail's first user. `PRD.md` specifies the requirements behind each deliverable (R-IDs), and `WORK_ORDER.md` schedules them. A deliverable is done only when every acceptance criterion below passes and the `verifier` agent has signed it off.
 
-Repository: https://github.com/suchipizza/pigtail (public, MIT). Code, docs, methodology and a synthetic example brief live there. Briefs, raw data, snapshots, reports and person-level graphs never do: pigtail ships a method, not data, and each user's instance keeps its own.
+Repository: https://github.com/suchipizza/pigtail-analysis (public, MIT). Code, docs, methodology and a synthetic example brief live there. Briefs, raw data, snapshots, reports and person-level graphs never do: pigtail ships a method, not data, and each user's instance keeps its own.
 
 Binding source for v2.1: `ops/OWNER_DIRECTIVE_001.md` (Owner Directive 001, public copy) and ADR-059 to ADR-073 in `ops/DECISIONS.md`. ADR-070 and ADR-071 are the owner's later decisions and override the directive where they differ; ADR-072 and ADR-073 record how it is applied (reports stay private: ADR-073.1).
 

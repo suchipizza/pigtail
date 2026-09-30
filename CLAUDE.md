@@ -1,6 +1,6 @@
 # pigtail — Agent Instructions
 
-Repo: https://github.com/suchipizza/pigtail. It is **PUBLIC** and MIT-licensed, so every commit is visible to the world.
+Repo: https://github.com/suchipizza/pigtail-analysis. It is **PUBLIC** and MIT-licensed, so every commit is visible to the world.
 
 pigtail is an open-source, self-hostable method for evidence-based forensics of how open-source projects grow. A user writes a research brief about their own project; pigtail analyses that project's neighbourhood (winners against matched losers) and produces a neighbourhood report, a launch plan, and launch-mode tracking. It ships a method, not data: each user runs their own instance with their own credentials, and nothing is shared or collected centrally. The owner is the first user; nothing in the code is specific to her. Scope since 2026-09-26: ADR-047 (CR-002) and ADR-048 (CR-001), then **Owner Directive 001** (`ops/OWNER_DIRECTIVE_001.md`, binding; logged as ADR-059 to ADR-069, with the owner's later decisions ADR-070 and ADR-071 overriding it where they differ, and ADR-072 and ADR-073 recording how it is applied). pigtail is a personal project for now: no service, no customers, and no findings leave the owner's instance (Directive §1, ADR-059).
 
