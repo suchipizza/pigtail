@@ -1,8 +1,15 @@
 status: ACTIVE
 # ACTIVE | BLOCKED (every remaining task waits on a human gate) | DONE
 
-milestone_focus: Owner Directive 001 (ADR-059..073) → M20 docs check, then M21
-updated: 2026-09-28
+milestone_focus: Owner Directive 002 (ADR-088) → M24 report and M25 D3 plan delivered 2026-09-29; awaiting the owner's acceptance
+updated: 2026-09-30
+
+## Handover (2026-09-30)
+- Repository renamed to `suchipizza/pigtail-analysis` (ADR-092). A separate project named `pigtail` (other path, own `pigtail` command) may later be combined with this one, or not; internal names stay unchanged until the owner decides.
+- Nothing is running. main is pushed. Postgres must be started by hand after a reboot (`brew services run postgresql@16`); the CLI needs `.env` loaded.
+- Waiting on the owner (private detail outside git): acceptance of brief 1's report (then `report brief --final`, after checking the cache-purge-v2 preview); plan inputs (then re-run `pigtail plan` and `plan lock` before launch); post-D3 scope decision (fast-path verdict v2 under ADR-088.6d: continue; only the star-series and burst components caught what the fast path missed); two exemplar questions; removal of three merged agent worktrees.
+- Due: M23 +7-day evidence-decay check after 2026-10-05 17:39Z, then a short M23 sign-off.
+- Known local issue: two backup integration tests fail on this machine (`pg_dump` connects with a role that doesn't exist locally); unrelated to recent changes.
 resumed: 2026-09-26 after CR-001/CR-002 (ADR-047/048); work locally, no server
 
 | Milestone (ADR-069/072) | Status | Blocker |
