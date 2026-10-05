@@ -35,3 +35,21 @@ jobs:
           done
       - name: Secret scan
         run: python scripts/secret_scan.py
+
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: site/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: site
+      - name: Site build (from reviewed examples, no database)
+        run: pnpm build
+        working-directory: site

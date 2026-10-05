@@ -1,0 +1,1014 @@
+{
+  "bundle_id": "01a10e63-d231-7109-95ce-2151cad4146c",
+  "schema_version": "0.1.0",
+  "sources": [
+    {
+      "id": "01a10e61-0563-704d-893b-b6ce59b668fe",
+      "url": "https://api.github.com/repos/hatchet-dev/hatchet",
+      "title": "GitHub API: hatchet-dev/hatchet",
+      "surface": "github",
+      "source_type": "repository_api",
+      "author": "hatchet-dev",
+      "published_at": null,
+      "coverage_tier": "A",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:21Z",
+          "status": "success",
+          "content_hash": "sha256:298be8470c7a12969165935505b62d0196566cc6d4ca2613e989047018d1167f"
+        }
+      ],
+      "evidence_link_count": 4
+    },
+    {
+      "id": "01a10e61-0a43-73f1-9157-c83db0eb8156",
+      "url": "https://api.github.com/repos/hatchet-dev/hatchet/stargazers/history",
+      "title": "GitHub star history: hatchet-dev/hatchet",
+      "surface": "github",
+      "source_type": "star_history_api",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "A",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:23Z",
+          "status": "success",
+          "content_hash": "sha256:4f85e36fd9dacb75f36871eb6b1debc0fa9910c4b58f6c8e5da091ec69a52806"
+        }
+      ],
+      "evidence_link_count": 17
+    },
+    {
+      "id": "01a10e61-1c66-7281-9104-1d7dde7de1c8",
+      "url": "https://github.com/hatchet-dev/hatchet/releases",
+      "title": "hatchet-dev/hatchet releases on GitHub",
+      "surface": "github",
+      "source_type": "release_list",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "A",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:27Z",
+          "status": "success",
+          "content_hash": "sha256:6bcd8838c7398567741c064f1ddf4f21b78e5f3c8c3eebacc9bad3893ab7f526"
+        }
+      ],
+      "evidence_link_count": 26
+    },
+    {
+      "id": "01a10e61-226c-73bd-9b32-aee6c0ab0979",
+      "url": "https://news.ycombinator.com/item?id=39643136",
+      "title": "Show HN: Hatchet – Open-source distributed task queue",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2024-03-08T17:07:35Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:5ad40a77ed3954c1100ae4a3b3d4f609152c72a550691d440c1078ce8b11e655"
+        },
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "network_failed",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 2
+    },
+    {
+      "id": "01a10e61-226c-73c2-a73b-06a837862e6d",
+      "url": "https://news.ycombinator.com/item?id=49005787",
+      "title": "The startup's Postgres survival guide",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2026-07-22T12:36:08Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:751ad48e0fae0a58d6c22d3e03871d001fa3c0e205e6e8ecead9b65bb7a2754a"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e61-226c-73c7-aee8-c01dfbe3f3f3",
+      "url": "https://news.ycombinator.com/item?id=47005509",
+      "title": "Building a TUI is easy now",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2026-02-13T17:50:54Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:2d4d5e6ef265c943b55fc0d98d4a2f57314ee86d7fe83a204465a7996cb99fcd"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e61-226c-73cc-834f-7552900eccd1",
+      "url": "https://news.ycombinator.com/item?id=40810986",
+      "title": "Launch HN: Hatchet (YC W24) – Open-source task queue, now with a cloud version",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2024-06-27T14:35:34Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:070aab4e0d3fc7945df6fafec7a1f7c13338621fea7cc76350266342e1848324"
+        },
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "network_failed",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 2
+    },
+    {
+      "id": "01a10e61-226c-73d1-b993-7d5cc693fc98",
+      "url": "https://news.ycombinator.com/item?id=43572733",
+      "title": "Show HN: Hatchet v1 – A task orchestration platform built on Postgres",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2025-04-03T17:17:54Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:3d966fa739840fe7062ce4d19390c6882c75c99f23b4c1b12d6fd481f9a9762d"
+        },
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "network_failed",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 2
+    },
+    {
+      "id": "01a10e61-226c-73d6-9e84-2a99ec9bd12c",
+      "url": "https://news.ycombinator.com/item?id=44179889",
+      "title": "Go is a good fit for agents",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2025-06-04T12:14:39Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:ccedc2b43ccf7db7c81e1717a5bd6b745957c433d6554c8397a38cf083c802d8"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e61-226d-72b9-9d11-cec192d67e42",
+      "url": "https://news.ycombinator.com/item?id=40077233",
+      "title": "Multi-tenant queues in Postgres",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2024-04-18T15:26:57Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:2fb2df9e9e502a37dba3855d7e439f72c0664ba86db4173adeb3114891d7a4b7"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e61-226d-72be-92a9-ba953134b113",
+      "url": "https://news.ycombinator.com/item?id=46245238",
+      "title": "How to think about durable execution",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2025-12-12T15:49:16Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:0c16d897cb744102b16a5222d9d2d61f46ab08a5a9557fe7eb7b03919fda3b9e"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e61-226d-72c3-adf5-22d8f1379554",
+      "url": "https://news.ycombinator.com/item?id=46292148",
+      "title": "The pitfalls of partitioning Postgres yourself",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2025-12-16T18:21:21Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:0dd0d80b8eca9efb2420c4bba000945af1ea66ab103ebe24605b829529ef2716"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e61-226d-72c8-b460-ed354bd91918",
+      "url": "https://news.ycombinator.com/item?id=44005899",
+      "title": "The fastest Postgres inserts",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2025-05-16T14:24:23Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:44ef4e5c01196f0972559b634381605de8a26140bc917b1caabd04f6eca1bae8"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e61-226d-72cd-a67c-aa15e9a43b2f",
+      "url": "https://news.ycombinator.com/item?id=47277420",
+      "title": "Supertoast tables",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2026-03-06T16:46:50Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:1d64429d674b9d9e0609cc2a9a7336019aacba41aaf2fb5289a8d1591a8242d4"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e61-226d-72d2-8f12-a9a49a2c6d5e",
+      "url": "https://news.ycombinator.com/item?id=49083207",
+      "title": "The First Idempotency Key",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2026-07-28T13:04:51Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:5d108d8425cac357e923373cb565fea4fd69d316971ec835aecac42292d8ef50"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e61-226d-72d7-9f9c-40424e827bb5",
+      "url": "https://news.ycombinator.com/item?id=49332754",
+      "title": "Bufo pulls the andon cord",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2026-08-17T15:36:27Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:6b800ae8d66fabfdbbd618b8809d1b41e04368b6cbedb4c807f5fc4a5758b762"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e61-226d-72dc-8e6c-8fdfc6e0cd69",
+      "url": "https://news.ycombinator.com/item?id=40584464",
+      "title": "The Problems with Celery for Python",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2024-06-05T13:20:55Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:db655b72fcff13d031216e71f88ba739f3dffce2b1225e0c7a424c0a86bd9d85"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e61-226d-72e1-bfad-024276d380b7",
+      "url": "https://news.ycombinator.com/item?id=38970038",
+      "title": "Show HN: Hatchet – open-source, event-based workflow engine",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "abelanger",
+      "published_at": "2024-01-12T16:27:39Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:23:29Z",
+          "status": "success",
+          "content_hash": "sha256:b26fbfb8f3ff8e736c858d8da558b55e8d126828af44ca72bf873a0ac6d0b012"
+        },
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "network_failed",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e61-e0aa-71e4-80be-dbd4e1f445b2",
+      "url": "https://x.com/hatchet_dev?lang=en",
+      "title": "Hatchet (@hatchet_dev) on X",
+      "surface": "x",
+      "source_type": "first_party",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "C",
+      "public_display_mode": "link_only",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:24:17Z",
+          "status": "skipped_policy",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 0
+    },
+    {
+      "id": "01a10e61-e0aa-71e6-9210-48de4037661d",
+      "url": "https://x.com/PeterZaitsev/status/1766217329397121271",
+      "title": "Peter Zaitsev on X: \"hatchet: A distributed, fault-tolerant Open Source task queue https://t.co/BU0SV48o1X\" / X",
+      "surface": "x",
+      "source_type": "community",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "C",
+      "public_display_mode": "link_only",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:24:17Z",
+          "status": "skipped_policy",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 0
+    },
+    {
+      "id": "01a10e62-9c68-71af-95c8-471de5ddaa0e",
+      "url": "https://hatchet.run/announcement",
+      "title": "Announcements",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": null,
+      "published_at": "2026-02-26T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:93f9adf8a9858d3a6198ab2dd7549323e299feab22051f59dd6ab863d159c9f4"
+        }
+      ],
+      "evidence_link_count": 20
+    },
+    {
+      "id": "01a10e62-9c68-71c5-8d6b-3c3d578c2466",
+      "url": "https://github.com/hatchet-dev",
+      "title": "Hatchet",
+      "surface": "github",
+      "source_type": "first_party",
+      "author": null,
+      "published_at": "2026-10-05T00:00:00Z",
+      "coverage_tier": "A",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:e16b46e4b55431c13b38e84bebb9972e11b04bfa887f90957b8b1809561a4a10"
+        }
+      ],
+      "evidence_link_count": 4
+    },
+    {
+      "id": "01a10e62-9c68-71cd-940c-2262f3749386",
+      "url": "https://hatchet.run/blog",
+      "title": "Blog",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": null,
+      "published_at": "2026-08-17T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:288f7f82583e36d1205a38538599bf4f648d962b6cbe0cdda91261f401d4c0b1"
+        }
+      ],
+      "evidence_link_count": 10
+    },
+    {
+      "id": "01a10e62-9c69-7137-b4b5-fd8b581bdacc",
+      "url": "https://hatchet.run/blog/two-years-open-source",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Alexander Belanger",
+      "published_at": "2026-01-13T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:80f49d13e3afaa2615800f68fec31c2c53396561f8957f523719c00b51b896e5"
+        }
+      ],
+      "evidence_link_count": 22
+    },
+    {
+      "id": "01a10e62-9c69-7159-a2e8-967a1454945b",
+      "url": "https://hatchet.run/blog/fastapi-background-jobs-to-hatchet",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Matt Kaye",
+      "published_at": "2025-06-26T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:0ce4cf6704738829db849dcb870529592c47717061af2c63f642ecb05f54f0c3"
+        }
+      ],
+      "evidence_link_count": 4
+    },
+    {
+      "id": "01a10e62-9c69-7163-beb4-0186f37582b2",
+      "url": "https://hatchet.run/blog/postgres-survival-guide",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Alexander Belanger",
+      "published_at": "2026-07-22T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:6c5a216da117538937b75620735e56e7cb8c92e5612e070e8ac2728801b574fe"
+        }
+      ],
+      "evidence_link_count": 6
+    },
+    {
+      "id": "01a10e62-9c69-7171-8848-75a1e8d7f230",
+      "url": "https://hatchet.run/blog/durable-execution",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Alexander Belanger",
+      "published_at": "2025-12-11T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:e28c38142eb6bb2d96d349abc759aa02f59b24d66996579bec4d15c9a9b4c387"
+        }
+      ],
+      "evidence_link_count": 5
+    },
+    {
+      "id": "01a10e62-9c69-717d-a0d8-fcf0efcd501a",
+      "url": "https://hatchet.run/blog/tuis-are-easy-now",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Alexander Belanger",
+      "published_at": "2026-02-13T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:a13b848203de0d5f63fca99440167f22921c17cbddf5623d318d36af5ab56fe8"
+        }
+      ],
+      "evidence_link_count": 7
+    },
+    {
+      "id": "01a10e62-9c69-718b-a2bd-f6999df8fcf3",
+      "url": "https://hatchet.run/blog/andon-cord",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Alexander Belanger",
+      "published_at": "2026-08-17T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:e031fa2c0599662e4461e4ea6b016f13f2d64fd31ad0766b7eff633252522500"
+        }
+      ],
+      "evidence_link_count": 10
+    },
+    {
+      "id": "01a10e62-9c69-719f-b1e1-6fe6bffff225",
+      "url": "https://hatchet.run/blog/murphys-law",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Alexander Belanger",
+      "published_at": "2026-08-07T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:dbb1674adeb2e96bc8db9b27695f28d8d223f4bdedf4d446a5ae3fa69a12ebb8"
+        }
+      ],
+      "evidence_link_count": 5
+    },
+    {
+      "id": "01a10e62-9c6a-7087-8c68-7a6730ec41b5",
+      "url": "https://hatchet.run/blog/first-idempotency-key",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Alexander Belanger",
+      "published_at": "2026-07-28T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:be27064f1e4f20fda4f2f19e8c954c3f8e4ee90497b9cbbf3f63f1ca8c52fe47"
+        }
+      ],
+      "evidence_link_count": 4
+    },
+    {
+      "id": "01a10e62-9c6a-708d-a1a9-1efc2a7e8483",
+      "url": "https://hatchet.run/blog/supertoast-tables",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Alexander Belanger; Matt Kaye",
+      "published_at": "2026-03-06T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:0b270303c5415887d9b3a27adfbc95373d7b9d54fab1a7804d081431748d0f1b"
+        }
+      ],
+      "evidence_link_count": 7
+    },
+    {
+      "id": "01a10e62-9c6a-709d-98c5-ba6b73c2dbca",
+      "url": "https://hatchet.run/blog/sdk-design",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Matt Kaye",
+      "published_at": "2026-01-08T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:69e41f3a3350e15fcf3faca8d0934e571e0144735be6c5594ed4de45ac3e26a0"
+        }
+      ],
+      "evidence_link_count": 6
+    },
+    {
+      "id": "01a10e62-9c6a-70ab-8c57-c3b017bb4f71",
+      "url": "https://hatchet.run/blog/postgres-partitioning",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Alexander Belanger",
+      "published_at": "2025-12-16T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:f1fe6ecd7a0b3b46cfb8bf065ffc78c7c04694814b0a0d49a90c1ffce9b9388e"
+        }
+      ],
+      "evidence_link_count": 7
+    },
+    {
+      "id": "01a10e62-9c6a-70b9-a18b-93aee7697e71",
+      "url": "https://hatchet.run/blog/automated-documentation",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Gabriel Ruttner",
+      "published_at": "2025-08-26T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:15990db317a0412989d66a131b2b645124a6551c38e186f4132224ddc8c081ac"
+        }
+      ],
+      "evidence_link_count": 9
+    },
+    {
+      "id": "01a10e62-9c6a-70cb-83d2-a9d8c5becab5",
+      "url": "https://hatchet.run/blog/go-agents",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Alexander Belanger",
+      "published_at": "2025-06-03T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:4dc9f97130ac8fb455d6ed37f94323743ba8d57c41a5880d15432f6a121c857b"
+        }
+      ],
+      "evidence_link_count": 4
+    },
+    {
+      "id": "01a10e62-9c6a-70d3-bffe-18ee35b45bb0",
+      "url": "https://hatchet.run/blog/warning-event-loop-blocked",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Matt Kaye",
+      "published_at": "2025-05-27T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:8c2b1a7bf6cbdb3ad0777e658ee78b88959971bfb1da24524f9ad22f3f31a484"
+        }
+      ],
+      "evidence_link_count": 5
+    },
+    {
+      "id": "01a10e62-9c6a-70df-96bc-c21dd3b10f16",
+      "url": "https://hatchet.run/blog/fastest-postgres-inserts",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Alexander Belanger",
+      "published_at": "2025-05-15T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:80645972017c633f069206ae429295c9e3928d2e6fde05bb75a4da3c9d11b717"
+        }
+      ],
+      "evidence_link_count": 4
+    },
+    {
+      "id": "01a10e62-9c6a-70e9-a534-d7f8aa886330",
+      "url": "https://hatchet.run/blog/task-queue-modern-python",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Matt Kaye",
+      "published_at": "2025-04-10T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:ca9de261117d205e1138a8643dca662945c85263833cd3b1b2a82cf5153b48dc"
+        }
+      ],
+      "evidence_link_count": 6
+    },
+    {
+      "id": "01a10e62-9c6b-73d9-8c36-84dd873b5d74",
+      "url": "https://hatchet.run/blog/postgres-events-table",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Alexander Belanger",
+      "published_at": "2024-11-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:be7fd85687fede02b0f83782169bb67cafebc65023f7002960b2e6e08da253c4"
+        }
+      ],
+      "evidence_link_count": 6
+    },
+    {
+      "id": "01a10e62-9c6b-73e7-a660-6a385c2402b8",
+      "url": "https://hatchet.run/blog/problems-with-celery",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Alexander Belanger",
+      "published_at": "2024-06-05T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:6d3a8befe701aec8e276c4cd3ae997998224de9ed42339b56204e6bfd638532d"
+        }
+      ],
+      "evidence_link_count": 9
+    },
+    {
+      "id": "01a10e62-9c6b-73f9-b8b4-d8bbe0a60986",
+      "url": "https://hatchet.run/blog/multi-tenant-queues",
+      "title": "Hatchet",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Alexander Belanger",
+      "published_at": "2024-04-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:eedd8134d5698823fe2df52d40edb91a18aefa85fb65a201af36f7a99c5fa20e"
+        }
+      ],
+      "evidence_link_count": 5
+    },
+    {
+      "id": "01a10e62-9c6b-7405-a737-76f9a4c4a36a",
+      "url": "https://medium.com/@hazqeelafyq09/self-host-hatchet-full-stack-app-on-aws-b7b9c3a2adc8",
+      "title": "Self-Host Hatchet + Full-Stack App on AWS",
+      "surface": "web",
+      "source_type": "third_party_analysis",
+      "author": "hazqeelafyq09",
+      "published_at": "2025-12-09T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:45631fafc706bfdc90aaa0f549b7b3a3af614e765a8794981a9f9e4b2743ff23"
+        }
+      ],
+      "evidence_link_count": 5
+    },
+    {
+      "id": "01a10e62-9c6b-7411-a2c8-c5d02ee4da5d",
+      "url": "https://bestofshowhn.com/yc-w24/hatchet",
+      "title": "Hatchet — YC W24 Launch on Hacker News",
+      "surface": "web",
+      "source_type": "launch_page",
+      "author": "Andrey Azimov",
+      "published_at": "2026-10-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:02c563267ae5c07254981bbbb2db3f82e09130af6a928eb875519422f202a165"
+        }
+      ],
+      "evidence_link_count": 13
+    },
+    {
+      "id": "01a10e62-9c6b-7427-89e1-827c5b6bd613",
+      "url": "https://www.ycombinator.com/companies/hatchet-run",
+      "title": "Hatchet: The orchestration platform for teams who ship. | Y Combinator",
+      "surface": "web",
+      "source_type": "directory_or_listing",
+      "author": null,
+      "published_at": "2024-03-11T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:c6f8ede411fc1f16cdf5bdae1b88cc470e24796756aedc1c1bbec919348b5607"
+        }
+      ],
+      "evidence_link_count": 12
+    },
+    {
+      "id": "01a10e62-9c6b-743d-a6e8-f4a59a0d8d10",
+      "url": "https://getlatka.com/companies/hatchet.run",
+      "title": "Hatchet Revenue 2025: $440K Est. ARR",
+      "surface": "web",
+      "source_type": "directory_or_listing",
+      "author": null,
+      "published_at": "2026-09-02T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:cc1f32e7a94baac2a414ac323442de4b48bbed7fc20f04f8b66cff25950fc491"
+        }
+      ],
+      "evidence_link_count": 10
+    },
+    {
+      "id": "01a10e62-9c6b-744b-b4ca-fae806b40fff",
+      "url": "https://app.dealroom.co/companies/hatchet",
+      "title": "Hatchet company information, funding & investors",
+      "surface": "web",
+      "source_type": "directory_or_listing",
+      "author": null,
+      "published_at": "2024-03-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:0db6dd48c42f2c03454bb422d90813516e2f7c60eea522dca50c142056174fcb"
+        }
+      ],
+      "evidence_link_count": 8
+    },
+    {
+      "id": "01a10e62-9c6b-7459-8cfd-0efad3a75abe",
+      "url": "https://github.com/hatchet-dev/hatchet#readme",
+      "title": "hatchet-dev/hatchet README",
+      "surface": "github",
+      "source_type": "readme",
+      "author": "hatchet-dev",
+      "published_at": null,
+      "coverage_tier": "A",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "success",
+          "content_hash": "sha256:556bd5fb646095bbaf9dfb0c91fbaefa52a9d0fd6739fe82b15b71708c56d8a9"
+        }
+      ],
+      "evidence_link_count": 11
+    },
+    {
+      "id": "01a10e62-9c6c-7287-a27b-5674f940054c",
+      "url": "https://www.crunchbase.com/organization/hatchet-0f2d",
+      "title": "Hatchet - Crunchbase Company Profile & Funding",
+      "surface": "web",
+      "source_type": "directory_or_listing",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "blocked",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 0
+    },
+    {
+      "id": "01a10e62-9c6c-7289-aeaa-b47e304df2f5",
+      "url": "https://www.crunchbase.com/organization/hatchet-0f2d/financial_details",
+      "title": "Hatchet - Financial Details",
+      "surface": "web",
+      "source_type": "directory_or_listing",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "blocked",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 0
+    },
+    {
+      "id": "01a10e62-9c6c-728b-bc73-608dd5e0fd0c",
+      "url": "https://tracxn.com/d/companies/hatchet/__thEC2vgVqEW9sgNbVKjHGV7HhkWyttOLklAx_0x4hVU",
+      "title": "Hatchet - 2026 Company Profile, Team, Funding & Competitors - Tracxn",
+      "surface": "web",
+      "source_type": "directory_or_listing",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "skipped_policy",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 0
+    },
+    {
+      "id": "01a10e62-9c6c-728d-a223-9289f7286d00",
+      "url": "https://tracxn.com/d/companies/hatchet/__thEC2vgVqEW9sgNbVKjHGV7HhkWyttOLklAx_0x4hVU/funding-and-investors",
+      "title": "Hatchet - 2026 Funding Rounds & List of Investors - Tracxn",
+      "surface": "web",
+      "source_type": "directory_or_listing",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:25:06Z",
+          "status": "skipped_policy",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 0
+    }
+  ]
+}

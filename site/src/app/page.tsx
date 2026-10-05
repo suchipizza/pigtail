@@ -72,7 +72,7 @@ export default function Home() {
           <li><b>Install</b> (Python 3.12+): <code>uv tool install git+{GITHUB}</code></li>
           <li><b>Add a key:</b> <code>export ANTHROPIC_API_KEY=…</code> (optional: <code>GITHUB_TOKEN</code>)</li>
           <li><b>Check setup:</b> <code>pigtail doctor</code></li>
-          <li><b>Run:</b> <code>pigtail https://github.com/owner/repository</code> — about 3–5 minutes and $1–3 of API usage</li>
+          <li><b>Run:</b> <code>pigtail https://github.com/owner/repository</code> — about 2–6 minutes and $1–5 of API usage</li>
         </ol>
         <p className="muted">No Pigtail account, database or server. The report is a single HTML file on your computer.</p>
       </section>

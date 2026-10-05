@@ -1,0 +1,450 @@
+[
+ {
+  "target": "beehiiv",
+  "claim_id": "01a10e63-f2f0-72f7-8b3f-7295191cef93",
+  "statement": "beehiiv charges nothing on premium subscription revenue generated on its platform, unlike Substack's 10% cut.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://b2bpricinginsights.substack.com/p/how-beehiiv-dominated-a-crowded-market",
+  "quote": "They charge absolutely nothing for premium subscriptions generated on the Beehiiv network.",
+  "evidence_class": "third_party_reported"
+ },
+ {
+  "target": "beehiiv",
+  "claim_id": "01a10e63-f2e2-73b9-bbdb-4933917d556b",
+  "statement": "beehiiv's Free plan includes unlimited email sends, a recommendation network, and custom domains.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://www.beehiiv.com/",
+  "quote": "Unlimited Email Sends",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "beehiiv",
+  "claim_id": "01a10e63-f2e8-7249-b579-84598953d6b7",
+  "statement": "beehiiv does not charge a percentage of creators' subscription revenue.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://www.thewrap.com/industry-news/tech/beehiiv-expands-beyond-newsletters/",
+  "quote": "Rather than charging a percentage of subscription revenue, beehiiv says it wants to help creators consolidate",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "beehiiv",
+  "claim_id": "01a10e63-f2e9-707b-a3b5-6a0135f1d52d",
+  "statement": "beehiiv's Community feature brings discussion spaces and memberships inside beehiiv as an alternative to Discord, Slack, or third-party membership platforms.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://pulse2.com/beehiiv-launches-community-ai-copilot-programmatic-ads-and-visual-editor-in-major-platform-expansion/",
+  "quote": "Rather than directing audiences to Discord, Slack, or third-party membership platforms, beehiiv users can now launch branded communities",
+  "evidence_class": "third_party_reported"
+ },
+ {
+  "target": "datasette",
+  "claim_id": "01a10e65-0e92-72df-8afa-9ad7061a674d",
+  "statement": "Datasette Apps run in a sandboxed iframe with Content Security Policy preventing loading content from external domains.",
+  "time": {
+   "start": "2026-06-18T00:00:00Z",
+   "end": "2026-06-18T23:59:59Z",
+   "precision": "day",
+   "label": null
+  },
+  "source_url": "https://datasette.io/blog/2026/datasette-apps/",
+  "quote": "CSP settings within the iframe prevent the sandboxed JavaScript or HTML from loading content from any external domains.",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "datasette",
+  "claim_id": "01a10e65-0e8f-7386-a3ac-601cc4588d73",
+  "statement": "An open issue to package Datasette as a standalone binary with PyInstaller had existed since November 2017.",
+  "time": {
+   "start": "2017-11-01T00:00:00Z",
+   "end": "2017-11-30T23:59:59Z",
+   "precision": "month",
+   "label": "since November 2017"
+  },
+  "source_url": "https://simonwillison.net/2021/Aug/30/datasette-app/",
+  "quote": "There\u2019s been an open issue to get Datasette running as a standalone binary using PyInstaller since November 2017",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "datasette",
+  "claim_id": "01a10e65-0e95-723d-9389-db9814e16436",
+  "statement": "All Datasette tests and Datasette plugins written by Simon Willison use HTTPX for testing.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://talkpython.fm/episodes/show/299/personal-search-engine-with-datasette-and-dogsheep",
+  "quote": "All of the dataset tests and every dataset plugin that I've written, they're actually, they're using HTTPX.",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "datasette",
+  "claim_id": "01a10e65-0e93-7262-957a-676b192af244",
+  "statement": "Datasette Cloud is the hosted SaaS version of Datasette, initially targeting newsrooms and data journalism.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://datasette.substack.com/p/datasette-cloud-and-the-datasette",
+  "quote": "I want teams to be able to use Datasette to collaborate on finding stories in their data - initially targeting newsrooms and data journalism",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "excalidraw",
+  "claim_id": "01a10e5d-3687-70b8-8a2b-6cefffe3f2f6",
+  "statement": "Excalidraw+ supports MCP, letting an agent draw into a user's workspace.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://plus.excalidraw.com/",
+  "quote": "MCP Let an agent draw into your workspace. On Excalidraw+.",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "excalidraw",
+  "claim_id": "01a10e5d-368b-7133-9165-df4d67fec009",
+  "statement": "Excalidraw states collaboration has always been a core part of the product, used for blog illustrations, wireframing, teaching, presenting and interviewing.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://plus.excalidraw.com/blog/webex-meetings-integration",
+  "quote": "One common denominator is collaboration, which has always been a core part of Excalidraw.",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "excalidraw",
+  "claim_id": "01a10e5d-368c-73c3-b971-139550c0311b",
+  "statement": "Excalidraw uses Crowdin for its translation system.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://dev.to/pullflow/project-of-the-week-excalidraw-4mff",
+  "quote": "translation system through Crowdin",
+  "evidence_class": "third_party_reported"
+ },
+ {
+  "target": "excalidraw",
+  "claim_id": "01a10e5d-368b-713f-96ef-3e333a6fc185",
+  "statement": "Excalidraw's Crowdin language completion illustration is described as a motivator for people to translate.",
+  "time": {
+   "start": "2020-04-01T00:00:00Z",
+   "end": "2020-04-30T23:59:59Z",
+   "precision": "month",
+   "label": null
+  },
+  "source_url": "https://plus.excalidraw.com/blog/enabling-translations",
+  "quote": "This is also a great motivator for people to translate the languages they speak!",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "gokrazy",
+  "claim_id": "01a10e5c-6f2f-715c-a916-ace974f398f2",
+  "statement": "Previously, gokrazy builds were created with the gokr-packer CLI tool configured by command-line flags and config files.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": "Previously"
+  },
+  "source_url": "https://michael.stapelberg.ch/posts/2023-01-15-gokrazy-instance-centric-config/",
+  "quote": "Each gokrazy build was created using the gokr-packer CLI tool, and configured by the packer\u2019s command-line flags, parameters, config files in ~/.config",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "gokrazy",
+  "claim_id": "01a10e5c-6f30-70b5-aee1-6c47a9e4b941",
+  "statement": "The author uses gokrazy to run router7, his Go home router, on a PC handling a 25 Gbit/s fiber connection.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://michael.stapelberg.ch/posts/2023-01-15-gokrazy-instance-centric-config/",
+  "quote": "Connect to the internet using router7, my small home internet router written in Go, running on a fast router PC build that handles a 25 Gbit/s Fiber To The Home connection.",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "gokrazy",
+  "claim_id": "01a10e5c-6f2f-7158-93f6-eda107e9fa5a",
+  "statement": "gokrazy released a re-designed gok command line tool and instance configuration mechanism in January 2023.",
+  "time": {
+   "start": "2023-01-15T00:00:00Z",
+   "end": "2023-01-15T23:59:59Z",
+   "precision": "day",
+   "label": null
+  },
+  "source_url": "https://michael.stapelberg.ch/posts/2023-01-15-gokrazy-instance-centric-config/",
+  "quote": "I\u2019m excited to let you know that gokrazy now comes with a re-designed gok command line tool and gokrazy instance configuration mechanism!",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "gokrazy",
+  "claim_id": "01a10e5c-6f30-70d1-9836-6d95c3a7298e",
+  "statement": "scan2drive, an appliance that scans paper documents to Google Drive, is listed as written for gokrazy.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://gokrazy.org/packages/showcase/",
+  "quote": "scan2drive is an appliance (with a web interface) that scans paper documents \ud83d\udcc4 from a scanner \ud83d\udda8\ufe0f as PDFs to Google Drive for full-text search.",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "Linear",
+  "claim_id": "01a10e69-b3bb-70a5-bee7-edbd4ef1a97f",
+  "statement": "Since the start of 2026, issues with an attached pull request by EPD users in Linear grew sevenfold.",
+  "time": {
+   "start": "2026-01-01T00:00:00Z",
+   "end": "2026-01-31T23:59:59Z",
+   "precision": "month",
+   "label": "Since the start of 2026"
+  },
+  "source_url": "https://linear.app/now/sharing-growth-with-the-people-building-linear",
+  "quote": "Since the start of 2026, the number of issues with a pull request attached by someone in an engineering, product, or design function has grown sevenfold.",
+  "evidence_class": "company_measured"
+ },
+ {
+  "target": "Linear",
+  "claim_id": "01a10e69-b3bb-707f-ae91-566be5b292a5",
+  "statement": "Linear focused on issue tracking first as the core pain point before expanding to broader product management.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://medium.com/linear-app/linear-raises-13m-in-series-a-funding-from-sequoia-capital-daa0f0c43758",
+  "quote": "Issue tracking lies at the heart of any software team\u2019s workflow which is why we focused on solving this core pain point first.",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "Linear",
+  "claim_id": "01a10e69-b3c5-71fb-b737-0202639b26f6",
+  "statement": "Linear announced it was profitable by June 2021, with negative lifetime burn.",
+  "time": {
+   "start": "2021-06-01T00:00:00Z",
+   "end": "2021-06-30T23:59:59Z",
+   "precision": "month",
+   "label": "By June 2021"
+  },
+  "source_url": "https://www.news.aakashg.com/p/how-linear-grows",
+  "quote": "By June 2021, just two years after founding, Linear announced it was profitable.",
+  "evidence_class": "third_party_reported"
+ },
+ {
+  "target": "Linear",
+  "claim_id": "01a10e69-b3be-71c5-aa7a-a76af83b3ef7",
+  "statement": "Linear dogfoods new features internally via feature flags before public release.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://linear.app/now/how-we-redesigned-the-linear-ui",
+  "quote": "We dogfood all our new features before releasing them publicly to ensure everything works and feels as it should.",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "maybe",
+  "claim_id": "01a10e60-2fd7-72f8-9500-d3a961fb3b1a",
+  "statement": "Maybe co-founder and CEO Josh Pigford was previously founder & CEO of Baremetrics, sold in 2020.",
+  "time": {
+   "start": "2020-01-01T00:00:00Z",
+   "end": "2020-12-31T23:59:59Z",
+   "precision": "year",
+   "label": "sold 2020"
+  },
+  "source_url": "https://republic.com/maybefinance",
+  "quote": "most recently as the founder & CEO of Baremetrics (sold 2020).",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "maybe",
+  "claim_id": "01a10e60-2fd7-72f6-afbc-e4dc9d27c159",
+  "statement": "Maybe previously raised a $1.4M pre-seed round via Republic Reg CF, AngelList RUV and the founder.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://republic.com/maybefinance",
+  "quote": "We previously raised a $1.4M pre-seed round via Republic Reg CF, AngelList RUV and the founder.",
+  "evidence_class": "company_measured"
+ },
+ {
+  "target": "maybe",
+  "claim_id": "01a10e60-2fd7-72f4-aabe-0c06e8ae8bea",
+  "statement": "Maybe's Republic round had a $10M valuation cap.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://republic.com/maybefinance",
+  "quote": "We have a $10M valuation cap.",
+  "evidence_class": "company_measured"
+ },
+ {
+  "target": "maybe",
+  "claim_id": "01a10e60-2fd7-72ec-b8fc-7e0dc5e15132",
+  "statement": "Maybe had a 10,000-member early access list and active Discord, TikTok, and Twitter engagement.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://republic.com/maybefinance",
+  "quote": "10,000-member early access list and active Discord, TikTok, and Twitter engagement.",
+  "evidence_class": "company_measured"
+ },
+ {
+  "target": "Raycast",
+  "claim_id": "01a10e68-c229-724d-8d97-99889902d475",
+  "statement": "Raycast includes a built-in AI Agent that integrates with users' tools.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://www.raycast.com/",
+  "quote": "Raycast\u2019s built in AI Agent seamlessly integrates with your favorite tools, enhancing your workflow effortlessly.",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "Raycast",
+  "claim_id": "01a10e68-c22b-7170-befa-cd1b0c195ec8",
+  "statement": "Raycast grew from a launcher into a broader productivity platform with AI Chat, Notes, extensions, sync and file search.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://www.raycast.com/blog/a-technical-deep-dive-into-the-new-raycast",
+  "quote": "Raycast had also grown from a launcher into a broader productivity platform, with AI Chat, Notes, extensions, sync, file search, and more.",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "Raycast",
+  "claim_id": "01a10e68-c22c-7394-a31b-7ee9b5a27d84",
+  "statement": "After launching Raycast Pro and a revamped Notes experience, Raycast received user requests for an iOS version.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://www.raycast.com/blog/raycast-for-ios",
+  "quote": "After we launched Raycast Pro, we started getting requests to bring Raycast to iOS. Those voices got louder when we launched a revamped Notes experience.",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "Raycast",
+  "claim_id": "01a10e68-c230-728a-94dd-9c23a1d60b78",
+  "statement": "Raycast API and Store has 149 Product Hunt reviews averaging 5.00/5.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://hunted.space/dashboard/320890",
+  "quote": "Raycast API and Store has received 149 reviews on Product Hunt with an average rating of 5.00/5.",
+  "evidence_class": "third_party_measured"
+ },
+ {
+  "target": "Stirling-PDF",
+  "claim_id": "01a10e5e-4086-708b-a890-eab53cbad5f3",
+  "statement": "Stirling PDF started as a small, passion-driven side project.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://www.stirling.com/blog/stirling-open-core",
+  "quote": "What started as a small, passion-driven side project quickly grew into a globally adopted open-source tool",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "Stirling-PDF",
+  "claim_id": "01a10e5e-4087-729a-a3a3-d451e0e42234",
+  "statement": "Stirling PDF's Redaction Tool offers text selection, area drawing, and page redaction methods.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://www.stirling.com/blog/redaction-open-source",
+  "quote": "Stirling PDF offers this functionality via three methods:",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "Stirling-PDF",
+  "claim_id": "01a10e5e-4086-7089-836d-ab5e33cea055",
+  "statement": "Stirling PDF's first release was about 18 months before the open core announcement.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": "18 months ago"
+  },
+  "source_url": "https://www.stirling.com/blog/stirling-open-core",
+  "quote": "Stirling PDF has come a long way since our first release 18 months ago.",
+  "evidence_class": "documented"
+ },
+ {
+  "target": "Stirling-PDF",
+  "claim_id": "01a10e5e-4086-7093-a52a-21c0399184a4",
+  "statement": "Stirling PDF introduced a paid tier with enterprise features such as compliance tools, automation, and single sign-on.",
+  "time": {
+   "start": null,
+   "end": null,
+   "precision": "unknown",
+   "label": null
+  },
+  "source_url": "https://www.stirling.com/blog/stirling-open-core",
+  "quote": "we will now offer advanced, enterprise-oriented features such as compliance tools, automation capabilities, and single sign-on support through a paid tier",
+  "evidence_class": "documented"
+ }
+]

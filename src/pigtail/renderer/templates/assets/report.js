@@ -49,6 +49,7 @@
   });
 
   // ---------------- evidence rendering ----------------
+  function badgeClass(c) { return c === "inferred" ? "inferred" : (String(c).indexOf("third_party") === 0 ? "report" : "fact"); }
   function claimCard(cid) {
     var c = CLAIMS[cid];
     if (!c) return "";
@@ -56,7 +57,7 @@
     h += '<div class="claim-meta"><span class="badge minor">' + esc(c.time) + '</span><span class="badge minor">' +
       esc(c.review_state) + "</span>" + (c.status !== "active" ? '<span class="badge material">' + esc(c.status) + "</span>" : "") + "</div>";
     (c.evidence || []).forEach(function (ev) {
-      var cls = ev.evidence_class === "inferred" ? "inferred" : (ev.evidence_class.indexOf("third_party") === 0 ? "report" : "fact");
+      var cls = badgeClass(ev.evidence_class);
       h += '<div class="ev"><span class="badge ' + cls + '">' + esc(ev.evidence_label) + "</span> " + esc(ev.directness) +
         ", " + esc(ev.corroboration) + '<br><a href="' + esc(safeUrl(ev.url)) + '" target="_blank" rel="noopener">[' + ev.n + "] " +
         esc(ev.title) + " ↗</a>";
@@ -68,7 +69,7 @@
   }
   function eventDetail(e) {
     var h = '<div class="event-date">' + esc(e.when) + " · " + esc(e.kind_label) + "</div><h3>" + esc(e.title) + "</h3>";
-    h += '<span class="badge ' + (e.evidence_class === "inferred" ? "inferred" : "fact") + '">' + esc(e.evidence_label) + "</span>";
+    h += '<span class="badge ' + badgeClass(e.evidence_class) + '">' + esc(e.evidence_label) + "</span>";
     if (e.is_inferred) h += ' <span class="badge inferred">Reconstructed from claims</span>';
     if (e.sensitive) h += ' <span class="badge material">Sensitive: not human-reviewed</span>';
     h += "<p>" + esc(e.summary) + "</p>";

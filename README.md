@@ -3,7 +3,7 @@
 <p align="center"><b>See how a product actually grew — from public evidence, with every fact linked to its source.</b></p>
 
 <p align="center">
-  <a href="https://suchipizza.github.io/pigtail/examples/">Example reports</a> ·
+  <a href="examples/reviewed/">Example reports</a> ·
   <a href="docs/quickstart.md">5-minute quick start</a> ·
   <a href="docs/methodology.md">How it works</a> ·
   <a href="docs/">Docs</a>
@@ -24,6 +24,8 @@ Click any marker or any small citation number to see the evidence behind it: the
 the source link and when Pigtail read it.
 
 ![The evidence drawer: claim, quote, source and fetch details](docs/assets/evidence-drawer.png)
+
+A 20-second walkthrough (run → report → star timeline → evidence): [docs/assets/demo.gif](docs/assets/demo.gif)
 
 **Who it is for:** open-source maintainers planning a launch, founders and growth people studying
 how comparable products grew, and anyone who wants a sourced history instead of a generic summary.
@@ -50,7 +52,7 @@ pigtail https://github.com/plausible/analytics    # an open-source project
 pigtail tally.so                                  # a product website
 ```
 
-A run takes about **3–5 minutes** and typically costs **$1–3** in Anthropic API usage. When it
+A run takes about **2–6 minutes** and typically costs **$1–3** for a repository and **$2–5** for a product website, in Anthropic API usage (measured on 10 targets; see [validation report](validation/2026-10-06/REPORT.md)). When it
 finishes, the report opens in your browser.
 
 ## What you get
@@ -112,11 +114,19 @@ More in [docs/methodology.md](docs/methodology.md) and [docs/evidence.md](docs/e
 
 ## Examples
 
-Reviewed example reports — open them without installing anything:
-**<https://suchipizza.github.io/pigtail/examples/>**
+Five reviewed example reports are in [`examples/reviewed/`](examples/reviewed). Download a
+folder's `report.html` and open it in your browser — no installation needed:
 
-The same files are in [`examples/reviewed/`](examples/reviewed): each folder has the report, the
-Research Bundle and a metadata file. Re-render any of them with
+| Example | What it shows |
+|---|---|
+| [Hatchet](examples/reviewed/hatchet) | Open-source task queue with repeated Hacker News launches (Show HN ×3, Launch HN), compared side by side |
+| [Plausible Analytics](examples/reviewed/plausible) | Open-source analytics grown by opinionated blog posts that reached Hacker News; bootstrapped revenue history |
+| [PocketBase](examples/reviewed/pocketbase) | One-developer open-source backend; growth in bursts, several with no public explanation |
+| [Tally](examples/reviewed/tally) | Bootstrapped form builder: cold outreach → free-product loop → search and AI discovery, with MRR history |
+| [Superhuman](examples/reviewed/superhuman) | Paid email app: waitlist, concierge onboarding, product-market-fit survey; later acquired and renamed by Grammarly |
+
+The same examples will be browsable on the Pigtail website (a static site in [`site/`](site)).
+Each folder has the report, the Research Bundle and a metadata file. Re-render any of them with
 `pigtail render examples/reviewed/<name>/research-bundle.json`.
 
 ## More commands

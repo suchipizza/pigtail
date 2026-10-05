@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from itertools import pairwise
 from typing import Any
 from urllib.parse import urlparse
 
@@ -44,6 +45,7 @@ EVENT_KIND = {
     "release": ("Release", "release"),
     "hacker_news_post": ("Hacker News", "hn"),
     "show_hn": ("Show HN", "hn"),
+    "launch_hn": ("Launch HN", "hn"),
     "product_hunt_launch": ("Product Hunt", "ph"),
     "reddit_post": ("Reddit", "reddit"),
     "repository_created": ("Repository", "repo"),
@@ -582,7 +584,13 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
     ]
     chart = None
     if repo and star_points:
+        gaps_days = sorted(
+            (parse_dt(b2["t"]) - parse_dt(a2["t"])).days  # type: ignore[operator]
+            for a2, b2 in pairwise(star_points)
+        )
+        step = gaps_days[len(gaps_days) // 2] if gaps_days else 1
         chart = {
+            "bar_unit": "day" if step <= 1 else "week" if step <= 7 else "period between points",
             "stars": star_points,
             "quality": repo["star_history_quality"],
             "events": chart_events,

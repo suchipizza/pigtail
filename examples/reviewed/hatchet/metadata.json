@@ -1,0 +1,9 @@
+{
+  "slug": "hatchet",
+  "title": "Hatchet",
+  "description": "An open-source task queue that launched repeatedly on Hacker News (Show HN, Launch HN, v1) — a repeated-launch case study.",
+  "kind": "repository",
+  "featured": true,
+  "published_at": "2026-10-05T23:39:09Z",
+  "bundle_schema_version": "0.1.0"
+}

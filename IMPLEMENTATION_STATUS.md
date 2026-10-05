@@ -1,6 +1,6 @@
 # Implementation status — Pigtail Light V1
 
-Last updated: 2026-10-06 (overnight autonomous session)
+Last updated: 2026-10-06, ~02:00 CEST (overnight autonomous session)
 
 ## Light V1 boundary (summary of the PRD)
 
@@ -14,7 +14,7 @@ validation, golden examples, tests, a static website/example library, and launch
 **Do not build for V1:** Postgres/Supabase, Neo4j, pgvector, Pigtail Review app, CandidateChangeSet
 workflow, canonical ingestion, graph projector, outbox, hosted updates, cohort pipeline, Forge,
 API, MCP, CMO, auth, billing, schedulers, production monitoring. Their contracts in the spec are
-frozen for compatibility only.
+frozen for compatibility only. **None of them were built.**
 
 **Non-negotiables:** Source ≠ Claim ≠ Event ≠ Tactic ≠ GrowthEngine; MetricSnapshot ≠ Outcome;
 CompanyStage ≠ StrategyPhase; timing ≠ causation; every displayed fact traces
@@ -25,85 +25,135 @@ fabricated; Pigtail is not a content archive.
 
 | Milestone | State |
 |---|---|
-| M0 Contract skeleton | **Done** — package, CLI (`analyze`, shorthand, `render`, `validate`, `doctor`, `version`), config, UUIDv7, Pydantic models, checked-in schema, source-policy loader, validator, renderer, contract tests |
-| M1 First OSS vertical slice | **Done (first pass)** — `pigtail https://github.com/plausible/analytics` produces a valid bundle and forensic (≈3–4 min, ≈$1–3) |
-| M2 Tally/general product slice | Not started |
-| M3 Non-curated validation (~10 targets) | Not started |
-| M4 Golden examples | Not started |
-| M5 Product polish | Partly (report UX in progress) |
-| M6 Website + GitHub launch | Not started |
-
-## What exists
-
-- `src/pigtail/bundle/` — models (Research Bundle 0.1.0), schema generator/check, reader, writer,
-  validator implementing all 15 rejection rules of spec §21 plus §31 checks and the SHOULD-warn list.
-- `schemas/research-bundle/0.1.0.schema.json` — generated from the models; a test fails if they drift.
-- `source-policies/*.yaml` — github, hacker-news, web (enabled); reddit, product-hunt, x (link-only,
-  disabled by default).
-- `src/pigtail/providers/` — model interface + Anthropic adapter (structured outputs, metering,
-  retries), discovery interface + Anthropic server-side web search adapter, GitHub adapter,
-  Hacker News (Algolia) adapter, policy-obeying web fetcher (robots.txt, transient text only).
-- `src/pigtail/research/` — target resolution, discovery + model triage (by index, so no invented
-  URLs), claim extraction with **verbatim quote verification**, duplicate merging, two-step
-  reconstruction (timeline, then interpretation) with deterministic checks (claim refs must exist,
-  metric numbers must appear in cited claims, dates must agree with cited claims, causal attribution
-  capped unless a first-party claim states the cause), narrative synthesis, conflicts, gaps,
-  orchestrator.
-- `src/pigtail/repository/` — star series utilities, growth-episode detection, release selection,
-  launch clustering and post-launch windows (+24h/+48h/+7d/+30d/+90d).
-- `src/pigtail/renderer/` — Jinja2 template, inline CSS/JS, star/event chart with event lanes,
-  growth-episode bands, evidence drawer (claim → evidence → source → fetch/locator), dark mode.
+| M0 Contract skeleton | **Done** |
+| M1 First OSS vertical slice | **Done** — `pigtail https://github.com/plausible/analytics` |
+| M2 Tally/general product slice | **Done** — `pigtail tally.so` finds all 10 sources of the reference page, the same MRR series, first users, PH relaunch, badge loop, AI referrals; adds origin, conflicts, gaps |
+| M3 Non-curated validation (10 targets) | **Done** — [validation/2026-10-06/REPORT.md](validation/2026-10-06/REPORT.md); 4 generalizable bugs found and fixed |
+| M4 Golden examples | **Done (AI-reviewed)** — 5 in `examples/reviewed/` (Tally, Plausible, Hatchet, PocketBase, Superhuman); golden tests pass. **Needs owner's human review before public launch.** |
+| M5 Product polish | **Mostly done** — report UX, evidence drawer, star/event chart, dark mode, doctor, clean wheel install verified |
+| M6 Website + GitHub launch | **Built, not deployed** — static Next.js site builds from reviewed examples; Pages workflow is manual (`workflow_dispatch`) pending owner review |
 
 ## Tests
 
-`uv run pytest` — 58 passing (contract, unit, integration). `uv run ruff check`, `uv run mypy`: clean.
+`uv run pytest` — 86 passing (unit, contract, integration, golden). `ruff check`, `ruff format --check`,
+`mypy`, schema drift check: clean. CI (GitHub Actions) green on `main`; CI also builds the site.
 
 ## Deviations from the specification (with reasons)
 
 1. **Star history source.** GitHub closed stargazer *lists* to non-collaborators on 2026-06-30
-   (`/stargazers` now answers 403 "Resource not accessible by personal access token",
-   `x-accepted-github-permissions: contents=write`; GraphQL `stargazers` is also FORBIDDEN).
-   Pigtail uses `GET /repos/{o}/{r}/stargazers/history` (weekly buckets with daily counts, no
-   identities). This works without a token, needs 1–5 requests per repository and covers repos of
-   any size, so star history is `exact` (daily net counts of current stargazers). The spec's
-   "40,000-star sampling" concern no longer applies. No contract change needed.
-2. **Narrative blocks may be `null`.** Spec §20 shows every block as an object. Pigtail sets a block
-   to `null` when the evidence cannot support it (PRD P5 "missing evidence is preferable"). The
-   schema allows `null`; `key_takeaways` stays a (possibly empty) array. Proposed as a 0.1.x
-   clarification.
-3. **Config defaults.** `discovery.max_queries` defaults to 12 (spec example 25) and the default
-   discovery provider is `anthropic_web_search`, so one `ANTHROPIC_API_KEY` covers both model and
-   search. Provider choice remains OPEN / MEASURE FIRST per spec §53.
-4. **Extra source policy files** `web.yaml` (generic pages) and `x.yaml` in addition to the four
-   examples in spec §24. A `web` policy is required as the fallback for unknown hosts.
-5. **Developer cache.** `PIGTAIL_DEV_CACHE=1` caches model responses under `.pigtail-cache/`
-   (gitignored) for local iteration only. Off by default.
+   (`/stargazers` → 403 "Resource not accessible by personal access token",
+   `x-accepted-github-permissions: contents=write`; GraphQL `stargazers` FORBIDDEN). Pigtail uses
+   `GET /repos/{o}/{r}/stargazers/history` (weekly buckets with daily counts, no identities): works
+   without a token, 1–5 requests per repo, any size, so star history is `exact` (daily net counts of
+   current stargazers). No contract change needed.
+2. **Narrative blocks may be `null`** when evidence cannot support them (PRD P5). Proposed as a
+   0.1.x clarification; documented in docs/research-bundle.md.
+3. **Config defaults.** `discovery.max_queries` default 12; default discovery provider
+   `anthropic_web_search` (one API key for model + search). Provider choice remains OPEN.
+4. **Extra source-policy files** `web.yaml` (required fallback) and `x.yaml`.
+5. **Developer cache** `PIGTAIL_DEV_CACHE=1` (off by default, gitignored `.pigtail-cache/`).
+6. **Website hosting:** GitHub Pages workflow instead of Vercel (spec allows "any equivalent static
+   host"); manual trigger only.
+7. **First-party feed + sitemap discovery** added to the discovery step (generic; found the Tally
+   milestone posts that web search missed).
 
-## Assumptions recorded
+## Launch checklists (PRD §18–21)
 
-- License: MIT (not specified; owner to confirm).
-- Default model `anthropic/claude-opus-5-5` (spec leaves the model open).
-- The legal values in `source-policies/` are conservative engineering defaults, not legal
-  conclusions; each file says so. Reddit, Product Hunt and X are link-only until reviewed.
-- Hacker News stories that only mention the name in the title are confirmed by the model triage
-  before use; stories older than the repository (−30 days) are dropped unless they link to the
-  project's own domain.
+### Demo checklist
+- [x] Compelling demo — Hatchet report: repeated HN launches on the star timeline
+- [x] Shows core value (repo URL → run → forensic → star timeline → events → evidence)
+- [x] Understandable without narration (captions, legend, "timing only" notes)
+- [x] Starts quickly (GIF opens on the CLI run, then the report)
+- [x] Visually understandable; [x] technically credible (hashes, locators, quotes)
+- [x] Realistic use case (maintainer comparing launches)
+- [ ] Surprising/fun demo worth sharing — candidate: "unexplained spikes" in Stirling-PDF/Bruno (needs owner pick)
+- [x] Segment demos: OSS (Hatchet) and product (Tally) examples
+- [x] README GIF: `docs/assets/demo.gif` (generated by `scripts/make_demo_assets.py`)
+- [ ] Short video for Reddit/X/LinkedIn — N/A tonight: no screen recorder/ffmpeg on this machine; GIF frames can be re-encoded
+- [x] Longer technical demonstration — docs/methodology.md + docs/architecture.md (written walkthrough)
 
-## Known limitations (current)
+### Try-It-Now checklist
+- [x] One-command install (`uv tool install git+https://github.com/suchipizza/pigtail`)
+- [x] Installation documented; [x] clean-environment install tested (fresh venv from the built wheel:
+  `version`, `validate`, `render` work without credentials; `doctor` reports missing key correctly)
+- [ ] Tested the `uv tool install git+…` path itself from GitHub — not yet (repo was empty until tonight); do before launch
+- [x] Copy-pasteable first example; [x] useful output in ~2–6 min
+- [x] No unnecessary accounts: one Anthropic key; GitHub token optional
+- [x] Not ten services: 1 required, 1 optional
+- [ ] Hosted playground — **N/A for V1**: runs cost real API money per target; alternative = published static example reports
+- [x] Online demo — the static website with 5 example reports (once deployed)
+- [ ] Sandbox — **N/A for V1** (same reason); `pigtail render` on example bundles needs no keys
+- [x] Example repository/targets in README
+- [x] 5-minute quick start (docs/quickstart.md); [x] common errors documented (docs/troubleshooting.md)
+- [x] Dependencies obvious; [x] supported runtime stated (Python 3.12+, macOS/Linux tested, Windows untested)
 
-- Product Hunt and Reddit are link-only: launches there appear only when a permitted source (e.g.
-  the maker's blog) states them.
-- Lone popular Hacker News posts (≥100 points) form "attention" launch episodes; for content-led
-  projects (e.g. Plausible) that is many rows.
-- Model cost per OSS run measured once: $2.90 uncached (Plausible, 54 sources, 350 claims).
+### README checklist
+- Above the fold: [x] name [x] one sentence [x] target user [x] problem [x] screenshot [x] install
+  [x] minimal example [x] docs link [ ] live demo link (after site deploy) — star button is on the website
+- Core: all sections present (why, problem, who, what, what it does not do, quick start, install,
+  example, real examples, screenshots, features, environments, integrations, architecture,
+  comparison, limitations, roadmap, contributing, issues, license, maintainer). Community/Discord: N/A (none yet).
+- Quality: plain English, no long essay before install, examples tested, images render.
+  [ ] Latest release visible — no release tagged yet (owner decision: tag `v0.1.0` after review).
 
-## Next task
+### GitHub discoverability checklist
+- [x] Description with search terms; [x] topics set (github-stars, star-history, product-hunt, hacker-news, …)
+- [x] Ecosystem names in README; [x] issues enabled; [x] contribution guide; [x] examples directory
+- [x] Docs indexed (docs/ markdown); [x] website links GitHub; [x] README links docs/examples
+- [ ] Releases with notes — workflow ready (`release.yml` on `v*` tags); not tagged yet
+- [ ] Discussions — **N/A for now**: no community yet to answer; enable at launch if desired
+- [ ] `good first issue` labels — **N/A for now**: create 3–5 real beginner issues at launch (ideas in CONTRIBUTING.md)
 
-M1 polish → M2: run `pigtail tally.so`, compare with the Tally reference, fix generalizable gaps.
+## PRD acceptance tests (§24)
+
+| Test | State |
+|---|---|
+| AT-L01 Clean install | Pass for wheel in fresh venv; git-URL install to be re-checked from GitHub |
+| AT-L02 Repository happy path | Pass (12 repo runs) |
+| AT-L03 General product path | Pass (Tally, Linear, beehiiv, Raycast, Carrd, Superhuman) |
+| AT-L04 Research Bundle | Pass (validator enforces spec §21) |
+| AT-L05 Standalone local report | Pass (no external requests; works from file://) |
+| AT-L06 Evidence traceability | Pass (drawer shows claim → quote → source → fetch hash/locator) |
+| AT-L07 OSS star/event visualization | Pass (4 OSS examples incl. 3 reviewed) |
+| AT-L08 Causal discipline | Pass (code caps; audit found 0 unsupported causal claims) |
+| AT-L09 Full growth analysis | Pass |
+| AT-L10 Generalization (4–5 golden) | Pass (5, no product-specific code) |
+| AT-L11 Non-curated validation | Pass with caveat: audited by AI reviewers, owner spot-check recommended |
+| AT-L12 Source-policy compliance | Pass |
+| AT-L13 Website | Built; **not deployed** (owner decision) |
+| AT-L14 Launch checklists | Mostly; open items listed above |
+| AT-L15 Plain-English README | Written; benefits from an unfamiliar reader's check |
+
+## Spend tonight
+
+Anthropic API usage ≈ **$55–60** ($52.02 recorded in 22 completed runs + 3 runs that failed before writing a bundle) (development, 12 validation runs, 5 golden runs),
+plus small test calls. More than planned because product targets with large first-party blogs cost
+$3–5 each. Cost reduction ideas: cap claims per page, use a smaller model for extraction
+(`--model anthropic/claude-sonnet-5-5` halves cost), fewer sources by default.
+
+## Known limitations
+
+- Product Hunt, Reddit, X are link-only until their terms are reviewed.
+- Many organic star spikes stay unexplained (Reddit/X posts, third-party posts without repo links).
+- Lone popular HN posts (≥100 points) form "attention" launch episodes; content-led projects get many rows.
+- Sites that block automated fetches (403) become gaps.
+- Each run is ~2–6 min; extraction is the slowest stage.
 
 ## Owner decisions needed
 
-1. Confirm MIT license.
-2. Confirm using the Anthropic web-search tool as the default discovery provider.
-3. Legal review of `source-policies/web.yaml` defaults (transient fetch, ≤280-char excerpts).
-4. Website domain (`pigtail.dev` is used as the schema `$id`; is it registered?).
+1. **Human review of the 5 examples** (`examples/reviewed/*/report.html`), then run the "Website"
+   workflow (Actions → Website → Run) and enable GitHub Pages (source: GitHub Actions).
+2. Confirm **MIT** license.
+3. Confirm default model/provider (Opus 5.5 + Anthropic web search) vs. a cheaper default.
+4. Legal review of `source-policies/web.yaml` (transient fetch, ≤280-char quotes) and whether to
+   enable Product Hunt (a `PH_API_TOKEN` exists in the sibling project) and Reddit.
+5. Tag `v0.1.0` (release workflow builds sdist/wheel + notes).
+6. Website domain (`pigtail.dev` is the schema `$id`).
+7. Superhuman example covers the Grammarly rename (target domain now belongs to the merged
+   company) — keep, or swap for a cleaner non-OSS case?
+
+## Next tasks
+
+- Re-check `uv tool install git+https://github.com/suchipizza/pigtail` from a clean machine.
+- Re-run maybe-finance with the HN fix and Tally/Plausible golden refresh after prompt changes.
+- Cost reduction pass (claims cap per page; measure Sonnet 5.5 for extraction).

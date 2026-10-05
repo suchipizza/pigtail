@@ -104,7 +104,7 @@
         <div class="tooltip" id="chartTip" role="status" aria-live="polite"></div>
       </div>
       <div class="chart-note">
-        Line: cumulative stars. Bars: stars gained per {{ "week" if vm.chart.stars|length > 400 else "day" }}. Shaded bands: growth episodes Pigtail detected. Lettered markers: public events (click for evidence).
+        Line: cumulative stars. Bars: stars gained per {{ vm.chart.bar_unit }}. Shaded bands: growth episodes Pigtail detected. Lettered markers: public events (click for evidence).
         {% if vm.chart.quality == "sampled" %}Dashed segments are interpolated between sampled points.{% endif %}
       </div>
       <details class="table-view"><summary>Show events as a table</summary>

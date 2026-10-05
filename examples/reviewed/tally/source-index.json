@@ -1,0 +1,880 @@
+{
+  "bundle_id": "01a10e76-eb08-73cc-b34b-3a774f41e427",
+  "schema_version": "0.1.0",
+  "sources": [
+    {
+      "id": "01a10e72-8ee1-724b-b60a-ca90ae01057b",
+      "url": "https://www.producthunt.com/products/tally",
+      "title": "Tally: The simplest way to create forms",
+      "surface": "product_hunt",
+      "source_type": "launch_page",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "C",
+      "public_display_mode": "link_only",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:42:31Z",
+          "status": "skipped_policy",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 0
+    },
+    {
+      "id": "01a10e72-8ee1-724d-96ca-4e5f9c3f4e30",
+      "url": "https://www.producthunt.com/products/tally-4bde8bb5-8264-4e78-a98a-f641d6f4d286/reviews",
+      "title": "Tally: The simplest way to create forms",
+      "surface": "product_hunt",
+      "source_type": "community",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "C",
+      "public_display_mode": "link_only",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:42:31Z",
+          "status": "skipped_policy",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 0
+    },
+    {
+      "id": "01a10e74-4239-723b-8c7c-4d1dcd42c1f9",
+      "url": "https://tally.so/",
+      "title": "Tally - Create Beautiful Forms for Free | Unlimited Forms & Submissions",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": null,
+      "published_at": "2026-01-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:c79a9791208f95d8e2c0e3f2aa2c6862556ff4ad9f84fdbda4cccc10b8560a2d"
+        }
+      ],
+      "evidence_link_count": 6
+    },
+    {
+      "id": "01a10e74-4239-7249-855b-0aca93b2d234",
+      "url": "https://blog.tally.so/how-we-use-tally-to-run-our-bootstrapped-startup/",
+      "title": "How we use Tally to run our bootstrapped startup",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2022-03-31T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:39cf18375dfe409c80d8e5e2a2c486172fb5f009e0dc9e680424d005abdc50fe"
+        }
+      ],
+      "evidence_link_count": 13
+    },
+    {
+      "id": "01a10e74-423a-7363-bca1-c563454a7177",
+      "url": "https://blog.tally.so/our-bootstrapped-journey-towards-100k-mrr/",
+      "title": "Our bootstrapped journey towards $100K MRR",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2024-02-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:cf61fe84aae87980bab98a610bb3bdb17fa6fd169c15385efbed29648c63d175"
+        }
+      ],
+      "evidence_link_count": 43
+    },
+    {
+      "id": "01a10e74-423b-71a0-9567-0df1d42eed27",
+      "url": "https://blog.tally.so/from-2-to-3m-arr-how-we-bootstrapped-tally-with-a-tiny-team/",
+      "title": "From 2 to $3M ARR: How We Bootstrapped Tally With a Tiny Team",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Team Tally",
+      "published_at": "2025-06-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:199ebd105dac7b513f8e56a7e587ba666035602cecd87bf01065be4f01a5b4b3"
+        }
+      ],
+      "evidence_link_count": 39
+    },
+    {
+      "id": "01a10e74-423c-73fb-93c4-3cb3f364f088",
+      "url": "https://blog.tally.so/the-road-from-4m-to-5m-arr/",
+      "title": "The road from $4M to $5M ARR",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie",
+      "published_at": "2026-04-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:f779216fd85eaac06a6d7fcf25d23f27afeafe55c0160d7d0fa21c04b9f80bba"
+        }
+      ],
+      "evidence_link_count": 34
+    },
+    {
+      "id": "01a10e74-423d-70cb-9ada-73f941f5e0c7",
+      "url": "https://blog.tally.so/introducing-tally-2-0/",
+      "title": "Introducing Tally 2.0",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie",
+      "published_at": "2023-09-18T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:06811cdb8084b022ae3e61aa8196125503f1360d665f5d5bf1baf78d411cfd9a"
+        }
+      ],
+      "evidence_link_count": 9
+    },
+    {
+      "id": "01a10e74-423d-70db-ac44-4c96b561a72c",
+      "url": "https://blog.tally.so/product-hunt-launch-results/",
+      "title": "Becoming #1 Product of the Month: our Product Hunt launch results",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2023-10-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:5a5d3619a51ae1af0312563cb2d5fcb0741de2a86c6f9a9b8d580ab83e7e662d"
+        }
+      ],
+      "evidence_link_count": 20
+    },
+    {
+      "id": "01a10e74-423e-7014-9e68-908aa46f510d",
+      "url": "https://blog.tally.so/year-1-how-we-bootstrapped-tally-to-11k-users-and-5k-mrr/",
+      "title": "Year 1 — How we bootstrapped Tally to 11k users and $5k MRR",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2021-10-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:b70f1fb1d453ab368cff6ca549d92b45cd231c3f0a469a629a5205ca992bdd04"
+        }
+      ],
+      "evidence_link_count": 42
+    },
+    {
+      "id": "01a10e74-423f-71f7-b5b2-4b8ace4ae847",
+      "url": "https://tally.so/changelog",
+      "title": "Tally Changelog: Latest Product Updates & Releases",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": null,
+      "published_at": "2026-09-11T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:c3ea74df2f15464b2a94c79ad16e3f100bd9d4fe24fce349fba6e43b4809d69e"
+        }
+      ],
+      "evidence_link_count": 21
+    },
+    {
+      "id": "01a10e74-423f-7211-9b58-f0dff33686bd",
+      "url": "https://tally.so/help/faq",
+      "title": "FAQ",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": null,
+      "published_at": "2026-09-04T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:8985595ab6138d4f49fe4baccf9b8a2742fbbe7b8a9afa1802683463622dfe2d"
+        }
+      ],
+      "evidence_link_count": 5
+    },
+    {
+      "id": "01a10e74-423f-721d-bba7-6afd601c5872",
+      "url": "https://blog.tally.so/6-years-in-6-million-far/",
+      "title": "6 years in, $6 million far",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie",
+      "published_at": "2026-09-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:d9e8ae1fe5b1979126f2aea2cbcb5e682cdccb9c31f2b62640dc3d4530550754"
+        }
+      ],
+      "evidence_link_count": 32
+    },
+    {
+      "id": "01a10e74-4240-714a-a208-1f42535d96a5",
+      "url": "https://blog.tally.so/in-2026-were-optimizing-for-quality-not-revenue/",
+      "title": "In 2026, we're optimizing for quality, not revenue.",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie",
+      "published_at": "2026-01-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:9baaf424b6b78e187acaf6b2b80a59d398d37c537c7be71e68f910917f846ec5"
+        }
+      ],
+      "evidence_link_count": 37
+    },
+    {
+      "id": "01a10e74-4241-713d-8ac4-055114ba17c5",
+      "url": "https://blog.tally.so/how-we-grew-tally-to-4m-arr-fully-bootstrapped/",
+      "title": "How we grew Tally to $4M ARR, fully bootstrapped",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie & Filip",
+      "published_at": "2025-10-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:c3dbdf9be718416903b32676743f294acd8f6675649872b1f8aae68959a1531b"
+        }
+      ],
+      "evidence_link_count": 39
+    },
+    {
+      "id": "01a10e74-4241-7167-a72d-322c89830ba6",
+      "url": "https://blog.tally.so/a-letter-to-our-future-marketing-manager/",
+      "title": "A letter to our future Marketing Manager",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie",
+      "published_at": "2025-09-24T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:474ab455e6b2a6bfeb9dda2ee82529abaca5705f4b1512554ad267baf7a7a49d"
+        }
+      ],
+      "evidence_link_count": 18
+    },
+    {
+      "id": "01a10e74-4242-7183-b697-e1ef607a4774",
+      "url": "https://blog.tally.so/we-crossed-2m-arr-with-a-bootstrapped-team-of-5/",
+      "title": "We crossed $2M ARR with a Bootstrapped Team of 5",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2025-02-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:0df512cebd0093ff310abc71d31903808e005b230ef336263059429ecf21ff97"
+        }
+      ],
+      "evidence_link_count": 38
+    },
+    {
+      "id": "01a10e74-4242-71ad-aebc-4e2afdc19486",
+      "url": "https://blog.tally.so/bootstrapping-to-150k-mrr-by-doing-less-better/",
+      "title": "Bootstrapping to $150K MRR by doing less, better.",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2024-10-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:8d722eacae9d75ddfb177cd24bb88f7f71de78f9e7458afa6fee7df560df689d"
+        }
+      ],
+      "evidence_link_count": 37
+    },
+    {
+      "id": "01a10e74-4243-73b4-87bf-7db8a18cb508",
+      "url": "https://blog.tally.so/bootstrapping-our-saas-to-60k-mrr-with-a-team-of-4/",
+      "title": "Bootstrapping our SaaS to $60K MRR with a team of 4.",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2023-05-25T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:7e83a679a9533b74bef7400a49d14d3be4a8bc141d0fb1152e018b9e4184a83a"
+        }
+      ],
+      "evidence_link_count": 9
+    },
+    {
+      "id": "01a10e74-4243-73c4-bbf0-5e853525f198",
+      "url": "https://blog.tally.so/tally-friends-meetup-the-recap/",
+      "title": "Tally & Friends meetup — the recap",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2023-05-08T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:d3d8f801f7fd5c6360e5db7e15d5b89ef55aafab65befdfdb10ca8e5575fb0a8"
+        }
+      ],
+      "evidence_link_count": 7
+    },
+    {
+      "id": "01a10e74-4243-73d0-9272-89a7dcb76803",
+      "url": "https://blog.tally.so/year-2-bootstrapping-our-saas-to-30k-mrr/",
+      "title": "Year 2: Bootstrapping our SaaS to $30K MRR",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie & Filip",
+      "published_at": "2022-10-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:a176ddd8ad80e1406465d1070fb78531724dcfb93376af1d1480f7a5b3c95faf"
+        }
+      ],
+      "evidence_link_count": 27
+    },
+    {
+      "id": "01a10e74-4244-7190-8e45-23d1fbb7bf7d",
+      "url": "https://blog.tally.so/how-to-measure-your-product-market-fit/",
+      "title": "How to measure your Product-Market Fit",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie",
+      "published_at": "2021-09-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:a156525517f8565c422589756db792a907bd51a86f690f0d5b23ec6c1413b40a"
+        }
+      ],
+      "evidence_link_count": 21
+    },
+    {
+      "id": "01a10e74-4244-71ac-8bbc-c4067953b7e8",
+      "url": "https://blog.tally.so/how-we-bootstrapped-tally-to-10k-mrr/",
+      "title": "How we bootstrapped Tally to $10k MRR",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie & Filip",
+      "published_at": "2022-02-11T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:38523933e0faacc8f012e3cf679d5e4489101b6e99f518575d9f20b4676c78d5"
+        }
+      ],
+      "evidence_link_count": 17
+    },
+    {
+      "id": "01a10e74-4244-71ca-94ed-fa5f2b35538e",
+      "url": "https://blog.tally.so/how-we-quit-our-jobs-to-work-on-our-startup-lost-half-of-our-clients-decided-to-pivot-and-ended-up-building-a-no-code-tool/",
+      "title": "How we ended up building the simplest way to create forms.",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2021-04-08T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:b3aae47c9a90270f6a5117a9374046f28564036b93c29bb8851637a1f586b048"
+        }
+      ],
+      "evidence_link_count": 28
+    },
+    {
+      "id": "01a10e74-4245-7078-a37c-c345994e10dc",
+      "url": "https://blog.tally.so/how-our-users-help-tally-grow/",
+      "title": "How our users help Tally grow",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2021-07-29T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:0cec8628955f4968be5dc5ea64c94fba91b42524a50c0be88f3c40912247b964"
+        }
+      ],
+      "evidence_link_count": 14
+    },
+    {
+      "id": "01a10e74-4245-7092-9a81-d934a1045281",
+      "url": "https://blog.tally.so/product-hunt-launch/",
+      "title": "Tally’s Product Hunt Launch: Our Checklist for Success",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie",
+      "published_at": "2021-05-07T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:6af99db9fde3d20c17dea88041041cc1dfc52d5e7648b290025af372be01d18e"
+        }
+      ],
+      "evidence_link_count": 3
+    },
+    {
+      "id": "01a10e74-4245-709a-8df8-1d81414c84db",
+      "url": "https://blog.tally.so/being-transparent-while-building-in-public/",
+      "title": "Being true and transparent while building in public",
+      "surface": "web",
+      "source_type": "founder_interview",
+      "author": "Marie Martens",
+      "published_at": "2022-05-17T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:fc2a5c29d7333a572d242b8ef6d84efa250fc104e5d423a65d82e419038734c4"
+        }
+      ],
+      "evidence_link_count": 2
+    },
+    {
+      "id": "01a10e74-4245-70a0-917d-fc44442708b2",
+      "url": "https://blog.tally.so/getting-an-audience-by-cold-outreach/",
+      "title": "Getting an audience by cold outreach",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2021-11-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:13194ee92a76f4de8e976b51c549097289e15b18a1dae54f3342fd3a24bc7d29"
+        }
+      ],
+      "evidence_link_count": 6
+    },
+    {
+      "id": "01a10e74-4246-7236-825b-811a945a7e50",
+      "url": "https://blog.tally.so/bootstrapping-our-saas-from-10k-to-20k-mrr/",
+      "title": "Bootstrapping our SaaS from $10K to $20K MRR",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2022-06-16T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:a8e75eb753439af4348011a11bc2aa340cdcea85571f8d9c8b91e56e7ab54654"
+        }
+      ],
+      "evidence_link_count": 23
+    },
+    {
+      "id": "01a10e74-4246-725c-bf9a-ef5f92de538a",
+      "url": "https://blog.tally.so/how-we-created-a-revenue-forecast-for-our-freemium-saas/",
+      "title": "How we created a revenue forecast for our freemium SaaS",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2022-08-02T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:5e8a8bb54a6f2bc8ca38291d5d4b2841b39b4edcf43bfc9a6e28d33e6af8b057"
+        }
+      ],
+      "evidence_link_count": 8
+    },
+    {
+      "id": "01a10e74-4246-726e-8bbd-a08ec086a2c1",
+      "url": "https://blog.tally.so/how-to-create-a-free-and-interactive-comparison-tool/",
+      "title": "Create a free competitor comparison tool for your startup",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2021-08-17T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:f6ad2643dd6d5f9dcc406475793a892355c12898218b47e10bcc39697a356896"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e74-4246-7272-a8eb-dc0d58c6ece4",
+      "url": "https://blog.tally.so/meet-tally-the-simplest-way-to-create-forms/",
+      "title": "Meet Tally",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens & Filip Minev",
+      "published_at": "2020-09-14T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:7cbdb6a1afc81bafccb91bf302d09d00880598ba8c93b56fade3d326a1ad6f84"
+        }
+      ],
+      "evidence_link_count": 12
+    },
+    {
+      "id": "01a10e74-4247-70ef-a828-bb1fb2b65840",
+      "url": "https://blog.tally.so/2021-from-233-to-8k-mrr/",
+      "title": "2021: from $233 to $8.5k MRR",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie & Filip",
+      "published_at": "2021-12-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:1fb12b25961b1f711f73c5460f6ee2c279607897d7c1b2787ad80acba3220f80"
+        }
+      ],
+      "evidence_link_count": 22
+    },
+    {
+      "id": "01a10e74-4247-710d-bdc9-85e84043fd48",
+      "url": "https://blog.tally.so/growing-to-8-5k-mrr-in-1-year/",
+      "title": "Indiebites: Growing to $8.5k MRR",
+      "surface": "web",
+      "source_type": "founder_interview",
+      "author": "Marie Martens",
+      "published_at": "2021-12-06T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:47c413be0dc8fdbd62d43541bb0f04be408f75be651c77cb82939faf343f0e74"
+        }
+      ],
+      "evidence_link_count": 6
+    },
+    {
+      "id": "01a10e74-4247-711b-b709-80c2526d8b2a",
+      "url": "https://blog.tally.so/meet-the-couple-challenging-google/",
+      "title": "Meet the couple challenging Google with $20K MRR",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2022-09-09T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:615311708ba8c619e388289c2cf96efe1a037e56ec7e4fd36c1be824a0943cb6"
+        }
+      ],
+      "evidence_link_count": 3
+    },
+    {
+      "id": "01a10e74-4247-7123-a2f0-3ddeb635f255",
+      "url": "https://blog.tally.so/no-code-world-radio/",
+      "title": "No-Code world radio",
+      "surface": "web",
+      "source_type": "founder_interview",
+      "author": "Marie Martens",
+      "published_at": "2021-08-24T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:9620ac9d07bcac355296be87f58085147af16521a001f467028f3ee76b7f989f"
+        }
+      ],
+      "evidence_link_count": 2
+    },
+    {
+      "id": "01a10e74-4247-7129-bd1a-95bd4c2792dd",
+      "url": "https://blog.tally.so/stealing-users-away-from-incumbents-like-google-with-marie-martens-of-tally/",
+      "title": "Indie Hackers: Stealing Users Away From Incumbents Like Google",
+      "surface": "web",
+      "source_type": "founder_interview",
+      "author": "Marie Martens",
+      "published_at": "2021-10-06T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:ffc5ed4599ac0722c7b74b499763d42314258e998eacd54667275cc0949ceb27"
+        }
+      ],
+      "evidence_link_count": 4
+    },
+    {
+      "id": "01a10e74-4247-7131-938b-5a350f1c1f18",
+      "url": "https://blog.tally.so/bootstrapped-stories-how-to-launch-on-product-hunt/",
+      "title": "Bootstrapped Stories: How to launch on Product Hunt",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": "Marie Martens",
+      "published_at": "2022-06-01T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:160cfeebc23de7417865a98712a15136751bf3d391d3e682a4dea45bb15f6ff5"
+        }
+      ],
+      "evidence_link_count": 4
+    },
+    {
+      "id": "01a10e74-4248-7264-bd90-a2f0a5a2fd0e",
+      "url": "https://okara.ai/blog/tally-revenue-growth",
+      "title": "Tally Revenue: How Tally Forms Grew to $6M ARR Bootstrapped",
+      "surface": "web",
+      "source_type": "third_party_analysis",
+      "author": "Okara; Fatima Rizwan",
+      "published_at": "2026-09-26T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:89819da190d453b44f956432857fa0f8a5da7abca10ad523fcc19588c82159de"
+        }
+      ],
+      "evidence_link_count": 32
+    },
+    {
+      "id": "01a10e74-4248-728e-95a0-312098e34c84",
+      "url": "https://www.firstmillion.club/p/tally",
+      "title": "How Tally Forms Hit Their First Million",
+      "surface": "web",
+      "source_type": "third_party_analysis",
+      "author": "Elan",
+      "published_at": "2025-12-05T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:0ea469632becbf77ba741cd080839d07c812c37eab3c14e2af00c5be8de25a57"
+        }
+      ],
+      "evidence_link_count": 20
+    },
+    {
+      "id": "01a10e74-4248-72b0-b356-2ff212d5435c",
+      "url": "https://growthwithgary.com/p/plg-company-tally",
+      "title": "PLG company: Tally.so",
+      "surface": "web",
+      "source_type": "third_party_analysis",
+      "author": "Gary Yau Chan",
+      "published_at": "2025-07-09T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:192cd346fad68483cb17e61c4dcd7a554a7a4696057a19151f7c27e17d308e24"
+        }
+      ],
+      "evidence_link_count": 17
+    },
+    {
+      "id": "01a10e74-4249-72b5-8c34-9ed675a4f8d5",
+      "url": "https://decodingvirality.substack.com/p/tallys-journey-to-20k-mrr-and-a-new",
+      "title": "Tally's journey to $20k MRR & a new feature added to this newsletter",
+      "surface": "web",
+      "source_type": "third_party_analysis",
+      "author": "Subro Chakrabarty",
+      "published_at": "2023-05-22T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:5be6639827854224c7a5e99032b0006193318dc587997e39f6e8f8ab14947ad5"
+        }
+      ],
+      "evidence_link_count": 12
+    },
+    {
+      "id": "01a10e74-4249-72cf-98f1-8b92e1f9a02f",
+      "url": "https://knowledge.gtmstrategist.com/p/tallys-bootstrapped-journey-to-500000-users",
+      "title": "Tally’s Bootstrapped Journey to 500,000 Users and $160K MRR",
+      "surface": "web",
+      "source_type": "third_party_analysis",
+      "author": "Maja Voje",
+      "published_at": "2025-01-31T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:ff522e713add79cd8d8fde00d7e5ba25686c7666048f3407e376a6b2a1757568"
+        }
+      ],
+      "evidence_link_count": 5
+    },
+    {
+      "id": "01a10e74-4249-72db-b995-e842a67809f2",
+      "url": "https://hustlyst.substack.com/p/tally-so",
+      "title": "📝 The Tale of Tally: One Tool Revolutionized Form Building",
+      "surface": "web",
+      "source_type": "third_party_analysis",
+      "author": "Hustlyst; Anirudh Kumar",
+      "published_at": "2025-08-25T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:8402564883a8efa6b65e3b7a5c2a9ac44edc480f12ec53a13ac5aa0598210f55"
+        }
+      ],
+      "evidence_link_count": 3
+    },
+    {
+      "id": "01a10e74-4249-72e3-b997-09b773ac9c42",
+      "url": "https://www.indiehackers.com/product/tally-2#update--MJzwI3T-_5Cqnh0i8DY",
+      "title": "Tally on Indie Hackers",
+      "surface": "web",
+      "source_type": "first_party",
+      "author": null,
+      "published_at": "2026-09-22T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "success",
+          "content_hash": "sha256:d41a56c3285e4145a17a54c4d077c90dcf24d2012d928035d7649d735535245c"
+        }
+      ],
+      "evidence_link_count": 22
+    },
+    {
+      "id": "01a10e74-424a-70ec-b1e0-e67f3ff0e881",
+      "url": "https://www.jointhequarter.com/blog/tally-forms",
+      "title": "How Tally Reached 11K Users in One Year",
+      "surface": "web",
+      "source_type": "third_party_analysis",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:44:22Z",
+          "status": "blocked",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 0
+    }
+  ]
+}

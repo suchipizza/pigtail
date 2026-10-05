@@ -236,7 +236,9 @@ async def reconstruct(model: ModelProvider, inp: ReconstructionInput) -> Reconst
         + "\n\nExisting events already in the record (do not duplicate them):\n"
         + ("\n".join(inp.event_lines) or "(none)")
         + "\n\nTask: reconstruct the factual timeline. Create events, metrics, people and conflicts from the "
-        "claims. New events must come from claims, not from the existing events. For metrics, copy the value "
+        "claims. New events must come from claims, not from the existing events. Metrics are growth and business measures only "
+        "(users, customers, revenue/MRR/ARR, signups, downloads, waitlist, traffic, team size, funding), not technical "
+        "benchmarks. For metrics, copy the value "
         "exactly as stated in a claim (convert '$20.7K' to 20700 with currency USD; percentages as 0–100)."
     )
     tl = await model.structured(

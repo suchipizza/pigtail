@@ -6,7 +6,7 @@ This guide takes you from nothing to your first growth report.
 
 - **Python 3.12 or newer.** Check with `python3 --version`.
 - **An Anthropic API key.** Pigtail uses Claude to read sources and to search the web.
-  Create a key at <https://console.anthropic.com/>. A typical run costs about **$1–3** in API usage.
+  Create a key at <https://console.anthropic.com/>. A typical run costs about **$1–3** for a repository and **$2–5** for a product website in API usage.
 - **Optional: a GitHub token.** Without one, GitHub allows 60 requests per hour, which is enough
   for one or two repositories. With one, you get 5,000 per hour. A token with no extra permissions
   is enough: <https://github.com/settings/tokens>.
@@ -69,7 +69,7 @@ You will see the stages as they run:
 › Render report…
 ```
 
-This takes about 3–5 minutes. When it finishes, the report opens in your browser. The files are in
+This takes about 2–6 minutes. When it finishes, the report opens in your browser. The files are in
 `./pigtail-output/<name>-<id>/`:
 
 | File | What it is |

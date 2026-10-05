@@ -19,8 +19,9 @@ FORBIDDEN_FILES = re.compile(r"(^|/)\.env($|\.)(?!example)")
 
 
 def files() -> list[str]:
-    out = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard"],
-                         capture_output=True, text=True, check=True).stdout.split("\n")
+    out = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"], capture_output=True, text=True, check=True
+    ).stdout.split("\n")
     return [f for f in out if f]
 
 

@@ -3,3 +3,8 @@
 {"target": "https://github.com/Stirling-Tools/Stirling-PDF", "exit_code": 0, "wall_seconds": 130}
 {"target": "https://github.com/maybe-finance/maybe", "exit_code": 0, "wall_seconds": 117}
 {"target": "https://github.com/usebruno/bruno", "exit_code": 6, "wall_seconds": 267}
+{"target": "beehiiv.com", "exit_code": 0, "wall_seconds": 375}
+{"target": "https://github.com/simonw/datasette", "exit_code": 0, "wall_seconds": 257}
+{"target": "raycast.com", "exit_code": 0, "wall_seconds": 284}
+{"target": "linear.app", "exit_code": 0, "wall_seconds": 348}
+{"target": "carrd.co", "exit_code": 0, "wall_seconds": 211}

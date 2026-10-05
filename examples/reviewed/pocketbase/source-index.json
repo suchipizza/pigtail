@@ -1,0 +1,738 @@
+{
+  "bundle_id": "01a10e65-fb47-72b8-a8e2-2319994d4cda",
+  "schema_version": "0.1.0",
+  "sources": [
+    {
+      "id": "01a10e63-d907-7346-8dba-8754882a0269",
+      "url": "https://api.github.com/repos/pocketbase/pocketbase",
+      "title": "GitHub API: pocketbase/pocketbase",
+      "surface": "github",
+      "source_type": "repository_api",
+      "author": "pocketbase",
+      "published_at": null,
+      "coverage_tier": "A",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:27Z",
+          "status": "success",
+          "content_hash": "sha256:0b43e432418bb2bf3fcea1022065a51c296385e9a3035f631265e18c6c2662b8"
+        }
+      ],
+      "evidence_link_count": 5
+    },
+    {
+      "id": "01a10e63-e0f2-7283-8f38-90e4aa676913",
+      "url": "https://api.github.com/repos/pocketbase/pocketbase/stargazers/history",
+      "title": "GitHub star history: pocketbase/pocketbase",
+      "surface": "github",
+      "source_type": "star_history_api",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "A",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:29Z",
+          "status": "success",
+          "content_hash": "sha256:2913fbe1a387bf53c880b5d6bfb23c32dbbe059511254f50be831efbd8fc7bd5"
+        }
+      ],
+      "evidence_link_count": 17
+    },
+    {
+      "id": "01a10e63-ecd4-72c2-bcc1-013e59eceb22",
+      "url": "https://github.com/pocketbase/pocketbase/releases",
+      "title": "pocketbase/pocketbase releases on GitHub",
+      "surface": "github",
+      "source_type": "release_list",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "A",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:32Z",
+          "status": "success",
+          "content_hash": "sha256:eca405ac89e132ff6c5448ec613a1f7ee8b83a4617e491d622345d90cb3ac349"
+        }
+      ],
+      "evidence_link_count": 26
+    },
+    {
+      "id": "01a10e63-f51a-7003-a103-5f5ea51dceb0",
+      "url": "https://news.ycombinator.com/item?id=46075320",
+      "title": "Pocketbase – open-source realtime back end in 1 file",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "modinfo",
+      "published_at": "2025-11-28T03:45:04Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:08f77b737688d4a0a6c1038bb7197b33ea5b8076e242c9a358a535e1324fe4a3"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51a-7008-b4d9-0f8ccd9b315b",
+      "url": "https://news.ycombinator.com/item?id=38898934",
+      "title": "Pocketbase: Open-source back end in one file",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "dgudkov",
+      "published_at": "2024-01-07T06:08:56Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:f6cfc70fcca85495b14807eb07881eae75f4f9738ac4dc4d5b4a0e8b822a266d"
+        }
+      ],
+      "evidence_link_count": 2
+    },
+    {
+      "id": "01a10e63-f51b-709e-a0c0-789dd8ed82aa",
+      "url": "https://news.ycombinator.com/item?id=32013330",
+      "title": "Show HN: PocketBase – Open Source realtime backend in one file",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "randomwebdev",
+      "published_at": "2022-07-07T12:45:11Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:5bb4301941ed3e3ebca49347b3dd7d029a3e560ff319ae5a97c413127bfca04e"
+        },
+        {
+          "retrieved_at": "2026-10-05T23:27:37Z",
+          "status": "network_failed",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 2
+    },
+    {
+      "id": "01a10e63-f51b-70a3-9791-cf9bb7ee3f8c",
+      "url": "https://news.ycombinator.com/item?id=47062561",
+      "title": "Pocketbase lost its funding from FLOSS fund",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "Onavo",
+      "published_at": "2026-02-18T16:11:00Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:69ef284cf0f6e4651ffef7acb14c05d2d2749859821dde4725eff5c2179a7cbe"
+        },
+        {
+          "retrieved_at": "2026-10-05T23:27:37Z",
+          "status": "network_failed",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 2
+    },
+    {
+      "id": "01a10e63-f51b-70a8-b48f-0bf33fd29052",
+      "url": "https://news.ycombinator.com/item?id=42496775",
+      "title": "Will PocketBase Survive?",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "alxjsn",
+      "published_at": "2024-12-23T19:03:29Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:b3da5958fe416f3cc0d04aa0e3a326e497bc34e503d6ca038ff8d553f105cb25"
+        }
+      ],
+      "evidence_link_count": 2
+    },
+    {
+      "id": "01a10e63-f51b-70ad-a087-4ee4774bd1c5",
+      "url": "https://news.ycombinator.com/item?id=41756284",
+      "title": "Pocketbase v0.23.0-RC Prerelease",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "oritsnile",
+      "published_at": "2024-10-06T11:02:29Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:d7be4bdd80d59b4c7e41f1ef71d0eee02f8324809db2499de9d55cb6921e22ab"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51b-70b2-819d-e0687332b7f4",
+      "url": "https://news.ycombinator.com/item?id=33120491",
+      "title": "PocketBase: Open-source back end in 1 file",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "thunderbong",
+      "published_at": "2022-10-07T12:47:53Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:ea631dabbedda371ef4d35883a1d74dec1dffa8e2e3c60c4236af1ff49cee85c"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51b-70b7-a1f1-c826a870ddb3",
+      "url": "https://news.ycombinator.com/item?id=42232479",
+      "title": "Pocketbase – v0.23.0 Release",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "thunderbong",
+      "published_at": "2024-11-25T01:55:53Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:a2cdbd8737993a0d95e2226a561e6ad03de32460f321f43fc86905a534291a9f"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51b-70bc-b5f9-d39b36b01f52",
+      "url": "https://news.ycombinator.com/item?id=45742788",
+      "title": "PocketBase 2026: FLOSS/fund sponsorship and UI rewrite",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "thunderbong",
+      "published_at": "2025-10-29T04:58:21Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:24f180f7503a14cd42bd39fb3189b3a872821bc70c62a5c3af390593aee56f5b"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51b-70c1-8a6d-ad776ca5f59a",
+      "url": "https://news.ycombinator.com/item?id=32873865",
+      "title": "Pocketbase: Open-Source Back End",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "zoba",
+      "published_at": "2022-09-17T01:00:28Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:cae3ebe93dca8a04ad6208d79f00fa64f501bf2830dbec98699e2057e66ce276"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51b-70c6-970c-80470e2b085e",
+      "url": "https://news.ycombinator.com/item?id=39087376",
+      "title": "No longer accepting donations (Pocketbase)",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "cosbgn",
+      "published_at": "2024-01-22T08:02:13Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:9ffef48732eb22c809dcfb5b4bb405ca7562e5d24c95346e567aebcfea75c802"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51b-70cb-9a53-590bd714bb67",
+      "url": "https://news.ycombinator.com/item?id=41094545",
+      "title": "Pocketbase: Open-source realtime back end in 1 file",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "tosh",
+      "published_at": "2024-07-28T17:25:43Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:d8ef24b7287a1758fbb09d33df1c12a709f990b0d7a5ec4333ad93af56f1f2fb"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51b-70d0-8947-e0a074685eeb",
+      "url": "https://news.ycombinator.com/item?id=36601248",
+      "title": "Host Pocketbase on Hop.io",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "subomi",
+      "published_at": "2023-07-05T14:52:34Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:1b0877af3631df1ee3e1f456ad7eba5defe0b482946b66c76d15bc259c014463"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51b-70d5-be8b-f831d66f2dc8",
+      "url": "https://news.ycombinator.com/item?id=44536952",
+      "title": "PocketBase – open-source back end in 1 file",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "EPendragon",
+      "published_at": "2025-07-11T21:30:32Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:198a7ce7184fd4927e8def423088719d8ab9423c52b2392aee049e6c1b1e80ff"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51c-733f-8914-b7af38123de1",
+      "url": "https://news.ycombinator.com/item?id=42574117",
+      "title": "Pocketbase v0.24.0 Release",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "lavren1974",
+      "published_at": "2025-01-02T13:14:19Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:d416bef64a430a6cf1b16a8babd6c89f81e79fe34be959abb5695d056311dbc2"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51c-7344-b033-0d817fbe763a",
+      "url": "https://news.ycombinator.com/item?id=32019482",
+      "title": "PocketBase – open-source Golang framework in 1 file",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "yasenn",
+      "published_at": "2022-07-07T21:10:52Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:9cbc2258f40de45d54d932a190a2e591abb6dc52608ea3f45f7b4b571c6c066b"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51c-7349-8293-4c49c30eecb2",
+      "url": "https://news.ycombinator.com/item?id=45759987",
+      "title": "Floss/Fund sponsor PocketBase",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "level87",
+      "published_at": "2025-10-30T13:46:34Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:1bdc9edec06722510b1babbb99b94d72acd3f151c652ea2e1abe228c56439dcf"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51c-734e-b8c9-fa5129dcb55c",
+      "url": "https://news.ycombinator.com/item?id=45635227",
+      "title": "Should Pocketbase add support for a native Python SDK?",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "Olshansky",
+      "published_at": "2025-10-19T16:03:52Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:2a1e7a63b96ca70de42dc4a95cc08ed5dc93573bb966a65b738908f4d8833a3b"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51c-7353-a94b-74862ee52631",
+      "url": "https://news.ycombinator.com/item?id=43990638",
+      "title": "PocketBase: Open-source back end in 1 file",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "goplayoutside",
+      "published_at": "2025-05-15T00:34:57Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:ea8bf6d182656a090569e98f0b3f929e3ee83fd8727c3c80a560b11edff6c21f"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e63-f51c-7358-a1d1-1a3d5bf4db87",
+      "url": "https://news.ycombinator.com/item?id=36931548",
+      "title": "Pocketbase 0.17.0: Extend with JavaScript",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "nedp",
+      "published_at": "2023-07-30T14:35:38Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:26:34Z",
+          "status": "success",
+          "content_hash": "sha256:56bd144880d7deb9d2dc75619153747253912fec594cd4b090381db6ff141d23"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e64-9a6d-717f-a00f-fbd7063e3c73",
+      "url": "https://news.ycombinator.com/item?id=40672099",
+      "title": "Show HN: Migrated from Supabase to Pocketbase => 4x+ text search speed in my app",
+      "surface": "hacker_news",
+      "source_type": "hn_story",
+      "author": "fancyFox",
+      "published_at": "2024-06-13T17:08:08Z",
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:16Z",
+          "status": "success",
+          "content_hash": "sha256:a4952d8ce46db0b3922cabb89a7b8ccfd7d915e904e74324f5e5eb3db34bdff0"
+        }
+      ],
+      "evidence_link_count": 1
+    },
+    {
+      "id": "01a10e64-a550-73ce-82a6-315376d145db",
+      "url": "https://x.com/pocketbase?lang=en",
+      "title": "PocketBase (@pocketbase) on X",
+      "surface": "x",
+      "source_type": "first_party",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "C",
+      "public_display_mode": "link_only",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:19Z",
+          "status": "skipped_policy",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 0
+    },
+    {
+      "id": "01a10e64-a550-73d1-b572-ab501b8ca350",
+      "url": "https://www.producthunt.com/products/pocketbase/launches",
+      "title": "PocketBase Latest Launches (2025)",
+      "surface": "product_hunt",
+      "source_type": "launch_page",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "C",
+      "public_display_mode": "link_only",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:19Z",
+          "status": "skipped_policy",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 0
+    },
+    {
+      "id": "01a10e64-a550-73d3-bd99-df190d041266",
+      "url": "https://www.producthunt.com/products/pocketbase?launch=pocketbase",
+      "title": "PocketBase: Open Source realtime backend in 1 file",
+      "surface": "product_hunt",
+      "source_type": "launch_page",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "C",
+      "public_display_mode": "link_only",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:19Z",
+          "status": "skipped_policy",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 0
+    },
+    {
+      "id": "01a10e64-a550-73d5-a850-331ef2190ef1",
+      "url": "https://x.com/betterhn20/status/2024188163158147184",
+      "title": "Hacker News 20 on X: \"Pocketbase lost its funding from FLOSS fund https://t.co/SfRA8bnV9Y (https://t.co/xMFngGC9uf)\" / X",
+      "surface": "x",
+      "source_type": "community",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "C",
+      "public_display_mode": "link_only",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:19Z",
+          "status": "skipped_policy",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 0
+    },
+    {
+      "id": "01a10e64-eaaa-73eb-ac2a-097779d998e3",
+      "url": "https://github.com/pocketbase",
+      "title": "PocketBase",
+      "surface": "github",
+      "source_type": "first_party",
+      "author": null,
+      "published_at": "2026-10-02T00:00:00Z",
+      "coverage_tier": "A",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:37Z",
+          "status": "success",
+          "content_hash": "sha256:9ba3ecc483a3b84adb1ddca1eda664dc1db6079d2ee66e7ab017810489529dd3"
+        }
+      ],
+      "evidence_link_count": 5
+    },
+    {
+      "id": "01a10e64-eaaa-73f6-8bb3-9dfcce13e691",
+      "url": "https://dir.floss.fund/view/project/@pocketbase.io/pocketbase",
+      "title": "PocketBase",
+      "surface": "web",
+      "source_type": "directory_or_listing",
+      "author": null,
+      "published_at": "2026-01-18T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:37Z",
+          "status": "success",
+          "content_hash": "sha256:bf14f1dcc4983e226ce188f7d153574a3f625198e8ddf41b2ae5a5ac0552e623"
+        }
+      ],
+      "evidence_link_count": 3
+    },
+    {
+      "id": "01a10e64-eaaa-73fc-b6fb-f96f55defcc6",
+      "url": "https://dir.floss.fund/view/funding/@pocketbase.io",
+      "title": "Gani Georgiev",
+      "surface": "web",
+      "source_type": "directory_or_listing",
+      "author": null,
+      "published_at": "2026-01-18T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:37Z",
+          "status": "success",
+          "content_hash": "sha256:d28bbc1b2c3d3d38772f330d59e0fecc1fde1555a0d7c3b3b5356f3d7e4d0be3"
+        }
+      ],
+      "evidence_link_count": 6
+    },
+    {
+      "id": "01a10e64-eaaa-7404-891c-3ae68ab5fbc0",
+      "url": "https://hunted.space/dashboard/351816",
+      "title": "PocketBase - Open Source realtime backend in 1 file | Product Hunt Launch Dashboard",
+      "surface": "web",
+      "source_type": "directory_or_listing",
+      "author": null,
+      "published_at": "2022-07-08T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:37Z",
+          "status": "success",
+          "content_hash": "sha256:eb823f288765f7913703653dbd05e4205d39888025c09e6292803df28f3cb11d"
+        }
+      ],
+      "evidence_link_count": 14
+    },
+    {
+      "id": "01a10e64-eaaa-7412-bf3e-bd8ed52ada20",
+      "url": "https://www.star-history.com/pocketbase/pocketbase/",
+      "title": "pocketbase/pocketbase - 61.3k Stars · Global Rank #362",
+      "surface": "web",
+      "source_type": "directory_or_listing",
+      "author": null,
+      "published_at": "2026-10-05T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:37Z",
+          "status": "success",
+          "content_hash": "sha256:4a18a851119e7e86e2b1192bdb43fc00db74103418d3f1df0431c3b277c0c761"
+        }
+      ],
+      "evidence_link_count": 22
+    },
+    {
+      "id": "01a10e64-eaab-72ce-815e-34b0230f78df",
+      "url": "https://betterstack.com/community/guides/database-platforms/pocketbase-backend/",
+      "title": "What is PocketBase? Features, Limitations, and Use Cases | Better Stack Community",
+      "surface": "web",
+      "source_type": "third_party_analysis",
+      "author": null,
+      "published_at": "2025-11-20T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:37Z",
+          "status": "success",
+          "content_hash": "sha256:b49058d5e668c493115ab4941e347f0e5c6156d3a74a9dd2f6f9b2a1e86a861e"
+        }
+      ],
+      "evidence_link_count": 8
+    },
+    {
+      "id": "01a10e64-eaab-72e0-b7fe-a0fbe38b0868",
+      "url": "https://github.com/benallfree/awesome-pocketbase/blob/main/README.md",
+      "title": "awesome-pocketbase/README.md at main · benallfree/awesome-pocketbase",
+      "surface": "github",
+      "source_type": "directory_or_listing",
+      "author": "Benallfree",
+      "published_at": "2022-10-03T00:00:00Z",
+      "coverage_tier": "A",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:37Z",
+          "status": "success",
+          "content_hash": "sha256:3b127babcceb80ab74f0a387307791c83d9f3121189088259662e92cecd1fb28"
+        }
+      ],
+      "evidence_link_count": 5
+    },
+    {
+      "id": "01a10e64-eaab-72ec-867c-a6e41f17a4ef",
+      "url": "https://dbdb.io/db/pocketbase/revisions/1",
+      "title": "PocketBase · Database of Databases",
+      "surface": "web",
+      "source_type": "directory_or_listing",
+      "author": null,
+      "published_at": "2026-07-17T00:00:00Z",
+      "coverage_tier": "C",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:37Z",
+          "status": "success",
+          "content_hash": "sha256:24233e3f8dffc810fe72c59d34ca91cfeed9f3e6bffa0e655c7c73d1affcec3e"
+        }
+      ],
+      "evidence_link_count": 4
+    },
+    {
+      "id": "01a10e64-eaac-7281-a985-5626466a6b40",
+      "url": "https://github.com/pocketbase/pocketbase#readme",
+      "title": "pocketbase/pocketbase README",
+      "surface": "github",
+      "source_type": "readme",
+      "author": "pocketbase",
+      "published_at": null,
+      "coverage_tier": "A",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:37Z",
+          "status": "success",
+          "content_hash": "sha256:7db99b508eddd7421bf9e59008530028817194e4914d68d02b680e5bee154985"
+        }
+      ],
+      "evidence_link_count": 9
+    },
+    {
+      "id": "01a10e64-eaac-7296-8a12-44b997af723a",
+      "url": "https://news.ycombinator.com/item?id=38899771",
+      "title": "Interesting! I haven't made anything serious yet with the PocketBase (mostly due...",
+      "surface": "hacker_news",
+      "source_type": "community",
+      "author": null,
+      "published_at": null,
+      "coverage_tier": "B",
+      "public_display_mode": "paraphrase_link_excerpt",
+      "fetches": [
+        {
+          "retrieved_at": "2026-10-05T23:27:37Z",
+          "status": "network_failed",
+          "content_hash": null
+        }
+      ],
+      "evidence_link_count": 0
+    }
+  ]
+}

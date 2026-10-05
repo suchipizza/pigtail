@@ -135,15 +135,29 @@ def _evidence_fields(page_kind: str, vc: VerifiedClaim) -> tuple[str, str]:
     return ev_class, directness
 
 
-def _claim_time(vc: VerifiedClaim, published: str | None, cutoff: datetime) -> dict:
+ANNOUNCEMENT_KINDS = {"launch", "product_change", "pricing", "business_model", "partnership", "funding"}
+
+
+def _claim_time(vc: VerifiedClaim, published: str | None, cutoff: datetime, page_kind: str = "other") -> dict:
     from pigtail.research.reconstruction import time_from
 
     c = vc.claim
     tr = time_from(c.date, c.date_end, c.date_label)
     s = parse_dt(tr["start"])
-    pub = parse_dt(range_from_partial(published)["end"]) if published else None
+    pub_tr = range_from_partial(published) if published else None
+    pub = parse_dt(pub_tr["end"]) if pub_tr else None
     if s and (s > cutoff or (pub and s > pub + timedelta(days=31))):
         return {"start": None, "end": None, "precision": "unknown", "label": c.date_label}
+    # An undated announcement in a first-party post is anchored to the post's own date, with a label
+    # that says so (the precision is the post's, not invented).
+    if (
+        not s
+        and pub_tr
+        and pub_tr["start"]
+        and page_kind in ("first_party", "launch_page")
+        and (c.kind in ANNOUNCEMENT_KINDS)
+    ):
+        return {**pub_tr, "label": f"announced in a post dated {pub_tr['start'][:10]}"}
     return tr
 
 
@@ -400,7 +414,7 @@ async def run_analysis(
                 b.add_claim(
                     vc.claim.statement,
                     kind=vc.claim.kind,
-                    time=_claim_time(vc, published, cutoff),
+                    time=_claim_time(vc, published, cutoff, page_kind),
                     evidence=[
                         EvidenceSpec(
                             src["id"],
