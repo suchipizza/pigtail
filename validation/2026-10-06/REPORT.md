@@ -34,7 +34,9 @@ validator refused to write the bundle (as designed — PRD E8). Fixed (reference
 re-run.
 ³ First run found **no** Hacker News stories: the generic name "maybe" pulled in high-scoring
 unrelated title matches that crowded out the URL-matched stories. Fixed (URL matches always kept;
-title-only matches always go through triage). Not re-run, to limit spend.
+title-only matches always go through triage). Re-run after the fix ($0.59): 6 Hacker News stories found; the
+January 2024 open-sourcing spike (+12,358 stars) is now associated (timing only) with the HN post linking the
+repository; unexplained episodes fell from 4 to 3.
 
 **Totals for the 12 runs (10 targets + 2 re-runs):** ≈ $28.9 model + search; 10 web searches/run
 ($0.10). Runtime 1.7–6.2 min. Repositories: $0.56–2.79 (median ≈ $2.1). Products: $2.05–4.90

@@ -76,7 +76,7 @@ fabricated; Pigtail is not a content archive.
 - [x] One-command install (`uv tool install git+https://github.com/suchipizza/pigtail`)
 - [x] Installation documented; [x] clean-environment install tested (fresh venv from the built wheel:
   `version`, `validate`, `render` work without credentials; `doctor` reports missing key correctly)
-- [ ] Tested the `uv tool install git+…` path itself from GitHub — not yet (repo was empty until tonight); do before launch
+- [x] Install from the GitHub URL tested in a fresh venv (pip); `uv tool install` uses the same package
 - [x] Copy-pasteable first example; [x] useful output in ~2–6 min
 - [x] No unnecessary accounts: one Anthropic key; GitHub token optional
 - [x] Not ten services: 1 required, 1 optional
@@ -108,7 +108,7 @@ fabricated; Pigtail is not a content archive.
 
 | Test | State |
 |---|---|
-| AT-L01 Clean install | Pass for wheel in fresh venv; git-URL install to be re-checked from GitHub |
+| AT-L01 Clean install | Pass — `pip install git+https://github.com/suchipizza/pigtail` into a fresh Python 3.12 venv; `version`, `validate --published`, `render` work with no credentials |
 | AT-L02 Repository happy path | Pass (12 repo runs) |
 | AT-L03 General product path | Pass (Tally, Linear, beehiiv, Raycast, Carrd, Superhuman) |
 | AT-L04 Research Bundle | Pass (validator enforces spec §21) |
@@ -154,6 +154,5 @@ $3–5 each. Cost reduction ideas: cap claims per page, use a smaller model for 
 
 ## Next tasks
 
-- Re-check `uv tool install git+https://github.com/suchipizza/pigtail` from a clean machine.
-- Re-run maybe-finance with the HN fix and Tally/Plausible golden refresh after prompt changes.
+- Refresh Tally/Plausible golden examples after the latest prompt changes (≈$5).
 - Cost reduction pass (claims cap per page; measure Sonnet 5.5 for extraction).
