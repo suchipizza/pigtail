@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pigtail"
+version = "0.1.0"
+description = "Reconstruct how a product or GitHub repository grew, from public evidence: star history, launches, posts, releases, tactics and sources in one local report."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Pigtail contributors" }]
+keywords = ["growth", "github-stars", "star-history", "open-source", "product-hunt", "hacker-news", "launch", "research", "forensics"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development",
+]
+dependencies = [
+  "typer>=0.12",
+  "pydantic>=2.7",
+  "httpx>=0.27",
+  "jinja2>=3.1",
+  "pyyaml>=6.0",
+  "anthropic>=0.60",
+  "trafilatura>=1.12",
+  "jsonschema>=4.22",
+  "rich>=13.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/suchipizza/pigtail"
+Issues = "https://github.com/suchipizza/pigtail/issues"
+
+[project.scripts]
+pigtail = "pigtail.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6", "mypy>=1.11", "types-PyYAML", "respx>=0.21"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pigtail"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"schemas/research-bundle/0.1.0.schema.json" = "pigtail/_data/schemas/research-bundle/0.1.0.schema.json"
+"source-policies" = "pigtail/_data/source-policies"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003", "B008", "E501", "UP046", "SIM113"]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["pigtail"]
+mypy_path = "src"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = ["live: hits real network/APIs (opt-in with PIGTAIL_LIVE=1)"]

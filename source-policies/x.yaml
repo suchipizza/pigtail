@@ -1,0 +1,31 @@
+key: x
+version: "1"
+display_name: X (Twitter)
+coverage_tier: C
+
+access:
+  discovery_allowed: true
+  automated_retrieval_allowed: false
+  method: link_only
+  authentication: required
+  rate_limit_notes: The X API is paid and not used. Links found by web search are kept as links only.
+
+retention:
+  mode: metadata_only
+  allow_full_artifact: false
+  max_excerpt_chars: 0
+
+public_display:
+  mode: link_only
+  attribution_required: true
+  notes: null
+
+obligations:
+  deletion_refresh: null
+  terms_url: "https://x.com/en/tos"
+  reviewed_at: "2026-10-06"
+
+implementation:
+  adapter: x
+  enabled_by_default: false
+  notes: Disabled by default. No X content is fetched or stored.

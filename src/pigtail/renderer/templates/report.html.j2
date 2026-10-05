@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Pigtail {{ vm.run.engine_version }}">
+<title>{{ vm.target.name }} — Pigtail growth forensic</title>
+<style>
+{{ css }}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div class="brand">pigtail<span>.</span></div>
+    <div class="topbar-right">
+      <span class="pill status-{{ vm.run.status }}">{{ vm.run.status_label }}</span>
+      <span class="pill">Growth forensic · {{ vm.run.date }}</span>
+      <button class="pill theme-toggle" type="button" id="themeToggle" aria-label="Toggle dark mode">◐</button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-grid">
+      <div>
+        <div class="kicker">{{ {"repository": "Open-source project", "product": "Product", "company": "Company"}[vm.target.kind] }} growth forensic</div>
+        <h1>{{ vm.target.name }}</h1>
+        {% if vm.target.description %}<p class="subtitle">{{ vm.target.description }}</p>{% endif %}
+        <div class="tags">
+          <a class="tag" href="{{ vm.target.url }}" target="_blank" rel="noopener">{{ vm.target.url | replace("https://", "") }} ↗</a>
+          {% if vm.repo_url and vm.repo_url != vm.target.url %}<a class="tag" href="{{ vm.repo_url }}" target="_blank" rel="noopener">{{ vm.repo_url | replace("https://", "") }} ↗</a>{% endif %}
+          {% if vm.repo and vm.repo.language %}<span class="tag">{{ vm.repo.language }}</span>{% endif %}
+          {% if vm.repo and vm.repo.license %}<span class="tag">{{ vm.repo.license }}</span>{% endif %}
+          {% for p in vm.founders %}<span class="tag">{{ p.name }} · {{ p.short_role }}</span>{% endfor %}
+        </div>
+        <div class="notice"><b>Scope</b><span>Reconstructed by Pigtail from public evidence available on {{ vm.run.cutoff }}. Every factual statement links to its source{% if vm.counts.sources %} ({{ vm.counts.sources }} sources, {{ vm.counts.claims }} extracted claims){% endif %}. Private strategy, internal experiments and unreported causes are unknown. Things that happened close together in time are shown as <i>observed together</i>, not as cause and effect.</span></div>
+      </div>
+      {% if vm.stats %}
+      <div class="statgrid">
+        {% for s in vm.stats %}<div class="stat"><b>{{ s.value }}</b><span>{{ s.label }}</span></div>{% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <nav class="toc" aria-label="Sections">
+    {% if vm.narrative.thirty_second %}<a href="#summary">Summary</a>{% endif %}
+    {% if vm.chart %}<a href="#stars">Stars &amp; events</a>{% endif %}
+    {% if vm.growth_episodes %}<a href="#episodes">Growth episodes</a>{% endif %}
+    {% if vm.launch_episodes %}<a href="#launches">Launches</a>{% endif %}
+    {% if vm.narrative.origin or vm.narrative.first_users %}<a href="#origin">Origin</a>{% endif %}
+    {% if vm.events %}<a href="#timeline">Timeline</a>{% endif %}
+    {% if vm.metric_cards %}<a href="#metrics">Metrics</a>{% endif %}
+    {% if vm.engines %}<a href="#engines">Engines</a>{% endif %}
+    {% if vm.tactics %}<a href="#tactics">Tactics</a>{% endif %}
+    {% if vm.phases %}<a href="#strategy">Strategy</a>{% endif %}
+    {% if vm.takeaways %}<a href="#takeaways">Takeaways</a>{% endif %}
+    <a href="#gaps">Gaps</a>
+    <a href="#sources">Sources</a>
+  </nav>
+
+  {% if vm.insufficient %}
+  <section class="section">
+    <div class="panel insufficient">
+      <h2>Insufficient public evidence for a useful Pigtail forensic.</h2>
+      <p>Pigtail could not find enough public, verifiable information to reconstruct how {{ vm.target.name }} grew. Rather than fill this page with guesses, it shows only what was found. See the research gaps below for what was missing.</p>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if vm.narrative.thirty_second %}
+  <section class="section" id="summary">
+    <div class="section-head"><div><h2>The 30-second version</h2><div class="desc">Pigtail's synthesis of the evidence below. {{ legend_inference(vm.narrative.thirty_second) }}</div></div></div>
+    <div class="panel summary">
+      <p class="lead">{{ vm.narrative.thirty_second.text }}{{ cites(vm.narrative.thirty_second.cites) }}</p>
+      {% if vm.narrative.flywheel %}
+      <div class="flywheel-text"><small>Growth mechanism</small><p>{{ vm.narrative.flywheel.text }}{{ cites(vm.narrative.flywheel.cites) }}</p><span class="badge inferred">{{ vm.narrative.flywheel.inference or "Stated in sources" }}</span></div>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if vm.chart %}
+  <section class="section" id="stars">
+    <div class="section-head">
+      <div><h2>GitHub stars and public events</h2>
+        <div class="desc">Star history and the launches, posts and releases Pigtail found, on one time axis. Markers show <b>when</b> something happened. Being close to a jump in stars does not mean it caused the jump.</div></div>
+      <div class="quality q-{{ vm.chart.quality }}" title="How the star history was obtained">Star data: {{ {"exact": "exact daily counts from GitHub", "sampled": "sampled (some points estimated)", "reconstructed": "reconstructed", "unavailable": "unavailable"}[vm.chart.quality] }}</div>
+    </div>
+    <div class="panel chart-panel viz-root">
+      <div class="chart-controls" id="chartControls">
+        <div class="legend" id="chartLegend"></div>
+        <div class="range" role="group" aria-label="Time range">
+          <button type="button" data-range="all" class="active">All</button>
+          <button type="button" data-range="1095">3y</button>
+          <button type="button" data-range="365">1y</button>
+          <button type="button" data-range="90">90d</button>
+        </div>
+      </div>
+      <div class="chart-wrap" id="starChartWrap">
+        <svg id="starChart" role="img" aria-label="Cumulative GitHub stars over time with event markers"></svg>
+        <div class="tooltip" id="chartTip" role="status" aria-live="polite"></div>
+      </div>
+      <div class="chart-note">
+        Line: cumulative stars. Bars: stars gained per {{ "week" if vm.chart.stars|length > 400 else "day" }}. Shaded bands: growth episodes Pigtail detected. Lettered markers: public events (click for evidence).
+        {% if vm.chart.quality == "sampled" %}Dashed segments are interpolated between sampled points.{% endif %}
+      </div>
+      <details class="table-view"><summary>Show events as a table</summary>
+        <table><thead><tr><th>Date</th><th>Type</th><th>Event</th></tr></thead><tbody>
+        {% for e in vm.events if e.t %}<tr><td>{{ e.when }}</td><td>{{ e.kind_label }}</td><td>{{ e.title }}</td></tr>{% endfor %}
+        </tbody></table>
+      </details>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if vm.growth_episodes %}
+  <section class="section" id="episodes">
+    <div class="section-head"><div><h2>Growth episodes</h2><div class="desc">Periods where stars grew much faster than the project's usual pace, and what was publicly happening at the time.</div></div></div>
+    <div class="episode-grid">
+      {% for g in vm.growth_episodes %}
+      <div class="episode{% if g.unexplained %} unexplained{% endif %}">
+        <div class="episode-top"><span class="event-date">{{ g.when }}</span><b class="delta">{{ g.delta_display }} stars</b></div>
+        <h3>{{ g.title }}</h3>
+        <p>{{ g.summary }}{{ cites(g.cites) }}</p>
+        {% if g.unexplained %}
+          <div class="unknown-box">No high-confidence public event found.</div>
+        {% else %}
+          <div class="observed"><small>Observed near this period</small>
+            <ul>{% for e in g.events %}<li><button class="linklike" data-event="{{ e.id }}"><span class="dot k-{{ e.css }}"></span>{{ e.when }} · {{ e.title }}</button></li>{% endfor %}</ul>
+          </div>
+          <span class="badge assoc">{{ g.attribution_label }}</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+    {% if vm.launch_episodes %}
+  <section class="section" id="launches">
+    <div class="section-head"><div><h2>Launches compared</h2><div class="desc">Related launch events grouped into launch episodes, with stars the day before and the change afterwards. Changes are observed after each launch; they are not proof that the launch caused them.</div></div></div>
+    <div class="panel table-scroll">
+      <table class="launch-table">
+        <thead><tr><th>When</th><th>Launch episode</th><th class="num">Stars before</th><th class="num">+24h</th><th class="num">+7 days</th><th class="num">+30 days</th><th class="num">+90 days</th></tr></thead>
+        <tbody>
+        {% for le in vm.launch_episodes %}
+          <tr>
+            <td class="nowrap">{{ le.when }}</td>
+            <td><b>{{ le.title }}</b>{{ cites(le.cites) }}
+              <div class="launch-events">{% for e in le.events %}<button type="button" class="chip linklike" data-event="{{ e.id }}"><span class="dot k-{{ e.css }}"></span>{{ e.kind_label }}: {{ e.title | truncate(60) }}</button>{% endfor %}</div>
+            </td>
+            <td class="num">{{ le.before }}</td>
+            {% for c in le.cols %}<td class="num">{{ c }}</td>{% endfor %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <p class="small">Each row's "state before" and outcome details are in the evidence drawer. {% if vm.launch_episodes|length > 1 %}Comparing rows shows how the project's situation and response differed between launches.{% endif %}</p>
+      {% for le in vm.launch_episodes %}{% if le.summary %}<details class="launch-detail"><summary>{{ le.when }} · {{ le.title }}</summary><p class="small">{{ le.summary }}</p>{% for o in le.outcomes %}<p class="small">{{ o.summary }}{{ cites(o.cites) }}</p>{% endfor %}</details>{% endif %}{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+
+  {% if vm.narrative.origin or vm.narrative.first_users %}
+  <section class="section" id="origin">
+    <div class="section-head"><div><h2>Origin and first users</h2><div class="desc">Why it was built and how the earliest users were found, as far as public sources show.</div></div></div>
+    <div class="two-col">
+      {% if vm.narrative.origin %}<div class="panel"><small class="label">Origin</small><p>{{ vm.narrative.origin.text }}{{ cites(vm.narrative.origin.cites) }}</p>{% if vm.narrative.origin.inferred %}<span class="badge inferred">{{ vm.narrative.origin.inference }}</span>{% endif %}</div>{% endif %}
+      {% if vm.narrative.first_users %}<div class="panel"><small class="label">First users</small><p>{{ vm.narrative.first_users.text }}{{ cites(vm.narrative.first_users.cites) }}</p>{% if vm.narrative.first_users.inferred %}<span class="badge inferred">{{ vm.narrative.first_users.inference }}</span>{% endif %}</div>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if vm.events %}
+  <section class="section" id="timeline">
+    <div class="section-head">
+      <div><h2>Growth timeline</h2><div class="desc">Every event Pigtail reconstructed. Click one to see the claims and sources behind it.</div></div>
+      <div class="filters" id="filters">
+        <button type="button" class="filter active" data-cat="All">All</button>
+        {% for c in vm.categories %}<button type="button" class="filter" data-cat="{{ c }}">{{ c }}</button>{% endfor %}
+      </div>
+    </div>
+    <div class="timeline-layout">
+      <div class="timeline" id="timelineList">
+        {% for e in vm.events %}
+        <button type="button" class="event" data-event="{{ e.id }}" data-cat="{{ e.kind_label }}">
+          <span class="event-top"><span class="event-date">{{ e.when }}</span><span class="event-cat"><span class="dot k-{{ e.css }}"></span>{{ e.kind_label }}</span></span>
+          <span class="event-title">{{ e.title }}</span>
+          {% if e.metrics %}<span class="event-metric">{{ e.metrics | join(" · ") }}</span>{% endif %}
+        </button>
+        {% endfor %}
+      </div>
+      <div class="panel detail" id="detail" aria-live="polite"><div class="detail-empty">Select an event to see what happened, how sure the evidence is, and the original sources.</div></div>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if vm.metric_cards %}
+  <section class="section" id="metrics">
+    <div class="section-head"><div><h2>Historical metrics</h2><div class="desc">Numbers reported in public sources. They give context; they do not prove that any one tactic caused growth. Figures are as reported and not independently audited.</div></div></div>
+    {% for s in vm.metric_series[:2] %}
+    <div class="panel metric-chart viz-root" data-series="{{ loop.index0 }}">
+      <div class="metric-chart-head"><b>{{ s.label }}</b></div>
+      <div class="chart-wrap small"><svg class="metricChart" data-series="{{ loop.index0 }}" role="img" aria-label="{{ s.label }} over time"></svg><div class="tooltip"></div></div>
+    </div>
+    {% endfor %}
+    <div class="metric-grid">
+      {% for m in vm.metric_cards %}
+      <div class="metric-card">
+        <b>{{ m.label }}</b>
+        <table>{% for r in m.rows %}<tr><td>{{ r.when }}</td><td class="num">{{ r.value }}</td><td>{{ cites(r.cites) }}</td></tr>{% endfor %}</table>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if vm.engines %}
+  <section class="section" id="engines">
+    <div class="section-head"><div><h2>Growth engines</h2><div class="desc">Mechanisms that repeatedly created or compounded growth. These are Pigtail's interpretation of the cited claims.</div></div></div>
+    <div class="engine-grid">
+      {% for e in vm.engines %}
+      <div class="engine">
+        {% for p in e.periods[:1] %}<div class="type">{{ p.state }}{% if p.when and p.when != "Date unknown" %} · {{ p.when }}{% endif %}</div>{% endfor %}
+        <h3>{{ e.name }}</h3>
+        <p>{{ e.description }}</p>
+        {% if e.mechanism %}<p class="mech"><b>How it works:</b> {{ e.mechanism }}</p>{% endif %}
+        {{ cites(e.cites) }}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if vm.tactics %}
+  <section class="section" id="tactics">
+    <div class="section-head"><div><h2>Reusable tactics</h2><div class="desc">Concrete actions another team could understand and adapt, with where and when this project used them.</div></div></div>
+    <div class="tactic-grid">
+      {% for t in vm.tactics %}
+      <div class="tactic">
+        <h3>{{ t.name }}</h3>
+        <p>{{ t.description }}</p>
+        {% if t.mechanism %}<div class="copybox"><b>Mechanism:</b> {{ t.mechanism }}</div>{% endif %}
+        {% for o in t.occurrences %}<p class="small"><b>{{ o.when }}:</b> {{ o.implementation }}</p>{% endfor %}
+        {% if t.prereqs %}<div class="meta-row">{% for p in t.prereqs %}<span class="meta">Needs: {{ p }}</span>{% endfor %}</div>{% endif %}
+        {% if t.constraints %}<div class="meta-row">{% for p in t.constraints %}<span class="meta">Limit: {{ p }}</span>{% endfor %}</div>{% endif %}
+        <div class="meta-row"><span class="meta">{{ t.evidence_label }}</span></div>
+        {{ cites(t.cites) }}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if vm.phases or vm.stages %}
+  <section class="section" id="strategy">
+    <div class="section-head"><div><h2>How the strategy changed</h2><div class="desc">Growth approach over time (strategy phases), shown separately from the business's situation (company stages).</div></div></div>
+    <div class="two-col">
+      {% if vm.phases %}<div class="panel"><small class="label">Strategy phases</small>
+        <ol class="phases">{% for p in vm.phases %}<li><span class="event-date">{{ p.when }}</span><b>{{ p.label }}</b><p>{{ p.summary }}{{ cites(p.cites) }}</p></li>{% endfor %}</ol></div>{% endif %}
+      {% if vm.stages %}<div class="panel"><small class="label">Company stages</small>
+        <ol class="phases">{% for p in vm.stages %}<li><span class="event-date">{{ p.when }}</span><b>{{ p.label }}</b><p>{{ p.summary }}{{ cites(p.cites) }}</p></li>{% endfor %}</ol></div>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if vm.narrative.did_differently %}
+  <section class="section">
+    <div class="section-head"><div><h2>What {{ vm.target.name }} did differently</h2><div class="desc">Higher-level interpretation, separate from the factual record above.</div></div></div>
+    <div class="panel"><p>{{ vm.narrative.did_differently.text }}{{ cites(vm.narrative.did_differently.cites) }}</p><span class="badge inferred">{{ vm.narrative.did_differently.inference or "Stated in sources" }}</span></div>
+  </section>
+  {% endif %}
+
+  {% if vm.reversals or vm.constraints %}
+  <section class="section">
+    <div class="section-head"><div><h2>Reversals and constraints</h2><div class="desc">Documented changes of course and limits that shaped growth.</div></div></div>
+    <div class="diff-grid">
+      {% for e in vm.reversals %}<div class="diff"><b>{{ e.title }}</b><span>{{ e.when }} · {{ e.summary }}</span>{{ cites(e.cites) }}</div>{% endfor %}
+      {% for c in vm.constraints %}<div class="diff"><b>{{ c.name }}</b><span>{{ c.description }}</span>{{ cites(c.cites) }}</div>{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if vm.takeaways %}
+  <section class="section" id="takeaways">
+    <div class="section-head"><div><h2>Key takeaways</h2><div class="desc">Lessons supported by the evidence. Historical association is not a guarantee for another product.</div></div></div>
+    <div class="diff-grid">
+      {% for k in vm.takeaways %}<div class="diff"><span class="take">{{ k.text }}{{ cites(k.cites) }}</span>{% if k.inference %}<small class="muted">{{ k.inference }}</small>{% endif %}</div>{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="section" id="gaps">
+    <div class="section-head"><div><h2>Research gaps and uncertainty</h2><div class="desc">What Pigtail could not establish. Unknown is a valid answer.</div></div></div>
+    {% if vm.conflicts %}
+    <div class="panel conflicts"><small class="label">Conflicting sources</small>
+      {% for c in vm.conflicts %}<div class="conflict"><b>{{ c.summary }}</b><ul>{% for cl in c.claims %}{% if cl %}<li>{{ cl.statement }} <button class="cite" data-claim="{{ cl.id }}">evidence</button></li>{% endif %}{% endfor %}</ul></div>{% endfor %}
+    </div>
+    {% endif %}
+    {% if vm.gaps %}
+    <ul class="gaps">{% for g in vm.gaps %}<li class="gap-{{ g.severity }}"><span class="badge {{ 'material' if g.severity == 'material' else 'minor' }}">{{ g.severity }}</span><b>{{ g.type }}</b> — {{ g.summary }}</li>{% endfor %}</ul>
+    {% else %}<p class="muted">No gaps were recorded.</p>{% endif %}
+  </section>
+
+  <section class="section" id="sources">
+    <div class="section-head"><div><h2>Evidence and sources</h2><div class="desc">Every source Pigtail used or tried. Pigtail stores links, metadata and at most a short excerpt — not copies of pages.</div></div></div>
+    <div class="sources">
+      {% for s in vm.sources %}
+      <a class="source-item" id="src-{{ s.n }}" href="{{ s.url }}" target="_blank" rel="noopener">
+        <b><span class="srcnum">[{{ s.n }}]</span> {{ s.title }}</b>
+        <span>{{ s.host }} · {{ s.type }}{% if s.published %} · {{ s.published }}{% endif %} · {{ s.claims }} claim{{ "" if s.claims == 1 else "s" }}{% if s.fetch_status != "success" %} · {{ s.fetch_status | replace("_", " ") }}{% endif %}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>Generated by <a href="https://github.com/suchipizza/pigtail">Pigtail</a> {{ vm.run.engine_version }} from Research Bundle <code>{{ vm.bundle_id }}</code> (schema {{ vm.schema_version }}).
+    Model: {{ vm.run.model }} · discovery: {{ vm.run.discovery }}{% if vm.run.duration_min %} · {{ vm.run.duration_min }} min{% endif %}{% if vm.run.cost %} · ${{ "%.2f"|format(vm.run.cost) }}{% endif %}.</p>
+    <p>Machine-extracted research. It can contain mistakes; check the linked sources before relying on a claim.</p>
+  </footer>
+</div>
+
+<aside class="drawer" id="drawer" aria-hidden="true" role="dialog" aria-label="Evidence">
+  <div class="drawer-inner">
+    <button class="drawer-close" id="drawerClose" type="button" aria-label="Close">×</button>
+    <div id="drawerBody"></div>
+  </div>
+</aside>
+<div class="scrim" id="scrim"></div>
+
+<script id="pigtail-data" type="application/json">{{ data_json }}</script>
+<script>
+{{ js }}
+</script>
+</body>
+</html>

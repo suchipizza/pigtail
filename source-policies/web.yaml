@@ -1,0 +1,37 @@
+key: web
+version: "1"
+display_name: General web pages (blogs, articles, documentation)
+coverage_tier: C
+
+access:
+  discovery_allowed: true
+  automated_retrieval_allowed: true
+  method: http_fetch
+  authentication: none
+  rate_limit_notes: >-
+    One request per page, identified by a Pigtail User-Agent, robots.txt respected, at most
+    `engine.max_sources` pages per run, 20-second timeout, one retry on network failure.
+
+retention:
+  mode: metadata_and_excerpt
+  allow_full_artifact: false
+  max_excerpt_chars: 280
+
+public_display:
+  mode: paraphrase_link_excerpt
+  attribution_required: true
+  notes: >-
+    Page text is processed in memory to extract short factual claims and then discarded.
+    Only the URL, title, author, dates, a content hash and quotation-length excerpts are kept.
+
+obligations:
+  deletion_refresh: null
+  terms_url: null
+  reviewed_at: "2026-10-06"
+
+implementation:
+  adapter: web
+  enabled_by_default: true
+  notes: >-
+    Conservative engineering default, not a legal conclusion: transient processing, short excerpts,
+    attribution and links. Pages whose robots.txt disallows the Pigtail user agent are skipped.

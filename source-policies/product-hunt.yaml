@@ -1,0 +1,35 @@
+key: product_hunt
+version: "1"
+display_name: Product Hunt
+coverage_tier: C
+
+access:
+  discovery_allowed: true
+  automated_retrieval_allowed: false
+  method: link_only
+  authentication: required
+  rate_limit_notes: >-
+    The Product Hunt API v2 needs a developer token and its terms have not been reviewed for this use.
+    Pigtail does not call it by default.
+
+retention:
+  mode: metadata_only
+  allow_full_artifact: false
+  max_excerpt_chars: 0
+
+public_display:
+  mode: link_only
+  attribution_required: true
+  notes: >-
+    Product Hunt launch links found by web search are shown as links. A launch date is only shown
+    when another permitted source (for example the maker's own blog post) states it.
+
+obligations:
+  deletion_refresh: null
+  terms_url: "https://www.producthunt.com/terms"
+  reviewed_at: "2026-10-06"
+
+implementation:
+  adapter: product_hunt
+  enabled_by_default: false
+  notes: Disabled by default until API terms are reviewed. Link-only discovery is allowed.

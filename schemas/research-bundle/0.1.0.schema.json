@@ -1,0 +1,2630 @@
+{
+  "$defs": {
+    "Claim": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_kind": {
+          "title": "Claim Kind",
+          "type": "string"
+        },
+        "extraction_certainty": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Extraction Certainty",
+          "type": "number"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "is_negative_sensitive": {
+          "title": "Is Negative Sensitive",
+          "type": "boolean"
+        },
+        "review_state": {
+          "enum": [
+            "machine_extracted",
+            "machine_inferred",
+            "human_verified",
+            "community_verified"
+          ],
+          "title": "Review State",
+          "type": "string"
+        },
+        "statement": {
+          "title": "Statement",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "contradicted",
+            "superseded",
+            "withdrawn"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "subject_ref": {
+          "$ref": "#/$defs/ObjectRef"
+        },
+        "time": {
+          "$ref": "#/$defs/TimeRange"
+        }
+      },
+      "required": [
+        "id",
+        "statement",
+        "claim_kind",
+        "subject_ref",
+        "time",
+        "review_state",
+        "extraction_certainty",
+        "is_negative_sensitive",
+        "status"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "CompanyStage": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "review_state": {
+          "enum": [
+            "machine_extracted",
+            "machine_inferred",
+            "human_verified",
+            "community_verified"
+          ],
+          "title": "Review State",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/$defs/TimeRange"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "summary",
+        "time",
+        "claim_ids",
+        "review_state"
+      ],
+      "title": "CompanyStage",
+      "type": "object"
+    },
+    "Conflict": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "related_refs": {
+          "items": {
+            "$ref": "#/$defs/ObjectRef"
+          },
+          "title": "Related Refs",
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "unresolved",
+            "resolved"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "summary",
+        "claim_ids",
+        "related_refs",
+        "status"
+      ],
+      "title": "Conflict",
+      "type": "object"
+    },
+    "Constraint": {
+      "additionalProperties": false,
+      "properties": {
+        "applies_to_refs": {
+          "items": {
+            "$ref": "#/$defs/ObjectRef"
+          },
+          "title": "Applies To Refs",
+          "type": "array"
+        },
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "review_state": {
+          "enum": [
+            "machine_extracted",
+            "machine_inferred",
+            "human_verified",
+            "community_verified"
+          ],
+          "title": "Review State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "applies_to_refs",
+        "claim_ids",
+        "review_state"
+      ],
+      "title": "Constraint",
+      "type": "object"
+    },
+    "Cost": {
+      "additionalProperties": false,
+      "properties": {
+        "currency": {
+          "const": "USD",
+          "default": "USD",
+          "title": "Currency",
+          "type": "string"
+        },
+        "model_cost": {
+          "minimum": 0,
+          "title": "Model Cost",
+          "type": "number"
+        },
+        "other_cost": {
+          "minimum": 0,
+          "title": "Other Cost",
+          "type": "number"
+        },
+        "search_cost": {
+          "minimum": 0,
+          "title": "Search Cost",
+          "type": "number"
+        },
+        "total_cost": {
+          "minimum": 0,
+          "title": "Total Cost",
+          "type": "number"
+        }
+      },
+      "required": [
+        "model_cost",
+        "search_cost",
+        "other_cost",
+        "total_cost"
+      ],
+      "title": "Cost",
+      "type": "object"
+    },
+    "DiscoveryInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Provider Version"
+        }
+      },
+      "required": [
+        "provider",
+        "provider_version"
+      ],
+      "title": "DiscoveryInfo",
+      "type": "object"
+    },
+    "Event": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "event_type": {
+          "title": "Event Type",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "is_negative_sensitive": {
+          "title": "Is Negative Sensitive",
+          "type": "boolean"
+        },
+        "launch_episode_id": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Launch Episode Id"
+        },
+        "metric_snapshot_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Metric Snapshot Ids",
+          "type": "array"
+        },
+        "outcome_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Outcome Ids",
+          "type": "array"
+        },
+        "review_state": {
+          "enum": [
+            "machine_extracted",
+            "machine_inferred",
+            "human_verified",
+            "community_verified"
+          ],
+          "title": "Review State",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "surface_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Surface Ids",
+          "type": "array"
+        },
+        "tactic_occurrence_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Tactic Occurrence Ids",
+          "type": "array"
+        },
+        "time": {
+          "$ref": "#/$defs/TimeRange"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "event_type",
+        "title",
+        "summary",
+        "time",
+        "surface_ids",
+        "claim_ids",
+        "metric_snapshot_ids",
+        "outcome_ids",
+        "tactic_occurrence_ids",
+        "launch_episode_id",
+        "review_state",
+        "is_negative_sensitive"
+      ],
+      "title": "Event",
+      "type": "object"
+    },
+    "EvidenceLink": {
+      "additionalProperties": false,
+      "properties": {
+        "causal_attribution": {
+          "enum": [
+            "directly_measured",
+            "company_attributed",
+            "strongly_associated",
+            "weakly_associated",
+            "unknown"
+          ],
+          "title": "Causal Attribution",
+          "type": "string"
+        },
+        "claim_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "corroboration": {
+          "enum": [
+            "single_source",
+            "multi_source_consistent",
+            "multi_source_mixed",
+            "contradicted",
+            "unknown"
+          ],
+          "title": "Corroboration",
+          "type": "string"
+        },
+        "evidence_class": {
+          "enum": [
+            "documented",
+            "company_measured",
+            "third_party_measured",
+            "third_party_reported",
+            "inferred",
+            "unknown"
+          ],
+          "title": "Evidence Class",
+          "type": "string"
+        },
+        "excerpt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Excerpt"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "inference_strength": {
+          "enum": [
+            "explicit",
+            "strong_inference",
+            "moderate_inference",
+            "weak_inference",
+            "not_applicable"
+          ],
+          "title": "Inference Strength",
+          "type": "string"
+        },
+        "locator": {
+          "$ref": "#/$defs/Locator"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Notes"
+        },
+        "source_directness": {
+          "enum": [
+            "primary_direct",
+            "primary_indirect",
+            "independent_direct",
+            "secondary_synthesis",
+            "community_report",
+            "unknown"
+          ],
+          "title": "Source Directness",
+          "type": "string"
+        },
+        "source_fetch_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Source Fetch Id",
+          "type": "string"
+        },
+        "source_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "target_ref": {
+          "$ref": "#/$defs/ObjectRef"
+        }
+      },
+      "required": [
+        "id",
+        "target_ref",
+        "claim_id",
+        "source_id",
+        "source_fetch_id",
+        "evidence_class",
+        "source_directness",
+        "corroboration",
+        "inference_strength",
+        "causal_attribution",
+        "locator",
+        "excerpt",
+        "notes"
+      ],
+      "title": "EvidenceLink",
+      "type": "object"
+    },
+    "ExternalId": {
+      "additionalProperties": false,
+      "properties": {
+        "namespace": {
+          "title": "Namespace",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Url"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "value",
+        "url"
+      ],
+      "title": "ExternalId",
+      "type": "object"
+    },
+    "Gap": {
+      "additionalProperties": false,
+      "properties": {
+        "gap_type": {
+          "title": "Gap Type",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "related_refs": {
+          "items": {
+            "$ref": "#/$defs/ObjectRef"
+          },
+          "title": "Related Refs",
+          "type": "array"
+        },
+        "severity": {
+          "enum": [
+            "material",
+            "minor"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "surface_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Surface Key"
+        }
+      },
+      "required": [
+        "id",
+        "gap_type",
+        "summary",
+        "severity",
+        "related_refs",
+        "surface_key"
+      ],
+      "title": "Gap",
+      "type": "object"
+    },
+    "GrowthEngine": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "mechanism": {
+          "title": "Mechanism",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "candidate",
+            "reference"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "mechanism",
+        "status",
+        "claim_ids"
+      ],
+      "title": "GrowthEngine",
+      "type": "object"
+    },
+    "GrowthEngineOccurrence": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "growth_engine_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Growth Engine Id",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "outcome_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Outcome Ids",
+          "type": "array"
+        },
+        "review_state": {
+          "enum": [
+            "machine_extracted",
+            "machine_inferred",
+            "human_verified",
+            "community_verified"
+          ],
+          "title": "Review State",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "emerging",
+            "active",
+            "weakening",
+            "ended",
+            "unknown"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "strategy_phase_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Strategy Phase Ids",
+          "type": "array"
+        },
+        "strength": {
+          "title": "Strength",
+          "type": "string"
+        },
+        "tactic_occurrence_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Tactic Occurrence Ids",
+          "type": "array"
+        },
+        "time": {
+          "$ref": "#/$defs/TimeRange"
+        }
+      },
+      "required": [
+        "id",
+        "growth_engine_id",
+        "strategy_phase_ids",
+        "time",
+        "state",
+        "strength",
+        "tactic_occurrence_ids",
+        "outcome_ids",
+        "claim_ids",
+        "review_state"
+      ],
+      "title": "GrowthEngineOccurrence",
+      "type": "object"
+    },
+    "GrowthEpisode": {
+      "additionalProperties": false,
+      "properties": {
+        "causal_attribution": {
+          "enum": [
+            "directly_measured",
+            "company_attributed",
+            "strongly_associated",
+            "weakly_associated",
+            "unknown"
+          ],
+          "title": "Causal Attribution",
+          "type": "string"
+        },
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "delta_numeric": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Delta Numeric"
+        },
+        "end_metric_id": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "End Metric Id"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "related_event_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Related Event Ids",
+          "type": "array"
+        },
+        "repository_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Repository Id",
+          "type": "string"
+        },
+        "start_metric_id": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Start Metric Id"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/$defs/TimeRange"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "repository_id",
+        "title",
+        "time",
+        "start_metric_id",
+        "end_metric_id",
+        "delta_numeric",
+        "related_event_ids",
+        "summary",
+        "causal_attribution",
+        "claim_ids"
+      ],
+      "title": "GrowthEpisode",
+      "type": "object"
+    },
+    "LaunchEpisode": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "event_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Event Ids",
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "review_state": {
+          "enum": [
+            "machine_extracted",
+            "machine_inferred",
+            "human_verified",
+            "community_verified"
+          ],
+          "title": "Review State",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/$defs/TimeRange"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "time",
+        "event_ids",
+        "claim_ids",
+        "summary",
+        "review_state"
+      ],
+      "title": "LaunchEpisode",
+      "type": "object"
+    },
+    "Locator": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "text_fragment",
+            "heading",
+            "paragraph",
+            "line_range",
+            "json_path",
+            "html_anchor",
+            "timestamp",
+            "page",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "title": "Locator",
+      "type": "object"
+    },
+    "MetricSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currency"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "metric_key": {
+          "title": "Metric Key",
+          "type": "string"
+        },
+        "repository_id": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Repository Id"
+        },
+        "review_state": {
+          "enum": [
+            "machine_extracted",
+            "machine_inferred",
+            "human_verified",
+            "community_verified"
+          ],
+          "title": "Review State",
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/$defs/TimeRange"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        },
+        "value_numeric": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value Numeric"
+        },
+        "value_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value Text"
+        }
+      },
+      "required": [
+        "id",
+        "metric_key",
+        "label",
+        "value_numeric",
+        "value_text",
+        "unit",
+        "currency",
+        "time",
+        "repository_id",
+        "claim_ids",
+        "review_state"
+      ],
+      "title": "MetricSnapshot",
+      "type": "object"
+    },
+    "ModelInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model"
+      ],
+      "title": "ModelInfo",
+      "type": "object"
+    },
+    "Narrative": {
+      "additionalProperties": false,
+      "properties": {
+        "did_differently": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NarrativeBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "first_users": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NarrativeBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "flywheel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NarrativeBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "key_takeaways": {
+          "items": {
+            "$ref": "#/$defs/NarrativeBlock"
+          },
+          "title": "Key Takeaways",
+          "type": "array"
+        },
+        "origin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NarrativeBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "thirty_second": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NarrativeBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "thirty_second",
+        "origin",
+        "first_users",
+        "flywheel",
+        "did_differently",
+        "key_takeaways"
+      ],
+      "title": "Narrative",
+      "type": "object"
+    },
+    "NarrativeBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "inference_strength": {
+          "enum": [
+            "explicit",
+            "strong_inference",
+            "moderate_inference",
+            "weak_inference",
+            "not_applicable"
+          ],
+          "title": "Inference Strength",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "claim_ids",
+        "inference_strength"
+      ],
+      "title": "NarrativeBlock",
+      "type": "object"
+    },
+    "ObjectRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "target",
+            "person",
+            "repository",
+            "source",
+            "claim",
+            "event",
+            "launch_episode",
+            "growth_episode",
+            "metric_snapshot",
+            "company_stage",
+            "strategy_phase",
+            "surface",
+            "surface_presence",
+            "tactic",
+            "tactic_occurrence",
+            "growth_engine",
+            "growth_engine_occurrence",
+            "outcome",
+            "prerequisite",
+            "constraint",
+            "conflict",
+            "gap"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "ObjectRef",
+      "type": "object"
+    },
+    "Outcome": {
+      "additionalProperties": false,
+      "properties": {
+        "causal_attribution": {
+          "enum": [
+            "directly_measured",
+            "company_attributed",
+            "strongly_associated",
+            "weakly_associated",
+            "unknown"
+          ],
+          "title": "Causal Attribution",
+          "type": "string"
+        },
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "event_id": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Event Id"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "metric_snapshot_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Metric Snapshot Ids",
+          "type": "array"
+        },
+        "review_state": {
+          "enum": [
+            "machine_extracted",
+            "machine_inferred",
+            "human_verified",
+            "community_verified"
+          ],
+          "title": "Review State",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "tactic_occurrence_id": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tactic Occurrence Id"
+        }
+      },
+      "required": [
+        "id",
+        "summary",
+        "event_id",
+        "tactic_occurrence_id",
+        "metric_snapshot_ids",
+        "causal_attribution",
+        "claim_ids",
+        "review_state"
+      ],
+      "title": "Outcome",
+      "type": "object"
+    },
+    "Person": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "external_ids": {
+          "items": {
+            "$ref": "#/$defs/ExternalId"
+          },
+          "title": "External Ids",
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Role"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "role",
+        "external_ids",
+        "claim_ids"
+      ],
+      "title": "Person",
+      "type": "object"
+    },
+    "Prerequisite": {
+      "additionalProperties": false,
+      "properties": {
+        "applies_to_refs": {
+          "items": {
+            "$ref": "#/$defs/ObjectRef"
+          },
+          "title": "Applies To Refs",
+          "type": "array"
+        },
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "review_state": {
+          "enum": [
+            "machine_extracted",
+            "machine_inferred",
+            "human_verified",
+            "community_verified"
+          ],
+          "title": "Review State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "applies_to_refs",
+        "claim_ids",
+        "review_state"
+      ],
+      "title": "Prerequisite",
+      "type": "object"
+    },
+    "Repository": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Created At"
+        },
+        "current": {
+          "$ref": "#/$defs/RepositoryCurrent"
+        },
+        "default_branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Default Branch"
+        },
+        "external_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "External Id"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "is_archived": {
+          "title": "Is Archived",
+          "type": "boolean"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Language"
+        },
+        "license": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "License"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "owner": {
+          "title": "Owner",
+          "type": "string"
+        },
+        "provider": {
+          "const": "github",
+          "title": "Provider",
+          "type": "string"
+        },
+        "star_history_quality": {
+          "enum": [
+            "exact",
+            "sampled",
+            "reconstructed",
+            "unavailable"
+          ],
+          "title": "Star History Quality",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "provider",
+        "owner",
+        "name",
+        "url",
+        "external_id",
+        "created_at",
+        "default_branch",
+        "language",
+        "license",
+        "is_archived",
+        "observed_at",
+        "current",
+        "star_history_quality",
+        "claim_ids"
+      ],
+      "title": "Repository",
+      "type": "object"
+    },
+    "RepositoryCurrent": {
+      "additionalProperties": false,
+      "properties": {
+        "contributors": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Contributors"
+        },
+        "forks": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Forks"
+        },
+        "open_issues": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Open Issues"
+        },
+        "stars": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Stars"
+        },
+        "watchers": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Watchers"
+        }
+      },
+      "required": [
+        "stars",
+        "forks",
+        "watchers",
+        "open_issues",
+        "contributors"
+      ],
+      "title": "RepositoryCurrent",
+      "type": "object"
+    },
+    "Run": {
+      "additionalProperties": false,
+      "properties": {
+        "completed_at": {
+          "format": "date-time",
+          "title": "Completed At",
+          "type": "string"
+        },
+        "cost": {
+          "$ref": "#/$defs/Cost"
+        },
+        "discovery": {
+          "$ref": "#/$defs/DiscoveryInfo"
+        },
+        "engine_version": {
+          "title": "Engine Version",
+          "type": "string"
+        },
+        "model": {
+          "$ref": "#/$defs/ModelInfo"
+        },
+        "ontology_version": {
+          "title": "Ontology Version",
+          "type": "string"
+        },
+        "research_policy_version": {
+          "title": "Research Policy Version",
+          "type": "string"
+        },
+        "run_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "source_cutoff_at": {
+          "format": "date-time",
+          "title": "Source Cutoff At",
+          "type": "string"
+        },
+        "source_policy_version": {
+          "title": "Source Policy Version",
+          "type": "string"
+        },
+        "started_at": {
+          "format": "date-time",
+          "title": "Started At",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "completed_with_gaps",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "usage": {
+          "$ref": "#/$defs/Usage"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "started_at",
+        "completed_at",
+        "source_cutoff_at",
+        "engine_version",
+        "research_policy_version",
+        "source_policy_version",
+        "ontology_version",
+        "model",
+        "discovery",
+        "cost",
+        "usage"
+      ],
+      "title": "Run",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "properties": {
+        "author": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Author"
+        },
+        "canonical_url": {
+          "title": "Canonical Url",
+          "type": "string"
+        },
+        "discovered_at": {
+          "format": "date-time",
+          "title": "Discovered At",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "policy": {
+          "$ref": "#/$defs/SourcePolicyRef"
+        },
+        "published_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Published At"
+        },
+        "source_type": {
+          "title": "Source Type",
+          "type": "string"
+        },
+        "surface_key": {
+          "title": "Surface Key",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Title"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "url",
+        "canonical_url",
+        "surface_key",
+        "source_type",
+        "title",
+        "author",
+        "published_at",
+        "discovered_at",
+        "policy"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "SourceFetch": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Content Hash"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Error Code"
+        },
+        "etag": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Etag"
+        },
+        "http_status": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Http Status"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "last_modified": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Modified"
+        },
+        "parser_version": {
+          "title": "Parser Version",
+          "type": "string"
+        },
+        "retained_artifact_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Retained Artifact Path"
+        },
+        "retention_mode": {
+          "enum": [
+            "metadata_only",
+            "metadata_and_excerpt",
+            "full_permitted"
+          ],
+          "title": "Retention Mode",
+          "type": "string"
+        },
+        "retrieved_at": {
+          "format": "date-time",
+          "title": "Retrieved At",
+          "type": "string"
+        },
+        "source_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "success",
+            "blocked",
+            "not_found",
+            "rate_limited",
+            "parse_failed",
+            "network_failed",
+            "skipped_policy"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source_id",
+        "retrieved_at",
+        "status",
+        "http_status",
+        "content_hash",
+        "etag",
+        "last_modified",
+        "parser_version",
+        "retention_mode",
+        "retained_artifact_path",
+        "error_code"
+      ],
+      "title": "SourceFetch",
+      "type": "object"
+    },
+    "SourcePolicyRef": {
+      "additionalProperties": false,
+      "properties": {
+        "coverage_tier": {
+          "enum": [
+            "A",
+            "B",
+            "C"
+          ],
+          "title": "Coverage Tier",
+          "type": "string"
+        },
+        "policy_key": {
+          "title": "Policy Key",
+          "type": "string"
+        },
+        "policy_version": {
+          "title": "Policy Version",
+          "type": "string"
+        },
+        "public_display_mode": {
+          "enum": [
+            "link_only",
+            "paraphrase_and_link",
+            "paraphrase_link_excerpt"
+          ],
+          "title": "Public Display Mode",
+          "type": "string"
+        },
+        "retention_mode": {
+          "enum": [
+            "metadata_only",
+            "metadata_and_excerpt",
+            "full_permitted"
+          ],
+          "title": "Retention Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "policy_key",
+        "policy_version",
+        "coverage_tier",
+        "retention_mode",
+        "public_display_mode"
+      ],
+      "title": "SourcePolicyRef",
+      "type": "object"
+    },
+    "StrategyPhase": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "review_state": {
+          "enum": [
+            "machine_extracted",
+            "machine_inferred",
+            "human_verified",
+            "community_verified"
+          ],
+          "title": "Review State",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/$defs/TimeRange"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "summary",
+        "time",
+        "claim_ids",
+        "review_state"
+      ],
+      "title": "StrategyPhase",
+      "type": "object"
+    },
+    "Surface": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Category"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Url"
+        }
+      },
+      "required": [
+        "id",
+        "key",
+        "name",
+        "category",
+        "url"
+      ],
+      "title": "Surface",
+      "type": "object"
+    },
+    "SurfacePresence": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "profile_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Profile Url"
+        },
+        "surface_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Surface Id",
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/$defs/TimeRange"
+        }
+      },
+      "required": [
+        "id",
+        "surface_id",
+        "profile_url",
+        "time",
+        "claim_ids"
+      ],
+      "title": "SurfacePresence",
+      "type": "object"
+    },
+    "Tactic": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "mechanism": {
+          "title": "Mechanism",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "candidate",
+            "reference"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "mechanism",
+        "status",
+        "claim_ids"
+      ],
+      "title": "Tactic",
+      "type": "object"
+    },
+    "TacticOccurrence": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "event_id": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Event Id"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "implementation": {
+          "title": "Implementation",
+          "type": "string"
+        },
+        "outcome_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": "Outcome Ids",
+          "type": "array"
+        },
+        "review_state": {
+          "enum": [
+            "machine_extracted",
+            "machine_inferred",
+            "human_verified",
+            "community_verified"
+          ],
+          "title": "Review State",
+          "type": "string"
+        },
+        "strategy_phase_id": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Strategy Phase Id"
+        },
+        "tactic_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Tactic Id",
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/$defs/TimeRange"
+        }
+      },
+      "required": [
+        "id",
+        "tactic_id",
+        "event_id",
+        "strategy_phase_id",
+        "time",
+        "implementation",
+        "outcome_ids",
+        "claim_ids",
+        "review_state"
+      ],
+      "title": "TacticOccurrence",
+      "type": "object"
+    },
+    "Target": {
+      "additionalProperties": false,
+      "properties": {
+        "aliases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "array"
+        },
+        "canonical_url": {
+          "title": "Canonical Url",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Description"
+        },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Domain"
+        },
+        "external_ids": {
+          "items": {
+            "$ref": "#/$defs/ExternalId"
+          },
+          "title": "External Ids",
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "product",
+            "company",
+            "repository"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "primary_repository_id": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Primary Repository Id"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "canonical_url",
+        "domain",
+        "description",
+        "primary_repository_id",
+        "external_ids",
+        "aliases"
+      ],
+      "title": "Target",
+      "type": "object"
+    },
+    "TimeRange": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "End"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Label"
+        },
+        "precision": {
+          "enum": [
+            "second",
+            "minute",
+            "hour",
+            "day",
+            "month",
+            "quarter",
+            "year",
+            "range",
+            "unknown"
+          ],
+          "title": "Precision",
+          "type": "string"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Start"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "precision",
+        "label"
+      ],
+      "title": "TimeRange",
+      "type": "object"
+    },
+    "Usage": {
+      "additionalProperties": false,
+      "properties": {
+        "github_api_requests": {
+          "minimum": 0,
+          "title": "Github Api Requests",
+          "type": "integer"
+        },
+        "http_requests": {
+          "minimum": 0,
+          "title": "Http Requests",
+          "type": "integer"
+        },
+        "model_input_tokens": {
+          "minimum": 0,
+          "title": "Model Input Tokens",
+          "type": "integer"
+        },
+        "model_output_tokens": {
+          "minimum": 0,
+          "title": "Model Output Tokens",
+          "type": "integer"
+        },
+        "retries": {
+          "minimum": 0,
+          "title": "Retries",
+          "type": "integer"
+        },
+        "search_requests": {
+          "minimum": 0,
+          "title": "Search Requests",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "model_input_tokens",
+        "model_output_tokens",
+        "search_requests",
+        "http_requests",
+        "github_api_requests",
+        "retries"
+      ],
+      "title": "Usage",
+      "type": "object"
+    }
+  },
+  "$id": "https://pigtail.dev/schemas/research-bundle/0.1.0",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "bundle_id": {
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "title": "Bundle Id",
+      "type": "string"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/Claim"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "company_stages": {
+      "items": {
+        "$ref": "#/$defs/CompanyStage"
+      },
+      "title": "Company Stages",
+      "type": "array"
+    },
+    "conflicts": {
+      "items": {
+        "$ref": "#/$defs/Conflict"
+      },
+      "title": "Conflicts",
+      "type": "array"
+    },
+    "constraints": {
+      "items": {
+        "$ref": "#/$defs/Constraint"
+      },
+      "title": "Constraints",
+      "type": "array"
+    },
+    "events": {
+      "items": {
+        "$ref": "#/$defs/Event"
+      },
+      "title": "Events",
+      "type": "array"
+    },
+    "evidence_links": {
+      "items": {
+        "$ref": "#/$defs/EvidenceLink"
+      },
+      "title": "Evidence Links",
+      "type": "array"
+    },
+    "gaps": {
+      "items": {
+        "$ref": "#/$defs/Gap"
+      },
+      "title": "Gaps",
+      "type": "array"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "growth_engine_occurrences": {
+      "items": {
+        "$ref": "#/$defs/GrowthEngineOccurrence"
+      },
+      "title": "Growth Engine Occurrences",
+      "type": "array"
+    },
+    "growth_engines": {
+      "items": {
+        "$ref": "#/$defs/GrowthEngine"
+      },
+      "title": "Growth Engines",
+      "type": "array"
+    },
+    "growth_episodes": {
+      "items": {
+        "$ref": "#/$defs/GrowthEpisode"
+      },
+      "title": "Growth Episodes",
+      "type": "array"
+    },
+    "launch_episodes": {
+      "items": {
+        "$ref": "#/$defs/LaunchEpisode"
+      },
+      "title": "Launch Episodes",
+      "type": "array"
+    },
+    "metric_snapshots": {
+      "items": {
+        "$ref": "#/$defs/MetricSnapshot"
+      },
+      "title": "Metric Snapshots",
+      "type": "array"
+    },
+    "narrative": {
+      "$ref": "#/$defs/Narrative"
+    },
+    "outcomes": {
+      "items": {
+        "$ref": "#/$defs/Outcome"
+      },
+      "title": "Outcomes",
+      "type": "array"
+    },
+    "people": {
+      "items": {
+        "$ref": "#/$defs/Person"
+      },
+      "title": "People",
+      "type": "array"
+    },
+    "prerequisites": {
+      "items": {
+        "$ref": "#/$defs/Prerequisite"
+      },
+      "title": "Prerequisites",
+      "type": "array"
+    },
+    "repositories": {
+      "items": {
+        "$ref": "#/$defs/Repository"
+      },
+      "title": "Repositories",
+      "type": "array"
+    },
+    "run": {
+      "$ref": "#/$defs/Run"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_fetches": {
+      "items": {
+        "$ref": "#/$defs/SourceFetch"
+      },
+      "title": "Source Fetches",
+      "type": "array"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/Source"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "strategy_phases": {
+      "items": {
+        "$ref": "#/$defs/StrategyPhase"
+      },
+      "title": "Strategy Phases",
+      "type": "array"
+    },
+    "surface_presences": {
+      "items": {
+        "$ref": "#/$defs/SurfacePresence"
+      },
+      "title": "Surface Presences",
+      "type": "array"
+    },
+    "surfaces": {
+      "items": {
+        "$ref": "#/$defs/Surface"
+      },
+      "title": "Surfaces",
+      "type": "array"
+    },
+    "tactic_occurrences": {
+      "items": {
+        "$ref": "#/$defs/TacticOccurrence"
+      },
+      "title": "Tactic Occurrences",
+      "type": "array"
+    },
+    "tactics": {
+      "items": {
+        "$ref": "#/$defs/Tactic"
+      },
+      "title": "Tactics",
+      "type": "array"
+    },
+    "target": {
+      "$ref": "#/$defs/Target"
+    }
+  },
+  "required": [
+    "schema_version",
+    "bundle_id",
+    "generated_at",
+    "run",
+    "target",
+    "people",
+    "repositories",
+    "sources",
+    "source_fetches",
+    "claims",
+    "evidence_links",
+    "events",
+    "launch_episodes",
+    "growth_episodes",
+    "metric_snapshots",
+    "company_stages",
+    "strategy_phases",
+    "surfaces",
+    "surface_presences",
+    "tactics",
+    "tactic_occurrences",
+    "growth_engines",
+    "growth_engine_occurrences",
+    "outcomes",
+    "prerequisites",
+    "constraints",
+    "conflicts",
+    "gaps",
+    "narrative"
+  ],
+  "title": "Pigtail Research Bundle 0.1.0",
+  "type": "object"
+}

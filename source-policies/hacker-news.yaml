@@ -1,0 +1,38 @@
+key: hacker_news
+version: "1"
+display_name: Hacker News
+coverage_tier: B
+
+access:
+  discovery_allowed: true
+  automated_retrieval_allowed: true
+  method: api
+  authentication: none
+  rate_limit_notes: >-
+    Uses the public HN Search API by Algolia (hn.algolia.com/api/v1), which documents a limit of
+    10,000 requests/hour per IP. Pigtail makes a handful of queries per run.
+
+retention:
+  mode: metadata_and_excerpt
+  allow_full_artifact: false
+  max_excerpt_chars: 300
+
+public_display:
+  mode: paraphrase_link_excerpt
+  attribution_required: true
+  notes: >-
+    Story title, author handle, timestamp, points and comment count are shown with a link.
+    Comment text is never stored.
+
+obligations:
+  deletion_refresh: null
+  terms_url: "https://www.ycombinator.com/legal/"
+  reviewed_at: "2026-10-06"
+
+implementation:
+  adapter: hacker_news
+  enabled_by_default: true
+  notes: >-
+    Coverage tier B: Algolia indexes all stories, but Pigtail finds them by matching the repository
+    URL, homepage and project name, so posts that never mention those are missed.
+    Engineering review only; legal review pending.

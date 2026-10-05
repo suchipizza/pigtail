@@ -1,0 +1,40 @@
+key: github
+version: "1"
+display_name: GitHub
+coverage_tier: A
+
+access:
+  discovery_allowed: true
+  automated_retrieval_allowed: true
+  method: api
+  authentication: optional
+  rate_limit_notes: >-
+    REST API: 60 requests/hour unauthenticated, 5,000/hour with a token (GITHUB_TOKEN).
+    Star history uses GET /repos/{owner}/{repo}/stargazers/history (weekly buckets with daily
+    counts, 30 weeks per page), typically 1-5 requests per repository. Stargazer *lists* have been
+    closed to non-collaborators since 2026-06-30 and are not used. Pigtail retries 403/429
+    responses that carry a short reset once, then degrades and records a gap.
+
+retention:
+  mode: metadata_and_excerpt
+  allow_full_artifact: false
+  max_excerpt_chars: 500
+
+public_display:
+  mode: paraphrase_link_excerpt
+  attribution_required: true
+  notes: >-
+    Repository metadata, release names/dates and aggregate daily star counts are shown.
+    Pigtail never requests or stores the identities of stargazers.
+
+obligations:
+  deletion_refresh: null
+  terms_url: "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service"
+  reviewed_at: "2026-10-06"
+
+implementation:
+  adapter: github
+  enabled_by_default: true
+  notes: >-
+    Engineering review only; legal review pending. Release notes bodies are parsed transiently;
+    only a short excerpt (max_excerpt_chars) may be retained.
