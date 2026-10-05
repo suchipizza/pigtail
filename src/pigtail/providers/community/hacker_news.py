@@ -111,9 +111,13 @@ class HackerNewsClient:
                         continue
                     url = (hit.get("url") or "").lower()
                     related_url = any(q.lower() in url for q in url_queries)
-                    if tag == "show_hn" or related_url or title.lower().startswith(("launch hn", "show hn")):
+                    # Strong only if the post links to the project; title-only matches (even
+                    # "Show HN: <name> ...") may be another product and go to model triage.
+                    if related_url:
                         add(hit, f"title:{tag}")
                     else:
                         add(hit, "title:mention")
-        stories = sorted(found.values(), key=lambda s: -s.points)
-        return stories[:limit]
+        # URL matches are strong evidence and always kept; title-only mentions are capped separately.
+        strong = sorted((s for s in found.values() if s.matched_by != "title:mention"), key=lambda s: -s.points)
+        weak = sorted((s for s in found.values() if s.matched_by == "title:mention"), key=lambda s: -s.points)
+        return strong[:limit] + weak[:10]

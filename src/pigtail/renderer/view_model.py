@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlparse
 
@@ -98,6 +98,11 @@ def fmt_metric(m: dict) -> str:
     return out
 
 
+def safe_url(url: str | None) -> str:
+    """Only http(s) links are rendered; anything else (e.g. javascript:) becomes '#'."""
+    return url if url and url.lower().startswith(("http://", "https://")) else "#"
+
+
 def _host(url: str) -> str:
     return (urlparse(url).hostname or url).removeprefix("www.")
 
@@ -134,7 +139,7 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
                 {
                     "n": num(s["id"]),
                     "source_id": s["id"],
-                    "url": s["url"],
+                    "url": safe_url(s["url"]),
                     "title": s["title"] or _host(s["url"]),
                     "host": _host(s["url"]),
                     "surface": s["surface_key"],
@@ -506,7 +511,7 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
             {
                 "n": source_num[s["id"]],
                 "id": s["id"],
-                "url": s["url"],
+                "url": safe_url(s["url"]),
                 "title": s["title"] or _host(s["url"]),
                 "host": _host(s["url"]),
                 "surface": s["surface_key"],
@@ -548,6 +553,15 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
             continue
         last = dated[-1]
         stats.append({"value": last["value"], "label": f"{entry['label']} · {last['when']}"})
+
+    recent = None
+    if star_points:
+        last_t = parse_dt(star_points[-1]["t"])
+        if last_t:
+            cutoff_t = (last_t - timedelta(days=90)).strftime("%Y-%m-%d")
+            prior = [p for p in star_points if p["t"] <= cutoff_t]
+            if prior:
+                recent = f"+{_fmt_num(star_points[-1]['v'] - prior[-1]['v'])} stars in the last 90 days"
 
     run = b["run"]
     started, completed = parse_dt(run["started_at"]), parse_dt(run["completed_at"])
@@ -595,13 +609,15 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
         "target": {
             "name": t["name"],
             "kind": t["kind"],
-            "url": t["canonical_url"],
+            "url": safe_url(t["canonical_url"]),
             "domain": t["domain"],
             "description": t["description"],
             "aliases": t["aliases"],
         },
         "repo": repo,
-        "repo_url": repo["url"] if repo else None,
+        "repo_url": safe_url(repo["url"]) if repo else None,
+        "recent_stars": recent,
+        "archived": bool(repo and repo["is_archived"]),
         "stats": stats[:4],
         "run": {
             "status": run["status"],

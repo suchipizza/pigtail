@@ -171,3 +171,26 @@ def test_duplicate_claims_merge_but_conflicting_numbers_do_not():
     assert len(b.c["claims"]) == 2
     merged = b.c["claims"][0]
     assert len({e["source_id"] for e in b.evidence_for(merged["id"])}) == 2
+
+
+def test_merge_remaps_references():
+    b, s, f = _builder()
+    t = day_range(date(2022, 5, 1))
+    ev = EvidenceSpec(s["id"], f["id"], "documented", "primary_direct", "text_fragment", "a")
+    s2 = b.add_source(
+        "https://other.example/x",
+        surface_key="web",
+        source_type="news",
+        policy=default_registry().policy_for("https://other.example/x", "web"),
+    )
+    f2 = b.add_fetch(s2, status="success")
+    c1 = b.add_claim("T launched on Show HN in May 2022.", kind="launch", time=t, evidence=[ev])
+    c2 = b.add_claim(
+        "T launched on Show HN in May 2022",
+        kind="launch",
+        time=t,
+        evidence=[EvidenceSpec(s2["id"], f2["id"], "documented", "primary_direct", "text_fragment", "b")],
+    )
+    obj = b.add("events", {"claim_ids": [c2]})
+    assert merge_duplicate_claims(b) == 1
+    assert obj["claim_ids"] == [c1]

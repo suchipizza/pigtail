@@ -131,6 +131,7 @@ def _integrity(b: dict, rep: ValidationReport, *, published: bool) -> None:
             pol = src["policy"]
             if pol["retention_mode"] == "metadata_only" or pol["public_display_mode"] == "link_only":
                 E(f"evidence_link {el['id']}: excerpt present but source policy forbids excerpts")
+    fetch_problems: dict[str, int] = {}
     for f in b["source_fetches"]:
         if f["source_id"] not in index["sources"]:
             E(f"source_fetch {f['id']}: missing source")
@@ -142,7 +143,10 @@ def _integrity(b: dict, rep: ValidationReport, *, published: bool) -> None:
             if f["retained_artifact_path"].startswith("/") or ".." in f["retained_artifact_path"]:
                 E(f"source_fetch {f['id']}: retained_artifact_path must be relative to the bundle")
         if f["status"] != "success":
-            W(f"source {f['source_id']}: fetch status {f['status']}")
+            fetch_problems[f["status"]] = fetch_problems.get(f["status"], 0) + 1
+
+    if fetch_problems:
+        W("sources not read: " + ", ".join(f"{n} {k.replace('_', ' ')}" for k, n in sorted(fetch_problems.items())))
 
     # 7. Event has no supporting Claim
     for ev in b["events"]:

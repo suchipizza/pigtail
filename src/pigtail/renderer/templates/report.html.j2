@@ -31,6 +31,8 @@
           {% if vm.repo_url and vm.repo_url != vm.target.url %}<a class="tag" href="{{ vm.repo_url }}" target="_blank" rel="noopener">{{ vm.repo_url | replace("https://", "") }} ↗</a>{% endif %}
           {% if vm.repo and vm.repo.language %}<span class="tag">{{ vm.repo.language }}</span>{% endif %}
           {% if vm.repo and vm.repo.license %}<span class="tag">{{ vm.repo.license }}</span>{% endif %}
+          {% if vm.archived %}<span class="tag tag-warn">Archived repository</span>{% endif %}
+          {% if vm.recent_stars %}<span class="tag">{{ vm.recent_stars }}</span>{% endif %}
           {% for p in vm.founders %}<span class="tag">{{ p.name }} · {{ p.short_role }}</span>{% endfor %}
         </div>
         <div class="notice"><b>Scope</b><span>Reconstructed by Pigtail from public evidence available on {{ vm.run.cutoff }}. Every factual statement links to its source{% if vm.counts.sources %} ({{ vm.counts.sources }} sources, {{ vm.counts.claims }} extracted claims){% endif %}. Private strategy, internal experiments and unreported causes are unknown. Things that happened close together in time are shown as <i>observed together</i>, not as cause and effect.</span></div>

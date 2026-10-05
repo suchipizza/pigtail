@@ -1,0 +1,17 @@
+name: Bug report
+description: Something crashed or behaved unexpectedly.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes: {label: What happened, description: "Command you ran and the output (remove API keys)."}
+    validations: {required: true}
+  - type: textarea
+    id: expected
+    attributes: {label: What you expected}
+  - type: textarea
+    id: doctor
+    attributes: {label: Output of `pigtail doctor --offline`}
+  - type: input
+    id: os
+    attributes: {label: OS and Python version}

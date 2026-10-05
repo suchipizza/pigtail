@@ -133,7 +133,8 @@ async def resolve(raw: str, github: GitHubClient) -> ResolvedTarget:
                 domain = None
         name = snap.name
         owner_brand = snap.owner if snap.owner != snap.owner.lower() else snap.owner.capitalize()
-        if domain and domain.split(".")[0].lower() == snap.owner.lower() and snap.name.lower() != snap.owner.lower():
+        label = domain.split(".")[0].lower() if domain else ""
+        if label == snap.owner.lower() and snap.name.lower() not in label:
             name = owner_brand  # e.g. plausible/analytics with homepage plausible.io -> "Plausible"
         elif name.lower() in GENERIC_REPO_NAMES:
             name = f"{snap.owner}/{snap.name}"

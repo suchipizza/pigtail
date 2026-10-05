@@ -1,0 +1,22 @@
+name: Wrong or unsupported claim in a report
+description: A report states something its source does not support.
+labels: ["research-quality"]
+body:
+  - type: input
+    id: target
+    attributes: {label: Target, description: "The repository URL or domain you analyzed."}
+    validations: {required: true}
+  - type: textarea
+    id: claim
+    attributes: {label: The claim as shown in the report}
+    validations: {required: true}
+  - type: input
+    id: source
+    attributes: {label: Source URL linked to the claim}
+  - type: textarea
+    id: why
+    attributes: {label: What is wrong, description: "E.g. wrong date, wrong number, different product, source does not say this."}
+    validations: {required: true}
+  - type: input
+    id: version
+    attributes: {label: Pigtail version, description: "Output of `pigtail version`."}

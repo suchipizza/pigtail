@@ -17,3 +17,10 @@ site/.next/
 site/out/
 *.log
 .pigtail-cache/
+site/public/examples/
+site/src/data/examples.json
+site/next-env.d.ts
+site/tsconfig.tsbuildinfo
+golden-runs/
+validation/*/runs/
+validation/*/logs/

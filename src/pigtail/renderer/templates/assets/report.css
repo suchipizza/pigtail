@@ -225,3 +225,4 @@ td.num { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowr
 .nowrap { white-space: nowrap; }
 .launch-detail { margin-top: 6px; font-size: 13px; }
 .launch-detail summary { cursor: pointer; color: var(--muted); }
+.tag-warn { background: var(--warnbg); color: var(--warn); }

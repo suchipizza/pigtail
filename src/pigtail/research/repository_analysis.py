@@ -294,7 +294,7 @@ async def analyze_repository(
                     "delta_numeric": ep.delta,
                     "related_event_ids": [],
                     "summary": f"+{_fmt(ep.delta)} stars in {(ep.end - ep.start).days + 1} day(s); peak day "
-                    f"{ep.peak_day:%b %d} with +{_fmt(ep.peak_value)}.",
+                    f"{ep.peak_day:%b %d} with +{_fmt(ep.peak_value)}." + durability(st.daily, ep),
                     "causal_attribution": "unknown",
                     "claim_ids": [claim],
                 },
@@ -392,6 +392,26 @@ async def analyze_repository(
             )
     st.readme = await gh.readme(snap.owner, snap.name)
     return st
+
+
+def durability(daily: list[tuple[date, int]], ep: DetectedEpisode) -> str:
+    """Compare star pace 31–90 days after an episode with the pace before it (PRD §10.9)."""
+    idx = {d: v for d, v in daily}
+    a0, a1 = ep.end + timedelta(days=31), ep.end + timedelta(days=90)
+    if a1 not in idx or a0 - timedelta(days=1) not in idx:
+        return " Too recent to say whether the faster pace lasted."
+    after = (idx[a1] - idx[a0 - timedelta(days=1)]) / 60
+    before = ep.baseline_per_day
+    if before < 0.5:
+        verdict = f"Afterwards (days 31–90) the project averaged {after:.1f} stars/day, up from almost none before."
+    else:
+        ratio = after / before
+        trend = "stayed well above" if ratio >= 1.5 else "returned close to" if ratio >= 0.67 else "fell below"
+        verdict = (
+            f"Afterwards (days 31–90) it averaged {after:.1f} stars/day, which {trend} the "
+            f"{before:.1f}/day before the episode."
+        )
+    return " " + verdict
 
 
 def _dense_recent_daily(points: list[tuple[date, int]], today: date) -> list[tuple[date, int]]:

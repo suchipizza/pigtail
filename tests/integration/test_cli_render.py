@@ -66,3 +66,15 @@ def test_report_shows_star_chart_and_unknowns(bundle):
     assert 'id="starChart"' in html
     assert "Research gaps and uncertainty" in html
     assert "Example launched on Show HN." in html
+
+
+def test_hostile_strings_are_escaped(bundle_dict):
+    from pigtail.bundle.models import ResearchBundle
+
+    bundle_dict["sources"][0]["url"] = "javascript:alert(1)"
+    bundle_dict["sources"][0]["title"] = "<script>alert(2)</script>"
+    bundle_dict["claims"][0]["statement"] = "</script><script>alert(3)</script>"
+    html = render_html(ResearchBundle.model_validate(bundle_dict))
+    assert 'href="javascript:' not in html and '"url":"javascript:' not in html
+    assert "<script>alert(2)</script>" not in html
+    assert "</script><script>alert(3)" not in html

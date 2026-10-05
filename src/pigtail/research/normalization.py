@@ -22,6 +22,7 @@ def merge_duplicate_claims(b: BundleBuilder, threshold: float = 0.88) -> int:
     """
     claims = [c for c in b.c["claims"] if c["claim_kind"] not in ("star_history", "star_growth_episode")]
     removed: set[str] = set()
+    replaced_by: dict[str, str] = {}
     merged = 0
     for i, a in enumerate(claims):
         if a["id"] in removed:
@@ -46,8 +47,14 @@ def merge_duplicate_claims(b: BundleBuilder, threshold: float = 0.88) -> int:
             b.c["evidence_links"] = [x for x in b.c["evidence_links"] if x["claim_id"] != c["id"]]
             b._evidence_by_claim.pop(c["id"], None)
             removed.add(c["id"])
+            replaced_by[c["id"]] = a["id"]
             merged += 1
     b.c["claims"] = [c for c in b.c["claims"] if c["id"] not in removed]
     for cid in removed:
         b._claims.pop(cid, None)
+    # Objects that already cite a merged claim now cite the surviving one.
+    for objs in b.c.values():
+        for o in objs:
+            if "claim_ids" in o and any(c in replaced_by for c in o["claim_ids"]):
+                o["claim_ids"] = list(dict.fromkeys(replaced_by.get(c, c) for c in o["claim_ids"]))
     return merged
