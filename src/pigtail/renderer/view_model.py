@@ -284,6 +284,8 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
                 "launch_episode_id": e["launch_episode_id"],
                 "review_state": e["review_state"].replace("_", " "),
                 "is_inferred": e["review_state"] == "machine_inferred",
+                "sensitive": e["is_negative_sensitive"] and e["review_state"] != "human_verified",
+                "snippet": e["summary"][:140] + ("…" if len(e["summary"]) > 140 else ""),
             }
         )
     event_view_by_id = {ev["id"]: ev for ev in event_views}
@@ -541,7 +543,10 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
     for entry in sorted(metric_cards, key=lambda e: -len(e["rows"])):
         if len(stats) >= 4:
             break
-        last = entry["rows"][-1]
+        dated = [r for r in entry["rows"] if r["when"] != "Date unknown"]
+        if not dated or len(entry["label"]) > 28:
+            continue
+        last = dated[-1]
         stats.append({"value": last["value"], "label": f"{entry['label']} · {last['when']}"})
 
     run = b["run"]

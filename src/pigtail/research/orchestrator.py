@@ -25,7 +25,7 @@ from pigtail.providers.github.client import GitHubClient
 from pigtail.providers.models.registry import make_model_provider
 from pigtail.providers.search.registry import make_search_provider
 from pigtail.renderer.render import ForensicRenderer
-from pigtail.research import conflicts, discovery, gaps, normalization, reconstruction, synthesis
+from pigtail.research import conflicts, discovery, feeds, gaps, normalization, reconstruction, synthesis
 from pigtail.research.builder import BundleBuilder, EvidenceSpec, sha256_text
 from pigtail.research.extraction import PageExtraction, VerifiedClaim, extract_claims
 from pigtail.research.repository_analysis import RepoState, analyze_repository, hn_event, link_episodes_and_launches
@@ -228,6 +228,32 @@ async def run_analysis(
                 f"Web search partly failed ({e}); some sources may be missing.",
                 surface_key=None,
             )
+        own_hosts = []
+        for d in [target.domain, (target.repo.homepage if target.repo else None)]:
+            if d:
+                h = d.replace("https://", "").replace("http://", "").split("/")[0].removeprefix("www.")
+                own_hosts += [h, f"blog.{h}", f"www.{h}"]
+        own_hosts = list(dict.fromkeys(own_hosts))
+        if own_hosts:
+            feed_items = await feeds.discover_feeds(own_hosts, web, meter)
+            seen_urls = {discovery.canonicalize_url(i.url) for i in feed_items}
+            for it in await feeds.discover_sitemap_posts(own_hosts, web, meter):
+                if discovery.canonicalize_url(it.url) not in seen_urls:
+                    feed_items.append(it)
+            known = {discovery.canonicalize_url(c.url) for c in cands}
+            for it in feed_items:
+                if discovery.canonicalize_url(it.url) not in known:
+                    cands.append(
+                        discovery.SourceCandidate(
+                            url=it.url,
+                            title=it.title + (f" ({it.published[:10]})" if it.published else ""),
+                            origin="first_party_feed",
+                            surface_key=surface_for_url(it.url),
+                            page_age=it.published,
+                        )
+                    )
+            if feed_items:
+                prog.info(f"{len(feed_items)} posts listed in the product's own feeds/sitemaps")
         fixed = 1 + (1 if target.kind == "product" else 0)
         budget = max(5, cfg.engine.max_sources - fixed)
         link_only = [

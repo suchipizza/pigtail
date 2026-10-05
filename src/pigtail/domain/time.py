@@ -105,9 +105,12 @@ def range_start(tr: dict | None) -> datetime | None:
 def human_label(tr: dict | None) -> str:
     if not tr:
         return "Date unknown"
-    if tr.get("label"):
-        return str(tr["label"])
     start = parse_dt(tr.get("start"))
+    label = tr.get("label")
+    # Keep the source's own wording when it carries a year or when no machine date exists;
+    # otherwise ("July 30th") the formatted date is clearer.
+    if label and (re.search(r"\b(19|20)\d{2}\b", str(label)) or not start):
+        return str(label)
     end = parse_dt(tr.get("end"))
     p = tr.get("precision")
     if not start:

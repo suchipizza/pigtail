@@ -554,7 +554,7 @@ def hn_event(b: BundleBuilder, s: HNStory, pol) -> dict:
         "events",
         _event(
             etype,
-            f"{kind}: {s.title.split(':', 1)[-1].strip() if s.is_show_hn else s.title}",
+            s.title if (s.is_show_hn or s.is_launch_hn) else f"On Hacker News: {s.title}",
             f"{kind} by {s.author}: {s.points} points, {s.num_comments} comments.",
             instant(dt, "minute"),
             [cid],

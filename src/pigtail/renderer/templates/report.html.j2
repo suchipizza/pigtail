@@ -188,7 +188,7 @@
         <button type="button" class="event" data-event="{{ e.id }}" data-cat="{{ e.kind_label }}">
           <span class="event-top"><span class="event-date">{{ e.when }}</span><span class="event-cat"><span class="dot k-{{ e.css }}"></span>{{ e.kind_label }}</span></span>
           <span class="event-title">{{ e.title }}</span>
-          {% if e.metrics %}<span class="event-metric">{{ e.metrics | join(" · ") }}</span>{% endif %}
+          <span class="event-metric">{% if e.metrics %}{{ e.metrics | join(" · ") }}{% else %}{{ e.snippet }}{% endif %}</span>
         </button>
         {% endfor %}
       </div>

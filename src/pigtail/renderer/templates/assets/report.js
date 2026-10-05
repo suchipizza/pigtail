@@ -70,6 +70,7 @@
     var h = '<div class="event-date">' + esc(e.when) + " · " + esc(e.kind_label) + "</div><h3>" + esc(e.title) + "</h3>";
     h += '<span class="badge ' + (e.evidence_class === "inferred" ? "inferred" : "fact") + '">' + esc(e.evidence_label) + "</span>";
     if (e.is_inferred) h += ' <span class="badge inferred">Reconstructed from claims</span>';
+    if (e.sensitive) h += ' <span class="badge material">Sensitive: not human-reviewed</span>';
     h += "<p>" + esc(e.summary) + "</p>";
     if (e.metrics && e.metrics.length) h += '<p class="small"><b>' + esc(e.metrics.join(" · ")) + "</b></p>";
     h += '<small class="label">Evidence chain</small>';

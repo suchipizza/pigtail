@@ -114,8 +114,9 @@ class TriageResult(BaseModel):
 TRIAGE_SYSTEM = (
     "You select web sources for evidence-based research on how a specific product grew. You are strict "
     "about identity: different products with similar names must be rejected. Prefer first-party posts "
-    "(company blog, founder posts, changelogs), founder interviews, launch posts, credible reporting and "
-    "detailed analyses. Reject SEO listicles, app-directory stubs, scraped duplicates, job ads, generic "
+    "(company blog, founder posts, changelogs), especially milestone retrospectives (revenue/user milestones, "
+    "'year one', launch results, how-we-grew posts), founder interviews, launch posts, credible reporting and "
+    "detailed analyses. Skip routine feature announcements unless they mark a major launch or relaunch. Reject SEO listicles, app-directory stubs, scraped duplicates, job ads, generic "
     "'alternatives to X' pages and pages about other products."
 )
 

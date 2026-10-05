@@ -25,7 +25,9 @@ def test_range_precision_is_never_invented():
 
 def test_human_label():
     assert human_label(range_from_partial("2021-03")) == "Mar 2021"
-    assert human_label(range_from_partial("2021-03-04", label="early March")) == "early March"
+    assert human_label(range_from_partial("2021-03-04", label="early March")) == "Mar 04, 2021"
+    assert human_label(range_from_partial("2021", label="late 2021")) == "late 2021"
+    assert human_label(range_from_partial(None, label="year one")) == "year one"
     assert human_label(None) == "Date unknown"
     assert date(2021, 3, 4)
 
