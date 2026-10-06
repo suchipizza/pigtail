@@ -1,0 +1,13 @@
+{
+  "publication_policy_version": "0.1.0",
+  "sanitizer_version": "0.1.0",
+  "engine_version": "0.1.0",
+  "target_name": "hatchet",
+  "input_bundle_hash": "sha256:f64bd61024573c5f0270b3977766509ece16afd6d06055ee6750cc2e5dcb48e4",
+  "review_hash": null,
+  "public_bundle_hash": "sha256:5d9990313bd6734dc699d2fba5f46ffcfed155c63365ae0de16d373c2029bda2",
+  "report_hash": "sha256:00644d71cf4f50fa73edd86b8b6e792dd0cb029ac3443fddecb9f24002550359",
+  "status": "PASS",
+  "unresolved_findings": 0,
+  "generated_at": "2026-10-06T10:49:30Z"
+}

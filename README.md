@@ -112,20 +112,21 @@ More in [docs/methodology.md](docs/methodology.md) and [docs/evidence.md](docs/e
 
 ## Examples
 
-Five reviewed example reports are in [`examples/reviewed/`](examples/reviewed). Download a
-folder's `report.html` and open it in your browser — no installation needed:
+Published example reports are in [`examples/reviewed/`](examples/reviewed). Download a folder's
+`report.html` and open it in your browser — no installation needed:
 
 | Example | What it shows |
 |---|---|
 | [Hatchet](examples/reviewed/hatchet) | Open-source task queue with repeated Hacker News launches (Show HN ×3, Launch HN), compared side by side |
-| [Plausible Analytics](examples/reviewed/plausible) | Open-source analytics grown by opinionated blog posts that reached Hacker News; bootstrapped revenue history |
-| [PocketBase](examples/reviewed/pocketbase) | One-developer open-source backend; growth in bursts, several with no public explanation |
-| [Tally](examples/reviewed/tally) | Bootstrapped form builder: cold outreach → free-product loop → search and AI discovery, with MRR history |
-| [Superhuman](examples/reviewed/superhuman) | Paid email app: waitlist, concierge onboarding, product-market-fit survey; later acquired and renamed by Grammarly |
 
-The same examples will be browsable on the Pigtail website (a static site in [`site/`](site)).
-Each folder has the report, the Research Bundle and a metadata file. Re-render any of them with
-`pigtail render examples/reviewed/<name>/research-bundle.json`.
+Four more (Plausible Analytics, PocketBase, Tally and Superhuman) are waiting for a human
+publication review and will be added when they pass.
+
+Every published example went through Pigtail's [publication gate](docs/publication-gate.md):
+names and account handles are replaced by roles, personal financial details and unreviewed
+sensitive claims are removed, excerpts are capped at 15 words, and internal run data (model, cost,
+IDs) is left out. Reports you generate yourself are not changed by any of this. Each folder holds
+the report, the public report data, a publication manifest and a metadata file.
 
 ## More commands
 

@@ -39,7 +39,7 @@ def shot(page, **kw) -> Image.Image:
 
 def main(slug: str) -> None:
     ex = ROOT / "examples" / "reviewed" / slug
-    bundle = json.loads((ex / "research-bundle.json").read_text())
+    bundle = json.loads((ex / "public-report-bundle.json").read_text())
     target = bundle["target"]["canonical_url"]
     counts = (len(bundle["sources"]), len(bundle["claims"]), len(bundle["events"]))
     ASSETS.mkdir(parents=True, exist_ok=True)

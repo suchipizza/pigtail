@@ -1,9 +1,0 @@
-{
-  "slug": "plausible",
-  "title": "Plausible Analytics",
-  "description": "Open-source, privacy-first web analytics that grew through opinionated blog posts reaching Hacker News, with a bootstrapped paid cloud.",
-  "kind": "repository",
-  "featured": true,
-  "published_at": "2026-10-05T23:47:34Z",
-  "bundle_schema_version": "0.1.0"
-}

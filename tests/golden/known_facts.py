@@ -14,7 +14,8 @@ KNOWN_FACTS: dict[str, dict] = {
     "plausible": {
         "repo_created": "2018-12-04",
         "event_types": ["show_hn", "release"],
-        "claims_mention": ["Marko"],
+        # Names are minimized in published examples (publication gate PUB-006), so no person names here.
+        "claims_mention": ["Hacker News"],
     },
     "hatchet": {
         "repo_created": "2023-12-15",

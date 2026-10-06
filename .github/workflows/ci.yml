@@ -25,14 +25,10 @@ jobs:
         run: uv run python -m pigtail.bundle.schema --check
       - name: Tests (unit, contract, integration, golden)
         run: uv run pytest -q
-      - name: Example commands smoke test
-        run: |
-          uv run pigtail version
-          for b in examples/reviewed/*/research-bundle.json; do
-            [ -f "$b" ] || continue
-            uv run pigtail validate "$b" --published
-            uv run pigtail render "$b" --output "$(mktemp -d)"
-          done
+      - name: Published examples passed the publication gate
+        run: uv run python scripts/check_published_examples.py
+      - name: CLI smoke test
+        run: uv run pigtail version
       - name: Secret scan
         run: python scripts/secret_scan.py
 

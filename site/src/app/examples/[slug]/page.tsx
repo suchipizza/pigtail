@@ -24,13 +24,14 @@ export default async function ExamplePage({ params }: { params: Promise<{ slug: 
       <p className="lead">{ex.description}</p>
       <div className="cta">
         <a className="btn primary" href={report}>Open the full report</a>
-        <a className="btn" href={`${BASE}/examples/${ex.slug}/research-bundle.json`}>Download Research Bundle (JSON)</a>
+        <a className="btn" href={`${BASE}/examples/${ex.slug}/public-report-bundle.json`}>Download report data (JSON)</a>
         <a className="btn ghost" href={ex.target_url}>{ex.target_url.replace("https://", "")} ↗</a>
       </div>
       <p className="muted small">
         {ex.counts.sources} sources · {ex.counts.claims} claims · {ex.counts.events} events · {ex.counts.gaps} recorded gaps ·
-        generated {ex.generated_at.slice(0, 10)}
+        sources checked up to {ex.generated_at.slice(0, 10)}
       </p>
+      <p className="muted small">Independent analysis based on public sources. Pigtail is not affiliated with or endorsed by {ex.title}.</p>
       <iframe className="report-frame" src={report} title={`${ex.title} growth forensic`} />
     </section>
   );

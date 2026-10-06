@@ -2,6 +2,22 @@
 
 All notable changes to this project are listed here. Versions follow [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Publication gate for Pigtail-hosted reports (`src/pigtail/publication/`, `scripts/publication_gate.py`,
+  [docs/publication-gate.md](docs/publication-gate.md)): turns a Research Bundle into a minimized public
+  projection with an audit, a file-based human review and a hash-bound manifest. Rules PUB-001…PUB-018.
+- `scripts/publish_example.py` now copies only gate output with a current PASS manifest;
+  `scripts/check_published_examples.py` and the website build refuse anything else.
+- `examples/reviewed/NOTICE.md` (independence and third-party content notice).
+
+### Changed
+- `examples/reviewed/` holds publication-gated output only. Hatchet is published; Plausible, PocketBase,
+  Tally and Superhuman were removed until their publication review is done.
+
+`pigtail analyze` and locally generated reports are unchanged.
+
 ## [0.1.0] — 2026-10-06
 
 First public release (Light V1).
