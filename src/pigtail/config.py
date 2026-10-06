@@ -28,7 +28,7 @@ class EngineConfig(_Section):
 
 class ModelConfig(_Section):
     provider: str = "anthropic"
-    model: str = "claude-opus-5-5"
+    model: str = "claude-sonnet-5-5"
     api_key_env: str = "ANTHROPIC_API_KEY"
 
 

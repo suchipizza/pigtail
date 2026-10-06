@@ -27,6 +27,6 @@ def make_search_provider(cfg: Config, meter: Meter):
     if p == "anthropic_web_search":
         from pigtail.providers.search.anthropic_web_search import AnthropicWebSearch
 
-        model = cfg.model.model if cfg.model.provider == "anthropic" else "claude-opus-5-5"
+        model = cfg.model.model if cfg.model.provider == "anthropic" else "claude-sonnet-5-5"
         return AnthropicWebSearch(model, cfg.secret(cfg.discovery.api_key_env), meter)
     raise CredentialsError(f"Discovery provider {p!r} is not supported ({', '.join(SUPPORTED_SEARCH_PROVIDERS)}).")

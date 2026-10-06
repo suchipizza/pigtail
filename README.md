@@ -23,8 +23,6 @@ releases on the same timeline**, so you can see what was happening around every 
 Click any marker or any small citation number to see the evidence behind it: the claim, the quote,
 the source link and when Pigtail read it.
 
-![The evidence drawer: claim, quote, source and fetch details](docs/assets/evidence-drawer.png)
-
 A 20-second walkthrough (run → report → star timeline → evidence): [docs/assets/demo.gif](docs/assets/demo.gif)
 
 **Who it is for:** open-source maintainers planning a launch, founders and growth people studying
@@ -52,7 +50,7 @@ pigtail https://github.com/plausible/analytics    # an open-source project
 pigtail tally.so                                  # a product website
 ```
 
-A run takes about **2–6 minutes** and typically costs **$1–3** for a repository and **$2–5** for a product website, in Anthropic API usage (measured on 10 targets; see [validation report](validation/2026-10-06/REPORT.md)). When it
+A run takes a few minutes. With the larger Claude Opus 5.5 model it cost **$1–3** for a repository and **$2–5** for a product website, measured on 10 targets ([validation report](validation/2026-10-06/REPORT.md)). The default model, Claude Sonnet 5.5, costs half as much per token, so expect roughly half that; this has not been measured yet. When it
 finishes, the report opens in your browser.
 
 ## What you get
@@ -133,7 +131,7 @@ Each folder has the report, the Research Bundle and a metadata file. Re-render a
 
 ```bash
 pigtail analyze <target>                          # same as `pigtail <target>`
-pigtail <target> --model anthropic/claude-sonnet-5-5
+pigtail <target> --model anthropic/claude-opus-5-5
 pigtail <target> --output ./reports
 pigtail <target> --source https://example.com/launch-post   # add a source you know (checked like any other)
 pigtail render research-bundle.json               # rebuild report.html, no keys or network needed
@@ -146,7 +144,7 @@ Configuration (`pigtail.toml`), exit codes and common errors: [docs/troubleshoot
 ## Supported environments and integrations
 
 - Python 3.12 or newer. Tested on macOS and on Linux (CI). Windows should work but is not tested yet.
-- **Model:** Anthropic Claude (default `claude-opus-5-5`). Pigtail never switches models silently.
+- **Model:** Anthropic Claude (default `claude-sonnet-5-5`; use `--model anthropic/claude-opus-5-5` for the larger model). Pigtail never switches models silently.
 - **Web search:** Anthropic's web-search tool (same API key). Can be turned off in config.
 - **Sources read directly:** GitHub API (repository, star history, releases, README), Hacker News
   (HN Search by Algolia), and public web pages that allow it in `robots.txt`.

@@ -24,7 +24,7 @@ Export the key in the same terminal (`export ANTHROPIC_API_KEY=...`) or put it i
 the folder where you run Pigtail.
 
 **`Model 'x' is not available to this API key`**
-Check the model name: `--model anthropic/claude-opus-5-5`. Pigtail never switches to a different
+Check the model name: `--model anthropic/claude-sonnet-5-5`. Pigtail never switches to a different
 model silently.
 
 **`GitHub API rate limit reached`**
@@ -47,8 +47,7 @@ mention Pigtail cannot read (for example a link-only platform) or something priv
 Run `pigtail validate research-bundle.json` to find broken references, then `pigtail render`.
 
 **Run takes long or costs more than expected**
-Lower `engine.max_sources` and `discovery.max_queries` in `pigtail.toml`, or use a cheaper model
-with `--model anthropic/claude-sonnet-5-5`. `run.json` shows the cost and request counts of each run.
+Lower `engine.max_sources` and `discovery.max_queries` in `pigtail.toml`. `run.json` shows the cost and request counts of each run.
 
 ## Configuration file
 
@@ -64,7 +63,7 @@ max_runtime_minutes = 20
 
 [model]
 provider = "anthropic"
-model = "claude-opus-5-5"
+model = "claude-sonnet-5-5"
 api_key_env = "ANTHROPIC_API_KEY"
 
 [discovery]

@@ -54,7 +54,7 @@ def analyze(
         typer.Argument(help="GitHub repository URL (https://github.com/owner/repo) or a product domain (example.com)."),
     ],
     model: Annotated[
-        str | None, typer.Option("--model", help="Model as provider/model, e.g. anthropic/claude-opus-5-5.")
+        str | None, typer.Option("--model", help="Model as provider/model, e.g. anthropic/claude-sonnet-5-5.")
     ] = None,
     output: Annotated[
         Path | None, typer.Option("--output", help="Output root directory (default ./pigtail-output).")
@@ -81,7 +81,7 @@ def analyze(
         )
         if model:
             if "/" not in model:
-                raise PigtailError("--model must look like provider/model, e.g. anthropic/claude-opus-5-5")
+                raise PigtailError("--model must look like provider/model, e.g. anthropic/claude-sonnet-5-5")
             cfg.model.provider, cfg.model.model = model.split("/", 1)
         if output:
             cfg.engine.output_root = str(output)

@@ -143,14 +143,13 @@ $3–5 each. Cost reduction ideas: cap claims per page, use a smaller model for 
 
 1. **Human review of the 5 examples** (`examples/reviewed/*/report.html`), then run the "Website"
    workflow (Actions → Website → Run) and enable GitHub Pages (source: GitHub Actions).
-2. Confirm **MIT** license.
-3. Confirm default model/provider (Opus 5.5 + Anthropic web search) vs. a cheaper default.
+2. ~~License~~ — decided 2026-10-06: **MIT**.
+3. ~~Default model~~ — decided 2026-10-06: **Claude Sonnet 5.5** (schemas and web search smoke-tested; a full run's cost/quality not yet measured).
 4. Legal review of `source-policies/web.yaml` (transient fetch, ≤280-char quotes) and whether to
    enable Product Hunt (a `PH_API_TOKEN` exists in the sibling project) and Reddit.
-5. Tag `v0.1.0` (release workflow builds sdist/wheel + notes).
+5. ~~Release~~ — decided 2026-10-06: tag `v0.1.0`; the release workflow builds sdist/wheel + notes.
 6. Website domain (`pigtail.dev` is the schema `$id`).
-7. Superhuman example covers the Grammarly rename (target domain now belongs to the merged
-   company) — keep, or swap for a cleaner non-OSS case?
+7. ~~Superhuman example~~ — decided 2026-10-06: keep.
 
 ## Next tasks
 

@@ -104,8 +104,6 @@ def main(slug: str) -> None:
             force=True
         )
         hi.wait_for_timeout(500)
-        hi.add_style_tag(content="#drawerBody{padding:8px 4px}")
-        hi.locator("#drawerBody").screenshot(path=str(ASSETS / "evidence-drawer.png"))
         hi.keyboard.press("Escape")
         hi.goto(report)
         hi.wait_for_timeout(300)

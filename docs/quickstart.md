@@ -6,7 +6,7 @@ This guide takes you from nothing to your first growth report.
 
 - **Python 3.12 or newer.** Check with `python3 --version`.
 - **An Anthropic API key.** Pigtail uses Claude to read sources and to search the web.
-  Create a key at <https://console.anthropic.com/>. A typical run costs about **$1–3** for a repository and **$2–5** for a product website in API usage.
+  Create a key at <https://console.anthropic.com/>. A run with the default model (Claude Sonnet 5.5) should cost roughly $0.50–2.50; with Claude Opus 5.5 we measured $1–3 for a repository and $2–5 for a product website.
 - **Optional: a GitHub token.** Without one, GitHub allows 60 requests per hour, which is enough
   for one or two repositories. With one, you get 5,000 per hour. A token with no extra permissions
   is enough: <https://github.com/settings/tokens>.
@@ -88,7 +88,7 @@ pigtail tally.so
 ## 6. Useful options
 
 ```bash
-pigtail <target> --model anthropic/claude-sonnet-5-5   # pick a different model
+pigtail <target> --model anthropic/claude-opus-5-5     # use the larger model (about twice the cost)
 pigtail <target> --output ./reports                    # choose where reports go
 pigtail <target> --source https://example.com/post     # add a source you know about (repeatable)
 pigtail <target> --no-open                             # don't open the browser at the end
