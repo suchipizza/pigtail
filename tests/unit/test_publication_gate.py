@@ -556,3 +556,67 @@ def test_review_file_round_trip(bundle_dict, tmp_path):
     assert second.result.audit.reviewers == ["tester"]
     assert "tester" not in (run / "publication" / "report.html").read_text()
     assert check_run_publication(run) == []
+
+
+def test_shared_surname_is_never_guessed(b, blog):
+    b["people"] += [
+        {"id": new_id(), "name": "Rahul Roe", "role": "Founder and CEO", "external_ids": [], "claim_ids": []},
+        {
+            "id": new_id(),
+            "name": "Gaurav Roe",
+            "role": "Founding team member, growth",
+            "external_ids": [],
+            "claim_ids": [],
+        },
+    ]
+    cid = add_claim(b, "Roe conceived Example while working elsewhere.", [blog])
+    res = gate(b)
+    assert res.status == "NEEDS_REVIEW" and cid not in claim_ids(res)
+    item = next(i for i in res.review_items if i.object_ref.id == cid)
+    assert "more than one person" in item.reason
+    text = "The founder conceived Example while working elsewhere."
+    ok = gate(b, review_of(res, **{item.finding_id: ("approve_public_text", text)}))
+    assert next(c for c in ok.public_bundle["claims"] if c["id"] == cid)["statement"] == text
+
+
+def test_ai_review_fills_only_allowed_decisions(bundle_dict, tmp_path):
+    import asyncio
+
+    from pigtail.bundle.models import ResearchBundle
+    from pigtail.publication.ai_review import AIDecision, ai_review
+    from pigtail.renderer.render import ForensicRenderer
+
+    b = bundle_dict
+    blog = add_source(b, "https://example.dev/blog/plans")
+    add_claim(b, "The founder planned to move the project elsewhere.", [blog])
+    add_claim(b, "The founder could finally pay rent from Example.", [blog])
+    run = tmp_path / "run"
+    ForensicRenderer().render(ResearchBundle.model_validate(b), run)
+    (run / "research-bundle.json").write_text(dump_json(b))
+    (run / "run.json").write_text("{}")
+    assert run_gate(run).result.status == "NEEDS_REVIEW"
+
+    class FakeModel:
+        provider_key, model_id = "fake", "fake"
+
+        def __init__(self):
+            self.calls = 0
+
+        async def structured(self, request):
+            self.calls += 1
+            if "pay rent" in request.prompt:  # an option the item does not allow: must stay pending
+                return AIDecision(decision="mark_manually_verified", public_text="", rationale="checked")
+            return AIDecision(
+                decision="approve_public_text",
+                public_text="The founder wrote that the project may move elsewhere.",
+                rationale="attributed",
+            )
+
+    model = FakeModel()
+    s = asyncio.run(ai_review(run, model, "AI (fake) on behalf of the owner; human review pending"))
+    assert (s.decided, s.skipped) == (1, 1)
+    data = yaml.safe_load((run / "publication" / "publication-review.yaml").read_text())
+    done = [i for i in data["items"] if i["decision"] != "pending"]
+    assert done[0]["reviewer"].startswith("AI (fake)") and done[0]["rationale"].startswith("[AI]")
+    again = run_gate(run).result
+    assert again.status == "NEEDS_REVIEW" and again.unresolved == 1

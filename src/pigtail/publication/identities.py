@@ -159,6 +159,7 @@ class Redactor:
     full_names: dict[str, str] = field(default_factory=dict)  # full person name -> label
     protected: set[str] = field(default_factory=set)
     kept: set[str] = field(default_factory=set)
+    ambiguous: set[str] = field(default_factory=set)  # name parts shared by people with different roles
     _rx: re.Pattern[str] | None = None
     _role_rx: list[tuple[re.Pattern[str], str]] = field(default_factory=list)
 
@@ -201,13 +202,15 @@ class Redactor:
             person_keys.append((keys, label))
 
         replacements: dict[str, str] = dict(full)
+        ambiguous: set[str] = set()
         for tok, labels in token_labels.items():
             if tok in replacements:
                 continue
             if len(labels) == 1:
                 replacements[tok] = next(iter(labels))
             else:
-                replacements[tok] = "a team member" if labels <= TEAM_LABELS else "someone"
+                # Shared by people with different roles ("Vohra"): never guess which one is meant.
+                ambiguous.add(tok)
 
         # Source authors: handles on community surfaces; personal names on the web.
         for s in b["sources"]:
@@ -226,7 +229,7 @@ class Redactor:
                 replacements[author] = "an author"
         replacements = {k: v for k, v in replacements.items() if len(k) >= 3}
 
-        red = cls(replacements=replacements, full_names=full, protected=protected, kept=kept)
+        red = cls(replacements=replacements, full_names=full, protected=protected, kept=kept, ambiguous=ambiguous)
         red._compile()
         return red
 
@@ -308,7 +311,7 @@ class Redactor:
             return []
         plain = _URL.sub(" ", text)
         found = []
-        for k in self.replacements:
+        for k in [*self.replacements, *sorted(self.ambiguous)]:
             if re.search(rf"(?<![\w]){re.escape(k)}(?![\w])", plain, re.I):
                 found.append(k)
         return found
@@ -316,7 +319,7 @@ class Redactor:
     def names_person(self, text: str | None) -> bool:
         """True if the text names a known Person (not only an account handle)."""
         person_labels = set(self.full_names.values())
-        return any(self.replacements[k] in person_labels for k in self.residual(text))
+        return any(k in self.ambiguous or self.replacements.get(k) in person_labels for k in self.residual(text))
 
     def mentions_any(self, text: str | None) -> bool:
         return bool(self.residual(text))

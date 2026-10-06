@@ -1,0 +1,13 @@
+{
+  "publication_policy_version": "0.1.0",
+  "sanitizer_version": "0.1.0",
+  "engine_version": "0.1.0",
+  "target_name": "Tally Forms",
+  "input_bundle_hash": "sha256:67c02e02a956519873b272de8bfad945dbce5840997ea1167d4bd29bec094bb4",
+  "review_hash": "sha256:3585114148366fd7ba3c768d77d90cd70ae89aa291afe6f7f1c4a686c03b6193",
+  "public_bundle_hash": "sha256:2619bb24029f85f3f58015187c02a938423247d6db9e8b4cd2d9db02c18dd3e6",
+  "report_hash": "sha256:81dbff941aed98d72797a52b461d77993a11dc5a8e8a672e48ae0d1b845ef552",
+  "status": "PASS",
+  "unresolved_findings": 0,
+  "generated_at": "2026-10-06T16:18:12Z"
+}

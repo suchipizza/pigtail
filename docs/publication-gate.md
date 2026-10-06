@@ -91,10 +91,26 @@ analysis, add them under `keep_identities` with a rationale. Then run the gate a
 are recorded in the internal audit only, never in the report. The review file is internal; never
 publish it.
 
+## Letting an AI review
+
+The owner can let an AI make the review decisions:
+
+```bash
+uv run python scripts/ai_review.py <run-dir> --budget-usd 2     # costs API money
+uv run python scripts/publication_gate.py <run-dir>
+```
+
+The model sees each item's rule, text, cited claims and, unless `--no-fetch`, a fresh read of the
+source page. It may only pick the item's allowed decisions; anything else stays pending for a
+person. Decisions are recorded as `AI (<model>) on behalf of the owner; human review pending` with
+`[AI]` rationales, never under a person's name, and the gate re-checks every approved text. Publish
+the result with `--reviewed-by ai` so the website says a human review is pending. When a person
+reviews later, they edit the same entries and put their own name in `reviewer`.
+
 ## Publishing an example
 
 ```bash
-uv run python scripts/publish_example.py <run-dir> <slug> --title "..." --description "..." [--featured]
+uv run python scripts/publish_example.py <run-dir> <slug> --title "..." --description "..." --reviewed-by ai|human [--featured]
 ```
 
 It copies only `report.html`, `public-report-bundle.json`, `publication-manifest.json` and a new

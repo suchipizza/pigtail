@@ -29,14 +29,14 @@ fabricated; Pigtail is not a content archive.
 | M1 First OSS vertical slice | **Done** — `pigtail https://github.com/plausible/analytics` |
 | M2 Tally/general product slice | **Done** — `pigtail tally.so` finds all 10 sources of the reference page, the same MRR series, first users, PH relaunch, badge loop, AI referrals; adds origin, conflicts, gaps |
 | M3 Non-curated validation (10 targets) | **Done** — [validation/2026-10-06/REPORT.md](validation/2026-10-06/REPORT.md); 4 generalizable bugs found and fixed |
-| M4 Golden examples | **Partly published** — 5 golden runs exist locally (`golden-runs/`, gitignored). Since the publication gate, only gated output may be in `examples/reviewed/`: Hatchet passed and is published; Plausible, PocketBase, Superhuman and Tally need the owner's publication review (38 items) |
+| M4 Golden examples | **Published through the gate** — 5 in `examples/reviewed/` (gate output only; raw runs in gitignored `golden-runs/`). 60 review decisions made by AI on the owner's behalf (owner decision 2026-10-06); **human review pending** |
 | M5 Product polish | **Mostly done** — report UX, evidence drawer, star/event chart, dark mode, doctor, clean wheel install verified |
-| Publication gate (PRD 2026-10-06) | **Done** — `src/pigtail/publication/`, rules PUB-001…018, audit, file-based review, hash-bound manifest; CI + website build refuse ungated examples. Hatchet published; 4 examples awaiting owner review |
+| Publication gate (PRD 2026-10-06) | **Done** — `src/pigtail/publication/`, rules PUB-001…018, audit, file-based review, hash-bound manifest; CI + website build refuse ungated examples. all 5 examples published; review decisions made by AI on the owner's behalf (2026-10-06), human review pending |
 | M6 Website + GitHub launch | **Built, not deployed** — static Next.js site builds from reviewed examples; Pages workflow is manual (`workflow_dispatch`) pending owner review |
 
 ## Tests
 
-`uv run pytest` — 86 passing, 1 skipped (unit, contract, integration, golden, 20 publication-gate acceptance tests). The skip is the "≥4 published examples" launch check, until the review below is done. `ruff check`, `ruff format --check`,
+`uv run pytest` — 109 passing (unit, contract, integration, golden, 22 publication-gate tests). `ruff check`, `ruff format --check`,
 `mypy`, schema drift check: clean. CI (GitHub Actions) green on `main`; CI also builds the site.
 
 ## Deviations from the specification (with reasons)
@@ -142,12 +142,13 @@ $3–5 each. Cost reduction ideas: cap claims per page, use a smaller model for 
 
 ## Owner decisions needed
 
-0. **Publication review of 4 examples — owner's next step.** Sheet with a suggested decision per
-   item: `~/Documents/Pigtail/Documents/publication-review-2026-10-06.md` (38 items: Plausible 20,
-   PocketBase 8, Superhuman 5, Tally 5). Decide (or reply with choices), re-run
-   `scripts/publication_gate.py`, then `scripts/publish_example.py` for each PASS.
+0. **Human publication review — after the site is online.** The owner decided (2026-10-06) that an AI
+   makes the review decisions now and the owner reviews the live site afterwards. Decisions are in
+   `golden-runs/runs/*/publication/publication-review.yaml` (reviewer "AI … on behalf of the owner";
+   sheet: `~/Documents/Pigtail/Documents/publication-review-2026-10-06.md`). Corrections: edit
+   the entries, re-run the gate, republish with `--reviewed-by human`.
 1. **Publish the website.** GitHub Pages is already enabled (2026-10-06).
-   Remaining: (a) the publication review above (Hatchet is already published);
+   Remaining: (a) done — all 5 examples passed the gate;
    (b) run Actions → "Website" → "Run workflow" to deploy to https://suchipizza.github.io/pigtail/;
    (c) then switch the README example links from `examples/reviewed/` to the site.
    Hosting stays on GitHub Pages for now; a move to `pigtail.dev` may come later.

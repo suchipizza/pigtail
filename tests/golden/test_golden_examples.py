@@ -29,10 +29,6 @@ def test_golden_set_shape():
     if not EXAMPLES:
         pytest.skip("no reviewed examples yet")
     kinds = [json.loads((p / "metadata.json").read_text())["kind"] for p in EXAMPLES]
-    if len(EXAMPLES) < 4:
-        # Launch requirement, not yet met: Plausible, PocketBase, Superhuman and Tally are waiting for the
-        # owner's publication review (IMPLEMENTATION_STATUS.md, "Owner decisions needed").
-        pytest.skip(f"launch needs >=4 published examples; {len(EXAMPLES)} published, 4 awaiting publication review")
     assert len(EXAMPLES) >= 4
     assert sum(k == "repository" for k in kinds) >= 2
     assert any(k != "repository" for k in kinds)
@@ -61,7 +57,9 @@ def test_metadata_contract(ex: Path):
         "published_at",
         "bundle_schema_version",
         "publication_policy_version",
+        "reviewed_by",
     }
+    assert meta["reviewed_by"] in ("ai", "human")
     assert meta["slug"] == ex.name
     assert meta["bundle_schema_version"] == load(ex)["schema_version"]
 

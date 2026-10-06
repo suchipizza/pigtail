@@ -11,10 +11,13 @@ All notable changes to this project are listed here. Versions follow [SemVer](ht
 - `scripts/publish_example.py` now copies only gate output with a current PASS manifest;
   `scripts/check_published_examples.py` and the website build refuse anything else.
 - `examples/reviewed/NOTICE.md` (independence and third-party content notice).
+- `scripts/ai_review.py`: owner-authorized AI reviewer for publication-review items, recorded as AI
+  decisions; examples carry `reviewed_by` and the website shows when a human review is pending.
+- Names shared by people with different roles (e.g. a surname) go to review instead of being guessed.
 
 ### Changed
-- `examples/reviewed/` holds publication-gated output only. Hatchet is published; Plausible, PocketBase,
-  Tally and Superhuman were removed until their publication review is done.
+- `examples/reviewed/` holds publication-gated output only. All five examples are republished through
+  the gate; their review decisions were made by an AI on the owner's behalf (human review pending).
 
 `pigtail analyze` and locally generated reports are unchanged.
 

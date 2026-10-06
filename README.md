@@ -118,9 +118,13 @@ Published example reports are in [`examples/reviewed/`](examples/reviewed). Down
 | Example | What it shows |
 |---|---|
 | [Hatchet](examples/reviewed/hatchet) | Open-source task queue with repeated Hacker News launches (Show HN ×3, Launch HN), compared side by side |
+| [Plausible Analytics](examples/reviewed/plausible) | Open-source analytics grown by opinionated blog posts that reached Hacker News; bootstrapped revenue history |
+| [PocketBase](examples/reviewed/pocketbase) | One-developer open-source backend; growth in bursts, several with no public explanation |
+| [Tally](examples/reviewed/tally) | Bootstrapped form builder: cold outreach → free-product loop → search and AI discovery, with MRR history |
+| [Superhuman](examples/reviewed/superhuman) | Paid email app: waitlist, concierge onboarding, product-market-fit survey; later acquired and renamed by Grammarly |
 
-Four more (Plausible Analytics, PocketBase, Tally and Superhuman) are waiting for a human
-publication review and will be added when they pass.
+The publication-review decisions for these examples were made by an AI on the maintainer's
+behalf; a human review is pending.
 
 Every published example went through Pigtail's [publication gate](docs/publication-gate.md):
 names and account handles are replaced by roles, personal financial details and unreviewed

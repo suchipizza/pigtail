@@ -959,7 +959,12 @@ class PublicationGate:
                 "REQUIRE_REVIEW",
                 coll,
                 oid,
-                f"A name or handle is still present after redaction ({', '.join(left[:3])}).",
+                (
+                    f"{', '.join(sorted(set(left) & self.redactor.ambiguous))!s} could refer to more than one "
+                    "person; supply public_text with the right role, or exclude."
+                )
+                if set(left) & self.redactor.ambiguous
+                else f"A name or handle is still present after redaction ({', '.join(left[:3])}).",
                 fld=fld,
                 before=red,
                 allowed=REVIEW_DECISIONS,

@@ -30,6 +30,12 @@ def main() -> int:
     ap.add_argument("--title", required=True)
     ap.add_argument("--description", required=True)
     ap.add_argument("--featured", action="store_true")
+    ap.add_argument(
+        "--reviewed-by",
+        choices=["ai", "human"],
+        required=True,
+        help="Who made the publication-review decisions (shown on the website).",
+    )
     a = ap.parse_args()
     public = a.run_dir / "publication" / "public-report-bundle.json"
     kind = json.loads(public.read_text())["target"]["kind"] if public.exists() else None
@@ -42,6 +48,7 @@ def main() -> int:
         "published_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "bundle_schema_version": "0.1.0",
         "publication_policy_version": POLICY_VERSION,
+        "reviewed_by": a.reviewed_by,
     }
     problems = promote(a.run_dir, ROOT / "examples" / "reviewed" / a.slug, meta)
     if problems:

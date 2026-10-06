@@ -8,6 +8,7 @@ export type Example = {
   featured: boolean;
   published_at: string;
   bundle_schema_version: string;
+  reviewed_by: "ai" | "human";
   target_url: string;
   summary: string | null;
   counts: { sources: number; claims: number; events: number; tactics: number; gaps: number };
