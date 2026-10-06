@@ -141,14 +141,17 @@ $3–5 each. Cost reduction ideas: cap claims per page, use a smaller model for 
 
 ## Owner decisions needed
 
-1. **Human review of the 5 examples** (`examples/reviewed/*/report.html`), then run the "Website"
-   workflow (Actions → Website → Run) and enable GitHub Pages (source: GitHub Actions).
+1. **Publish the website — owner's next step.** GitHub Pages is already enabled (2026-10-06).
+   Remaining: (a) human review of the 5 examples (`examples/reviewed/*/report.html`);
+   (b) run Actions → "Website" → "Run workflow" to deploy to https://suchipizza.github.io/pigtail/;
+   (c) then switch the README example links from `examples/reviewed/` to the site.
+   Hosting stays on GitHub Pages for now; a move to `pigtail.dev` may come later.
 2. ~~License~~ — decided 2026-10-06: **MIT**.
 3. ~~Default model~~ — decided 2026-10-06: **Claude Sonnet 5.5** (schemas and web search smoke-tested; a full run's cost/quality not yet measured).
 4. Legal review of `source-policies/web.yaml` (transient fetch, ≤280-char quotes) and whether to
    enable Product Hunt (a `PH_API_TOKEN` exists in the sibling project) and Reddit.
 5. ~~Release~~ — decided 2026-10-06: tag `v0.1.0`; the release workflow builds sdist/wheel + notes.
-6. Website domain (`pigtail.dev` is the schema `$id`).
+6. Website domain — decided 2026-10-06: GitHub Pages for now; maybe `pigtail.dev` later (it is already the schema `$id`).
 7. ~~Superhuman example~~ — decided 2026-10-06: keep.
 
 ## Next tasks
