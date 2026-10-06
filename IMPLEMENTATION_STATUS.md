@@ -32,7 +32,7 @@ fabricated; Pigtail is not a content archive.
 | M4 Golden examples | **Published through the gate** — 5 in `examples/reviewed/` (gate output only; raw runs in gitignored `golden-runs/`). 60 review decisions made by AI on the owner's behalf (owner decision 2026-10-06); **human review pending** |
 | M5 Product polish | **Mostly done** — report UX, evidence drawer, star/event chart, dark mode, doctor, clean wheel install verified |
 | Publication gate (PRD 2026-10-06) | **Done** — `src/pigtail/publication/`, rules PUB-001…018, audit, file-based review, hash-bound manifest; CI + website build refuse ungated examples. all 5 examples published; review decisions made by AI on the owner's behalf (2026-10-06), human review pending |
-| M6 Website + GitHub launch | **Built, not deployed** — static Next.js site builds from reviewed examples; Pages workflow is manual (`workflow_dispatch`) pending owner review |
+| M6 Website + GitHub launch | **Deployed 2026-10-06** to https://suchipizza.github.io/pigtail/ (manual Website workflow). Previously: built, not deployed — static Next.js site builds from reviewed examples; Pages workflow is manual (`workflow_dispatch`) pending owner review |
 
 ## Tests
 
@@ -147,11 +147,7 @@ $3–5 each. Cost reduction ideas: cap claims per page, use a smaller model for 
    `golden-runs/runs/*/publication/publication-review.yaml` (reviewer "AI … on behalf of the owner";
    sheet: `~/Documents/Pigtail/Documents/publication-review-2026-10-06.md`). Corrections: edit
    the entries, re-run the gate, republish with `--reviewed-by human`.
-1. **Publish the website.** GitHub Pages is already enabled (2026-10-06).
-   Remaining: (a) done — all 5 examples passed the gate;
-   (b) run Actions → "Website" → "Run workflow" to deploy to https://suchipizza.github.io/pigtail/;
-   (c) then switch the README example links from `examples/reviewed/` to the site.
-   Hosting stays on GitHub Pages for now; a move to `pigtail.dev` may come later.
+1. ~~Publish the website~~ — done 2026-10-06: https://suchipizza.github.io/pigtail/ ; README links point there.
 2. ~~License~~ — decided 2026-10-06: **MIT**.
 3. ~~Default model~~ — decided 2026-10-06: **Claude Sonnet 5.5** (schemas and web search smoke-tested; a full run's cost/quality not yet measured).
 4. Legal review of `source-policies/web.yaml` (transient fetch, ≤280-char quotes) and whether to

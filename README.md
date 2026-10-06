@@ -3,7 +3,8 @@
 <p align="center"><b>See how a product actually grew — from public evidence, with every fact linked to its source.</b></p>
 
 <p align="center">
-  <a href="examples/reviewed/">Example reports</a> ·
+  <a href="https://suchipizza.github.io/pigtail/">Website</a> ·
+  <a href="https://suchipizza.github.io/pigtail/examples/">Example reports</a> ·
   <a href="docs/quickstart.md">5-minute quick start</a> ·
   <a href="docs/methodology.md">How it works</a> ·
   <a href="docs/">Docs</a>
@@ -112,16 +113,17 @@ More in [docs/methodology.md](docs/methodology.md) and [docs/evidence.md](docs/e
 
 ## Examples
 
-Published example reports are in [`examples/reviewed/`](examples/reviewed). Download a folder's
-`report.html` and open it in your browser — no installation needed:
+Browse the example reports on the [Pigtail website](https://suchipizza.github.io/pigtail/examples/). The same files are in
+[`examples/reviewed/`](examples/reviewed); download a folder's `report.html` and open it in your
+browser — no installation needed:
 
 | Example | What it shows |
 |---|---|
-| [Hatchet](examples/reviewed/hatchet) | Open-source task queue with repeated Hacker News launches (Show HN ×3, Launch HN), compared side by side |
-| [Plausible Analytics](examples/reviewed/plausible) | Open-source analytics grown by opinionated blog posts that reached Hacker News; bootstrapped revenue history |
-| [PocketBase](examples/reviewed/pocketbase) | One-developer open-source backend; growth in bursts, several with no public explanation |
-| [Tally](examples/reviewed/tally) | Bootstrapped form builder: cold outreach → free-product loop → search and AI discovery, with MRR history |
-| [Superhuman](examples/reviewed/superhuman) | Paid email app: waitlist, concierge onboarding, product-market-fit survey; later acquired and renamed by Grammarly |
+| [Hatchet](https://suchipizza.github.io/pigtail/examples/hatchet/) | Open-source task queue with repeated Hacker News launches (Show HN ×3, Launch HN), compared side by side |
+| [Plausible Analytics](https://suchipizza.github.io/pigtail/examples/plausible/) | Open-source analytics grown by opinionated blog posts that reached Hacker News; bootstrapped revenue history |
+| [PocketBase](https://suchipizza.github.io/pigtail/examples/pocketbase/) | One-developer open-source backend; growth in bursts, several with no public explanation |
+| [Tally](https://suchipizza.github.io/pigtail/examples/tally/) | Bootstrapped form builder: cold outreach → free-product loop → search and AI discovery, with MRR history |
+| [Superhuman](https://suchipizza.github.io/pigtail/examples/superhuman/) | Paid email app: waitlist, concierge onboarding, product-market-fit survey; later acquired and renamed by Grammarly |
 
 The publication-review decisions for these examples were made by an AI on the maintainer's
 behalf; a human review is pending.
