@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
@@ -109,8 +110,38 @@ def _host(url: str) -> str:
     return (urlparse(url).hostname or url).removeprefix("www.")
 
 
-def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
-    b = bundle.model_dump(mode="json")
+PUBLIC_EXCERPT_MAX_WORDS = 15
+
+
+def _public_excerpt(text: str | None, display_mode: str) -> str | None:
+    """Public reports re-apply the excerpt limits even if a longer excerpt reaches the renderer."""
+    if not text or display_mode != "paraphrase_link_excerpt":
+        return None
+    words = text.split()
+    return text if len(words) <= PUBLIC_EXCERPT_MAX_WORDS else " ".join(words[:PUBLIC_EXCERPT_MAX_WORDS]) + "…"
+
+
+def metric_attribution(links: list[dict], statements: str = "") -> str:
+    """Who reported a figure, for public labels (PUB-010). Never merges sources."""
+    first_party = any(
+        el["source_directness"] in ("primary_direct", "primary_indirect")
+        and el["evidence_class"] in ("documented", "company_measured")
+        for el in links
+    )
+    if first_party:
+        return "company reported"
+    if any(el["evidence_class"] == "third_party_measured" for el in links):
+        return "third-party measured"
+    if links and all(el["evidence_class"] == "inferred" for el in links):
+        return "Pigtail inference"
+    return "third-party estimate" if "estimat" in statements.lower() else "third-party reported"
+
+
+def build_view_model(bundle: ResearchBundle | dict, public: bool = False) -> dict[str, Any]:
+    """`public=True` renders a publication-gate projection (pigtail.publication), never a raw Bundle."""
+    b = copy.deepcopy(bundle) if isinstance(bundle, dict) else bundle.model_dump(mode="json")
+    if public and ("run" in b or "bundle_id" in b or "people" in b):
+        raise ValueError("Public rendering needs a public projection, not a raw Research Bundle")
     sources = {s["id"]: s for s in b["sources"]}
     fetches = {f["id"]: f for f in b["source_fetches"]}
     claims = {c["id"]: c for c in b["claims"]}
@@ -129,6 +160,17 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
             source_num[sid] = len(source_num) + 1
         return source_num[sid]
 
+    excerpt_shown: set[str] = set()
+
+    def excerpt_for(el: dict, s: dict) -> str | None:
+        if not public:
+            return el["excerpt"]
+        ex = _public_excerpt(el["excerpt"], s["policy"]["public_display_mode"])
+        if ex is None or s["id"] in excerpt_shown:
+            return None
+        excerpt_shown.add(s["id"])
+        return ex
+
     def claim_view(cid: str) -> dict | None:
         c = claims.get(cid)
         if not c:
@@ -137,6 +179,7 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
         for el in links_by_claim.get(cid, []):
             s = sources[el["source_id"]]
             f = fetches.get(el["source_fetch_id"], {})
+            loc = el["locator"]
             evs.append(
                 {
                     "n": num(s["id"]),
@@ -149,8 +192,8 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
                     "evidence_label": EVIDENCE_LABELS[el["evidence_class"]],
                     "directness": DIRECTNESS_LABELS[el["source_directness"]],
                     "corroboration": el["corroboration"].replace("_", " "),
-                    "locator": f"{el['locator']['kind']}: {el['locator']['value']}",
-                    "excerpt": el["excerpt"],
+                    "locator": f"{loc['kind']}: {loc['value']}" if loc["value"] or not public else "",
+                    "excerpt": excerpt_for(el, s),
                     "retrieved_at": f.get("retrieved_at"),
                     "fetch_status": f.get("status"),
                     "content_hash": f.get("content_hash"),
@@ -166,6 +209,8 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
             "status": c["status"],
             "certainty": c["extraction_certainty"],
             "evidence": evs,
+            "attribution": c.get("public_attribution"),
+            "manually_verified": bool(c.get("manually_verified")),
         }
 
     claim_views: dict[str, dict] = {}
@@ -222,6 +267,14 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
                 )
         elif m["metric_key"] in HIDDEN_METRIC_KEYS:
             continue
+        elif public:
+            # Company-reported and third-party figures stay separate series (PUB-010).
+            attr = metric_attribution(
+                [el for cid in m["claim_ids"] for el in links_by_claim.get(cid, [])],
+                " ".join(claims[cid]["statement"] for cid in m["claim_ids"] if cid in claims),
+            )
+            m["_attribution"] = attr
+            other_metrics[f"{m['metric_key']}|{attr}"].append(m)
         else:
             other_metrics[m["metric_key"]].append(m)
     star_points.sort(key=lambda p: p["t"])
@@ -233,6 +286,7 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
         numeric = [m for m in ms_sorted if m["value_numeric"] is not None and m["time"]["start"]]
         entry = {
             "key": key,
+            "attribution": ms_sorted[0].get("_attribution"),
             "label": ms_sorted[0]["label"],
             "unit": ms_sorted[0]["unit"],
             "currency": ms_sorted[0]["currency"],
@@ -472,7 +526,7 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
         for k in b["narrative"]["key_takeaways"]
     ]
 
-    people = [{"name": p["name"], "role": p["role"], "cites": cite(p["claim_ids"])} for p in b["people"]]
+    people = [{"name": p["name"], "role": p["role"], "cites": cite(p["claim_ids"])} for p in b.get("people", [])]
     founders = [p for p in people if p["role"] and "found" in p["role"].lower()][:3]
     for p in founders:
         role = p["role"] or ""
@@ -554,7 +608,8 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
         if not dated or len(entry["label"]) > 28:
             continue
         last = dated[-1]
-        stats.append({"value": last["value"], "label": f"{entry['label']} · {last['when']}"})
+        attr = f" ({entry['attribution']})" if public and entry["attribution"] != "company reported" else ""
+        stats.append({"value": last["value"], "label": f"{entry['label']}{attr} · {last['when']}"})
 
     recent = None
     if star_points:
@@ -565,9 +620,33 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
             if prior:
                 recent = f"+{_fmt_num(star_points[-1]['v'] - prior[-1]['v'])} stars in the last 90 days"
 
-    run = b["run"]
-    started, completed = parse_dt(run["started_at"]), parse_dt(run["completed_at"])
-    duration = (completed - started).total_seconds() if started and completed else None
+    status_labels = {"completed": "Completed", "completed_with_gaps": "Completed with gaps", "failed": "Failed"}
+    if public:
+        rep = b["report"]
+        cutoff_dt = parse_dt(rep["source_cutoff_at"])
+        run_view: dict[str, Any] = {
+            "status": rep["status"],
+            "status_label": status_labels[rep["status"]],
+            "date": cutoff_dt.strftime("%b %d, %Y") if cutoff_dt else "",
+            "cutoff": human_label({"start": rep["source_cutoff_at"], "end": None, "precision": "day", "label": None}),
+            "engine_version": rep["engine_version"],
+        }
+    else:
+        run = b["run"]
+        started, completed = parse_dt(run["started_at"]), parse_dt(run["completed_at"])
+        duration = (completed - started).total_seconds() if started and completed else None
+        run_view = {
+            "status": run["status"],
+            "status_label": status_labels[run["status"]],
+            "date": (completed or started or datetime.now(UTC)).strftime("%b %d, %Y"),
+            "cutoff": human_label({"start": run["source_cutoff_at"], "end": None, "precision": "day", "label": None}),
+            "model": f"{run['model']['provider']}/{run['model']['model']}",
+            "discovery": run["discovery"]["provider"],
+            "cost": run["cost"]["total_cost"],
+            "duration_min": round(duration / 60, 1) if duration else None,
+            "usage": run["usage"],
+            "engine_version": run["engine_version"],
+        }
 
     chart_events = [
         {
@@ -611,9 +690,11 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
     insufficient = not b["events"] and not star_points and not any(narrative.values()) and len(b["claims"]) < 5
 
     return {
-        "bundle_id": b["bundle_id"],
+        "public": public,
+        "notices": b.get("notices"),
+        "bundle_id": b.get("bundle_id"),
         "schema_version": b["schema_version"],
-        "generated_at": b["generated_at"],
+        "generated_at": b.get("generated_at"),
         "target": {
             "name": t["name"],
             "kind": t["kind"],
@@ -627,22 +708,7 @@ def build_view_model(bundle: ResearchBundle) -> dict[str, Any]:
         "recent_stars": recent,
         "archived": bool(repo and repo["is_archived"]),
         "stats": stats[:4],
-        "run": {
-            "status": run["status"],
-            "status_label": {
-                "completed": "Completed",
-                "completed_with_gaps": "Completed with gaps",
-                "failed": "Failed",
-            }[run["status"]],
-            "date": (completed or started or datetime.now(UTC)).strftime("%b %d, %Y"),
-            "cutoff": human_label({"start": run["source_cutoff_at"], "end": None, "precision": "day", "label": None}),
-            "model": f"{run['model']['provider']}/{run['model']['model']}",
-            "discovery": run["discovery"]["provider"],
-            "cost": run["cost"]["total_cost"],
-            "duration_min": round(duration / 60, 1) if duration else None,
-            "usage": run["usage"],
-            "engine_version": run["engine_version"],
-        },
+        "run": run_view,
         "narrative": narrative,
         "takeaways": takeaways,
         "people": people,

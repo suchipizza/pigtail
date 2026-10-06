@@ -31,8 +31,9 @@ why `pigtail render` works on any valid bundle without credentials.
 | `src/pigtail/renderer/` | View model + Jinja2 template + inline CSS/JS. The report has no external requests. |
 | `schemas/research-bundle/0.1.0.schema.json` | The normative JSON Schema, generated from the models. CI fails if they drift. |
 | `source-policies/*.yaml` | Per-platform access/retention/display rules. |
-| `examples/reviewed/` | Reviewed example bundles and reports; used by tests and the website. |
-| `site/` | The static Next.js website built from reviewed examples. |
+| `src/pigtail/publication/` | The publication gate for Pigtail-hosted reports (internal; see [publication-gate.md](publication-gate.md)). `pigtail analyze` does not use it. |
+| `examples/reviewed/` | Published examples: gate output only (report, public projection, manifest, metadata) plus `NOTICE.md`. Used by tests and the website. |
+| `site/` | The static Next.js website. Its build refuses any example without a current PASS manifest. |
 
 ## Provider interfaces
 

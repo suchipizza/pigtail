@@ -53,17 +53,21 @@
   function claimCard(cid) {
     var c = CLAIMS[cid];
     if (!c) return "";
-    var h = '<div class="claim-card"><p class="stmt">' + esc(c.statement) + "</p>";
+    var h = '<div class="claim-card"><p class="stmt">' + (c.attribution ? "<i>" + esc(c.attribution) + ":</i> " : "") + esc(c.statement) + "</p>";
     h += '<div class="claim-meta"><span class="badge minor">' + esc(c.time) + '</span><span class="badge minor">' +
-      esc(c.review_state) + "</span>" + (c.status !== "active" ? '<span class="badge material">' + esc(c.status) + "</span>" : "") + "</div>";
+      esc(c.review_state) + "</span>" + (c.manually_verified ? '<span class="badge fact">manually verified</span>' : "") + (c.status !== "active" ? '<span class="badge material">' + esc(c.status) + "</span>" : "") + "</div>";
     (c.evidence || []).forEach(function (ev) {
       var cls = badgeClass(ev.evidence_class);
       h += '<div class="ev"><span class="badge ' + cls + '">' + esc(ev.evidence_label) + "</span> " + esc(ev.directness) +
         ", " + esc(ev.corroboration) + '<br><a href="' + esc(safeUrl(ev.url)) + '" target="_blank" rel="noopener">[' + ev.n + "] " +
         esc(ev.title) + " ↗</a>";
       if (ev.excerpt) h += "<blockquote>" + esc(ev.excerpt) + "</blockquote>";
-      h += '<div class="trace">Locator: ' + esc(ev.locator) + (ev.retrieved_at ? " · retrieved " + esc(ev.retrieved_at.slice(0, 10)) : "") +
-        (ev.content_hash ? " · " + esc(ev.content_hash.slice(0, 19)) + "…" : "") + "</div></div>";
+      var trace = [];
+      if (ev.locator) trace.push("Locator: " + esc(ev.locator));
+      if (c.manually_verified && ev.fetch_status && ev.fetch_status !== "success") trace.push("source not read (" + esc(ev.fetch_status.replace("_", " ")) + ")");
+      if (ev.retrieved_at) trace.push("retrieved " + esc(ev.retrieved_at.slice(0, 10)));
+      if (ev.content_hash) trace.push(esc(ev.content_hash.slice(0, 19)) + "…");
+      h += '<div class="trace">' + trace.join(" · ") + "</div></div>";
     });
     return h + "</div>";
   }

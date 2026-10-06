@@ -50,7 +50,18 @@ def _json_for_script(data: object) -> Markup:
 
 
 def render_html(bundle: ResearchBundle) -> str:
-    vm = build_view_model(bundle)
+    return _render(build_view_model(bundle))
+
+
+def render_public_html(public: dict) -> str:
+    """Render a publication-gate projection (pigtail.publication). Never takes a raw Research Bundle."""
+    from pigtail.publication.models import PublicReportBundle
+
+    PublicReportBundle.model_validate(public)
+    return _render(build_view_model(public, public=True))
+
+
+def _render(vm: dict) -> str:
     env = Environment(
         autoescape=select_autoescape(["html", "j2"]),
         undefined=StrictUndefined,
