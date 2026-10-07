@@ -34,7 +34,7 @@ def main() -> int:
         "--reviewed-by",
         choices=["ai", "human"],
         required=True,
-        help="Who made the publication-review decisions (shown on the website).",
+        help="Who made the publication-review decisions (recorded in metadata.json).",
     )
     a = ap.parse_args()
     public = a.run_dir / "publication" / "public-report-bundle.json"

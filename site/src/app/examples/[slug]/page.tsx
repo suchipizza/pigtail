@@ -31,11 +31,6 @@ export default async function ExamplePage({ params }: { params: Promise<{ slug: 
         {ex.counts.sources} sources · {ex.counts.claims} claims · {ex.counts.events} events · {ex.counts.gaps} recorded gaps ·
         sources checked up to {ex.generated_at.slice(0, 10)}
       </p>
-      {ex.reviewed_by === "ai" && (
-        <p className="muted small">
-          Publication review: done by AI on the maintainer&apos;s behalf; a human review is pending.
-        </p>
-      )}
       <p className="muted small">Independent analysis based on public sources. Pigtail is not affiliated with or endorsed by {ex.title}.</p>
       <iframe className="report-frame" src={report} title={`${ex.title} growth forensic`} />
     </section>

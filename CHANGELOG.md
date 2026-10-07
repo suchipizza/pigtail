@@ -12,7 +12,7 @@ All notable changes to this project are listed here. Versions follow [SemVer](ht
   `scripts/check_published_examples.py` and the website build refuse anything else.
 - `examples/reviewed/NOTICE.md` (independence and third-party content notice).
 - `scripts/ai_review.py`: owner-authorized AI reviewer for publication-review items, recorded as AI
-  decisions; examples carry `reviewed_by` and the website shows when a human review is pending.
+  decisions; examples carry `reviewed_by` in their metadata (not shown on the website).
 - Names shared by people with different roles (e.g. a surname) go to review instead of being guessed.
 - Owner review of Superhuman (2026-10-07): founders and executives are named in their role, private
   individuals anonymised; real source titles kept; header shows company-reported figures only; relayed

@@ -116,7 +116,7 @@ The model sees each item's rule, text, cited claims and, unless `--no-fetch`, a 
 source page. It may only pick the item's allowed decisions; anything else stays pending for a
 person. Decisions are recorded as `AI (<model>) on behalf of the owner; human review pending` with
 `[AI]` rationales, never under a person's name, and the gate re-checks every approved text. Publish
-the result with `--reviewed-by ai` so the website says a human review is pending. When a person
+the result with `--reviewed-by ai` (recorded in `metadata.json`; the website does not show it). When a person
 reviews later, they edit the same entries and put their own name in `reviewer`.
 
 ## Publishing an example
