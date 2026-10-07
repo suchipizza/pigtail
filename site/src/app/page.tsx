@@ -2,7 +2,7 @@ import Link from "next/link";
 import { preload } from "react-dom";
 import { HeroIntro } from "@/components/HeroIntro";
 import { Sparkline, starCurve } from "@/components/Sparkline";
-import { EXAMPLES, Example, GITHUB, MASCOT, fmt } from "@/lib";
+import { EXAMPLES, GITHUB, MASCOT, fmt } from "@/lib";
 
 // Copy follows the owner's model (Documents/pigtail_landing_page_clay_inspired.html); stars and
 // charts come from the published examples.
@@ -24,39 +24,62 @@ const STAGES = [
 ];
 
 const bySlug = (slug: string) => EXAMPLES.find((e) => e.slug === slug);
-const year = (t: string) => new Date(t).toLocaleDateString("en", { month: "long", year: "numeric", timeZone: "UTC" });
 
-function CaseChart({ ex }: { ex: Example }) {
-  const pts = ex.sparkline;
+// Hero chart: an illustrative, made-up repository (not a real project) whose star history has three
+// clear bursts, each next to the public post it lines up with.
+const DEMO = {
+  repo: "github.com/example-org/example-repo",
+  history: [
+    ["2021-01-01", 0], ["2021-06-01", 300], ["2021-12-01", 700], ["2022-04-01", 1000],
+    ["2022-04-12", 1050], ["2022-04-19", 4600], ["2022-05-01", 4900], ["2022-10-01", 5400],
+    ["2023-03-01", 5800], ["2023-04-20", 5900], ["2023-04-27", 7000], ["2023-05-10", 7150],
+    ["2023-12-01", 7700], ["2024-05-01", 8100], ["2024-07-08", 8200], ["2024-07-15", 10600],
+    ["2024-08-01", 10900], ["2025-03-01", 11600], ["2025-09-30", 12400],
+  ].map(([t, v]) => ({ t: t as string, v: v as number })),
+  // Each marker sits on top of its burst. Labels: right/left of the dot, above/below it (`phone`
+  // overrides the placement on narrow screens, where labels show their title only).
+  markers: [
+    { cls: "a", at: "2022-04-19", title: "Product Hunt launch", note: "+3.5K stars in a week", h: "right", v: "below" },
+    { cls: "b", at: "2023-04-27", title: "Reddit post", note: "+1.1K stars in a week", h: "right", v: "below" },
+    { cls: "c", at: "2024-07-15", title: "HN post", note: "+2.4K stars in a week", h: "left", v: "above", phone: "right-below" },
+  ] as const,
+  years: [2022, 2023, 2024, 2025],
+};
+
+function CaseChart() {
+  const pts = DEMO.history;
   const { line, area, yAt } = starCurve(pts, 700, 300, 22, 280);
-  // Dots sit on the real curve at the model's horizontal positions.
-  const dot = (frac: number) => ({
-    left: `calc(${frac * 100}% - 7.5px)`, top: `calc(${(yAt(frac) / 300) * 100}% - 7.5px)`, right: "auto", bottom: "auto",
+  const t0 = Date.parse(pts[0].t), t1 = Date.parse(pts[pts.length - 1].t);
+  const frac = (date: string) => (Date.parse(date) - t0) / (t1 - t0);
+  const pctY = (f: number) => (yAt(f) / 300) * 100;
+  const dot = (f: number) => ({
+    left: `calc(${f * 100}% - 7.5px)`, top: `calc(${pctY(f)}% - 7.5px)`, right: "auto", bottom: "auto",
   });
-  // Each label hangs just below its dot, on the side with room, so it never covers the real curve.
-  const label = (frac: number, side: "left" | "right") => ({
-    top: `calc(${(yAt(frac) / 300) * 100}% + 14px)`, bottom: "auto",
-    ...(side === "right" ? { left: `calc(${frac * 100}% + 8px)`, right: "auto" } : { right: `calc(${100 - frac * 100}% + 8px)`, left: "auto" }),
-  });
+  const anchor = (f: number) => ({ "--fx": `${f * 100}%`, "--fy": `${pctY(f)}%` }) as React.CSSProperties;
   return (
     <div className="chart">
       <svg viewBox="0 0 700 300" preserveAspectRatio="none" role="img"
-        aria-label={`${ex.title} GitHub stars from ${year(pts[0].t)} to ${year(pts[pts.length - 1].t)}`}>
+        aria-label="Illustrative chart: GitHub stars by year for a made-up repository, with jumps after a Product Hunt launch, a Reddit post and a Hacker News post">
         <defs><linearGradient id="area" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#d92f72" stopOpacity=".22" /><stop offset="100%" stopColor="#d92f72" stopOpacity="0" /></linearGradient></defs>
         <path d={area} fill="url(#area)" />
         <path d={line} fill="none" stroke="#d92f72" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span className="dot a" style={dot(0.34)}></span><span className="dot b" style={dot(0.61)}></span><span className="dot c" style={dot(0.88)}></span>
-      <div className="chart-label a" style={label(0.34, "right")}><b>Third-party post</b><small>observed near growth burst</small></div>
-      <div className="chart-label b" style={label(0.61, "right")}><b>Public discussion</b><small>evidence attached</small></div>
-      <div className="chart-label c" style={label(0.88, "left")}><b>Growth episode</b><small>inspect what happened →</small></div>
+      <div className="axis-title">GitHub stars vs. years</div>
+      {DEMO.years.map((y) => (
+        <span key={y} className="axis-year" style={{ left: `${frac(`${y}-01-01`) * 100}%` }}>{y}</span>
+      ))}
+      {DEMO.markers.map((m) => <span key={m.cls} className={`dot ${m.cls}`} style={dot(frac(m.at))}></span>)}
+      {DEMO.markers.map((m) => (
+        <div key={m.cls} className={`chart-label ${m.cls} h-${m.h} v-${m.v}${"phone" in m ? ` m-${m.phone}` : ""}`} style={anchor(frac(m.at))}>
+          <b>{m.title}</b><small>{m.note}</small>
+        </div>
+      ))}
     </div>
   );
 }
 
 export default function Home() {
   preload(MASCOT, { as: "image", fetchPriority: "high" });
-  const pb = bySlug("pocketbase");
   const others = EXAMPLES.filter((e) => !STORIES.some((s) => s.slug === e.slug));
   return (
     <>
@@ -71,22 +94,20 @@ export default function Home() {
           <div className="cta"><Link className="btn pink" href="/examples/">Explore growth stories <span>→</span></Link><a className="btn" href="#try">Run Pigtail on your repo</a></div>
           <div className="proofline"><span>Open source</span><span>Evidence-linked</span><span>No Pigtail account</span></div>
         </div>
-        {pb && pb.sparkline.length > 1 && (
-          <div className="case">
-            <div className="case-top">
-              <div><div className="repo">{pb.target_url.replace("https://", "")}</div><h3>Why did this repo keep moving?</h3></div>
-              {pb.stars_now != null && <div className="star-now"><strong>{fmt(pb.stars_now)} ★</strong><span>current GitHub stars</span></div>}
-            </div>
-            <CaseChart ex={pb} />
-            <div className="chart-footer"><span><b>Growth in bursts.</b> Mostly from posts by other people.</span><Link className="subtle-link" href={`/examples/${pb.slug}/`}>Open the forensic →</Link></div>
+        <div className="case">
+          <div className="case-top">
+            <div><div className="repo">{DEMO.repo} · illustrative example</div><h3>Why did this repo keep moving?</h3></div>
+            <div className="star-now"><strong>{fmt(DEMO.history[DEMO.history.length - 1].v)} ★</strong><span>current GitHub stars</span></div>
           </div>
-        )}
+          <CaseChart />
+          <div className="chart-footer"><span><b>Growth in bursts.</b> Each jump lines up with a public post.</span><Link className="subtle-link" href="/examples/">See real reports →</Link></div>
+        </div>
       </HeroIntro>
 
       <section className="section" id="stories">
         <div className="section-header">
-          <div><div className="eyebrow">Follow the trail</div><h2>Growth stories worth investigating.</h2></div>
-          <p>Start with the mystery, then inspect the evidence. These are examples already included with Pigtail.</p>
+          <div><div className="eyebrow">Real Pigtail output</div><h2>Example reports generated by Pigtail.</h2></div>
+          <p>Each card is a report Pigtail produced from public sources. Open one to see the full output: timeline, growth episodes, tactics, gaps and sources.</p>
         </div>
         <div className="story-grid">
           {STORIES.map((s) => {
