@@ -89,7 +89,7 @@ export default function Home() {
             <div className="pig"><img src={MASCOT} alt="" width={1275} height={1234} decoding="async" /></div>
           </div>
           <div className="eyebrow">Open-source growth forensics</div>
-          <h1>Want to grow your open-source project? <em>Study the ones that did.</em></h1>
+          <h1>Want to grow your open-source project? <em>Study the ones that did.</em> <em>Steal their playbook.</em></h1>
           <p className="lead">See how projects went from zero to thousands of stars — the launches, Show HN posts, releases, communities and tactics that happened along the way. <span className="hero-punch">Pigtail reconstructs the public evidence so you can see what they tried, when they tried it, and what happened next.</span></p>
           <div className="cta"><Link className="btn pink" href="/examples/">Explore growth stories <span>→</span></Link><a className="btn" href="#try">Run Pigtail on your repo</a></div>
           <div className="proofline"><span>Open source</span><span>Evidence-linked</span><span>No Pigtail account</span></div>
