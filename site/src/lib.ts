@@ -20,10 +20,13 @@ export type Example = {
 export const EXAMPLES = examples as Example[];
 export const GITHUB = "https://github.com/suchipizza/pigtail";
 export const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
+/** The detective pig mascot (owner-supplied image, used unchanged). */
+export const MASCOT = `${BASE}/pigtail-detective.png`;
+
+export const isOss = (ex: Example) => ex.kind === "repository";
 
 export function fmt(n: number): string {
   if (n >= 1e6) return `${(n / 1e6).toFixed(1).replace(/\.0$/, "")}M`;
-  if (n >= 1e4) return `${Math.round(n / 1e3)}K`;
   if (n >= 1e3) return `${(n / 1e3).toFixed(1).replace(/\.0$/, "")}K`;
   return String(n);
 }
