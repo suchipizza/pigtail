@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import html as htmllib
 import json
+import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
@@ -37,6 +39,37 @@ class FetchedPage:
     etag: str | None = None
     last_modified: str | None = None
     error_code: str | None = None
+
+
+_TITLE_SEP = re.compile(r"\s+[|·•–—-]\s+")
+
+
+def _clean(text: str | None) -> str:
+    return " ".join(htmllib.unescape(re.sub(r"<[^>]+>", " ", text or "")).split())
+
+
+def page_heading(html: str, title: str | None, url: str) -> str | None:
+    """Prefer the page's own heading when the metadata title only repeats the site name.
+
+    Many blogs set og:title to the site name ("Hatchet") and the post title only in <h1> or <title>."""
+    host = (urlparse(url).hostname or "").removeprefix("www.")
+    stem = host.split(".")[0].lower()
+    t = _clean(title)
+    if t and t.lower() not in {stem, host.lower()} and " " in t:
+        return title
+    candidates: list[str] = []
+    for m in re.finditer(r'"headline"\s*:\s*"((?:[^"\\]|\\.)+)"', html):
+        candidates.append(_clean(json.loads(f'"{m.group(1)}"')))
+    candidates += [_clean(m) for m in re.findall(r"<h1[^>]*>(.*?)</h1>", html, re.I | re.S)[:1]]
+    tm = re.search(r"<title[^>]*>(.*?)</title>", html, re.I | re.S)
+    if tm:
+        parts = [p for p in _TITLE_SEP.split(_clean(tm.group(1))) if p.lower() not in {stem, host.lower(), t.lower()}]
+        if parts:
+            candidates.append(max(parts, key=len))
+    for c in candidates:
+        if c and c.lower() not in {stem, host.lower(), t.lower()} and len(c) <= 200:
+            return c
+    return title
 
 
 class WebFetcher:
@@ -137,7 +170,7 @@ class WebFetcher:
             return page
         data = json.loads(extracted)
         page.text = data.get("text") or data.get("raw_text")
-        page.title = data.get("title")
+        page.title = page_heading(html, data.get("title"), str(r.url))
         page.author = data.get("author")
         page.published = data.get("date")
         if not page.text or len(page.text) < 200:

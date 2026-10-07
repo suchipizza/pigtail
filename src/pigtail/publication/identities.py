@@ -114,6 +114,8 @@ def role_label(role: str | None, n_founders: int) -> str:
     return "someone"
 
 
+# "former CTO of Porter" -> "Porter"
+_ROLE_ORG = re.compile(r"\b(?:of|at)\s+([A-Z][\w.&'’-]*(?:\s+[A-Z][\w.&'’-]*)*)")
 _SENTENCE_START = re.compile(r"(?:^|[.!?]\s+|\n\s*)$")
 
 
@@ -162,6 +164,13 @@ def _role_with_article(m: re.Match[str]) -> str:
     return _cap(f"{article} {noun if noun.isupper() else lower}", m)
 
 
+_LABEL_NOUN = r"(?:maintainer|engineer|contributor|team member|team lead|co-founder|founder|CEO|CTO|CPO)"
+
+
+def _article(phrase: str) -> str:
+    return "an" if re.match(r"(?:[aeiouAEIOU]|[FHLMNRSX](?:[A-Z]|$))", phrase) else "a"
+
+
 def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
@@ -175,6 +184,8 @@ class Redactor:
     protected: set[str] = field(default_factory=set)
     kept: set[str] = field(default_factory=set)
     ambiguous: set[str] = field(default_factory=set)  # name parts shared by people with different roles
+    founders: dict[str, dict] = field(default_factory=dict)  # named founder -> {names, orgs, sole}
+    target_name: str = ""
     _rx: re.Pattern[str] | None = None
     _role_rx: list[tuple[re.Pattern[str], str]] = field(default_factory=list)
 
@@ -196,6 +207,7 @@ class Redactor:
         full: dict[str, str] = {}
         kept: set[str] = set()
         person_keys: list[tuple[set[str], str]] = []
+        founders: dict[str, dict] = {}
         for p in people:
             name = " ".join(p["name"].split())
             if not name or _norm(name) in protected_norm:
@@ -203,6 +215,13 @@ class Redactor:
             parts = name.split(" ")
             if name.lower() in keep or is_public_executive(p["role"]):
                 kept.add(name)
+                if _FOUNDER.search(p["role"] or ""):
+                    orgs = {o for o in _ROLE_ORG.findall(p["role"] or "") if _norm(o) not in protected_norm}
+                    founders[name] = {
+                        "names": {name, *(x for x in parts if len(x) >= 3)},
+                        "orgs": orgs,
+                        "sole": is_sole_founder_role(p["role"]),
+                    }
                 keys = {_norm(name)}
                 if len(parts) >= 2:
                     keys |= {
@@ -263,7 +282,15 @@ class Redactor:
                 replacements[author] = "an author"
         replacements = {k: v for k, v in replacements.items() if len(k) >= 3}
 
-        red = cls(replacements=replacements, full_names=full, protected=protected, kept=kept, ambiguous=ambiguous)
+        red = cls(
+            replacements=replacements,
+            full_names=full,
+            protected=protected,
+            kept=kept,
+            ambiguous=ambiguous,
+            founders=founders,
+            target_name=t["name"],
+        )
         red._compile()
         return red
 
@@ -328,12 +355,79 @@ class Redactor:
         )
         # "A community contributor, a community contributor, did" -> "A community contributor did"
         text = re.sub(r"\b((?:[Aa]n?|[Tt]he) ((?:[\w-]+ )?[\w-]+)), (?:an?|the) \2,?", r"\1", text)
+        # "Hatchet introduced the maintainer as its OSS maintainer" -> "Hatchet introduced an OSS maintainer"
+        text = re.sub(
+            rf"\b(introduced|hired|named|appointed|welcomed|added|announced) (?:the|an?) ({_LABEL_NOUN}) as "
+            rf"(?:its|their|our|his|her|an?|the) ([^.,;]*?\b\2)\b",
+            lambda m: f"{m.group(1)} {_article(m.group(3))} {m.group(3)}",
+            text,
+        )
+        # "The maintainer introduced as OSS maintainer" -> "OSS maintainer introduced"
+        text = re.sub(
+            rf"(?:(?<=^)|(?<=[.!?] ))(?:[Tt]he|[Aa]n?) ({_LABEL_NOUN}) (introduced|hired|named|appointed|joined|added)"
+            rf" as (?:its |their |an? |the )?([^.,;]*?\b\1)\b",
+            lambda m: m.group(3)[0].upper() + m.group(3)[1:] + " " + m.group(2),
+            text,
+        )
         # "A co-founder joined Plausible as co-founder" -> "A co-founder joined Plausible"
         return re.sub(
             r"\b((?:[Aa]n?|[Tt]he) (co-founder|founder|maintainer|CEO|CTO)\b[^.;]*?) as (?:an? |the )?\2\b",
             r"\1",
             text,
         )
+
+    def name_founders(self, text: str, context: str) -> str:
+        """'the founder' / 'a Hatchet co-founder' -> the named founder, when it is clear which one.
+
+        Founders are named in their company role (PUB-006). 'The founder' is the only sole founder, unless
+        that person is already named in the text. Otherwise, if no founder is named in the text, a past
+        employer in the text, or a name or employer in the cited evidence, must point to exactly one
+        founder. In every other case nothing changes."""
+        if not self.founders or not text:
+            return text
+        tn = re.escape(self.target_name) if self.target_name else "(?!)"
+        rx = re.compile(
+            r"(?<!\bas )(?<!\bbecame )(?<!\bbecome )(?<!\bis )(?<!\bwas )"
+            rf"\b(?:[Tt]he|[Aa]n?) (?:(?i:{tn})(?:['’]s)? )?(co-?)?founder\b(?!s|['’]s? (?:co-?)?founders|\s+of\b)"
+        )
+        if not rx.search(text):
+            return text
+
+        def mentions(keys: set[str], hay: str) -> bool:
+            return any(re.search(rf"(?<![\w]){re.escape(k)}(?![\w])", hay) for k in keys)
+
+        named = {n for n, f in self.founders.items() if mentions(f["names"], text)}
+        everyone = list(self.founders)
+
+        def pick(co: bool) -> str | None:
+            if not co and len(everyone) > 1:
+                sole = [n for n in everyone if self.founders[n]["sole"]]
+                if len(sole) == 1:
+                    return None if sole[0] in named else sole[0]
+            if named:
+                return None  # another founder is named here; which one is meant is unclear
+            if len(everyone) == 1:
+                return everyone[0]
+            for hay, key in ((text, "orgs"), (context, "names"), (context, "orgs")):
+                hits = [n for n in everyone if mentions(self.founders[n][key], hay)]
+                if len(hits) == 1:
+                    return hits[0]
+                if len(hits) > 1:
+                    return None
+            return None
+
+        def sub(m: re.Match[str]) -> str:
+            name = pick(bool(m.group(1)))
+            if name is None:
+                return m.group(0)
+            if name in m.string[: m.start()] or (
+                self.target_name and re.search(rf"\b{tn}\b", m.string[: m.start()], re.I)
+            ):
+                return name
+            role = "founder" if self.founders[name]["sole"] else "co-founder"
+            return _cap(f"{self.target_name} {role} {name}" if self.target_name else name, m)
+
+        return rx.sub(sub, text)
 
     def _sub_tokens(self, text: str) -> str:
         if self._rx is not None:

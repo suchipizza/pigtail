@@ -175,3 +175,33 @@ async def ai_review(
 
 def run_ai_review_sync(*args, **kwargs) -> AIReviewSummary:
     return asyncio.run(ai_review(*args, **kwargs))
+
+
+async def fill_source_titles(run_dir: Path, fetcher: PageFetcher, policies: dict[str, SourcePolicy]) -> int:
+    """Answer pending 'generic source title' items (PUB-008) with the page's own heading. No model involved:
+    the heading is read from the page (JSON-LD headline, <h1>, or the specific part of <title>)."""
+    path = run_dir / OUT_DIR / REVIEW_FILE
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    bundle = json.loads((run_dir / "research-bundle.json").read_text(encoding="utf-8"))
+    sources = {s["id"]: s for s in bundle["sources"]}
+    filled = 0
+    for item in data.get("items", []):
+        if item.get("decision") != "pending" or item["rule_id"] != "PUB-008" or item.get("field") != "title":
+            continue
+        s = sources.get(item["object_ref"]["id"])
+        pol = policies.get(s["policy"]["policy_key"]) if s else None
+        if s is None or pol is None:
+            continue
+        page = await fetcher.fetch(s["url"], pol)
+        heading = (page.title or "").strip()
+        if page.status != "success" or not heading or heading.lower() == (item.get("context") or "").lower():
+            continue
+        item["decision"] = "approve_public_text"
+        item["public_text"] = heading
+        item["rationale"] = "Page heading read from the source page."
+        item["reviewer"] = "Pigtail title lookup (automatic); human review pending"
+        filled += 1
+    path.write_text(
+        REVIEW_HEADER + yaml.safe_dump(data, sort_keys=False, allow_unicode=True, width=110), encoding="utf-8"
+    )
+    return filled

@@ -119,9 +119,11 @@ SUCCESS = "success"
 NEUTRAL_GAP = "Public evidence was insufficient to verify this detail."
 # Pages written by the company/project itself (or its founders, in interviews) count as first-party.
 FIRST_PARTY_TYPES = {"first_party", "founder_interview", "readme", "release_list", "repository_api"}
-# Sites whose company figures are estimates or modelled data, not company reports (PUB-010).
+# Estimate and company-database sites (PUB-010). Their figures are often modelled, inconsistent or
+# out of date, so Pigtail-hosted reports do not cite them at all (owner decision 2026-10-07).
 ESTIMATE_HOSTS = (
     "getlatka.com",
+    "dealroom.co",
     "growjo.com",
     "owler.com",
     "similarweb.com",
@@ -134,6 +136,10 @@ ESTIMATE_HOSTS = (
     "pitchbook.com",
     "builtwith.com",
 )
+# Directories whose company pages are filled in by the company itself: labelled as such, not as estimates.
+DIRECTORY_HOSTS = {"ycombinator.com": "YC directory listing"}
+# Listing pages change over time; their date is not the date of the events they list (PUB-011).
+INDEX_PATHS = re.compile(r"^/?(?:[a-z]{2}/)?(?:blog|news|posts|articles|updates|changelog|press|stories)?/?$", re.I)
 METADATA_ONLY_NOTE = "Title and metadata only; page not read"
 REVIEW_DECISIONS: tuple[Decision, ...] = ("approve_as_is", "approve_public_text", "exclude")
 
@@ -333,6 +339,7 @@ class PublicationGate:
 
         keep_ids = {k.name for k in (self.review.keep_identities if self.review else [])}
         self.redactor = Redactor.from_bundle(b, keep_ids)
+        self.redactor.target_name = self._display_name()
         self._apply_review_edits()
 
         self._source_policies()
@@ -412,7 +419,8 @@ class PublicationGate:
             existing = self.lookup(f)
             if not (f.review_required and f.allowed_decisions) and existing is None:
                 continue
-            if existing is None and f.resolution:  # settled by an approved text on the same field
+            if (existing is None or existing.decision == "pending") and f.resolution and f.resolution != "automatic":
+                # settled by an approved text on the same field
                 shared = self.shared_text.get((f.object_ref.type, f.object_ref.id, f.field or "statement"))
                 existing = ReviewEntry(
                     finding_id=f.finding_id,
@@ -499,9 +507,17 @@ class PublicationGate:
             )
             f.resolution = e.decision
 
+    @staticmethod
+    def _host(source: dict) -> str:
+        return (urlparse(source.get("url") or "").hostname or "").removeprefix("www.")
+
+    def _estimate_source(self, source: dict) -> bool:
+        host = self._host(source)
+        return any(host == h or host.endswith("." + h) for h in ESTIMATE_HOSTS)
+
     def _first_party(self, source: dict) -> bool:
-        host = (urlparse(source.get("url") or "").hostname or "").removeprefix("www.")
-        if any(host == h or host.endswith("." + h) for h in ESTIMATE_HOSTS):
+        host = self._host(source)
+        if self._estimate_source(source):
             return False
         domain = self.b["target"].get("domain")
         if domain and (host == domain or host.endswith("." + domain)):
@@ -535,12 +551,15 @@ class PublicationGate:
         stmts = raw.lower()
         if self._relayed_third_party(raw + " " + m["label"]):
             return "third-party estimate" if "estimat" in stmts else "third-party reported"
+        hosts = [self._host(x) for x in srcs]
+        for d, label in DIRECTORY_HOSTS.items():
+            if hosts and all(h == d or h.endswith("." + d) for h in hosts):
+                return label
         if any(
             self._first_party(sources[el["source_id"]]) and el["evidence_class"] in ("documented", "company_measured")
             for el in els
         ):
             return "company reported"
-        hosts = [(urlparse(x.get("url") or "").hostname or "").removeprefix("www.") for x in srcs]
         if "estimat" in stmts or any(any(h == e or h.endswith("." + e) for e in ESTIMATE_HOSTS) for h in hosts):
             return "third-party estimate"
         if any(el["evidence_class"] == "third_party_measured" for el in els):
@@ -614,9 +633,36 @@ class PublicationGate:
         self.manually_verified: set[str] = set()
         self.dropped_links: set[str] = set()
         self.conflict_only: set[str] = set()
+        sources = {s["id"]: s for s in b["sources"]}
         n = 0
         for c in b["claims"]:
             cl = links.get(c["id"], [])
+            estimates = [
+                el for el in cl if el["source_id"] in sources and self._estimate_source(sources[el["source_id"]])
+            ]
+            if estimates:
+                n += 1
+                for el in estimates:
+                    self.dropped_links.add(el["id"])
+                    self.add(
+                        "PUB-010",
+                        "DROP",
+                        "evidence_links",
+                        el["id"],
+                        "Estimate and company-database sites are not cited in Pigtail-hosted reports.",
+                    )
+                cl = [el for el in cl if el not in estimates]
+                if not cl:
+                    self.kill("claims", c["id"])
+                    self.add(
+                        "PUB-010",
+                        "DROP",
+                        "claims",
+                        c["id"],
+                        "The claim rests only on estimate or company-database sites, which are not cited.",
+                        before=c["statement"],
+                    )
+                    continue
             ok = [el for el in cl if fetch_status.get(el["source_fetch_id"]) == SUCCESS]
             failed = [el for el in cl if fetch_status.get(el["source_fetch_id"]) != SUCCESS]
             if not ok:
@@ -903,6 +949,26 @@ class PublicationGate:
                     allowed=REVIEW_DECISIONS,
                 )
                 self.effect(f, coll, oid, fld)
+            if (
+                coll == "constraints"
+                and fld == "description"
+                and (hit := scanners.negative(text))
+                and not scanners.is_attributed(text)
+                and set(o.get("claim_ids", [])) & self.first_party_claims
+            ):
+                f = self.add(
+                    "PUB-009",
+                    "REQUIRE_REVIEW",
+                    coll,
+                    oid,
+                    f"A setback the company described about itself ({hit!r}) is stated in Pigtail's voice, where it "
+                    f"reads as Pigtail's verdict. Supply attributed public_text (\"{self.b['target']['name']} wrote "
+                    'that…"), or exclude it.',
+                    fld=fld,
+                    before=text,
+                    allowed=("approve_public_text", "exclude"),
+                )
+                self.effect(f, coll, oid, fld)
             if coll == "narrative" and (relabeled_claims | self.first_party_claims) & set(o.get("claim_ids", [])):
                 hit = scanners.absolute(text)
                 if hit and not scanners.is_attributed(text):
@@ -928,6 +994,8 @@ class PublicationGate:
             host = (urlparse(s.get("url") or "").hostname or "").removeprefix("www.")
             if s["published_at"] and (host.endswith("wikipedia.org") or "/wiki/" in (s.get("url") or "")):
                 why = "wiki pages are living documents; their date is usually the page's creation date"
+            elif s["published_at"] and INDEX_PATHS.match(urlparse(s.get("url") or "").path or "/"):
+                why = "listing pages change over time; their date is not the date of what they list"
             if why:
                 n += 1
                 self.add(
@@ -1086,6 +1154,35 @@ class PublicationGate:
                     before=s["author"],
                 )
             title = s.get("title") or ""
+            if self._generic_title(title):
+                if s["surface_key"] == "github":
+                    label = neutral_source_label(s, tdomain)
+                    self.add(
+                        "PUB-008",
+                        "RELABEL",
+                        "sources",
+                        s["id"],
+                        "The page title only repeats the name; a descriptive label is shown instead.",
+                        fld="title",
+                        before=title,
+                        after=label,
+                    )
+                    s["title"] = label
+                    continue
+                f = self.add(
+                    "PUB-008",
+                    "REQUIRE_REVIEW",
+                    "sources",
+                    s["id"],
+                    f"The source title {title!r} only repeats the site name, so readers cannot tell which page "
+                    "supports a claim. Supply the page's own heading as public_text, or approve it as is.",
+                    fld="title",
+                    before=title,
+                    allowed=("approve_public_text", "approve_as_is"),
+                )
+                self.resolve(f, "sources", s["id"], "title")
+                title = self.overrides.get(("sources", s["id"], "title")) or title
+                s["title"] = title
             personal_post = s["surface_key"] in ("x", "reddit")  # post titles there usually name the poster
             redacted = red.redact(title) or ""
             # Keep the real title traceable; only an anonymised person's name is replaced.
@@ -1123,12 +1220,46 @@ class PublicationGate:
                 s["title"] = label
         return n
 
+    def _evidence_context(self, coll: str, oid: str) -> str:
+        """Cited claim statements and source authors, used to tell which named founder a text means."""
+        if not hasattr(self, "_ctx_claims"):
+            sources = {s["id"]: s for s in self.b["sources"]}
+            authors: dict[str, list[str]] = {}
+            for el in self.b["evidence_links"]:
+                a = sources.get(el["source_id"], {}).get("author")
+                if a:
+                    authors.setdefault(el["claim_id"], []).append(a)
+            self._ctx_claims = {
+                c["id"]: " ".join([c["statement"], *authors.get(c["id"], [])]) for c in self.b["claims"]
+            }
+            self._ctx_objs: dict[tuple[str, str], list[str]] = {}
+            for c2 in CLAIM_OBJECTS:
+                for o in self.b[c2]:
+                    self._ctx_objs[(c2, o["id"])] = o.get("claim_ids", [])
+            n = self.b["narrative"]
+            for key in NARRATIVE_KEYS:
+                if n.get(key):
+                    self._ctx_objs[("narrative", key)] = n[key]["claim_ids"]
+            for i, blk in enumerate(n["key_takeaways"]):
+                self._ctx_objs[("narrative", f"key_takeaways[{i}]")] = blk["claim_ids"]
+        ids = [oid] if coll == "claims" else self._ctx_objs.get((coll, oid), [])
+        return self.redactor.redact("\n".join(self._ctx_claims.get(i, "") for i in ids)) or ""  # handles -> names
+
+    def _generic_title(self, title: str) -> bool:
+        t = self.b["target"]
+        names = {t["name"], self._display_name(), *t.get("aliases", [])}
+        if t.get("domain"):
+            names |= {t["domain"], t["domain"].split(".")[0]}
+        names |= {r["owner"] for r in self.b["repositories"]}
+        return title.strip().lower() in {n.lower() for n in names if n}
+
     def _public_text(self, coll: str, oid: str, fld: str, text: str | None) -> str | None:
         """Override (if approved), then redact, recording REDACT/residual findings."""
         if text is None:
             return None
         new = self.overrides.get((coll, oid, fld), text)
         red = self.redactor.redact(new) or ""
+        red = self.redactor.name_founders(red, red + "\n" + self._evidence_context(coll, oid))
         if red != text:
             self.add(
                 "PUB-006" if self.redactor.names_person(text) else "PUB-007",
@@ -1377,6 +1508,20 @@ class PublicationGate:
                 if len(cids) < len(c["claim_ids"]):
                     self.add("PUB-017", "DROP", "conflicts", c["id"], "Fewer than two of its claims remain public.")
                 continue
+            if len(cids) < len(c["claim_ids"]):
+                f = self.add(
+                    "PUB-017",
+                    "REQUIRE_REVIEW",
+                    "conflicts",
+                    c["id"],
+                    f"{len(c['claim_ids']) - len(cids)} of {len(c['claim_ids'])} conflicting claims were removed; "
+                    "check the summary does not repeat them.",
+                    fld="summary",
+                    before=c["summary"],
+                    allowed=REVIEW_DECISIONS,
+                )
+                if self.resolve(f, "conflicts", c["id"], "summary") == "drop":
+                    continue
             summary = self._public_text("conflicts", c["id"], "summary", c["summary"])
             if summary is None:
                 continue

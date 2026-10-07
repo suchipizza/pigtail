@@ -17,6 +17,13 @@ All notable changes to this project are listed here. Versions follow [SemVer](ht
 - Owner review of Superhuman (2026-10-07): founders and executives are named in their role, private
   individuals anonymised; real source titles kept; header shows company-reported figures only; relayed
   third-party figures labelled as such; self-descriptions quoted; Wikipedia pages undated.
+- Owner review of Hatchet (2026-10-07): setbacks a company described about itself stay attributed
+  (PUB-009); a generic "the founder" is written as the named founder when it is clear which one;
+  "introduced X as its maintainer" no longer turns into "the maintainer … as its maintainer"; estimate and
+  company-database sites (GetLatka, Dealroom…) are not cited at all; YC pages are a "YC directory listing";
+  titles that only repeat the site name need review, and `scripts/fill_source_titles.py` fills in each
+  page's heading; listing pages are undated; conflicts that lost a claim need review.
+- The web fetcher takes a post's own heading when the page metadata title is only the site name.
 - From the first owner review (2026-10-07): reviewer edits persist by object and survive finding changes
   (and can be added by hand); company-reported figures require a first-party source (estimate sites are
   "third-party estimate"); uncited sources are not listed; title-only sources are labelled; summaries are

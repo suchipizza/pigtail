@@ -43,7 +43,7 @@
       "source_type": "first_party",
       "title": "Superhuman: Docs, Mail, and AI That Work Everywhere",
       "author": null,
-      "published_at": "2026-08-12T00:00:00Z",
+      "published_at": null,
       "discovered_at": "2026-10-05T23:32:48Z",
       "policy": {
         "policy_key": "web",
@@ -24545,7 +24545,7 @@
       "id": "01a10e6b-9465-72a7-9325-1dfd9e9f1fa3",
       "name": "Metered weekly onboarding instead of a public launch",
       "description": "Choose a weekly number of new users to admit from a waitlist rather than opening access all at once.",
-      "mechanism": "It keeps onboarding quality high and lets the team fix issues between cohorts. The founder says the purpose was to keep users happy, not to create scarcity.",
+      "mechanism": "It keeps onboarding quality high and lets the team fix issues between cohorts. Superhuman founder Rahul Vohra says the purpose was to keep users happy, not to create scarcity.",
       "status": "candidate",
       "claim_ids": [
         "01a10e69-a993-7434-9e46-8e2397a80519",
@@ -24601,7 +24601,7 @@
     {
       "id": "01a10e6b-9465-72b1-b464-f067ad5cca17",
       "name": "Automated founder discovery email to every signup",
-      "description": "Auto-send each landing-page signup a short email from the founder asking what they use and what they hate about it.",
+      "description": "Auto-send each landing-page signup a short email from Superhuman founder Rahul Vohra asking what they use and what they hate about it.",
       "mechanism": "It turns signups into qualitative research and interview leads at scale.",
       "status": "candidate",
       "claim_ids": [

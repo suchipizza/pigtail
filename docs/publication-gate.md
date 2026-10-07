@@ -34,25 +34,25 @@ new factual claims. Where new wording is needed, a person writes it.
 | PUB-003 | Negative-sensitive claims and events are removed unless a person verified them **and** approved publication. Allegations are never published. |
 | PUB-004 | Statements about a person's intentions or motives need review. Pigtail-written text that uses misconduct language is blocked. |
 | PUB-005 | Personal finances of identifiable people (savings, salaries, unpaid months…) are removed. Company metrics such as MRR, ARR and funding stay. Borderline cases ("pay rent", donations) need review. |
-| PUB-006 | No people list. Founders and executives (CEO, CTO, "head of"…) are named in their company role; everyone else (team members, contributors, maintainers of personal projects, investors) becomes a role ("a community contributor"). A name shared by a named and an unnamed person goes to review. *(Owner decision 2026-10-07; replaces "names in text become roles".)* |
+| PUB-006 | No people list. Founders and executives (CEO, CTO, "head of"…) are named in their company role; everyone else (team members, contributors, maintainers of personal projects, investors) becomes a role ("a community contributor"). A generic "the founder" / "a co-founder" is written as the named founder when it is clear which one (the only sole founder, or a past employer or name in the text or its evidence); otherwise it stays as is. A name shared by a named and an unnamed person goes to review. *(Owner decision 2026-10-07; replaces "names in text become roles".)* |
 | PUB-007 | Hacker News, Reddit, GitHub and X account names are removed ("posted by jdoe" → "posted"). Source cards show no author. URLs are left as they are, because they are the source locator. |
-| PUB-008 | Source titles keep their real wording; only an unnamed person's name is replaced by their role. X and Reddit post titles get a neutral label ("Post on X"). |
-| PUB-009 | A company's own absolute statement ("never paid for ads") is shown as "According to the company/project". Narrative that repeats it in Pigtail's voice needs review. |
-| PUB-010 | Company-reported and third-party figures are labelled and kept in separate series. |
-| PUB-011 | Placeholder-looking dates (January 1 at midnight, before 1995, after the research cutoff) are shown as a year or as undated. |
+| PUB-008 | Source titles keep their real wording; only an unnamed person's name is replaced by their role. X and Reddit post titles get a neutral label ("Post on X"). A title that only repeats the site name ("Hatchet") needs review: `scripts/fill_source_titles.py` fills in each page's own heading. |
+| PUB-009 | A company's own absolute statement ("never paid for ads") is shown as "According to the company/project". Narrative that repeats it in Pigtail's voice needs review. So does a constraint that states a setback the company described about itself (incident, delay, churn…) in Pigtail's voice: it must be attributed ("Hatchet wrote that…") or excluded. |
+| PUB-010 | Company-reported and third-party figures are labelled and kept in separate series. Estimate and company-database sites (GetLatka, Dealroom, Crunchbase…) are not cited at all; claims that rest only on them are removed. YC company pages are labelled "YC directory listing". *(Owner decision 2026-10-07.)* |
+| PUB-011 | Placeholder-looking dates (January 1 at midnight, before 1995, after the research cutoff) are shown as a year or as undated. Wikipedia pages and listing pages (`/blog`, `/news`…) are undated. |
 | PUB-012 | At most one excerpt per source, at most 15 words. Text-fragment locators are not shown. |
 | PUB-013 | A source's display policy can only get stricter (the current `source-policies/` file or the bundle, whichever is stricter). |
 | PUB-014 | No bundle ID, run ID, model, provider, cost, token or request counts, timings or local paths. The gate scans the output for them. |
 | PUB-015 | Every report shows: "Independent analysis based on public sources. Pigtail is not affiliated with or endorsed by [Target]." |
 | PUB-016 | `examples/reviewed/NOTICE.md` must state that third-party material is not relicensed by Pigtail. |
-| PUB-017 | Anything that rested on a removed claim is removed too; if only some of its claims were removed, it needs review. |
+| PUB-017 | Anything that rested on a removed claim is removed too; if only some of its claims were removed (including a conflict's), it needs review. |
 | PUB-018 | Gaps stay visible but never repeat removed sensitive content. |
 
 Also: the report header shows company-reported figures only (estimates stay in the metrics section); a
 figure the company relays from someone else ("The New York Times reported…") is third-party; the
 target's own description is shown as a quoted "Self-description" unless a reviewer writes a neutral
-one; Wikipedia pages are undated. A figure counts as "company reported" only when it comes from the company's own site, repository
-or a founder interview; estimate sites (e.g. getlatka.com) are labelled "third-party estimate". Sources
+one. A figure counts as "company reported" only when it comes from the company's own site, repository
+or a founder interview. Sources
 that support no public claim are not listed. A source where only the title and metadata could be read
 says so on every citation. Pigtail's own summaries are labelled "Summarized from cited sources", never
 "Stated in sources". The target's name is written the way its sources write it.

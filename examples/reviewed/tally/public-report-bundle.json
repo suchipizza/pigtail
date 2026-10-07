@@ -195,7 +195,7 @@
       "source_type": "first_party",
       "title": "Tally Changelog: Latest Product Updates & Releases",
       "author": null,
-      "published_at": "2026-09-11T00:00:00Z",
+      "published_at": null,
       "discovered_at": "2026-10-05T23:44:22Z",
       "policy": {
         "policy_key": "web",
@@ -29080,7 +29080,7 @@
     {
       "id": "01a10e76-9bbd-73d1-a622-b6f57d7e686b",
       "name": "One-off usage churn",
-      "description": "Forms are often used for one-off projects, and Tally lacked an enterprise offering, so churn may exceed the SaaS average.",
+      "description": "Tally says its churn may exceed the 3–8% SaaS average, because forms are often used for one-off projects and it lacks an enterprise offering.",
       "applies_to_refs": [],
       "claim_ids": [
         "01a10e74-4246-726c-b73a-cdf29fb57e22"

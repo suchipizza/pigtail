@@ -65,6 +65,15 @@ ATTRIBUTED = re.compile(
     _I,
 )
 
+# PUB-009: setbacks a company describes about itself. Stated in Pigtail's voice they read as Pigtail's
+# verdict on the product, so they stay attributed ("Hatchet wrote that…").
+NEGATIVE = re.compile(
+    r"\b(?:incidents?|outages?|slow(?:ed|er|down)?|abandon(?:ed|s)?|delay(?:ed|s)?|bloat(?:ed)?|fail(?:ed|ures?|s)?"
+    r"|broke(?:n)?|bugs?|problems?|issues?|paus(?:e|ed|es)|churn(?:ed)?|degrad(?:ed|ation)|drift(?:ed)?|poor"
+    r"|errors?|eroded|struggl(?:ed|es?)|setbacks?|mistakes?|lost|losing|decline[sd]?|bottlenecks?|unreliable)\b",
+    _I,
+)
+
 ALLEGATION_KINDS = frozenset({"allegation", "rumor", "rumour", "accusation"})
 
 _MONTH_WORD = re.compile(r"\b(?:jan(?:uary)?|1st|first)\b", _I)
@@ -93,6 +102,11 @@ def misconduct(text: str) -> str | None:
 
 def absolute(text: str) -> str | None:
     m = ABSOLUTE.search(text or "")
+    return m.group(0) if m else None
+
+
+def negative(text: str) -> str | None:
+    m = NEGATIVE.search(text or "")
     return m.group(0) if m else None
 
 

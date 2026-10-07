@@ -437,7 +437,7 @@
       "canonical_url": "https://github.com/hatchet-dev",
       "surface_key": "github",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "GitHub page",
       "author": null,
       "published_at": "2026-10-05T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -458,7 +458,7 @@
       "source_type": "first_party",
       "title": "Blog",
       "author": null,
-      "published_at": "2026-08-17T00:00:00Z",
+      "published_at": null,
       "discovered_at": "2026-10-05T23:25:06Z",
       "policy": {
         "policy_key": "web",
@@ -475,7 +475,7 @@
       "canonical_url": "https://hatchet.run/blog/two-years-open-source",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "Reflecting on two years of building an open-source startup",
       "author": null,
       "published_at": "2026-01-13T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -494,7 +494,7 @@
       "canonical_url": "https://hatchet.run/blog/fastapi-background-jobs-to-hatchet",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "From FastAPI Background Tasks to Hatchet",
       "author": null,
       "published_at": "2025-06-26T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -513,7 +513,7 @@
       "canonical_url": "https://hatchet.run/blog/postgres-survival-guide",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "The startup's Postgres survival guide",
       "author": null,
       "published_at": "2026-07-22T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -532,7 +532,7 @@
       "canonical_url": "https://hatchet.run/blog/durable-execution",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "How to think about durable execution",
       "author": null,
       "published_at": "2025-12-11T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -551,7 +551,7 @@
       "canonical_url": "https://hatchet.run/blog/tuis-are-easy-now",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "Building a TUI is easy now",
       "author": null,
       "published_at": "2026-02-13T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -570,7 +570,7 @@
       "canonical_url": "https://hatchet.run/blog/andon-cord",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "Bufo pulls the andon cord",
       "author": null,
       "published_at": "2026-08-17T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -589,7 +589,7 @@
       "canonical_url": "https://hatchet.run/blog/murphys-law",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "Coding agents supercharge Murphy's Law",
       "author": null,
       "published_at": "2026-08-07T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -608,7 +608,7 @@
       "canonical_url": "https://hatchet.run/blog/first-idempotency-key",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "The first idempotency key",
       "author": null,
       "published_at": "2026-07-28T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -627,7 +627,7 @@
       "canonical_url": "https://hatchet.run/blog/supertoast-tables",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "Supertoast tables",
       "author": null,
       "published_at": "2026-03-06T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -646,7 +646,7 @@
       "canonical_url": "https://hatchet.run/blog/sdk-design",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "On SDK Design",
       "author": null,
       "published_at": "2026-01-08T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -665,7 +665,7 @@
       "canonical_url": "https://hatchet.run/blog/postgres-partitioning",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "The pitfalls of partitioning Postgres yourself",
       "author": null,
       "published_at": "2025-12-16T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -684,7 +684,7 @@
       "canonical_url": "https://hatchet.run/blog/automated-documentation",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "How We Solved Multi-Language SDK Documentation Chaos without LLMs",
       "author": null,
       "published_at": "2025-08-26T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -703,7 +703,7 @@
       "canonical_url": "https://hatchet.run/blog/go-agents",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "Why Go is a good fit for agents",
       "author": null,
       "published_at": "2025-06-03T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -722,7 +722,7 @@
       "canonical_url": "https://hatchet.run/blog/warning-event-loop-blocked",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "Warning! The Event Loop May Be Blocked",
       "author": null,
       "published_at": "2025-05-27T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -741,7 +741,7 @@
       "canonical_url": "https://hatchet.run/blog/fastest-postgres-inserts",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "The fastest Postgres inserts",
       "author": null,
       "published_at": "2025-05-15T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -760,7 +760,7 @@
       "canonical_url": "https://hatchet.run/blog/task-queue-modern-python",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "A task queue for modern Python applications",
       "author": null,
       "published_at": "2025-04-10T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -779,7 +779,7 @@
       "canonical_url": "https://hatchet.run/blog/postgres-events-table",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "Use Postgres for your events table",
       "author": null,
       "published_at": "2024-11-01T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -798,7 +798,7 @@
       "canonical_url": "https://hatchet.run/blog/problems-with-celery",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "The problems with (Python's) Celery",
       "author": null,
       "published_at": "2024-06-05T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -817,7 +817,7 @@
       "canonical_url": "https://hatchet.run/blog/multi-tenant-queues",
       "surface_key": "web",
       "source_type": "first_party",
-      "title": "Hatchet",
+      "title": "An unfair advantage - multi-tenant queues in Postgres",
       "author": null,
       "published_at": "2024-04-01T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
@@ -877,44 +877,6 @@
       "title": "Hatchet: The orchestration platform for teams who ship. | Y Combinator",
       "author": null,
       "published_at": "2024-03-11T00:00:00Z",
-      "discovered_at": "2026-10-05T23:25:06Z",
-      "policy": {
-        "policy_key": "web",
-        "policy_version": "1",
-        "coverage_tier": "C",
-        "retention_mode": "metadata_and_excerpt",
-        "public_display_mode": "paraphrase_link_excerpt"
-      },
-      "public_note": null
-    },
-    {
-      "id": "01a10e62-9c6b-743d-a6e8-f4a59a0d8d10",
-      "url": "https://getlatka.com/companies/hatchet.run",
-      "canonical_url": "https://getlatka.com/companies/hatchet.run",
-      "surface_key": "web",
-      "source_type": "directory_or_listing",
-      "title": "Hatchet Revenue 2025: $440K Est. ARR",
-      "author": null,
-      "published_at": "2026-09-02T00:00:00Z",
-      "discovered_at": "2026-10-05T23:25:06Z",
-      "policy": {
-        "policy_key": "web",
-        "policy_version": "1",
-        "coverage_tier": "C",
-        "retention_mode": "metadata_and_excerpt",
-        "public_display_mode": "paraphrase_link_excerpt"
-      },
-      "public_note": null
-    },
-    {
-      "id": "01a10e62-9c6b-744b-b4ca-fae806b40fff",
-      "url": "https://app.dealroom.co/companies/hatchet",
-      "canonical_url": "https://app.dealroom.co/companies/hatchet",
-      "surface_key": "web",
-      "source_type": "directory_or_listing",
-      "title": "Hatchet company information, funding & investors",
-      "author": null,
-      "published_at": "2024-03-01T00:00:00Z",
       "discovered_at": "2026-10-05T23:25:06Z",
       "policy": {
         "policy_key": "web",
@@ -1246,20 +1208,6 @@
       "retrieved_at": "2026-10-05T23:25:06Z",
       "status": "success",
       "content_hash": "sha256:c6f8ede411fc1f16cdf5bdae1b88cc470e24796756aedc1c1bbec919348b5607"
-    },
-    {
-      "id": "01a10e62-9c6b-743e-ac4c-8e2aeec23f92",
-      "source_id": "01a10e62-9c6b-743d-a6e8-f4a59a0d8d10",
-      "retrieved_at": "2026-10-05T23:25:06Z",
-      "status": "success",
-      "content_hash": "sha256:cc1f32e7a94baac2a414ac323442de4b48bbed7fc20f04f8b66cff25950fc491"
-    },
-    {
-      "id": "01a10e62-9c6b-744c-bed6-9d95c7d6d8cd",
-      "source_id": "01a10e62-9c6b-744b-b4ca-fae806b40fff",
-      "retrieved_at": "2026-10-05T23:25:06Z",
-      "status": "success",
-      "content_hash": "sha256:0db6dd48c42f2c03454bb422d90813516e2f7c60eea522dca50c142056174fcb"
     },
     {
       "id": "01a10e62-9c6c-7270-aa6e-9c40e08be0bc",
@@ -2539,7 +2487,7 @@
     },
     {
       "id": "01a10e62-9c68-71bf-8d2b-5ff96f9729d7",
-      "statement": "Hatchet introduced the maintainer as its OSS maintainer on March 24, 2026.",
+      "statement": "Hatchet introduced an OSS maintainer on March 24, 2026.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -3316,7 +3264,7 @@
     },
     {
       "id": "01a10e62-9c69-7173-b1dd-d05ee27e7597",
-      "statement": "The Hatchet founder was previously CTO at Porter, which managed deployments of hundreds of Kubernetes clusters into customer AWS accounts.",
+      "statement": "Hatchet co-founder Alexander Belanger was previously CTO at Porter, which managed deployments of hundreds of Kubernetes clusters into customer AWS accounts.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -3337,7 +3285,7 @@
     },
     {
       "id": "01a10e62-9c69-7175-8e64-00a68edb6fb9",
-      "statement": "At Porter, the founder built an in-house orchestration system over several years, writing three versions of the provisioner.",
+      "statement": "At Porter, Hatchet co-founder Alexander Belanger built an in-house orchestration system over several years, writing three versions of the provisioner.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -3358,7 +3306,7 @@
     },
     {
       "id": "01a10e62-9c69-7177-82e0-841e97904d66",
-      "statement": "After leaving Porter, the founder researched durable execution platforms, built an abandoned open-source Terraform automation project on Temporal, introduced Temporal as CTO of another company, and then started Hatchet.",
+      "statement": "After leaving Porter, Hatchet co-founder Alexander Belanger researched durable execution platforms, built an abandoned open-source Terraform automation project on Temporal, introduced Temporal as CTO of another company, and then started Hatchet.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -4996,7 +4944,7 @@
     },
     {
       "id": "01a10e62-9c6b-73ef-bf24-708ae1b9a153",
-      "statement": "A Hatchet co-founder published a blog post critiquing Celery as content marketing for Hatchet.",
+      "statement": "Hatchet co-founder Alexander Belanger published a blog post critiquing Celery as content marketing for Hatchet.",
       "claim_kind": "tactic",
       "subject_ref": {
         "type": "target",
@@ -5724,237 +5672,6 @@
       },
       "review_state": "machine_extracted",
       "extraction_certainty": 0.85,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e62-9c6b-743f-a2e6-3bc995b14d1f",
-      "statement": "GetLatka estimates Hatchet's annual revenue at $440K in 2025.",
-      "claim_kind": "metric",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e61-0562-73c2-a522-5e5063c4118a"
-      },
-      "time": {
-        "start": "2025-09-01T00:00:00Z",
-        "end": "2025-09-30T23:59:59Z",
-        "precision": "month",
-        "label": "September 2025"
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.6,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e62-9c6b-7443-adf0-7a3de5f8a2cc",
-      "statement": "Hatchet was founded by Alexander Belanger, who is its CEO.",
-      "claim_kind": "team",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e61-0562-73c2-a522-5e5063c4118a"
-      },
-      "time": {
-        "start": null,
-        "end": null,
-        "precision": "unknown",
-        "label": null
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.8,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e62-9c6b-7445-a315-ffdcbe764db9",
-      "statement": "Hatchet had 4 employees in June 2024.",
-      "claim_kind": "team",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e61-0562-73c2-a522-5e5063c4118a"
-      },
-      "time": {
-        "start": "2024-06-01T00:00:00Z",
-        "end": "2024-06-30T23:59:59Z",
-        "precision": "month",
-        "label": "June 2024"
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.7,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e62-9c6b-7447-944c-47a22b1c399b",
-      "statement": "Y Combinator listed Hatchet with 2 employees in June 2024.",
-      "claim_kind": "team",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e61-0562-73c2-a522-5e5063c4118a"
-      },
-      "time": {
-        "start": "2024-06-01T00:00:00Z",
-        "end": "2024-06-30T23:59:59Z",
-        "precision": "month",
-        "label": "June 2024"
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.6,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e62-9c6b-7449-93ce-0b3e946427f4",
-      "statement": "Hatchet is headquartered in New York, New York.",
-      "claim_kind": "other",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e61-0562-73c2-a522-5e5063c4118a"
-      },
-      "time": {
-        "start": null,
-        "end": null,
-        "precision": "unknown",
-        "label": null
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.8,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e62-9c6b-744d-a9f6-b511e22e701b",
-      "statement": "Hatchet was founded by Alexander Belanger and Gabriel Ruttner.",
-      "claim_kind": "founding",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e61-0562-73c2-a522-5e5063c4118a"
-      },
-      "time": {
-        "start": null,
-        "end": null,
-        "precision": "unknown",
-        "label": null
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.9,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e62-9c6b-744f-9b5c-428974ae75c0",
-      "statement": "Hatchet's founders created it after dealing with background task management complexity as CTOs at companies like Porter and Temporal.",
-      "claim_kind": "origin",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e61-0562-73c2-a522-5e5063c4118a"
-      },
-      "time": {
-        "start": null,
-        "end": null,
-        "precision": "unknown",
-        "label": null
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.7,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e62-9c6b-7451-8947-42cded82b466",
-      "statement": "Hatchet is a platform for running background tasks built on Postgres.",
-      "claim_kind": "positioning",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e61-0562-73c2-a522-5e5063c4118a"
-      },
-      "time": {
-        "start": null,
-        "end": null,
-        "precision": "unknown",
-        "label": null
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.9,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e62-9c6b-7453-8083-cd688e89ec9c",
-      "statement": "Hatchet is positioned to help engineering teams build reliable applications, particularly in the AI space.",
-      "claim_kind": "positioning",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e61-0562-73c2-a522-5e5063c4118a"
-      },
-      "time": {
-        "start": null,
-        "end": null,
-        "precision": "unknown",
-        "label": null
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.85,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e62-9c6b-7455-8859-f61e88a2a9cb",
-      "statement": "Dealroom lists a $125k seed round for Hatchet.",
-      "claim_kind": "funding",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e61-0562-73c2-a522-5e5063c4118a"
-      },
-      "time": {
-        "start": null,
-        "end": null,
-        "precision": "unknown",
-        "label": null
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.7,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e62-9c6b-7457-af65-8ed8e3af7190",
-      "statement": "Dealroom states Hatchet has secured $500K in funding.",
-      "claim_kind": "funding",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e61-0562-73c2-a522-5e5063c4118a"
-      },
-      "time": {
-        "start": null,
-        "end": null,
-        "precision": "unknown",
-        "label": null
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.7,
       "is_negative_sensitive": false,
       "status": "active",
       "public_attribution": null,
@@ -10604,258 +10321,6 @@
       "notes": null
     },
     {
-      "id": "01a10e62-9c6b-7440-aa11-94ce4581dc36",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e62-9c6b-743f-a2e6-3bc995b14d1f"
-      },
-      "claim_id": "01a10e62-9c6b-743f-a2e6-3bc995b14d1f",
-      "source_id": "01a10e62-9c6b-743d-a6e8-f4a59a0d8d10",
-      "source_fetch_id": "01a10e62-9c6b-743e-ac4c-8e2aeec23f92",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": "Hatchet Hit $440k revenue in September 2025",
-      "notes": null
-    },
-    {
-      "id": "01a10e62-9c6b-7442-8ef8-9c9235337ad0",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e62-9c6b-7429-bca0-d1e2e7328477"
-      },
-      "claim_id": "01a10e62-9c6b-7429-bca0-d1e2e7328477",
-      "source_id": "01a10e62-9c6b-743d-a6e8-f4a59a0d8d10",
-      "source_fetch_id": "01a10e62-9c6b-743e-ac4c-8e2aeec23f92",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "multi_source_consistent",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e62-9c6b-7444-9b39-20fa4cda96ef",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e62-9c6b-7443-adf0-7a3de5f8a2cc"
-      },
-      "claim_id": "01a10e62-9c6b-7443-adf0-7a3de5f8a2cc",
-      "source_id": "01a10e62-9c6b-743d-a6e8-f4a59a0d8d10",
-      "source_fetch_id": "01a10e62-9c6b-743e-ac4c-8e2aeec23f92",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e62-9c6b-7446-a41a-534f574ea96d",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e62-9c6b-7445-a315-ffdcbe764db9"
-      },
-      "claim_id": "01a10e62-9c6b-7445-a315-ffdcbe764db9",
-      "source_id": "01a10e62-9c6b-743d-a6e8-f4a59a0d8d10",
-      "source_fetch_id": "01a10e62-9c6b-743e-ac4c-8e2aeec23f92",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e62-9c6b-7448-b559-6ff9cbcec99d",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e62-9c6b-7447-944c-47a22b1c399b"
-      },
-      "claim_id": "01a10e62-9c6b-7447-944c-47a22b1c399b",
-      "source_id": "01a10e62-9c6b-743d-a6e8-f4a59a0d8d10",
-      "source_fetch_id": "01a10e62-9c6b-743e-ac4c-8e2aeec23f92",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e62-9c6b-744a-85cc-4b8a733c9a6f",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e62-9c6b-7449-93ce-0b3e946427f4"
-      },
-      "claim_id": "01a10e62-9c6b-7449-93ce-0b3e946427f4",
-      "source_id": "01a10e62-9c6b-743d-a6e8-f4a59a0d8d10",
-      "source_fetch_id": "01a10e62-9c6b-743e-ac4c-8e2aeec23f92",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e62-9c6b-744e-ae78-8ec959304285",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e62-9c6b-744d-a9f6-b511e22e701b"
-      },
-      "claim_id": "01a10e62-9c6b-744d-a9f6-b511e22e701b",
-      "source_id": "01a10e62-9c6b-744b-b4ca-fae806b40fff",
-      "source_fetch_id": "01a10e62-9c6b-744c-bed6-9d95c7d6d8cd",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": "Founded by Alexander Belanger and Gabriel Ruttner, Hatchet is an open-source, distributed task queue platform.",
-      "notes": null
-    },
-    {
-      "id": "01a10e62-9c6b-7450-b0a6-c9f086f15882",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e62-9c6b-744f-9b5c-428974ae75c0"
-      },
-      "claim_id": "01a10e62-9c6b-744f-9b5c-428974ae75c0",
-      "source_id": "01a10e62-9c6b-744b-b4ca-fae806b40fff",
-      "source_fetch_id": "01a10e62-9c6b-744c-bed6-9d95c7d6d8cd",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e62-9c6b-7452-befe-2e33e6e74aaa",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e62-9c6b-7451-8947-42cded82b466"
-      },
-      "claim_id": "01a10e62-9c6b-7451-8947-42cded82b466",
-      "source_id": "01a10e62-9c6b-744b-b4ca-fae806b40fff",
-      "source_fetch_id": "01a10e62-9c6b-744c-bed6-9d95c7d6d8cd",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e62-9c6b-7454-baac-41fa8859e5a8",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e62-9c6b-7453-8083-cd688e89ec9c"
-      },
-      "claim_id": "01a10e62-9c6b-7453-8083-cd688e89ec9c",
-      "source_id": "01a10e62-9c6b-744b-b4ca-fae806b40fff",
-      "source_fetch_id": "01a10e62-9c6b-744c-bed6-9d95c7d6d8cd",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e62-9c6b-7456-82b7-b96571dbb1c0",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e62-9c6b-7455-8859-f61e88a2a9cb"
-      },
-      "claim_id": "01a10e62-9c6b-7455-8859-f61e88a2a9cb",
-      "source_id": "01a10e62-9c6b-744b-b4ca-fae806b40fff",
-      "source_fetch_id": "01a10e62-9c6b-744c-bed6-9d95c7d6d8cd",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e62-9c6b-7458-b245-2435023c89e5",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e62-9c6b-7457-af65-8ed8e3af7190"
-      },
-      "claim_id": "01a10e62-9c6b-7457-af65-8ed8e3af7190",
-      "source_id": "01a10e62-9c6b-744b-b4ca-fae806b40fff",
-      "source_fetch_id": "01a10e62-9c6b-744c-bed6-9d95c7d6d8cd",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
       "id": "01a10e62-9c6c-7272-9ef8-aeb550032b96",
       "target_ref": {
         "type": "claim",
@@ -11717,27 +11182,6 @@
       "notes": null
     },
     {
-      "id": "01a10e63-8cfa-70aa-95bb-e055997e8e78",
-      "target_ref": {
-        "type": "metric_snapshot",
-        "id": "01a10e63-8cfa-70a9-9c2a-57ccc360e5a7"
-      },
-      "claim_id": "01a10e62-9c6b-743f-a2e6-3bc995b14d1f",
-      "source_id": "01a10e62-9c6b-743d-a6e8-f4a59a0d8d10",
-      "source_fetch_id": "01a10e62-9c6b-743e-ac4c-8e2aeec23f92",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
       "id": "01a10e63-8cfa-70ac-99f6-503e3248b843",
       "target_ref": {
         "type": "metric_snapshot",
@@ -11748,90 +11192,6 @@
       "source_fetch_id": "01a10e62-9c69-7138-9b74-b1f8b4166b23",
       "evidence_class": "company_measured",
       "source_directness": "primary_direct",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e63-8cfb-7071-95d0-4f6754fbbde4",
-      "target_ref": {
-        "type": "metric_snapshot",
-        "id": "01a10e63-8cfb-7070-8f22-9bdcbc08e323"
-      },
-      "claim_id": "01a10e62-9c6b-7445-a315-ffdcbe764db9",
-      "source_id": "01a10e62-9c6b-743d-a6e8-f4a59a0d8d10",
-      "source_fetch_id": "01a10e62-9c6b-743e-ac4c-8e2aeec23f92",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e63-8cfb-7073-b6d4-adf0ad08a64e",
-      "target_ref": {
-        "type": "metric_snapshot",
-        "id": "01a10e63-8cfb-7072-abf0-cece98871369"
-      },
-      "claim_id": "01a10e62-9c6b-7447-944c-47a22b1c399b",
-      "source_id": "01a10e62-9c6b-743d-a6e8-f4a59a0d8d10",
-      "source_fetch_id": "01a10e62-9c6b-743e-ac4c-8e2aeec23f92",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e63-8cfb-7075-9082-8aa91b31612e",
-      "target_ref": {
-        "type": "metric_snapshot",
-        "id": "01a10e63-8cfb-7074-ae82-014dafa39790"
-      },
-      "claim_id": "01a10e62-9c6b-7457-af65-8ed8e3af7190",
-      "source_id": "01a10e62-9c6b-744b-b4ca-fae806b40fff",
-      "source_fetch_id": "01a10e62-9c6b-744c-bed6-9d95c7d6d8cd",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e63-8cfb-7077-bd68-c37782f65e66",
-      "target_ref": {
-        "type": "metric_snapshot",
-        "id": "01a10e63-8cfb-7076-a129-9731d282af4d"
-      },
-      "claim_id": "01a10e62-9c6b-7455-8859-f61e88a2a9cb",
-      "source_id": "01a10e62-9c6b-744b-b4ca-fae806b40fff",
-      "source_fetch_id": "01a10e62-9c6b-744c-bed6-9d95c7d6d8cd",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
       "corroboration": "single_source",
       "inference_strength": "explicit",
       "causal_attribution": "unknown",
@@ -11937,27 +11297,6 @@
       "source_fetch_id": "01a10e62-9c69-7138-9b74-b1f8b4166b23",
       "evidence_class": "company_measured",
       "source_directness": "primary_direct",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e63-8cfc-7075-8a86-a4a4bf482365",
-      "target_ref": {
-        "type": "outcome",
-        "id": "01a10e63-8cfc-7073-98c5-3fb7f6310c47"
-      },
-      "claim_id": "01a10e62-9c6b-743f-a2e6-3bc995b14d1f",
-      "source_id": "01a10e62-9c6b-743d-a6e8-f4a59a0d8d10",
-      "source_fetch_id": "01a10e62-9c6b-743e-ac4c-8e2aeec23f92",
-      "evidence_class": "third_party_reported",
-      "source_directness": "unknown",
       "corroboration": "single_source",
       "inference_strength": "explicit",
       "causal_attribution": "unknown",
@@ -13516,8 +12855,8 @@
     {
       "id": "01a10e63-8cf9-710c-8f18-e9b634325052",
       "event_type": "hiring",
-      "title": "The maintainer introduced as OSS maintainer",
-      "summary": "Hatchet introduced the maintainer as its OSS maintainer.",
+      "title": "OSS maintainer introduced",
+      "summary": "Hatchet introduced an OSS maintainer.",
       "time": {
         "start": "2026-03-24T00:00:00Z",
         "end": "2026-03-24T23:59:59Z",
@@ -35484,27 +34823,6 @@
       "public_attribution": "company reported"
     },
     {
-      "id": "01a10e63-8cfa-70a9-9c2a-57ccc360e5a7",
-      "metric_key": "annual_revenue_estimate",
-      "label": "GetLatka estimated annual revenue",
-      "value_numeric": 440000.0,
-      "value_text": null,
-      "unit": "USD",
-      "currency": "USD",
-      "time": {
-        "start": "2025-09-01T00:00:00Z",
-        "end": "2025-09-30T23:59:59Z",
-        "precision": "month",
-        "label": "September 2025"
-      },
-      "repository_id": null,
-      "claim_ids": [
-        "01a10e62-9c6b-743f-a2e6-3bc995b14d1f"
-      ],
-      "review_state": "machine_extracted",
-      "public_attribution": "third-party estimate"
-    },
-    {
       "id": "01a10e63-8cfa-70ab-beeb-7667ceb94d5f",
       "metric_key": "commits",
       "label": "Commits in 2025",
@@ -35524,90 +34842,6 @@
       ],
       "review_state": "machine_extracted",
       "public_attribution": "company reported"
-    },
-    {
-      "id": "01a10e63-8cfb-7070-8f22-9bdcbc08e323",
-      "metric_key": "team_size",
-      "label": "Employees (GetLatka)",
-      "value_numeric": 4.0,
-      "value_text": null,
-      "unit": "employees",
-      "currency": null,
-      "time": {
-        "start": "2024-06-01T00:00:00Z",
-        "end": "2024-06-30T23:59:59Z",
-        "precision": "month",
-        "label": "June 2024"
-      },
-      "repository_id": null,
-      "claim_ids": [
-        "01a10e62-9c6b-7445-a315-ffdcbe764db9"
-      ],
-      "review_state": "machine_extracted",
-      "public_attribution": "third-party estimate"
-    },
-    {
-      "id": "01a10e63-8cfb-7072-abf0-cece98871369",
-      "metric_key": "team_size_yc",
-      "label": "Employees (YC listing)",
-      "value_numeric": 2.0,
-      "value_text": null,
-      "unit": "employees",
-      "currency": null,
-      "time": {
-        "start": "2024-06-01T00:00:00Z",
-        "end": "2024-06-30T23:59:59Z",
-        "precision": "month",
-        "label": "June 2024"
-      },
-      "repository_id": null,
-      "claim_ids": [
-        "01a10e62-9c6b-7447-944c-47a22b1c399b"
-      ],
-      "review_state": "machine_extracted",
-      "public_attribution": "third-party estimate"
-    },
-    {
-      "id": "01a10e63-8cfb-7074-ae82-014dafa39790",
-      "metric_key": "funding_total",
-      "label": "Funding secured (Dealroom)",
-      "value_numeric": 500000.0,
-      "value_text": null,
-      "unit": "USD",
-      "currency": "USD",
-      "time": {
-        "start": null,
-        "end": null,
-        "precision": "unknown",
-        "label": null
-      },
-      "repository_id": null,
-      "claim_ids": [
-        "01a10e62-9c6b-7457-af65-8ed8e3af7190"
-      ],
-      "review_state": "machine_extracted",
-      "public_attribution": "third-party reported"
-    },
-    {
-      "id": "01a10e63-8cfb-7076-a129-9731d282af4d",
-      "metric_key": "seed_round",
-      "label": "Seed round (Dealroom)",
-      "value_numeric": 125000.0,
-      "value_text": null,
-      "unit": "USD",
-      "currency": "USD",
-      "time": {
-        "start": null,
-        "end": null,
-        "precision": "unknown",
-        "label": null
-      },
-      "repository_id": null,
-      "claim_ids": [
-        "01a10e62-9c6b-7455-8859-f61e88a2a9cb"
-      ],
-      "review_state": "machine_extracted",
-      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e63-8cfb-7078-b1c6-98520cb440fe",
@@ -36683,7 +35917,7 @@
     {
       "id": "01a10e63-8cfc-7051-864f-29451aa95de4",
       "label": "Open-source with self-serve cloud revenue",
-      "summary": "Self-serve Hatchet Cloud launched June 2024; MIT licensed with no enterprise edition; cloud generates significant revenue. Employee counts in June 2024 conflict between sources (4 vs YC listing of 2). Dealroom lists $125k seed and separately states $500K funding.",
+      "summary": "Self-serve Hatchet Cloud launched in June 2024. Hatchet is MIT licensed with no enterprise edition and says its cloud version generates significant revenue.",
       "time": {
         "start": "2024-06-27T00:00:00Z",
         "end": "2024-06-27T23:59:59Z",
@@ -36693,18 +35927,14 @@
       "claim_ids": [
         "01a10e62-9c6b-741b-a184-a9b22868fca9",
         "01a10e62-9c69-7143-bc8b-876a5b996b67",
-        "01a10e62-9c69-7145-8a83-ab096c3339d5",
-        "01a10e62-9c6b-7445-a315-ffdcbe764db9",
-        "01a10e62-9c6b-7447-944c-47a22b1c399b",
-        "01a10e62-9c6b-7455-8859-f61e88a2a9cb",
-        "01a10e62-9c6b-7457-af65-8ed8e3af7190"
+        "01a10e62-9c69-7145-8a83-ab096c3339d5"
       ],
       "review_state": "machine_inferred"
     },
     {
       "id": "01a10e63-8cfc-7052-99b0-8fc8a5105bba",
       "label": "Scaling cloud business with small team",
-      "summary": "In 2025 cloud revenue grew 9x, founding engineers joined, v1 rewrite shipped; GetLatka estimates $440K revenue in 2025. Later infrastructure runs 25+ shards in 3 regions and pay-as-you-go pricing announced 2026.",
+      "summary": "In 2025, Hatchet says, cloud revenue grew 9x, founding engineers joined and the v1 rewrite shipped. Its infrastructure later ran on more than 25 shards in 3 regions, and pay-as-you-go pricing was announced in September 2026.",
       "time": {
         "start": "2025-01-01T00:00:00Z",
         "end": "2025-12-31T23:59:59Z",
@@ -36715,7 +35945,6 @@
         "01a10e62-9c69-714b-bc07-ad727eca1ff4",
         "01a10e62-9c69-714d-9177-1e97cb082ed1",
         "01a10e62-9c69-7147-988f-3fed80bad426",
-        "01a10e62-9c6b-743f-a2e6-3bc995b14d1f",
         "01a10e62-9c69-718d-99ae-d7a2981b935b",
         "01a10e62-9c68-71b1-8340-50094aea1a3f"
       ],
@@ -37186,7 +36415,7 @@
     {
       "id": "01a10e63-8cfc-706b-8440-43ff89eed5c2",
       "name": "Founder technical content on Hacker News",
-      "description": "Recurring posts by the founder on Postgres, durable execution, agents and tooling reaching HN.",
+      "description": "Recurring posts by Hatchet co-founder Alexander Belanger on Postgres, durable execution, agents and tooling reaching HN.",
       "mechanism": "Repeated technical posts bring developer attention to Hatchet.",
       "status": "candidate",
       "claim_ids": [
@@ -37318,14 +36547,13 @@
     },
     {
       "id": "01a10e63-8cfc-7073-98c5-3fb7f6310c47",
-      "summary": "Cloud platform revenue grew 9x in 2025; GetLatka separately estimates $440K 2025 revenue.",
+      "summary": "Hatchet says its cloud platform revenue grew 9x in 2025.",
       "event_id": null,
       "tactic_occurrence_id": null,
       "metric_snapshot_ids": [],
       "causal_attribution": "unknown",
       "claim_ids": [
-        "01a10e62-9c69-714b-bc07-ad727eca1ff4",
-        "01a10e62-9c6b-743f-a2e6-3bc995b14d1f"
+        "01a10e62-9c69-714b-bc07-ad727eca1ff4"
       ],
       "review_state": "machine_inferred"
     },
@@ -37542,7 +36770,7 @@
     {
       "id": "01a10e63-8cfd-72ad-a794-90d5b63efbb0",
       "name": "Postgres scaling limits",
-      "description": "Single runs table bloated around 200M rows; CPU spikes, lock contention; jsonb payloads took 50–90% storage; partitioning incident slowed queries 10x.",
+      "description": "Hatchet's engineering blog describes the Postgres limits it hit while scaling: its single runs table bloated at about 200 million rows; it saw CPU spikes and lock contention; jsonb payloads took 50% to 90% of database storage; and after the v1 rollout, a production incident made queries on partitioned tables up to 10x slower.",
       "applies_to_refs": [],
       "claim_ids": [
         "01a10e62-9c6a-70af-8032-6ecdc925058d",
@@ -37566,7 +36794,7 @@
     {
       "id": "01a10e63-8cfd-72af-b11c-688d1b4c817a",
       "name": "Documentation and support burden",
-      "description": "Docs drifted in early 2025; LLM docs abandoned; blocked event loops are the top support issue.",
+      "description": "Hatchet wrote that its documentation was poor around the start of 2025, with SDK examples drifting out of sync, and that it tried maintaining the docs with LLMs but stopped because the generated code was unreliable. It also says blocked event loops are the most common problem it sees when supporting users.",
       "applies_to_refs": [],
       "claim_ids": [
         "01a10e62-9c6a-70bd-bed1-1aef0a7aba98",
@@ -37578,7 +36806,7 @@
     {
       "id": "01a10e63-8cfd-72b0-afc1-3e2cc8033cb8",
       "name": "Shipping and reliability bottlenecks",
-      "description": "Work pauses to rewrite deployments and instrument latency after customers noticed; v0 cleanup delayed releases in fall 2025.",
+      "description": "In its “andon cord” post, Hatchet described pausing work for a week to rewrite its deployment process after releases piled up, and for two weeks to instrument critical-path endpoints after customers alerted it to unexpected latency “before we were aware of it”. Hatchet also wrote that it did not ship a new latest version in fall 2025 while cleaning up after removing v0.",
       "applies_to_refs": [],
       "claim_ids": [
         "01a10e62-9c69-7193-87ff-dd67e88d1b85",
@@ -37590,44 +36818,6 @@
     }
   ],
   "conflicts": [
-    {
-      "id": "01a10e63-8cfd-72b1-94ea-da9cce8c9331",
-      "summary": "June 2024 headcount differs: GetLatka reports 4 employees while the YC listing shows 2.",
-      "claim_ids": [
-        "01a10e62-9c6b-7445-a315-ffdcbe764db9",
-        "01a10e62-9c6b-7447-944c-47a22b1c399b"
-      ],
-      "related_refs": [
-        {
-          "type": "claim",
-          "id": "01a10e62-9c6b-7445-a315-ffdcbe764db9"
-        },
-        {
-          "type": "claim",
-          "id": "01a10e62-9c6b-7447-944c-47a22b1c399b"
-        }
-      ],
-      "status": "unresolved"
-    },
-    {
-      "id": "01a10e63-8cfd-72b2-9965-5e6083bfe0d9",
-      "summary": "Dealroom lists a $125k seed round but also states $500K total funding secured.",
-      "claim_ids": [
-        "01a10e62-9c6b-7455-8859-f61e88a2a9cb",
-        "01a10e62-9c6b-7457-af65-8ed8e3af7190"
-      ],
-      "related_refs": [
-        {
-          "type": "claim",
-          "id": "01a10e62-9c6b-7455-8859-f61e88a2a9cb"
-        },
-        {
-          "type": "claim",
-          "id": "01a10e62-9c6b-7457-af65-8ed8e3af7190"
-        }
-      ],
-      "status": "unresolved"
-    },
     {
       "id": "01a10e63-8cfd-72b3-ab65-5ef32eaafc96",
       "summary": "Founding year: YC lists 2023 founding while Hatchet says it started in the W24 batch with just an idea.",
@@ -37784,8 +36974,7 @@
         "01a10e62-9c69-7175-8e64-00a68edb6fb9",
         "01a10e62-9c69-7177-82e0-841e97904d66",
         "01a10e62-9c6b-741d-8174-065bd7cbf148",
-        "01a10e62-9c6b-7435-8e64-1fa11116ac54",
-        "01a10e62-9c6b-744d-a9f6-b511e22e701b"
+        "01a10e62-9c6b-7435-8e64-1fa11116ac54"
       ],
       "inference_strength": "explicit"
     },
@@ -37803,7 +36992,7 @@
       "inference_strength": "moderate_inference"
     },
     "flywheel": {
-      "text": "A plausible loop shows up in the evidence. The founder's technical posts and launches on Hacker News bring developers to the open-source repo. The README sends even would-be self-hosters to Hatchet Cloud, where the company reports significant revenue. Feedback from Discord and shared Slack channels shapes what gets built next. For example, fanout workflows were the most common request after the Show HN, so Hatchet launched child workflows. Each new feature or engineering lesson becomes another post, and star spikes followed several of these posts. The data shows timing only, so whether the posts caused the growth is not established.",
+      "text": "A plausible loop shows up in the evidence. Hatchet co-founder Alexander Belanger's technical posts and launches on Hacker News bring developers to the open-source repo. The README sends even would-be self-hosters to Hatchet Cloud, where the company reports significant revenue. Feedback from Discord and shared Slack channels shapes what gets built next. For example, fanout workflows were the most common request after the Show HN, so Hatchet launched child workflows. Each new feature or engineering lesson becomes another post, and star spikes followed several of these posts. The data shows timing only, so whether the posts caused the growth is not established.",
       "claim_ids": [
         "01a10e61-0a55-73a9-a2a1-9afac7f9252c",
         "01a10e61-0a55-73ac-923a-03ede950b895",

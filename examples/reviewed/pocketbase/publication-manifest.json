@@ -4,10 +4,10 @@
   "engine_version": "0.1.0",
   "target_name": "pocketbase",
   "input_bundle_hash": "sha256:5ecf2025be503716d085d0009fb1cbb36fe3fd63ddeca45fb2b0cc2112fdf3ab",
-  "review_hash": "sha256:b75d573b8ae1f731cdb4a3b7bfc5910268ec180a8acda556e43b9fc4d4095a26",
-  "public_bundle_hash": "sha256:1f9081deea88308a7ae418f284801f0262e8ed1e18d4062a87ad33f669d9818f",
-  "report_hash": "sha256:1908240be4558860cf91983343581b89b1b94a16e8cec59b2f575719470b2b3e",
+  "review_hash": "sha256:9e3aa2d2f711acd3d590613117de76432514823a3a3f2773dfa94c604445e79c",
+  "public_bundle_hash": "sha256:dae150671abae7dc6a1623e828cb9f28be6bbef4aa406bec41ea5ab74f21de0c",
+  "report_hash": "sha256:d3371d055416a6bdbfef272578aa3259a445a2219198b838c3868ede925b6983",
   "status": "PASS",
   "unresolved_findings": 0,
-  "generated_at": "2026-10-07T12:40:23Z"
+  "generated_at": "2026-10-07T13:13:18Z"
 }

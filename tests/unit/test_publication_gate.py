@@ -579,7 +579,9 @@ def test_shared_surname_is_never_guessed(b, blog):
     assert "more than one person" in item.reason
     text = "The founder conceived Example while working elsewhere."
     ok = gate(b, review_of(res, **{item.finding_id: ("approve_public_text", text)}))
-    assert next(c for c in ok.public_bundle["claims"] if c["id"] == cid)["statement"] == text
+    # A generic "the founder" is written as the sole named founder (PUB-006).
+    stmt = next(c for c in ok.public_bundle["claims"] if c["id"] == cid)["statement"]
+    assert stmt == "Example founder Rahul Roe conceived Example while working elsewhere."
 
 
 def test_ai_review_fills_only_allowed_decisions(bundle_dict, tmp_path):
@@ -625,7 +627,8 @@ def test_ai_review_fills_only_allowed_decisions(bundle_dict, tmp_path):
     assert again.status == "NEEDS_REVIEW" and again.unresolved == 1
 
 
-def test_estimate_sites_are_never_company_reported(b, blog):
+def test_estimate_sites_are_not_cited_and_directory_listings_labelled(b, blog):
+    """Owner decision 2026-10-07: estimate/company-database sites (GetLatka, Dealroom…) are not cited at all."""
     latka = add_source(b, "https://getlatka.com/companies/example", stype="third_party_analysis")
     cid = add_claim(
         b,
@@ -634,13 +637,112 @@ def test_estimate_sites_are_never_company_reported(b, blog):
         kind="metric",
     )
     add_metric(b, "mrr", "MRR", 23300, cid)
+    both = add_claim(b, "Example has 4 employees.", [blog, latka])
+    yc = add_source(b, "https://www.ycombinator.com/companies/example", stype="directory_or_listing")
+    ycid = add_claim(b, "Y Combinator lists Example with 2 employees.", [(*yc, {"cls": "third_party_measured"})])
+    add_metric(b, "team_size", "Employees", 2, ycid)
     res = gate(b)
-    m = next(
-        m for m in res.public_bundle["metric_snapshots"] if m["metric_key"] == "mrr" and m["value_numeric"] == 23300
+    p = res.public_bundle
+    assert cid not in claim_ids(res) and all(m["value_numeric"] != 23300 for m in p["metric_snapshots"])
+    assert both in claim_ids(res)  # still supported by the company's own page
+    assert latka[0] not in {s["id"] for s in p["sources"]} and "getlatka" not in res.report_html
+    m = next(m for m in p["metric_snapshots"] if m["metric_key"] == "team_size")
+    assert m["public_attribution"] == "YC directory listing"
+
+
+def test_company_setbacks_stay_attributed(b, blog):
+    cid = add_claim(b, "After the v1 rollout, Example had an incident that slowed queries 10x.", [blog])
+    con = {
+        "id": new_id(),
+        "name": "Scaling limits",
+        "description": "Partitioning incident slowed queries 10x.",
+        "applies_to_refs": [],
+        "claim_ids": [cid],
+        "review_state": "machine_inferred",
+    }
+    b["constraints"].append(con)
+    res = gate(b)
+    assert res.status == "NEEDS_REVIEW"
+    item = next(i for i in res.review_items if i.object_ref.id == con["id"])
+    assert item.rule_id == "PUB-009" and "approve_as_is" not in item.allowed_decisions
+    assert con["id"] not in {c["id"] for c in res.public_bundle["constraints"]}  # fail-closed preview
+    text = "Example wrote that an incident after its v1 rollout made queries up to 10x slower."
+    res2 = gate(b, review_of(res, **{item.finding_id: ("approve_public_text", text)}))
+    assert res2.status == "PASS"
+    assert next(c for c in res2.public_bundle["constraints"] if c["id"] == con["id"])["description"] == text
+
+
+def test_generic_titles_and_listing_page_dates(b):
+    post = add_source(b, "https://example.dev/blog/andon-cord", title="Example")
+    gh = add_source(b, "https://github.com/example-org", surface="github", stype="repository_api", title="example")
+    index = add_source(b, "https://example.dev/blog", title="Blog", published_at="2026-08-01T00:00:00Z")
+    for s in (post, gh, index):
+        add_claim(b, "Example paused work for a week.", [s])
+    res = gate(b)
+    item = next(i for i in res.review_items if i.object_ref.id == post[0])
+    assert item.rule_id == "PUB-008" and res.status == "NEEDS_REVIEW"
+    titles = {s["id"]: s for s in res.public_bundle["sources"]}
+    assert titles[gh[0]]["title"] == "GitHub page"
+    assert titles[index[0]]["published_at"] is None
+    res2 = gate(b, review_of(res, **{item.finding_id: ("approve_public_text", "Pulling the andon cord")}))
+    assert res2.status == "PASS"
+    assert {s["id"]: s["title"] for s in res2.public_bundle["sources"]}[post[0]] == "Pulling the andon cord"
+
+
+def test_page_heading_prefers_post_title_over_site_name():
+    from pigtail.providers.fetchers.web import page_heading
+
+    html = (
+        '<title>Example · Bufo pulls the andon cord</title><meta property="og:title" content="Example"/>'
+        '<h1 class="h">Bufo pulls the andon cord</h1>'
     )
-    assert m["public_attribution"] == "third-party estimate"
-    c = next(c for c in res.public_bundle["claims"] if c["id"] == cid)
-    assert c["public_attribution"] is None  # not "According to the company"
+    assert page_heading(html, "Example", "https://example.dev/blog/andon") == "Bufo pulls the andon cord"
+    assert page_heading("<title>Foo Bar | Example</title>", "Example", "https://example.dev/x") == "Foo Bar"
+    assert page_heading("", "A specific title", "https://example.dev/x") == "A specific title"
+
+
+def test_founders_named_and_role_tautologies(b, blog):
+    b["target"]["name"] = "Example"
+    b["people"] += [
+        {
+            "id": new_id(),
+            "name": "Jane Doe",
+            "role": "Co-founder and CEO; former CTO of Porter",
+            "external_ids": [],
+            "claim_ids": [],
+        },
+        {
+            "id": new_id(),
+            "name": "John Roe",
+            "role": "Co-founder; former CTO of Clearmix",
+            "external_ids": [],
+            "claim_ids": [],
+        },
+        {"id": new_id(), "name": "Greg Furman", "role": "OSS maintainer", "external_ids": [], "claim_ids": []},
+    ]
+    hn = add_source(
+        b,
+        "https://news.ycombinator.com/item?id=3",
+        surface="hacker_news",
+        stype="hn_story",
+        key="hacker_news",
+        title="Celery problems",
+        author="jdoe",
+    )
+    c1 = add_claim(b, "The Example founder was previously CTO at Porter.", [blog])
+    c2 = add_claim(b, "Example introduced Greg Furman as its OSS maintainer.", [blog])
+    c3 = add_claim(b, "A Example co-founder posted a critique of Celery.", [hn])
+    c4 = add_claim(b, "John Roe said the founder wrote the first version.", [blog])
+    c5 = add_claim(b, "Jane Doe joined as a co-founder in 2020.", [blog])
+    c6 = add_claim(b, "Hacker News story posted by jdoe.", [hn])
+    res = gate(b)
+    s = {c["id"]: c["statement"] for c in res.public_bundle["claims"]}
+    assert s[c1] == "Example co-founder Jane Doe was previously CTO at Porter."
+    assert s[c2] == "Example introduced an OSS maintainer."
+    assert s[c3] == "Example co-founder Jane Doe posted a critique of Celery."  # the poster's handle decides
+    assert s[c4] == "John Roe said the founder wrote the first version."  # unclear: unchanged
+    assert s[c5] == "Jane Doe joined as a co-founder in 2020."
+    assert "Greg" not in public_text(res.public_bundle) and s[c6].endswith("posted by Jane Doe.")
 
 
 def test_uncited_sources_are_not_listed_and_name_casing(b, blog):

@@ -554,7 +554,7 @@
       "source_type": "first_party",
       "title": "What’s New",
       "author": null,
-      "published_at": "2020-12-15T00:00:00Z",
+      "published_at": null,
       "discovered_at": "2026-10-05T23:39:01Z",
       "policy": {
         "policy_key": "web",
@@ -1421,25 +1421,6 @@
       "public_note": null
     },
     {
-      "id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "url": "https://getlatka.com/companies/plausible-analytics",
-      "canonical_url": "https://getlatka.com/companies/plausible-analytics",
-      "surface_key": "web",
-      "source_type": "third_party_analysis",
-      "title": "Plausible Analytics Revenue 2024: $3.1M Est. ARR",
-      "author": null,
-      "published_at": "2026-10-05T00:00:00Z",
-      "discovered_at": "2026-10-05T23:39:01Z",
-      "policy": {
-        "policy_key": "web",
-        "policy_version": "1",
-        "coverage_tier": "C",
-        "retention_mode": "metadata_and_excerpt",
-        "public_display_mode": "paraphrase_link_excerpt"
-      },
-      "public_note": null
-    },
-    {
       "id": "01a10e6f-5d85-7196-afbf-526ae632266e",
       "url": "https://github.com/plausible/analytics#readme",
       "canonical_url": "https://github.com/plausible/analytics",
@@ -1956,13 +1937,6 @@
       "retrieved_at": "2026-10-05T23:39:01Z",
       "status": "success",
       "content_hash": "sha256:44446779aff201e8f6ba6afecc641bfedc03d613df6d892fd0c0530d8964d120"
-    },
-    {
-      "id": "01a10e6f-5d84-72a4-8dba-ab2b4e939477",
-      "source_id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "retrieved_at": "2026-10-05T23:39:01Z",
-      "status": "success",
-      "content_hash": "sha256:f7cd1ace2e2297b52398c5c8487681c7013f3be0b4ebc2a979c1d875bccf7bd6"
     },
     {
       "id": "01a10e6f-5d85-7197-99f0-27e17efa6d3f",
@@ -3746,7 +3720,7 @@
     },
     {
       "id": "01a10e6f-5d73-71d1-9f5b-61a334bd1757",
-      "statement": "A marketer co-founder joined Plausible on March 16, 2020 after Uku cold-emailed her.",
+      "statement": "Marko Saric started working with Plausible founder Uku Täht on March 16, 2020.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -4502,7 +4476,7 @@
     },
     {
       "id": "01a10e6f-5d75-7319-bd2c-aa9c4dfecd4e",
-      "statement": "The founder attributes a March 2020 traffic bump to the launch of opensource.builders.",
+      "statement": "Plausible founder Uku Täht attributes a March 2020 traffic bump to the launch of opensource.builders.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -4565,7 +4539,7 @@
     },
     {
       "id": "01a10e6f-5d75-731f-a166-8b4f1c6538c7",
-      "statement": "Plausible stopped being a solo project in March 2020 when the founder began working with marketer Marko.",
+      "statement": "Plausible stopped being a solo project in March 2020 when Uku Täht began working with marketer Marko.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -4586,7 +4560,7 @@
     },
     {
       "id": "01a10e6f-5d75-7321-8438-cd9f48a80b42",
-      "statement": "The founder reached out to Marko after seeing his post on Google alternatives.",
+      "statement": "Plausible founder Uku Täht reached out to Marko after seeing his post on Google alternatives.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -5867,7 +5841,7 @@
     },
     {
       "id": "01a10e6f-5d77-70f3-bc52-92719afa97f9",
-      "statement": "Plausible originated when the founder, working on Gigride, was asked to integrate Google Analytics and wanted an alternative.",
+      "statement": "Plausible originated when Uku Täht, working on Gigride, was asked to integrate Google Analytics and wanted an alternative.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -5888,7 +5862,7 @@
     },
     {
       "id": "01a10e6f-5d77-70f5-83f3-fcd73287bf67",
-      "statement": "The founder found existing alternatives Simple Analytics and Fathom too barebones for his use case.",
+      "statement": "Plausible founder Uku Täht found existing alternatives Simple Analytics and Fathom too barebones for his use case.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -5930,7 +5904,7 @@
     },
     {
       "id": "01a10e6f-5d77-70f9-a6a8-e0b7c9555557",
-      "statement": "The founder planned never to store IP addresses or sell data, and considered open-sourcing to verify these claims.",
+      "statement": "Plausible founder Uku Täht planned never to store IP addresses or sell data, and considered open-sourcing to verify these claims.",
       "claim_kind": "strategy",
       "subject_ref": {
         "type": "target",
@@ -5951,7 +5925,7 @@
     },
     {
       "id": "01a10e6f-5d77-70fb-9cbb-d6869945e7c2",
-      "statement": "The founder had been building the tool for about a month in his free time, before it had a name.",
+      "statement": "Plausible founder Uku Täht had been building the tool for about a month in his free time, before it had a name.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -5972,7 +5946,7 @@
     },
     {
       "id": "01a10e6f-5d77-70fd-8b3d-4d3c2b4dff48",
-      "statement": "The founder planned a private beta in January and recruited beta users via Twitter and email from this blog post.",
+      "statement": "Plausible founder Uku Täht planned a private beta in January and recruited beta users via Twitter and email from this blog post.",
       "claim_kind": "first_users",
       "subject_ref": {
         "type": "target",
@@ -6266,7 +6240,7 @@
     },
     {
       "id": "01a10e6f-5d78-73d0-b8b9-e095884d72e0",
-      "statement": "The founder said much of Plausible's website traffic was organic from Google, Twitter and the blog.",
+      "statement": "Plausible founder Uku Täht said much of Plausible's website traffic was organic from Google, Twitter and the blog.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -6287,7 +6261,7 @@
     },
     {
       "id": "01a10e6f-5d78-73d2-8d19-f1fff57e5135",
-      "statement": "The founder said participating in communities like IndieHackers drove a lot of traffic to Plausible.",
+      "statement": "Plausible founder Uku Täht said participating in communities like IndieHackers drove a lot of traffic to Plausible.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -6308,7 +6282,7 @@
     },
     {
       "id": "01a10e6f-5d78-73d4-b385-71d7a6747fad",
-      "statement": "The founder views good documentation as a competitive advantage and planned to invest more in Plausible's docs.",
+      "statement": "Plausible founder Uku Täht views good documentation as a competitive advantage and planned to invest more in Plausible's docs.",
       "claim_kind": "strategy",
       "subject_ref": {
         "type": "target",
@@ -6329,7 +6303,7 @@
     },
     {
       "id": "01a10e6f-5d78-73d6-9d35-bb24913f29d8",
-      "statement": "In July 2019 the founder planned to take part in the IndieHackers 30 days of growth challenge with a goal of 40 new trial signups.",
+      "statement": "In July 2019 Plausible founder Uku Täht planned to take part in the IndieHackers 30 days of growth challenge with a goal of 40 new trial signups.",
       "claim_kind": "tactic",
       "subject_ref": {
         "type": "target",
@@ -6686,7 +6660,7 @@
     },
     {
       "id": "01a10e6f-5d79-7379-aa77-3a3ecd25ca4c",
-      "statement": "Plausible is built with Tailwind CSS and the founder planned to publish a guest post on a popular front-end blog.",
+      "statement": "Plausible is built with Tailwind CSS and Uku Täht planned to publish a guest post on a popular front-end blog.",
       "claim_kind": "tactic",
       "subject_ref": {
         "type": "target",
@@ -7589,7 +7563,7 @@
     },
     {
       "id": "01a10e6f-5d7a-722d-991f-88438e46fded",
-      "statement": "The founder attributed the record traffic and signups to the blog post about removing Google Analytics.",
+      "statement": "Plausible founder Uku Täht attributed the record traffic and signups to the blog post about removing Google Analytics.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -10550,7 +10524,7 @@
     },
     {
       "id": "01a10e6f-5d80-73b4-8b8b-9a078789b2b8",
-      "statement": "The co-founder's time shifted from 90% blog writing and marketing outreach to 90% community management, PR and customer service after gaining traction about eight months earlier.",
+      "statement": "Plausible co-founder Marko Saric's time shifted from 90% blog writing and marketing outreach to 90% community management, PR and customer service after gaining traction about eight months earlier.",
       "claim_kind": "strategy",
       "subject_ref": {
         "type": "target",
@@ -12503,7 +12477,7 @@
     },
     {
       "id": "01a10e6f-5d82-7349-ac8e-388878e10f19",
-      "statement": "Plausible had no big launch; the founder attributes growth to community engagement.",
+      "statement": "Plausible had no big launch; Uku Täht attributes growth to community engagement.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -14470,237 +14444,6 @@
       },
       "review_state": "machine_extracted",
       "extraction_certainty": 0.7,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e6f-5d84-72a5-83fa-eab0590c88e3",
-      "statement": "Plausible Analytics' technical co-founder began building the product in December 2018.",
-      "claim_kind": "founding",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e6c-10c5-7386-9fae-eeb9865350fa"
-      },
-      "time": {
-        "start": "2018-12-01T00:00:00Z",
-        "end": "2018-12-31T23:59:59Z",
-        "precision": "month",
-        "label": "December 2018"
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.85,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e6f-5d84-72a7-b118-c64a55876ad6",
-      "statement": "Marko Saric joined Plausible as co-founder in early 2020, when it had fewer than 100 customers and $400 MRR.",
-      "claim_kind": "metric",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e6c-10c5-7386-9fae-eeb9865350fa"
-      },
-      "time": {
-        "start": "2020-01-01T00:00:00Z",
-        "end": "2020-12-31T23:59:59Z",
-        "precision": "year",
-        "label": "early 2020"
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.9,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e6f-5d84-72a9-9631-1dde275a331b",
-      "statement": "As of May 2021, Plausible had approximately 3,300 paying customers.",
-      "claim_kind": "metric",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e6c-10c5-7386-9fae-eeb9865350fa"
-      },
-      "time": {
-        "start": "2021-05-01T00:00:00Z",
-        "end": "2021-05-31T23:59:59Z",
-        "precision": "month",
-        "label": "May 2021"
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.9,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e6f-5d84-72ab-bd99-4297536af302",
-      "statement": "As of May 2021, Plausible had MRR of roughly $23,300.",
-      "claim_kind": "metric",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e6c-10c5-7386-9fae-eeb9865350fa"
-      },
-      "time": {
-        "start": "2021-05-01T00:00:00Z",
-        "end": "2021-05-31T23:59:59Z",
-        "precision": "month",
-        "label": "May 2021"
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.9,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e6f-5d84-72ad-bf20-2bec008a8ef1",
-      "statement": "Plausible spent zero dollars on paid advertising, growing via content marketing, open-source community and word-of-mouth.",
-      "claim_kind": "attribution",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e6c-10c5-7386-9fae-eeb9865350fa"
-      },
-      "time": {
-        "start": "2021-05-01T00:00:00Z",
-        "end": "2021-05-31T23:59:59Z",
-        "precision": "month",
-        "label": null
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.8,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e6f-5d84-72af-b56e-0aee03700595",
-      "statement": "In 2021 Plausible got about 1,000 trial signups per month, with about one third converting to paid.",
-      "claim_kind": "metric",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e6c-10c5-7386-9fae-eeb9865350fa"
-      },
-      "time": {
-        "start": "2021-05-01T00:00:00Z",
-        "end": "2021-05-31T23:59:59Z",
-        "precision": "month",
-        "label": null
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.95,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e6f-5d84-72b1-a7e9-ca16c23cc819",
-      "statement": "Plausible's monthly gross churn was about 2% in 2021.",
-      "claim_kind": "metric",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e6c-10c5-7386-9fae-eeb9865350fa"
-      },
-      "time": {
-        "start": "2021-05-01T00:00:00Z",
-        "end": "2021-05-31T23:59:59Z",
-        "precision": "month",
-        "label": null
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.9,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e6f-5d84-72b3-8324-dbe3d01fc8a4",
-      "statement": "Plausible pricing is usage-based on page views, starting at $5/month for up to 1,000 page views, with no permanent free tier.",
-      "claim_kind": "pricing",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e6c-10c5-7386-9fae-eeb9865350fa"
-      },
-      "time": {
-        "start": "2021-05-01T00:00:00Z",
-        "end": "2021-05-31T23:59:59Z",
-        "precision": "month",
-        "label": null
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.9,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e6f-5d84-72b5-8636-4fef8b9df853",
-      "statement": "Plausible was a profitable two-person team in May 2021 and the founders declined VC approaches.",
-      "claim_kind": "funding",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e6c-10c5-7386-9fae-eeb9865350fa"
-      },
-      "time": {
-        "start": "2021-05-01T00:00:00Z",
-        "end": "2021-05-31T23:59:59Z",
-        "precision": "month",
-        "label": null
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.85,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e6f-5d85-7192-87bc-b9c719829747",
-      "statement": "GetLatka estimates Plausible revenue at $3.1M in 2024.",
-      "claim_kind": "metric",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e6c-10c5-7386-9fae-eeb9865350fa"
-      },
-      "time": {
-        "start": "2024-01-01T00:00:00Z",
-        "end": "2024-12-31T23:59:59Z",
-        "precision": "year",
-        "label": "2024"
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.6,
-      "is_negative_sensitive": false,
-      "status": "active",
-      "public_attribution": null,
-      "manually_verified": false
-    },
-    {
-      "id": "01a10e6f-5d85-7194-9eeb-cc6e63121d31",
-      "statement": "Plausible reached 8 employees by October 2024, per GetLatka.",
-      "claim_kind": "team",
-      "subject_ref": {
-        "type": "target",
-        "id": "01a10e6c-10c5-7386-9fae-eeb9865350fa"
-      },
-      "time": {
-        "start": "2024-10-01T00:00:00Z",
-        "end": "2024-10-31T23:59:59Z",
-        "precision": "month",
-        "label": "October 2024"
-      },
-      "review_state": "machine_extracted",
-      "extraction_certainty": 0.6,
       "is_negative_sensitive": false,
       "status": "active",
       "public_attribution": null,
@@ -27456,237 +27199,6 @@
       "notes": null
     },
     {
-      "id": "01a10e6f-5d84-72a6-b558-507ea185039b",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e6f-5d84-72a5-83fa-eab0590c88e3"
-      },
-      "claim_id": "01a10e6f-5d84-72a5-83fa-eab0590c88e3",
-      "source_id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "source_fetch_id": "01a10e6f-5d84-72a4-8dba-ab2b4e939477",
-      "evidence_class": "documented",
-      "source_directness": "primary_indirect",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": "began building the product in December 2018 and spent approximately one year in development before…",
-      "notes": null
-    },
-    {
-      "id": "01a10e6f-5d84-72a8-97cc-69043ec2b5aa",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e6f-5d84-72a7-b118-c64a55876ad6"
-      },
-      "claim_id": "01a10e6f-5d84-72a7-b118-c64a55876ad6",
-      "source_id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "source_fetch_id": "01a10e6f-5d84-72a4-8dba-ab2b4e939477",
-      "evidence_class": "company_measured",
-      "source_directness": "primary_indirect",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e6f-5d84-72aa-8c6b-b5e6cf777b13",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e6f-5d84-72a9-9631-1dde275a331b"
-      },
-      "claim_id": "01a10e6f-5d84-72a9-9631-1dde275a331b",
-      "source_id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "source_fetch_id": "01a10e6f-5d84-72a4-8dba-ab2b4e939477",
-      "evidence_class": "company_measured",
-      "source_directness": "primary_indirect",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e6f-5d84-72ac-99d6-ae1f04bb7059",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e6f-5d84-72ab-bd99-4297536af302"
-      },
-      "claim_id": "01a10e6f-5d84-72ab-bd99-4297536af302",
-      "source_id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "source_fetch_id": "01a10e6f-5d84-72a4-8dba-ab2b4e939477",
-      "evidence_class": "company_measured",
-      "source_directness": "primary_indirect",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e6f-5d84-72ae-841f-95133f8b11c1",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e6f-5d84-72ad-bf20-2bec008a8ef1"
-      },
-      "claim_id": "01a10e6f-5d84-72ad-bf20-2bec008a8ef1",
-      "source_id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "source_fetch_id": "01a10e6f-5d84-72a4-8dba-ab2b4e939477",
-      "evidence_class": "documented",
-      "source_directness": "primary_indirect",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e6f-5d84-72b0-81e8-da162ca29290",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e6f-5d84-72af-b56e-0aee03700595"
-      },
-      "claim_id": "01a10e6f-5d84-72af-b56e-0aee03700595",
-      "source_id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "source_fetch_id": "01a10e6f-5d84-72a4-8dba-ab2b4e939477",
-      "evidence_class": "company_measured",
-      "source_directness": "primary_indirect",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e6f-5d84-72b2-bd85-b5435d5dfef3",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e6f-5d84-72b1-a7e9-ca16c23cc819"
-      },
-      "claim_id": "01a10e6f-5d84-72b1-a7e9-ca16c23cc819",
-      "source_id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "source_fetch_id": "01a10e6f-5d84-72a4-8dba-ab2b4e939477",
-      "evidence_class": "company_measured",
-      "source_directness": "primary_indirect",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e6f-5d84-72b4-898d-b1d129671d33",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e6f-5d84-72b3-8324-dbe3d01fc8a4"
-      },
-      "claim_id": "01a10e6f-5d84-72b3-8324-dbe3d01fc8a4",
-      "source_id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "source_fetch_id": "01a10e6f-5d84-72a4-8dba-ab2b4e939477",
-      "evidence_class": "documented",
-      "source_directness": "primary_indirect",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e6f-5d84-72b6-8759-183f87b17190",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e6f-5d84-72b5-8636-4fef8b9df853"
-      },
-      "claim_id": "01a10e6f-5d84-72b5-8636-4fef8b9df853",
-      "source_id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "source_fetch_id": "01a10e6f-5d84-72a4-8dba-ab2b4e939477",
-      "evidence_class": "documented",
-      "source_directness": "primary_indirect",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e6f-5d85-7193-998a-18dd815ea66c",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e6f-5d85-7192-87bc-b9c719829747"
-      },
-      "claim_id": "01a10e6f-5d85-7192-87bc-b9c719829747",
-      "source_id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "source_fetch_id": "01a10e6f-5d84-72a4-8dba-ab2b4e939477",
-      "evidence_class": "third_party_measured",
-      "source_directness": "secondary_synthesis",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e6f-5d85-7195-8f40-9079bc45f13e",
-      "target_ref": {
-        "type": "claim",
-        "id": "01a10e6f-5d85-7194-9eeb-cc6e63121d31"
-      },
-      "claim_id": "01a10e6f-5d85-7194-9eeb-cc6e63121d31",
-      "source_id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "source_fetch_id": "01a10e6f-5d84-72a4-8dba-ab2b4e939477",
-      "evidence_class": "third_party_reported",
-      "source_directness": "secondary_synthesis",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
       "id": "01a10e6f-5d85-7199-98f7-edd84df87a7c",
       "target_ref": {
         "type": "claim",
@@ -29640,27 +29152,6 @@
       "notes": null
     },
     {
-      "id": "01a10e71-7b7e-7118-89b2-db3d60097856",
-      "target_ref": {
-        "type": "metric_snapshot",
-        "id": "01a10e71-7b7e-7117-9c12-798af9b88250"
-      },
-      "claim_id": "01a10e6f-5d84-72ab-bd99-4297536af302",
-      "source_id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "source_fetch_id": "01a10e6f-5d84-72a4-8dba-ab2b4e939477",
-      "evidence_class": "company_measured",
-      "source_directness": "primary_indirect",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
       "id": "01a10e71-7b7e-711a-9604-eb884ff1ef74",
       "target_ref": {
         "type": "metric_snapshot",
@@ -29859,27 +29350,6 @@
       "source_id": "01a10e6f-5d83-71e2-8069-ffbc173ad101",
       "source_fetch_id": "01a10e6f-5d83-71e3-b6d4-0f531e0cb036",
       "evidence_class": "documented",
-      "source_directness": "primary_indirect",
-      "corroboration": "single_source",
-      "inference_strength": "explicit",
-      "causal_attribution": "unknown",
-      "locator": {
-        "kind": "text_fragment",
-        "value": ""
-      },
-      "excerpt": null,
-      "notes": null
-    },
-    {
-      "id": "01a10e71-7b80-73a5-96a5-d96be16b61e5",
-      "target_ref": {
-        "type": "metric_snapshot",
-        "id": "01a10e71-7b80-73a4-8e69-328862e387fd"
-      },
-      "claim_id": "01a10e6f-5d84-72a9-9631-1dde275a331b",
-      "source_id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
-      "source_fetch_id": "01a10e6f-5d84-72a4-8dba-ab2b4e939477",
-      "evidence_class": "company_measured",
       "source_directness": "primary_indirect",
       "corroboration": "single_source",
       "inference_strength": "explicit",
@@ -41359,27 +40829,6 @@
       "public_attribution": "company reported"
     },
     {
-      "id": "01a10e71-7b7e-7117-9c12-798af9b88250",
-      "metric_key": "mrr",
-      "label": "MRR",
-      "value_numeric": 23300.0,
-      "value_text": null,
-      "unit": "USD",
-      "currency": "USD",
-      "time": {
-        "start": "2021-05-01T00:00:00Z",
-        "end": "2021-05-31T23:59:59Z",
-        "precision": "month",
-        "label": null
-      },
-      "repository_id": null,
-      "claim_ids": [
-        "01a10e6f-5d84-72ab-bd99-4297536af302"
-      ],
-      "review_state": "machine_extracted",
-      "public_attribution": "third-party estimate"
-    },
-    {
       "id": "01a10e71-7b7e-7119-8fa5-37b24e8689d3",
       "metric_key": "mrr",
       "label": "MRR",
@@ -41568,27 +41017,6 @@
       ],
       "review_state": "machine_extracted",
       "public_attribution": "company reported"
-    },
-    {
-      "id": "01a10e71-7b80-73a4-8e69-328862e387fd",
-      "metric_key": "paying_subscribers",
-      "label": "Paying customers",
-      "value_numeric": 3300.0,
-      "value_text": null,
-      "unit": "customers",
-      "currency": null,
-      "time": {
-        "start": "2021-05-01T00:00:00Z",
-        "end": "2021-05-31T23:59:59Z",
-        "precision": "month",
-        "label": null
-      },
-      "repository_id": null,
-      "claim_ids": [
-        "01a10e6f-5d84-72a9-9631-1dde275a331b"
-      ],
-      "review_state": "machine_extracted",
-      "public_attribution": "third-party estimate"
     },
     {
       "id": "01a10e71-7b80-73a6-9717-f86ea40638b4",
@@ -43866,7 +43294,7 @@
     {
       "id": "01a10e71-7b82-7046-b264-079c3ff5a0db",
       "label": "Solo, paid but low MRR",
-      "summary": "Paid subscriptions launched in May 2019 with 60 beta users, ending that month at $64 MRR. It took 324 days to reach $400 MRR. MRR was flat in January 2020 because of high churn, and about 25% of revenue went to transaction fees. Sources disagree on the customer count when the marketer joined: fewer than 100, about 100, or a couple hundred / a few hundred.",
+      "summary": "Paid subscriptions launched in May 2019 with 60 beta users, ending that month at $64 MRR. It took 324 days to reach $400 MRR. Plausible's monthly recaps report that revenue was flat in January 2020 because of higher-than-normal cancellations, and that about 25% of revenue went to transaction fees. Sources disagree on the customer count when co-founder Marko Saric joined in 2020: about 100, a couple hundred, or a few hundred.",
       "time": {
         "start": "2019-05-01T00:00:00Z",
         "end": "2020-03-31T23:59:59Z",
@@ -43882,7 +43310,6 @@
         "01a10e6f-5d79-738b-81ff-49fd58e6bd7a",
         "01a10e6f-5d82-735d-9b42-1e2674a1e4c3",
         "01a10e6f-5d83-71ea-b80e-95ec82a5b0db",
-        "01a10e6f-5d84-72a7-b118-c64a55876ad6",
         "01a10e6f-5d77-70db-bc35-e3b90c81f94a"
       ],
       "review_state": "machine_inferred"
@@ -43898,7 +43325,6 @@
         "label": "2021 – mid 2022"
       },
       "claim_ids": [
-        "01a10e6f-5d84-72b5-8636-4fef8b9df853",
         "01a10e6f-5d73-71df-b2f8-ff9ffe03ece1",
         "01a10e6f-5d73-71bf-80a5-0e55668a82b4",
         "01a10e6f-5d73-71c1-89d7-cfe6c40bd309",
@@ -45139,7 +44565,7 @@
     {
       "id": "01a10e71-7b83-72ee-be3d-e42bd5beb342",
       "name": "Small transactions and churn",
-      "description": "About 25% of revenue was lost to transaction fees, and price-related cancellations caused flat MRR in January 2020.",
+      "description": "Plausible's monthly recaps report that small average transactions meant about 25% of revenue went to transaction fees, and that higher-than-normal cancellations left revenue flat in January 2020; two customers who cancelled said they could no longer justify the price.",
       "applies_to_refs": [],
       "claim_ids": [
         "01a10e6f-5d79-738b-81ff-49fd58e6bd7a",
@@ -45163,7 +44589,7 @@
     {
       "id": "01a10e71-7b83-72f0-8d79-631d766b13e9",
       "name": "No paid acquisition tradeoffs",
-      "description": "Some publishers declined to include Plausible because it had no affiliate program. The company accepts slower growth and less hype than VC-backed competitors.",
+      "description": "Plausible says some publishers declined to include it in posts because it had no affiliate program, and it accepts slower growth and less hype than VC-backed competitors as a tradeoff.",
       "applies_to_refs": [],
       "claim_ids": [
         "01a10e6f-5d7e-727e-bb9f-7a0f41cf4fd8",
@@ -45293,11 +44719,10 @@
     },
     {
       "id": "01a10e71-7b83-72f6-85f1-91bb1f927edf",
-      "summary": "Customers when Marko joined in early 2020: a couple/few hundred vs fewer than 100 or about 100.",
+      "summary": "Customers when Marko Saric joined in early 2020: a couple hundred or a few hundred vs about 100.",
       "claim_ids": [
         "01a10e6f-5d83-71ea-b80e-95ec82a5b0db",
         "01a10e6f-5d77-70db-bc35-e3b90c81f94a",
-        "01a10e6f-5d84-72a7-b118-c64a55876ad6",
         "01a10e6f-5d82-735d-9b42-1e2674a1e4c3"
       ],
       "related_refs": [
@@ -45308,10 +44733,6 @@
         {
           "type": "claim",
           "id": "01a10e6f-5d77-70db-bc35-e3b90c81f94a"
-        },
-        {
-          "type": "claim",
-          "id": "01a10e6f-5d84-72a7-b118-c64a55876ad6"
         },
         {
           "type": "claim",
@@ -45341,11 +44762,10 @@
     },
     {
       "id": "01a10e71-7b83-72f8-975a-44f9afceeb5c",
-      "summary": "Entry price stated as $6/month vs $4/month vs $5/month.",
+      "summary": "Entry price stated as $6/month vs $4/month.",
       "claim_ids": [
         "01a10e6f-5d71-7041-a80f-8f662dd72afc",
-        "01a10e6f-5d82-733f-88f1-8c66aa9916a4",
-        "01a10e6f-5d84-72b3-8324-dbe3d01fc8a4"
+        "01a10e6f-5d82-733f-88f1-8c66aa9916a4"
       ],
       "related_refs": [
         {
@@ -45355,10 +44775,6 @@
         {
           "type": "claim",
           "id": "01a10e6f-5d82-733f-88f1-8c66aa9916a4"
-        },
-        {
-          "type": "claim",
-          "id": "01a10e6f-5d84-72b3-8324-dbe3d01fc8a4"
         }
       ],
       "status": "unresolved"
@@ -45596,7 +45012,7 @@
     },
     "key_takeaways": [
       {
-        "text": "A single positioning change and one essay coincided with a sharp change in traction. After 324 days to reach $400 MRR, Plausible got 272 trial signups in April 2020, more than the previous nine months combined. The founder attributes this to the 'stop using Google Analytics' post and the repositioning that accompanied it.",
+        "text": "A single positioning change and one essay coincided with a sharp change in traction. After 324 days to reach $400 MRR, Plausible got 272 trial signups in April 2020, more than the previous nine months combined. Uku Täht attributes this to the 'stop using Google Analytics' post and the repositioning that accompanied it.",
         "claim_ids": [
           "01a10e6f-5d80-73c0-af58-d875f2b40e02",
           "01a10e6f-5d7a-722b-8441-6cbc5fe22c95",
