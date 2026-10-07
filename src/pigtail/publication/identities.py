@@ -69,6 +69,19 @@ def is_sole_founder_role(role: str | None) -> bool:
     return bool(role and _FOUNDER.search(role) and not _CO_FOUNDER.search(role))
 
 
+_EXECUTIVE = re.compile(
+    r"\b(?:co-?founder|founder|ceo|cto|cpo|coo|cfo|cmo|president|chair(?:man|woman|person)?|head of"
+    r"|general manager|vp|vice president|chief \w+ officer)\b",
+    re.I,
+)
+
+
+def is_public_executive(role: str | None) -> bool:
+    """Founders and executives acting in their company role are named (owner decision 2026-10-07).
+    Everyone else (team members, contributors, maintainers of personal projects, investors…) is not."""
+    return bool(role and _EXECUTIVE.search(role))
+
+
 def role_label(role: str | None, n_founders: int) -> str:
     r = (role or "").lower()
     if _CO_FOUNDER.search(r):
@@ -187,12 +200,23 @@ class Redactor:
             name = " ".join(p["name"].split())
             if not name or _norm(name) in protected_norm:
                 continue
-            if name.lower() in keep:
+            parts = name.split(" ")
+            if name.lower() in keep or is_public_executive(p["role"]):
                 kept.add(name)
+                keys = {_norm(name)}
+                if len(parts) >= 2:
+                    keys |= {
+                        _norm(parts[0] + parts[-1]),
+                        _norm(parts[0][0] + parts[-1]),
+                        _norm(parts[-1] + parts[0][0]),
+                    }
+                    for tok in (parts[0], parts[-1]):
+                        if len(tok) >= 3 and tok[0].isupper() and _norm(tok) not in protected_norm:
+                            token_labels.setdefault(tok, set()).add(f"KEPT:{name}")
+                person_keys.append((keys, f"KEPT:{name}"))
                 continue
             label = role_label(p["role"], n_founders)
             full[name] = label
-            parts = name.split(" ")
             keys = {_norm(name)}
             if len(parts) >= 2:
                 first, last = parts[0], parts[-1]
@@ -206,8 +230,10 @@ class Redactor:
         replacements: dict[str, str] = dict(full)
         ambiguous: set[str] = set()
         for tok, labels in token_labels.items():
-            if tok in replacements:
+            if tok in replacements or tok in kept:
                 continue
+            if all(lb.startswith("KEPT:") for lb in labels) and len(labels) == 1:
+                continue  # a named person's first or last name
             if len(labels) == 1:
                 replacements[tok] = next(iter(labels))
             else:
@@ -223,6 +249,12 @@ class Redactor:
                 kept.add(author)
                 continue
             match = next((label for keys, label in person_keys if _norm(author) in keys), None)
+            if match and match.startswith("KEPT:"):
+                name = match[5:]
+                # A named person's account handle becomes their name; their name or first name stays as is.
+                if s["surface_key"] in HANDLE_SURFACES and " " not in author and author not in name:
+                    replacements[author] = name
+                continue
             if s["surface_key"] in HANDLE_SURFACES:
                 replacements[author] = match or HANDLE_SURFACES[s["surface_key"]]
             elif match:
@@ -331,6 +363,9 @@ class Redactor:
         if not text:
             return []
         plain = _URL.sub(" ", text)
+        for name in sorted(self.kept, key=len, reverse=True):  # "Rahul Vohra" is not an ambiguous "Vohra"
+            if " " in name:
+                plain = re.sub(rf"(?<![\w]){re.escape(name)}(?![\w])", " ", plain, flags=re.I)
         found = []
         for k in [*self.replacements, *sorted(self.ambiguous)]:
             if re.search(rf"(?<![\w]){re.escape(k)}(?![\w])", plain, re.I):

@@ -309,11 +309,14 @@ def test_at07_personal_finance_removed_company_metrics_kept(b, blog):
 # ---- AT-PUB-08, AT-PUB-09 -----------------------------------------------------------------------------
 
 
-def test_at08_usernames_and_at09_founder_names_minimized(b):
+def test_at08_usernames_and_at09_people_minimized(b):
+    """Owner decision 2026-10-07: founders and executives are named in their company role; private
+    individuals (contributors, team members, posters) are anonymised; no people list is published."""
     pid = new_id()
     b["people"] += [
         {"id": pid, "name": "Jane Doe", "role": "Founder", "external_ids": [], "claim_ids": []},
         {"id": new_id(), "name": "Chandra Patel", "role": "Community contributor", "external_ids": [], "claim_ids": []},
+        {"id": new_id(), "name": "Sam Lee", "role": "Support engineer", "external_ids": [], "claim_ids": []},
     ]
     hn = add_source(
         b,
@@ -324,10 +327,17 @@ def test_at08_usernames_and_at09_founder_names_minimized(b):
         title="Show HN: Example",
         author="throwaway42",
     )
-    red = add_source(
-        b, "https://www.reddit.com/r/x/2", surface="reddit", stype="community", key="reddit", author="redditor_99"
+    founder_post = add_source(
+        b,
+        "https://news.ycombinator.com/item?id=2",
+        surface="hacker_news",
+        stype="hn_story",
+        key="hacker_news",
+        title="Launch HN: Example",
+        author="jdoe",
     )
     interview = add_source(b, "https://press.example.org/jane", stype="founder_interview", title="Jane Doe on Example")
+    team = add_source(b, "https://example.dev/blog/team", title="Meet Sam Lee, our support engineer")
     c1 = add_claim(b, "A Show HN post by throwaway42 reached 300 points.", [hn], kind="hn_post")
     c2 = add_claim(
         b,
@@ -335,30 +345,23 @@ def test_at08_usernames_and_at09_founder_names_minimized(b):
         [interview],
         subject={"type": "person", "id": pid},
     )
-    b["people"][0]["claim_ids"] = [c2]
-    b["narrative"]["origin"] = {
-        "text": "Jane Doe built Example alone.",
-        "claim_ids": [c2],
-        "inference_strength": "explicit",
-    }
+    c3 = add_claim(b, "A Launch HN post by jdoe reached 500 points.", [founder_post], kind="hn_post")
+    c4 = add_claim(b, "Sam Lee answers support tickets within an hour.", [team])
     res = gate(b)
     assert res.status == "PASS", [f.reason for f in res.audit.findings if f.resolution is None]
     text = public_text(res.public_bundle) + visible(res.report_html)
-    for name in ("Jane Doe", "Jane", "Chandra", "throwaway42", "redditor_99"):
+    for name in ("Chandra", "Sam Lee", "throwaway42", "jdoe"):
         assert name not in text, name
     assert "people" not in res.public_bundle
     assert all(s["author"] is None for s in res.public_bundle["sources"])
     stmts = {c["id"]: c["statement"] for c in res.public_bundle["claims"]}
     assert stmts[c1] == "A Show HN post reached 300 points."
-    assert stmts[c2].startswith("The founder of Example said a community contributor added Docker support")
-    assert res.public_bundle["narrative"]["origin"]["text"] == "The founder built Example alone."
-    title = next(s["title"] for s in res.public_bundle["sources"] if s["id"] == interview[0])
-    assert title == "Founder interview"
-    # A reviewer can keep an identity that is necessary to understand the analysis.
-    keep = ReviewFile(policy_version="0.1.0", keep_identities=[{"name": "Jane Doe", "rationale": "public founder"}])
-    kept = gate(b, keep)
-    assert "Jane Doe" in public_text(kept.public_bundle)
-    assert red  # reddit source without claims is still listed only as a link
+    assert stmts[c2] == "Jane Doe, founder of Example, said a community contributor added Docker support."
+    assert stmts[c3] == "A Launch HN post by Jane Doe reached 500 points."
+    assert stmts[c4] == "A support team member answers support tickets within an hour."
+    titles = {s["id"]: s["title"] for s in res.public_bundle["sources"]}
+    assert titles[interview[0]] == "Jane Doe on Example"  # real titles stay traceable
+    assert titles[team[0]] == "Meet a support team member, our support engineer"
 
 
 # ---- AT-PUB-10, AT-PUB-11, AT-PUB-12 ------------------------------------------------------------------
@@ -673,3 +676,33 @@ def test_reviewer_edit_survives_when_its_finding_disappears(b, blog):
     assert next(c for c in res.public_bundle["claims"] if c["id"] == cid)["statement"] == orphan.public_text
     assert any(f.rule_id == "PUB-REVIEW" and f.object_ref.id == cid for f in res.audit.findings)
     assert any(i.finding_id == "manual-1" for i in res.review_items)  # kept in the review file
+
+
+def test_relayed_figures_wiki_dates_and_header_cards(b, blog):
+    pod = add_source(b, "https://podcast.example.org/ep1", stype="founder_interview", title="Founder podcast")
+    cid = add_claim(
+        b, "The New York Times reported Example had fewer than 15,000 customers in 2019.", [pod], kind="metric"
+    )
+    b["metric_snapshots"].append(
+        {
+            **b["metric_snapshots"][-1],
+            "id": new_id(),
+            "metric_key": "customers_nyt",
+            "label": "Customers (NYT report)",
+            "value_numeric": 15000,
+            "currency": None,
+            "unit": "customers",
+            "claim_ids": [cid],
+        }
+    )
+    wiki = add_source(
+        b, "https://en.wikipedia.org/wiki/Example", stype="third_party_analysis", published_at="2012-12-24T10:00:00Z"
+    )
+    add_claim(b, "Example is a software company.", [wiki])
+    res = gate(b)
+    m = next(m for m in res.public_bundle["metric_snapshots"] if m["metric_key"] == "customers_nyt")
+    assert m["public_attribution"] == "third-party reported"
+    assert next(s for s in res.public_bundle["sources"] if s["id"] == wiki[0])["published_at"] is None
+    vm = build_view_model(res.public_bundle, public=True)
+    assert all("third-party" not in s["label"] for s in vm["stats"])
+    assert "Self-description" in res.report_html

@@ -19,7 +19,7 @@
     "name": "Superhuman",
     "canonical_url": "https://superhuman.com",
     "domain": "superhuman.com",
-    "description": "Superhuman is the AI productivity suite that gives you superpowers everywhere you work. So you can be more creative, strategic, and impactful.",
+    "description": "This report covers the Superhuman email app and the company that built it, founded in 2014 and acquired by Grammarly in July 2025. Grammarly later renamed itself Superhuman; figures for that combined company are marked “combined company”.",
     "primary_repository_id": null,
     "external_ids": [
       {
@@ -32,6 +32,7 @@
       "superhuman.com"
     ]
   },
+  "target_description_source": "reviewer",
   "repositories": [],
   "sources": [
     {
@@ -363,7 +364,7 @@
       "canonical_url": "https://antler.co/blog/antler-early-days-episode-2-superhuman-with-rahul-vohra",
       "surface_key": "web",
       "source_type": "founder_interview",
-      "title": "Founder interview",
+      "title": "Antler Early Days—Episode 2: Superhuman with Rahul Vohra",
       "author": null,
       "published_at": "2022-06-01T00:00:00Z",
       "discovered_at": "2026-10-05T23:32:48Z",
@@ -420,7 +421,7 @@
       "canonical_url": "https://thespl.it/p/inside-the-new-superhuman-700m-arr",
       "surface_key": "web",
       "source_type": "founder_interview",
-      "title": "Founder interview",
+      "title": "🎧🍌 Inside the New Superhuman: $700M ARR, 40M Daily Users with Rahul Vohra",
       "author": null,
       "published_at": "2025-11-21T00:00:00Z",
       "discovered_at": "2026-10-05T23:32:48Z",
@@ -439,7 +440,7 @@
       "canonical_url": "https://lennysnewsletter.com/p/superhumans-secret-to-success-rahul-vohra",
       "surface_key": "web",
       "source_type": "founder_interview",
-      "title": "Founder interview",
+      "title": "Superhuman's secret to success: Ignoring most customer feedback, manually onboarding every new user, obsessing over every detail, and positioning around a single attribute: speed | Rahul Vohra (CEO)",
       "author": null,
       "published_at": "2025-03-23T00:00:00Z",
       "discovered_at": "2026-10-05T23:32:48Z",
@@ -477,7 +478,7 @@
       "canonical_url": "https://review.firstround.com/how-superhuman-built-an-engine-to-find-product-market-fit",
       "surface_key": "web",
       "source_type": "founder_interview",
-      "title": "Founder interview",
+      "title": "Rahul Vohra Shares Superhuman's Product Market Fit Framework",
       "author": null,
       "published_at": "2018-11-13T00:00:00Z",
       "discovered_at": "2026-10-05T23:32:48Z",
@@ -553,7 +554,7 @@
       "canonical_url": "https://techcrunch.com/2020/06/18/superhumans-rahul-vohra-says-recession-is-the-perfect-time-to-be-aggressive-for-well-capitalized-startups",
       "surface_key": "web",
       "source_type": "founder_interview",
-      "title": "Founder interview",
+      "title": "Superhuman's Rahul Vohra says recession is the 'perfect time' to be aggressive for well-capitalized startups | TechCrunch",
       "author": null,
       "published_at": "2020-06-18T00:00:00Z",
       "discovered_at": "2026-10-05T23:32:48Z",
@@ -591,7 +592,7 @@
       "canonical_url": "https://thegrowthcmo.co/p/singleplayer-multiplayer-superhuman-gaurav-vohra",
       "surface_key": "web",
       "source_type": "founder_interview",
-      "title": "Founder interview",
+      "title": "From Singleplayer to Multiplayer: How Superhuman is Stacking S-Curves | a team member, Superhuman Growth Leader",
       "author": null,
       "published_at": "2025-02-05T00:00:00Z",
       "discovered_at": "2026-10-05T23:32:48Z",
@@ -610,7 +611,7 @@
       "canonical_url": "https://starterstory.com/superhuman-breakdown",
       "surface_key": "web",
       "source_type": "third_party_analysis",
-      "title": "Article on starterstory.com",
+      "title": "How Rahul Vohra's Superhuman Scaled to $20M ARR - Starter Story",
       "author": null,
       "published_at": "2024-09-29T00:00:00Z",
       "discovered_at": "2026-10-05T23:32:48Z",
@@ -707,7 +708,7 @@
       "source_type": "third_party_analysis",
       "title": "Superhuman (email client) - Wikipedia",
       "author": null,
-      "published_at": "2023-02-21T00:00:00Z",
+      "published_at": null,
       "discovered_at": "2026-10-05T23:32:48Z",
       "policy": {
         "policy_key": "web",
@@ -726,7 +727,7 @@
       "source_type": "third_party_analysis",
       "title": "Grammarly - Wikipedia",
       "author": null,
-      "published_at": "2012-12-24T00:00:00Z",
+      "published_at": null,
       "discovered_at": "2026-10-05T23:32:48Z",
       "policy": {
         "policy_key": "web",
@@ -1443,7 +1444,7 @@
     },
     {
       "id": "01a10e69-a98d-7225-ae2d-5ab2a1810268",
-      "statement": "The founder attributes easier hiring, selling, marketing and fundraising to the product-market fit engine.",
+      "statement": "Rahul Vohra attributes easier hiring, selling, marketing and fundraising to the product-market fit engine.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -1548,7 +1549,7 @@
     },
     {
       "id": "01a10e69-a98d-7231-b0b0-73ca190715b5",
-      "statement": "Superhuman's founder onboarded the CEO onto Superhuman in 2017.",
+      "statement": "Superhuman's founder onboarded Shishir Mehrotra onto Superhuman in 2017.",
       "claim_kind": "first_users",
       "subject_ref": {
         "type": "target",
@@ -1842,7 +1843,7 @@
     },
     {
       "id": "01a10e69-a98d-724f-a887-b7a1366eec22",
-      "statement": "A team lead is Head of Superhuman Docs and said Coda had been developed for over 10 years.",
+      "statement": "Lane Shackleton is Head of Superhuman Docs and said Coda had been developed for over 10 years.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -2010,7 +2011,7 @@
     },
     {
       "id": "01a10e69-a98e-734b-9c26-c42264092de5",
-      "statement": "The CEO is CEO of Grammarly Superhuman.",
+      "statement": "Shishir Mehrotra is CEO of Grammarly Superhuman.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -2430,7 +2431,7 @@
     },
     {
       "id": "01a10e69-a98f-70c2-b509-587cace08585",
-      "statement": "The CPO is CPO of Superhuman.",
+      "statement": "Noam Lovinsky is CPO of Superhuman.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -3312,7 +3313,7 @@
     },
     {
       "id": "01a10e69-a990-740a-b4cb-e8b82a7323a3",
-      "statement": "Superhuman has a Head of Superhuman for Education, a team lead.",
+      "statement": "Superhuman has a Head of Superhuman for Education, Jenny Maxwell.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -3564,7 +3565,7 @@
     },
     {
       "id": "01a10e69-a991-708d-9b33-60dbe7632cce",
-      "statement": "Superhuman CEO said Superhuman users had long asked for an integrated notetaker.",
+      "statement": "Superhuman CEO Shishir Mehrotra said Superhuman users had long asked for an integrated notetaker.",
       "claim_kind": "strategy",
       "subject_ref": {
         "type": "target",
@@ -4131,7 +4132,7 @@
     },
     {
       "id": "01a10e69-a992-7113-b780-58ad787a090e",
-      "statement": "The founder incorporated Superhuman in February 2014 after leaving LinkedIn.",
+      "statement": "Rahul Vohra incorporated Superhuman in February 2014 after leaving LinkedIn.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -4152,7 +4153,7 @@
     },
     {
       "id": "01a10e69-a992-7115-8164-33ae7ab2beae",
-      "statement": "Superhuman raised about $800,000 in Q4 2014, almost all from people who had backed the founder before.",
+      "statement": "Superhuman raised about $800,000 in Q4 2014, almost all from people who had backed Rahul Vohra before.",
       "claim_kind": "funding",
       "subject_ref": {
         "type": "target",
@@ -4194,7 +4195,7 @@
     },
     {
       "id": "01a10e69-a992-7119-9339-00ef7a6b653d",
-      "statement": "The founder planned virality, including email signatures, as a core growth channel for Superhuman, making brand important.",
+      "statement": "Rahul Vohra planned virality, including email signatures, as a core growth channel for Superhuman, making brand important.",
       "claim_kind": "acquisition_channel",
       "subject_ref": {
         "type": "target",
@@ -4236,7 +4237,7 @@
     },
     {
       "id": "01a10e69-a992-711d-9b38-5ecd05605f70",
-      "statement": "The founder spent about six weeks in early 2015 writing the roughly 1000-word landing page copy for Superhuman.",
+      "statement": "Rahul Vohra spent about six weeks in early 2015 writing the roughly 1000-word landing page copy for Superhuman.",
       "claim_kind": "tactic",
       "subject_ref": {
         "type": "target",
@@ -4278,7 +4279,7 @@
     },
     {
       "id": "01a10e69-a992-7121-8b14-bc280240d7f2",
-      "statement": "By May or June 2015 Superhuman had roughly $1–2.5 million in the bank, the co-founders and a first engineer.",
+      "statement": "By May or June 2015 Superhuman had roughly $1–2.5 million in the bank, co-founders Conrad Irwin and Vivek Sodera, and a first engineer.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -4320,7 +4321,7 @@
     },
     {
       "id": "01a10e69-a992-7125-8ca8-7a1b792dfa30",
-      "statement": "Every Superhuman signup received an automated email from the founder asking what they use for email and what they hate about it.",
+      "statement": "Every Superhuman signup received an automated email from Rahul asking what they use for email and what they hate about it.",
       "claim_kind": "tactic",
       "subject_ref": {
         "type": "target",
@@ -4404,7 +4405,7 @@
     },
     {
       "id": "01a10e69-a992-712d-8b71-107d33892722",
-      "statement": "Superhuman planned to launch Superhuman for Outlook to expand beyond Google Workspace, which the founder said is about 11% of the productivity ecosystem.",
+      "statement": "Superhuman planned to launch Superhuman for Outlook to expand beyond Google Workspace, which Rahul Vohra said is about 11% of the productivity ecosystem.",
       "claim_kind": "product_change",
       "subject_ref": {
         "type": "target",
@@ -4551,7 +4552,7 @@
     },
     {
       "id": "01a10e69-a993-73ee-adbe-bf2f23891a8e",
-      "statement": "A year before the interview, Superhuman scaled onboarding from two to six people without growing its single-person support team, causing a backlog and degraded service.",
+      "statement": "The company has said that a year before the interview it scaled onboarding from two to six people without growing its single-person support team, which caused a backlog and degraded service.",
       "claim_kind": "failure_or_reversal",
       "subject_ref": {
         "type": "target",
@@ -4572,7 +4573,7 @@
     },
     {
       "id": "01a10e69-a993-73f0-a74f-3d02104b5e6c",
-      "statement": "The founder interviewed over 1,000 people about their email around 2014-2015 to validate Superhuman.",
+      "statement": "Rahul Vohra interviewed over 1,000 people about their email around 2014-2015 to validate Superhuman.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -4593,7 +4594,7 @@
     },
     {
       "id": "01a10e69-a993-73f2-8deb-4c8b21d07926",
-      "statement": "Superhuman was founded by the founder after he sold Rapportive to LinkedIn in 2012 and worked there about two years.",
+      "statement": "Superhuman was founded by Rahul Vohra after he sold Rapportive to LinkedIn in 2012 and worked there about two years.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -4656,7 +4657,7 @@
     },
     {
       "id": "01a10e69-a993-73f8-bfee-5b6702090c36",
-      "statement": "The founder says Superhuman's growth after initial contacts came entirely from word of mouth and referral.",
+      "statement": "Rahul Vohra says Superhuman's growth after initial contacts came entirely from word of mouth and referral.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -4824,7 +4825,7 @@
     },
     {
       "id": "01a10e69-a993-7408-a066-9646bfe3e0bd",
-      "statement": "The founder resisted team pressure to launch Superhuman because he believed it lacked product-market fit.",
+      "statement": "Rahul Vohra resisted team pressure to launch Superhuman because he believed it lacked product-market fit.",
       "claim_kind": "strategy",
       "subject_ref": {
         "type": "target",
@@ -4908,7 +4909,7 @@
     },
     {
       "id": "01a10e69-a993-7410-9869-196104d45973",
-      "statement": "The founder wrote up Superhuman's product-market fit engine on First Round, which became their most widely shared entrepreneurship article of that year.",
+      "statement": "Rahul Vohra wrote up Superhuman's product-market fit engine on First Round, which became their most widely shared entrepreneurship article of that year.",
       "claim_kind": "press",
       "subject_ref": {
         "type": "target",
@@ -4992,7 +4993,7 @@
     },
     {
       "id": "01a10e69-a993-7418-be5a-227f8896f6a9",
-      "statement": "The founder offered Superhuman invites to listeners who email him directly.",
+      "statement": "Rahul Vohra offered Superhuman invites to listeners who email him directly.",
       "claim_kind": "tactic",
       "subject_ref": {
         "type": "target",
@@ -5013,7 +5014,7 @@
     },
     {
       "id": "01a10e69-a993-741c-8432-ce239a511019",
-      "statement": "The founder first sketched the concept and business model for Superhuman in February 2014.",
+      "statement": "Rahul Vohra first sketched the concept and business model for Superhuman in February 2014.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -5139,7 +5140,7 @@
     },
     {
       "id": "01a10e69-a993-7428-8eff-53e09936c5fe",
-      "statement": "The founder says a Medium post on surviving an acquisition, written in response to the Mailbox shutdown and syndicated to qz.com, drove north of 5,000 signups.",
+      "statement": "Rahul Vohra says a Medium post on surviving an acquisition, written in response to the Mailbox shutdown and syndicated to qz.com, drove north of 5,000 signups.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -5223,7 +5224,7 @@
     },
     {
       "id": "01a10e69-a993-7430-878e-61a7cbb45222",
-      "statement": "The founder manually onboarded Superhuman's first 100 customers in 1–1.5 hour sessions.",
+      "statement": "Rahul Vohra manually onboarded Superhuman's first 100 customers in 1–1.5 hour sessions.",
       "claim_kind": "first_users",
       "subject_ref": {
         "type": "target",
@@ -5391,7 +5392,7 @@
     },
     {
       "id": "01a10e69-a994-7364-970e-430ad554a288",
-      "statement": "Superhuman CEO said the best way to get access to Superhuman was a referral from an existing user, with website signup being slower.",
+      "statement": "Superhuman CEO Rahul Vohra said the best way to get access to Superhuman was a referral from an existing user, with website signup being slower.",
       "claim_kind": "acquisition_channel",
       "subject_ref": {
         "type": "target",
@@ -5433,7 +5434,7 @@
     },
     {
       "id": "01a10e69-a994-7368-89d8-4791b807b156",
-      "statement": "The founder cited an investor Graham's 'build Gmail but fast' idea, public about 10 years before Superhuman started, as related to Superhuman's idea.",
+      "statement": "Rahul Vohra cited an investor Graham's 'build Gmail but fast' idea, public about 10 years before Superhuman started, as related to Superhuman's idea.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -5454,7 +5455,7 @@
     },
     {
       "id": "01a10e69-a994-736a-bb89-057882500c4c",
-      "statement": "Superhuman was hiring its first product manager; the founder had carried product for a number of years.",
+      "statement": "Superhuman was hiring its first product manager; Rahul Vohra had carried product for a number of years.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -5475,7 +5476,7 @@
     },
     {
       "id": "01a10e69-a994-736c-be57-4e7dbce9b2fc",
-      "statement": "Superhuman initially targeted business people and executives spending hours a day on email, and the founder believed that market alone could support a multibillion dollar company.",
+      "statement": "Superhuman initially targeted business people and executives spending hours a day on email, and Rahul Vohra believed that market alone could support a multibillion dollar company.",
       "claim_kind": "positioning",
       "subject_ref": {
         "type": "target",
@@ -5517,7 +5518,7 @@
     },
     {
       "id": "01a10e69-a994-7372-a245-2866fdb123d5",
-      "statement": "The founder started Superhuman Mail in 2014.",
+      "statement": "Rahul Vohra started Superhuman Mail in 2014.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -5916,7 +5917,7 @@
     },
     {
       "id": "01a10e69-a994-7398-8950-e5d38db220bf",
-      "statement": "The founder worked solo on Superhuman for nine months, raising the first $1 million by himself before bringing on co-founders.",
+      "statement": "Rahul Vohra worked solo on Superhuman for nine months, raising the first $1 million by himself before bringing on co-founders.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -5937,7 +5938,7 @@
     },
     {
       "id": "01a10e69-a994-739a-af0a-70d1cc46a206",
-      "statement": "A co-founder joined as Superhuman's operations co-founder and a co-founder as CTO.",
+      "statement": "Vivek Sodera joined as Superhuman's operations co-founder and Conrad Irwin as CTO.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -6168,7 +6169,7 @@
     },
     {
       "id": "01a10e69-a994-73b2-929a-01a85f03286d",
-      "statement": "The founder hired a president to handle operations, raising his time on product, design and marketing from 6-7% to 60-70%.",
+      "statement": "Rahul Vohra hired a president to handle operations, raising his time on product, design and marketing from 6-7% to 60-70%.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -6189,7 +6190,7 @@
     },
     {
       "id": "01a10e69-a994-73b4-852b-90537b4302f3",
-      "statement": "Superhuman is a roughly 10-year-old company whose original co-founders other than the founder have departed.",
+      "statement": "Superhuman is a roughly 10-year-old company whose original co-founders other than Rahul have departed.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -6210,7 +6211,7 @@
     },
     {
       "id": "01a10e69-a995-71cd-b249-4558bfff6b9d",
-      "statement": "The founder previously founded Rapportive, a Gmail plug-in sold to LinkedIn in 2012.",
+      "statement": "Rahul Vohra previously founded Rapportive, a Gmail plug-in sold to LinkedIn in 2012.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -6231,7 +6232,7 @@
     },
     {
       "id": "01a10e69-a995-71cf-8596-0e23612ca9ad",
-      "statement": "The founder spent six months perfecting Superhuman's typography, choosing a modified Adelle Sans after testing 15 fonts.",
+      "statement": "Rahul spent six months perfecting Superhuman's typography, choosing a modified Adelle Sans after testing 15 fonts.",
       "claim_kind": "product_change",
       "subject_ref": {
         "type": "target",
@@ -6609,7 +6610,7 @@
     },
     {
       "id": "01a10e69-a995-71f7-8e83-f8f7f60f0e4e",
-      "statement": "The founder's previous startup Rapportive was acquired by LinkedIn.",
+      "statement": "Founder Rahul Vohra's previous startup Rapportive was acquired by LinkedIn.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -6735,7 +6736,7 @@
     },
     {
       "id": "01a10e69-a995-7211-a3b9-fde7c6c24ffe",
-      "statement": "The founder previously founded Rapportive in 2010, a Gmail plugin acquired by LinkedIn about two years later.",
+      "statement": "Rahul Vohra previously founded Rapportive in 2010, a Gmail plugin acquired by LinkedIn about two years later.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -6777,7 +6778,7 @@
     },
     {
       "id": "01a10e69-a995-7215-a4d4-681ecf05a729",
-      "statement": "In April 2017 the founder began developing a way to measure product-market fit, leading to the product-market fit engine, because Superhuman faced a multi-year build.",
+      "statement": "In April 2017 Rahul Vohra began developing a way to measure product-market fit, leading to the product-market fit engine, because Superhuman faced a multi-year build.",
       "claim_kind": "strategy",
       "subject_ref": {
         "type": "target",
@@ -6882,7 +6883,7 @@
     },
     {
       "id": "01a10e69-a996-71bb-b5d6-afef7da7f43b",
-      "statement": "The founder personally onboarded Superhuman's first several hundred customers in one-to-two-hour sessions, including price analysis.",
+      "statement": "Rahul Vohra personally onboarded Superhuman's first several hundred customers in one-to-two-hour sessions, including price analysis.",
       "claim_kind": "first_users",
       "subject_ref": {
         "type": "target",
@@ -6924,7 +6925,7 @@
     },
     {
       "id": "01a10e69-a996-71bf-8d5f-31cde3e5f254",
-      "statement": "Onboarding scaled from the founder (10-15/week) to the head of growth (20-25/week) to growth generalists to 4-5 onboarding specialists doing 35-45 per week.",
+      "statement": "Onboarding scaled from Rahul Vohra (10-15/week) to the head of growth (20-25/week) to growth generalists to 4-5 onboarding specialists doing 35-45 per week.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -6966,7 +6967,7 @@
     },
     {
       "id": "01a10e69-a996-71c3-9153-70b7c7553e90",
-      "statement": "The founder says onboarded users had world-class retention, low churn, industry-leading virality and high NPS.",
+      "statement": "Rahul Vohra says onboarded users had world-class retention, low churn, industry-leading virality and high NPS.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -7281,7 +7282,7 @@
     },
     {
       "id": "01a10e69-a996-71e8-919d-19877a9fcc73",
-      "statement": "Grammarly acquired Coda at the end of 2023 and made Coda CEO CEO of the combined company.",
+      "statement": "Grammarly acquired Coda at the end of 2023 and made Coda CEO Shishir Mehrotra CEO of the combined company.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -7302,7 +7303,7 @@
     },
     {
       "id": "01a10e69-a996-71ea-b59e-d2d959416072",
-      "statement": "The CEO said the rebrand was motivated by Grammarly being misunderstood as only about grammar.",
+      "statement": "Mehrotra said the rebrand was motivated by Grammarly being misunderstood as only about grammar.",
       "claim_kind": "positioning",
       "subject_ref": {
         "type": "target",
@@ -7323,7 +7324,7 @@
     },
     {
       "id": "01a10e69-a996-71ec-b248-795c96f9fc27",
-      "statement": "The CEO said the company validated about 500,000 websites and applications where its AI agent can run.",
+      "statement": "Mehrotra said the company validated about 500,000 websites and applications where its AI agent can run.",
       "claim_kind": "metric",
       "subject_ref": {
         "type": "target",
@@ -7344,7 +7345,7 @@
     },
     {
       "id": "01a10e69-a996-71ee-b448-d14444c820f8",
-      "statement": "In July, Grammarly acquired the AI email app Superhuman, founded by the founder, who stayed as general manager of the email division.",
+      "statement": "In July, Grammarly acquired the AI email app Superhuman, founded by Rahul Vohra, who stayed as general manager of the email division.",
       "claim_kind": "partnership",
       "subject_ref": {
         "type": "target",
@@ -7428,7 +7429,7 @@
     },
     {
       "id": "01a10e69-a996-71f6-8cac-a789f38ae9e8",
-      "statement": "The CEO runs the company as a 'compound startup' with product lines operating as independent business units.",
+      "statement": "Mehrotra runs the company as a 'compound startup' with product lines operating as independent business units.",
       "claim_kind": "strategy",
       "subject_ref": {
         "type": "target",
@@ -7449,7 +7450,7 @@
     },
     {
       "id": "01a10e69-a996-71fa-92b4-6b401ae8af1d",
-      "statement": "Superhuman was founded by the founder and launched in 2017.",
+      "statement": "Superhuman was founded by Rahul Vohra and launched in 2017.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -7512,7 +7513,7 @@
     },
     {
       "id": "01a10e69-a996-7200-a120-8c40972f8fd3",
-      "statement": "The founder says Superhuman's waitlist exists to ensure every user is deliriously happy, not to create false scarcity.",
+      "statement": "Rahul Vohra says Superhuman's waitlist exists to ensure every user is deliriously happy, not to create false scarcity.",
       "claim_kind": "strategy",
       "subject_ref": {
         "type": "target",
@@ -7722,7 +7723,7 @@
     },
     {
       "id": "01a10e69-a997-7078-bce4-403e0753cb17",
-      "statement": "The founder previously sold his email startup Rapportive to LinkedIn before Superhuman.",
+      "statement": "Rahul Vohra previously sold his email startup Rapportive to LinkedIn before Superhuman.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -7785,7 +7786,7 @@
     },
     {
       "id": "01a10e69-a997-707e-b82a-501d9e61e743",
-      "statement": "The founder's article on surviving an acquisition, written in response to the Mailbox shutdown and syndicated to qz.com, brought over 5,000 signups.",
+      "statement": "Rahul's article on surviving an acquisition, written in response to the Mailbox shutdown and syndicated to qz.com, brought over 5,000 signups.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -7869,7 +7870,7 @@
     },
     {
       "id": "01a10e69-a997-7088-8fbf-51ad0c7f26cc",
-      "statement": "Superhuman used 30-minute one-on-one onboarding calls instead of a public launch; the founder personally onboarded the first 200 users.",
+      "statement": "Superhuman used 30-minute one-on-one onboarding calls instead of a public launch; Rahul personally onboarded the first 200 users.",
       "claim_kind": "tactic",
       "subject_ref": {
         "type": "target",
@@ -8310,7 +8311,7 @@
     },
     {
       "id": "01a10e69-a997-70b6-81ba-f53f5b0a8d8b",
-      "statement": "Superhuman founder previously founded Reportive and sold it to LinkedIn.",
+      "statement": "Superhuman founder Rahul Vohra previously founded Reportive and sold it to LinkedIn.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -8394,7 +8395,7 @@
     },
     {
       "id": "01a10e69-a997-70be-90d9-cd898f279370",
-      "statement": "The founder spent six weeks perfecting Superhuman's landing page copy and wireframes, using Balsamiq for wireframes.",
+      "statement": "Rahul Vohra spent six weeks perfecting Superhuman's landing page copy and wireframes, using Balsamiq for wireframes.",
       "claim_kind": "tactic",
       "subject_ref": {
         "type": "target",
@@ -8478,7 +8479,7 @@
     },
     {
       "id": "01a10e69-a997-70c6-96d6-5438b1fa1bcc",
-      "statement": "The founder emailed waitlist sign-ups asking what they used for email and what they hated about it, interviewing over 700 prospective customers in the first year.",
+      "statement": "Rahul Vohra emailed waitlist sign-ups asking what they used for email and what they hated about it, interviewing over 700 prospective customers in the first year.",
       "claim_kind": "first_users",
       "subject_ref": {
         "type": "target",
@@ -8541,7 +8542,7 @@
     },
     {
       "id": "01a10e69-a998-728f-a9c8-e343f757f2bb",
-      "statement": "The founder's First Round Review article on product-market fit drives organic traffic and leads to Superhuman.",
+      "statement": "Rahul Vohra's First Round Review article on product-market fit drives organic traffic and leads to Superhuman.",
       "claim_kind": "acquisition_channel",
       "subject_ref": {
         "type": "target",
@@ -8982,7 +8983,7 @@
     },
     {
       "id": "01a10e69-a998-72bd-9cac-a0187531ca99",
-      "statement": "The founder limited Superhuman's growth to 100 new users per week.",
+      "statement": "Rahul Vohra limited Superhuman's growth to 100 new users per week.",
       "claim_kind": "strategy",
       "subject_ref": {
         "type": "target",
@@ -9045,7 +9046,7 @@
     },
     {
       "id": "01a10e69-a998-72c5-9d5f-f2a4f576c7f9",
-      "statement": "Superhuman was founded in 2015 by the founder, a co-founder, and a co-founder.",
+      "statement": "Superhuman was founded in 2015 by Rahul Vohra, Conrad Irwin, and Vivek Sodera.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -9066,7 +9067,7 @@
     },
     {
       "id": "01a10e69-a998-72c7-845c-5ba3f7bf2a48",
-      "statement": "The founder conceived Superhuman from observing Gmail's worsening experience due to Chrome extensions while working on Rapportive, and began building it after leaving LinkedIn in 2014.",
+      "statement": "Rahul Vohra conceived Superhuman from observing Gmail's worsening experience due to Chrome extensions while working on Rapportive, and began building it after leaving LinkedIn in 2014.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -9171,7 +9172,7 @@
     },
     {
       "id": "01a10e69-a998-72d1-97cb-6dba03dad6b2",
-      "statement": "The founder attributed Superhuman's early momentum to evergreen content, including his 2018 piece on product-market fit.",
+      "statement": "Rahul Vohra attributed Superhuman's early momentum to evergreen content, including his 2018 piece on product-market fit.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -9444,7 +9445,7 @@
     },
     {
       "id": "01a10e69-a999-73e0-8a81-a307b64f8b66",
-      "statement": "In October 2023 the CEO said much of Superhuman's recent growth came from teams.",
+      "statement": "In October 2023 CEO Rahul Vohra said much of Superhuman's recent growth came from teams.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -9675,7 +9676,7 @@
     },
     {
       "id": "01a10e69-a999-73fc-b430-cac61d3b7bfa",
-      "statement": "Superhuman was founded in 2014 by the founder.",
+      "statement": "Superhuman was founded in 2014 by Rahul Vohra.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -10011,7 +10012,7 @@
     },
     {
       "id": "01a10e69-a999-741e-a5e0-71facba682ed",
-      "statement": "In December 2024 Grammarly announced acquiring Coda, with Coda CEO becoming Grammarly's CEO.",
+      "statement": "In December 2024 Grammarly announced acquiring Coda, with Coda CEO Shishir Mehrotra becoming Grammarly's CEO.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -15006,7 +15007,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "You might know Rahul Vohra as the Founder and CEO of Superhuman Mail, which he…",
       "notes": null
     },
     {
@@ -15027,7 +15028,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "It was July 1st this year that we announced the acquisition",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -17337,7 +17338,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "That’s why Rahul Vohra started Superhuman in 2014.",
       "notes": null
     },
     {
@@ -17358,7 +17359,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "he was taking a break after selling his previous email startup to LinkedIn, Rapportive",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -18597,7 +18598,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "In 2019, Rahul Vohra's email company Superhuman had 275,000 people on their waitlist, each ready…",
       "notes": null
     },
     {
@@ -18618,7 +18619,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "each ready to pay $30/month",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -18702,7 +18703,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "Superhuman was founded in 2015 by Rahul Vohra (CEO), Conrad Irwin (CTO), and Vivek Sodera.",
       "notes": null
     },
     {
@@ -18723,7 +18724,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "This was when he thought of the idea for Superhuman and began building it after…",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -19332,7 +19333,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "Superhuman is an email app founded in 2014 by Rahul Vohra.",
       "notes": null
     },
     {
@@ -19353,7 +19354,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "It targets users who want to improve their productivity, and features liberal use of keyboard…",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -23036,8 +23037,8 @@
     {
       "id": "01a10e6b-9460-73bb-b80d-d301bc6d2ed2",
       "event_type": "other",
-      "title": "The founder incorporates Superhuman after leaving LinkedIn",
-      "summary": "The founder sketched the concept and business model and incorporated Superhuman in February 2014, after selling Rapportive to LinkedIn and working there about two years.",
+      "title": "Rahul Vohra incorporates Superhuman after leaving LinkedIn",
+      "summary": "Rahul Vohra sketched the concept and business model and incorporated Superhuman in February 2014, after selling Rapportive to LinkedIn and working there about two years.",
       "time": {
         "start": "2014-02-01T00:00:00Z",
         "end": "2014-02-28T23:59:59Z",
@@ -23063,7 +23064,7 @@
       "id": "01a10e6b-9460-73c2-9659-f612ba059d7c",
       "event_type": "funding",
       "title": "Seed round raised and superhuman.com domain bought",
-      "summary": "Superhuman raised roughly $750K–$800K in seed money, mostly from people who had backed the founder before, with Boldstart writing the first check. It bought the superhuman.com domain for $175,000, paid interest-free over seven years.",
+      "summary": "Superhuman raised roughly $750K–$800K in seed money, mostly from people who had backed Rahul Vohra before, with Boldstart writing the first check. It bought the superhuman.com domain for $175,000, paid interest-free over seven years.",
       "time": {
         "start": "2014-01-01T00:00:00Z",
         "end": "2014-12-31T23:59:59Z",
@@ -23115,7 +23116,7 @@
       "id": "01a10e6b-9460-73ce-a7c6-c98d89798cc0",
       "event_type": "launch",
       "title": "First landing page goes live",
-      "summary": "The first landing page went live around May or June 2015 and drew 10 to 30 signups per day. Every signup got an automated email from the founder asking what email they used and what they hated about it.",
+      "summary": "The first landing page went live around May or June 2015 and drew 10 to 30 signups per day. Every signup got an automated email from Rahul asking what email they used and what they hated about it.",
       "time": {
         "start": "2015-01-01T00:00:00Z",
         "end": "2015-12-31T23:59:59Z",
@@ -23141,7 +23142,7 @@
       "id": "01a10e6b-9460-73d2-a9a7-a3ad14c9df07",
       "event_type": "metric_milestone",
       "title": "First product-market fit survey scores 22%",
-      "summary": "Superhuman's first Sean Ellis-style survey, sent to 100–200 users in summer 2017, found 22% would be very disappointed without the product. In April 2017 the founder had begun developing a way to measure product-market fit.",
+      "summary": "Superhuman's first Sean Ellis-style survey, sent to 100–200 users in summer 2017, found 22% would be very disappointed without the product. In April 2017 Rahul Vohra had begun developing a way to measure product-market fit.",
       "time": {
         "start": "2017-01-01T00:00:00Z",
         "end": "2017-12-31T23:59:59Z",
@@ -23198,7 +23199,7 @@
       "id": "01a10e6b-9460-73de-a5a0-cc2271345599",
       "event_type": "content",
       "title": "Product-market fit engine article published on First Round",
-      "summary": "The founder wrote up Superhuman's product-market fit engine on First Round. He later attributed early momentum to this kind of evergreen content.",
+      "summary": "Rahul Vohra wrote up Superhuman's product-market fit engine on First Round. He later attributed early momentum to this kind of evergreen content.",
       "time": {
         "start": "2018-01-01T00:00:00Z",
         "end": "2018-12-31T23:59:59Z",
@@ -23405,7 +23406,7 @@
       "id": "01a10e6b-9461-7360-91ff-03f1739d59f0",
       "event_type": "other",
       "title": "Grammarly announces acquisition of Coda",
-      "summary": "Grammarly announced its acquisition of Coda around December 17, 2024. Coda CEO became Grammarly's CEO.",
+      "summary": "Grammarly announced its acquisition of Coda around December 17, 2024. Coda CEO Shishir Mehrotra became Grammarly's CEO.",
       "time": {
         "start": "2024-12-17T00:00:00Z",
         "end": "2024-12-17T23:59:59Z",
@@ -23450,7 +23451,7 @@
       "id": "01a10e6b-9461-7365-982e-29303d2a289a",
       "event_type": "milestone",
       "title": "Grammarly announces acquisition of Superhuman",
-      "summary": "Grammarly announced on July 1, 2025 that it would acquire the Superhuman email app for an undisclosed amount. The founder stayed on as general manager of the email division.",
+      "summary": "Grammarly announced on July 1, 2025 that it would acquire the Superhuman email app for an undisclosed amount. Rahul Vohra stayed on as general manager of the email division.",
       "time": {
         "start": "2025-07-01T00:00:00Z",
         "end": "2025-07-01T23:59:59Z",
@@ -23630,7 +23631,7 @@
       "id": "01a10e6b-9461-738e-a88e-628b25de4244",
       "event_type": "other",
       "title": "Fathom AI notetaker acquired",
-      "summary": "Superhuman acquired Fathom, an AI meeting notetaker. The CEO said users had long asked for an integrated notetaker.",
+      "summary": "Superhuman acquired Fathom, an AI meeting notetaker. CEO Shishir Mehrotra said users had long asked for an integrated notetaker.",
       "time": {
         "start": null,
         "end": null,
@@ -23932,7 +23933,7 @@
         "01a10e69-a993-73fe-81ce-3fa18240cf6b"
       ],
       "review_state": "machine_extracted",
-      "public_attribution": "company reported"
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e6b-9463-70e5-a268-a5ba7e9c2169",
@@ -24186,7 +24187,7 @@
         "01a10e69-a996-71fc-af1b-47f968541ce1"
       ],
       "review_state": "machine_extracted",
-      "public_attribution": "company reported"
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e6b-9465-7284-b8ba-c01430406464",
@@ -24235,7 +24236,7 @@
     {
       "id": "01a10e6b-9465-728a-abe5-5756d076fc45",
       "metric_key": "organizations",
-      "label": "Organizations served",
+      "label": "Organizations served (combined company)",
       "value_numeric": 50000.0,
       "value_text": null,
       "unit": "organizations",
@@ -24273,14 +24274,14 @@
         "01a10e69-a994-737c-8e36-3bb2dd2558d0"
       ],
       "review_state": "machine_extracted",
-      "public_attribution": "company reported"
+      "public_attribution": "third-party reported"
     }
   ],
   "company_stages": [
     {
       "id": "01a10e6b-9465-7299-b0fa-9b8b03f2402e",
       "label": "Pre-launch, seed-funded build",
-      "summary": "The founder incorporated Superhuman in 2014 after leaving LinkedIn and raised a seed round of roughly $750k–$800k; the amount differs between sources. The first version was desktop/Chrome and Gmail only and took most of 18 months to build. Two to three years in, there were still no customers and few outside users, and the team chose not to launch publicly.",
+      "summary": "Rahul Vohra incorporated Superhuman in 2014 after leaving LinkedIn and raised a seed round of roughly $750k–$800k; the amount differs between sources. The first version was desktop/Chrome and Gmail only and took most of 18 months to build. Two to three years in, there were still no customers and few outside users, and the team chose not to launch publicly.",
       "time": {
         "start": "2014-02-01T00:00:00Z",
         "end": "2017-12-31T23:59:59Z",
@@ -24684,7 +24685,7 @@
         "precision": "year",
         "label": "2017 – c. 2023"
       },
-      "implementation": "The founder personally onboarded the early customers; sources variously say the first 100, 200 or several hundred. The work then scaled to onboarding specialists, with sources citing 14 and up to 20 full-time people at peak.",
+      "implementation": "Rahul Vohra personally onboarded the early customers; sources variously say the first 100, 200 or several hundred. The work then scaled to onboarding specialists, with sources citing 14 and up to 20 full-time people at peak.",
       "outcome_ids": [],
       "claim_ids": [
         "01a10e69-a993-7430-878e-61a7cbb45222",
@@ -24812,7 +24813,7 @@
         "precision": "year",
         "label": "2018"
       },
-      "implementation": "The founder published the product-market fit engine on First Round Review. It became that outlet's most widely shared entrepreneurship article of the year.",
+      "implementation": "Rahul Vohra published the product-market fit engine on First Round Review. It became that outlet's most widely shared entrepreneurship article of the year.",
       "outcome_ids": [],
       "claim_ids": [
         "01a10e69-a993-7410-9869-196104d45973",
@@ -24977,7 +24978,7 @@
         "label": "2018 onward"
       },
       "state": "unknown",
-      "strength": "The founder credits evergreen content with early momentum.",
+      "strength": "Rahul Vohra credits evergreen content with early momentum.",
       "tactic_occurrence_ids": [],
       "outcome_ids": [],
       "claim_ids": [
@@ -25079,7 +25080,7 @@
     },
     {
       "id": "01a10e6b-9465-72de-9daf-7e31c328ef61",
-      "summary": "In October 2023, the founder said much of Superhuman's recent growth came from teams.",
+      "summary": "In October 2023, Rahul Vohra said much of Superhuman's recent growth came from teams.",
       "event_id": null,
       "tactic_occurrence_id": null,
       "metric_snapshot_ids": [],
@@ -25091,7 +25092,7 @@
     },
     {
       "id": "01a10e6b-9465-72e0-bce4-3257a32dc7ff",
-      "summary": "The founder attributes easier hiring, selling, marketing and fundraising to the product-market fit engine.",
+      "summary": "Rahul Vohra attributes easier hiring, selling, marketing and fundraising to the product-market fit engine.",
       "event_id": null,
       "tactic_occurrence_id": null,
       "metric_snapshot_ids": [],
@@ -25248,7 +25249,7 @@
     {
       "id": "01a10e6b-9465-72ea-a597-5aee8fabaee0",
       "name": "Narrow platform coverage",
-      "description": "The product initially supported only Gmail on macOS and Chrome, which covered about 11% of the productivity ecosystem by the founder's estimate. Outlook support arrived later.",
+      "description": "The product initially supported only Gmail on macOS and Chrome, which covered about 11% of the productivity ecosystem by Rahul Vohra's estimate. Outlook support arrived later.",
       "applies_to_refs": [],
       "claim_ids": [
         "01a10e69-a995-71d9-915f-d671fe9dce0c",
@@ -25261,7 +25262,7 @@
     {
       "id": "01a10e6b-9465-72eb-acba-b788f0bd066e",
       "name": "Scaling human onboarding",
-      "description": "Expanding onboarding staff without growing support caused a backlog and degraded service. Personalized onboarding was phased out around 2023, as onboarding shifted from mostly concierge to mostly self-service.",
+      "description": "The company has said that expanding onboarding staff without growing support caused a backlog and degraded service. Personalized onboarding was phased out around 2023, as onboarding shifted from mostly concierge to mostly self-service.",
       "applies_to_refs": [],
       "claim_ids": [
         "01a10e69-a993-73ee-adbe-bf2f23891a8e",
@@ -25274,7 +25275,7 @@
     {
       "id": "01a10e6b-9465-72ec-b5e6-d50cd58c723c",
       "name": "Long-term churn",
-      "description": "Long-term churn slowly eroded cohorts, risking slower growth.",
+      "description": "The company has said that long-term churn slowly eroded cohorts, risking slower growth.",
       "applies_to_refs": [],
       "claim_ids": [
         "01a10e69-a997-709e-82ff-1a76f9403269"
@@ -25420,7 +25421,7 @@
     },
     {
       "id": "01a10e6b-9466-7200-845e-be5c8aeff295",
-      "summary": "The founder's personal onboarding is described as covering the first 100, the first 200, or the first several hundred customers.",
+      "summary": "Rahul Vohra's personal onboarding is described as covering the first 100, the first 200, or the first several hundred customers.",
       "claim_ids": [
         "01a10e69-a993-7430-878e-61a7cbb45222",
         "01a10e69-a997-7088-8fbf-51ad0c7f26cc",
@@ -25682,7 +25683,7 @@
       "inference_strength": "explicit"
     },
     "origin": {
-      "text": "The founder founded Rapportive, a Gmail plug-in, and sold it to LinkedIn in 2012. He worked there for about two years, then sketched the concept and incorporated Superhuman in February 2014. He says he conceived it because Gmail and its plugins were getting slower and more cluttered. The idea was a fast, keyboard-driven, offline-capable email client, pitched as 'the fastest email experience ever made.' He raised a seed round of roughly $750K–$800K, mostly from earlier backers, and bought superhuman.com for $175,000, paid over seven years. From the start he planned virality, including email signatures, as a core channel. Design began in January 2015, and the first code was written on May 4, 2015.",
+      "text": "Rahul Vohra founded Rapportive, a Gmail plug-in, and sold it to LinkedIn in 2012. He worked there for about two years, then sketched the concept and incorporated Superhuman in February 2014. He says he conceived it because Gmail and its plugins were getting slower and more cluttered. The idea was a fast, keyboard-driven, offline-capable email client, pitched as 'the fastest email experience ever made.' He raised a seed round of roughly $750K–$800K, mostly from earlier backers, and bought superhuman.com for $175,000, paid over seven years. From the start he planned virality, including email signatures, as a core channel. Design began in January 2015, and the first code was written on May 4, 2015.",
       "claim_ids": [
         "01a10e69-a995-71cd-b249-4558bfff6b9d",
         "01a10e69-a993-73f2-8deb-4c8b21d07926",
@@ -25700,7 +25701,7 @@
       "inference_strength": "explicit"
     },
     "first_users": {
-      "text": "A landing page went live around May or June 2015 and drew 10–30 signups a day. Each signup got an automated email from the founder asking what email tool they used and what they hated about it. Sources put the number of first-year interviews at about 700 or about 1,000. A Medium post about surviving an acquisition, written after the Mailbox shutdown, reportedly brought more than 5,000 signups. Early targets were founders, VCs, executives and managers at high-growth tech companies. The founder personally onboarded the first 100–200 or so customers in long sessions. According to the company, no early user got the product free; even investors paid.",
+      "text": "A landing page went live around May or June 2015 and drew 10–30 signups a day. Each signup got an automated email from Rahul Vohra asking what email tool they used and what they hated about it. Sources put the number of first-year interviews at about 700 or about 1,000. A Medium post about surviving an acquisition, written after the Mailbox shutdown, reportedly brought more than 5,000 signups. Early targets were founders, VCs, executives and managers at high-growth tech companies. Rahul Vohra personally onboarded the first 100–200 or so customers in long sessions. According to the company, no early user got the product free; even investors paid.",
       "claim_ids": [
         "01a10e69-a992-7123-8be7-acb29b8f4823",
         "01a10e69-a992-7125-8ca8-7a1b792dfa30",
@@ -25735,7 +25736,7 @@
       "inference_strength": "strong_inference"
     },
     "did_differently": {
-      "text": "Superhuman stands out for withholding a public launch until a measurable product-market fit signal improved, rather than launching early. The founder has described resisting team pressure to launch. According to the founder, the 'very disappointed' share was made the sole key result of a product OKR. Superhuman also used human onboarding as its go-to-market for a $30-a-month product. It priced at the premium end using a Van Westendorp survey and offered no freemium tier, in contrast to free incumbents.",
+      "text": "Superhuman stands out for withholding a public launch until a measurable product-market fit signal improved, rather than launching early. Rahul Vohra has described resisting team pressure to launch. According to Rahul Vohra, the 'very disappointed' share was made the sole key result of a product OKR. Superhuman also used human onboarding as its go-to-market for a $30-a-month product. It priced at the premium end using a Van Westendorp survey and offered no freemium tier, in contrast to free incumbents.",
       "claim_ids": [
         "01a10e69-a993-7408-a066-9646bfe3e0bd",
         "01a10e69-a993-7434-9e46-8e2397a80519",
@@ -25752,7 +25753,7 @@
     },
     "key_takeaways": [
       {
-        "text": "Segmenting the product-market fit survey changed the picture. Superhuman's score was 22% in summer 2017, and focusing on its target personas raised it to about 32–33%. Product work over three quarters followed, and the score reached 58%. The roadmap was split between deepening what fans liked and fixing gaps such as mobile. The founder says the company scaled up once the score was consistently above 40%.",
+        "text": "Segmenting the product-market fit survey changed the picture. Superhuman's score was 22% in summer 2017, and focusing on its target personas raised it to about 32–33%. Product work over three quarters followed, and the score reached 58%. The roadmap was split between deepening what fans liked and fixing gaps such as mobile. Rahul Vohra says the company scaled up once the score was consistently above 40%.",
         "claim_ids": [
           "01a10e69-a98c-70d7-ab2e-32f1e36bad87",
           "01a10e69-a98c-70d9-bc72-913a42b36120",
@@ -25777,7 +25778,7 @@
         "inference_strength": "explicit"
       },
       {
-        "text": "Concierge onboarding was costly to scale. In one period, onboarding grew from two to six people while support stayed at one person, which led to a backlog and degraded service. The company later shifted from 85% concierge to 85% self-service onboarding and phased out personalized onboarding around 2023.",
+        "text": "Concierge onboarding was costly to scale. The company has said that in one period onboarding grew from two to six people while support stayed at one person, which led to a backlog and degraded service. It later shifted from 85% concierge to 85% self-service onboarding and phased out personalized onboarding around 2023.",
         "claim_ids": [
           "01a10e69-a993-73ee-adbe-bf2f23891a8e",
           "01a10e69-a994-73a6-b0f1-7f9a70bac102",
@@ -25788,7 +25789,7 @@
         "inference_strength": "explicit"
       },
       {
-        "text": "Sharing an internal framework publicly appears to have worked as long-lived marketing. The founder's First Round article on the product-market fit engine became that year's most widely shared entrepreneurship piece on the site. He credits this kind of evergreen content with early momentum and ongoing organic leads.",
+        "text": "Sharing an internal framework publicly appears to have worked as long-lived marketing. Rahul Vohra's First Round article on the product-market fit engine became that year's most widely shared entrepreneurship piece on the site. He credits this kind of evergreen content with early momentum and ongoing organic leads.",
         "claim_ids": [
           "01a10e69-a993-7410-9869-196104d45973",
           "01a10e69-a996-71c7-ba4d-5a542ae0f273",

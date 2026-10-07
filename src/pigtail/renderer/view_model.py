@@ -614,6 +614,8 @@ def build_view_model(bundle: ResearchBundle | dict, public: bool = False) -> dic
     for entry in sorted(metric_cards, key=lambda e: -len(e["rows"])):
         if len(stats) >= 4:
             break
+        if public and entry["attribution"] != "company reported":
+            continue  # the header (what people screenshot) shows company-reported figures only
         dated = [r for r in entry["rows"] if r["when"] != "Date unknown"]
         if not dated or len(entry["label"]) > 28:
             continue
@@ -711,6 +713,7 @@ def build_view_model(bundle: ResearchBundle | dict, public: bool = False) -> dic
             "url": safe_url(t["canonical_url"]),
             "domain": t["domain"],
             "description": t["description"],
+            "description_source": b.get("target_description_source"),
             "aliases": t["aliases"],
         },
         "repo": repo,

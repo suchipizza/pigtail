@@ -14,6 +14,9 @@ All notable changes to this project are listed here. Versions follow [SemVer](ht
 - `scripts/ai_review.py`: owner-authorized AI reviewer for publication-review items, recorded as AI
   decisions; examples carry `reviewed_by` and the website shows when a human review is pending.
 - Names shared by people with different roles (e.g. a surname) go to review instead of being guessed.
+- Owner review of Superhuman (2026-10-07): founders and executives are named in their role, private
+  individuals anonymised; real source titles kept; header shows company-reported figures only; relayed
+  third-party figures labelled as such; self-descriptions quoted; Wikipedia pages undated.
 - From the first owner review (2026-10-07): reviewer edits persist by object and survive finding changes
   (and can be added by hand); company-reported figures require a first-party source (estimate sites are
   "third-party estimate"); uncited sources are not listed; title-only sources are labelled; summaries are

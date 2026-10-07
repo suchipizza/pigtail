@@ -25,7 +25,8 @@
       <div>
         <div class="kicker">{{ {"repository": "Open-source project", "product": "Product", "company": "Company"}[vm.target.kind] }} growth forensic</div>
         <h1>{{ vm.target.name }}</h1>
-        {% if vm.target.description %}<p class="subtitle">{{ vm.target.description }}</p>{% endif %}
+        {% if vm.target.description and vm.target.description_source == "self_description" %}<p class="subtitle"><span class="muted">Self-description (<a href="{{ vm.target.url }}" target="_blank" rel="noopener">{{ vm.target.domain or vm.target.url | replace("https://", "") }}</a>):</span> “{{ vm.target.description }}”</p>
+        {% elif vm.target.description %}<p class="subtitle">{{ vm.target.description }}</p>{% endif %}
         <div class="tags">
           <a class="tag" href="{{ vm.target.url }}" target="_blank" rel="noopener">{{ vm.target.url | replace("https://", "") }} ↗</a>
           {% if vm.repo_url and vm.repo_url != vm.target.url %}<a class="tag" href="{{ vm.repo_url }}" target="_blank" rel="noopener">{{ vm.repo_url | replace("https://", "") }} ↗</a>{% endif %}

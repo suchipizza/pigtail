@@ -4,10 +4,10 @@
   "engine_version": "0.1.0",
   "target_name": "Plausible",
   "input_bundle_hash": "sha256:8d40b2e0816b73953036b2300ddf3b8d8f1d4e740b659971269f846f9a305c41",
-  "review_hash": "sha256:c31486061b14094ea973801879de0c5c0b0e90f9c6547cf1bbf84a8f78b9b76b",
-  "public_bundle_hash": "sha256:7e5cab6c519503f967205445114c2d94e6a62410c20e4ec84225602978cdcad8",
-  "report_hash": "sha256:ae20b1856b14b94baff8cfb41dbcd642b5b70c0693bc208b98eb5c904f34f5a8",
+  "review_hash": "sha256:f62c734a7fa56fa976fb363a8548ba23adc829eb90a170dc15beb20fa402879a",
+  "public_bundle_hash": "sha256:74b89be02fb1a60a9d2e3ca7415aa8145d8ce0c654523721a39a97d1902c2395",
+  "report_hash": "sha256:4fcad0e189f5e7126473fb9c93c66d79066f3430e57d233b6b313ff30f83aef9",
   "status": "PASS",
   "unresolved_findings": 0,
-  "generated_at": "2026-10-07T11:56:23Z"
+  "generated_at": "2026-10-07T12:40:23Z"
 }

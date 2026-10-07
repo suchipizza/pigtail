@@ -513,10 +513,28 @@ class PublicationGate:
                 return True
         return source.get("source_type") in FIRST_PARTY_TYPES
 
+    def _relayed_third_party(self, text: str) -> bool:
+        """'The New York Times reported…', 'according to Sacra', 'an unverified source said…' (PUB-010)."""
+        own = {self.b["target"]["name"].lower(), "the company", "the founders", "the founder", "it", "its", "they"}
+        for n in self.redactor.kept:  # the company's own named executives
+            own |= {n.lower(), *(w.lower() for w in n.split(" "))}
+        if re.search(r"\bunverified\b|\(\s*[^)]*\breport\)", text, re.I):
+            return True
+        for m in re.finditer(r"\b(?:according to|per|as reported by|reported by)\s+([^,.;]+)", text, re.I):
+            if m.group(1).strip().lower().split(" ")[0] not in own and not m.group(1).lower().startswith(tuple(own)):
+                return True
+        for m in re.finditer(r"([A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*)*)\s+(?:reported|estimated|estimates)\b", text):
+            if m.group(1).lower() not in own and m.group(1).lower() != self.b["target"]["name"].lower():
+                return True
+        return False
+
     def _metric_attribution(self, m: dict, links: dict[str, list[dict]], sources: dict[str, dict]) -> str:
         els = [el for cid in m["claim_ids"] for el in links.get(cid, [])]
         srcs = [sources[el["source_id"]] for el in els if el["source_id"] in sources]
-        stmts = " ".join(c["statement"] for c in self.b["claims"] if c["id"] in m["claim_ids"]).lower()
+        raw = " ".join(c["statement"] for c in self.b["claims"] if c["id"] in m["claim_ids"])
+        stmts = raw.lower()
+        if self._relayed_third_party(raw + " " + m["label"]):
+            return "third-party estimate" if "estimat" in stmts else "third-party reported"
         if any(
             self._first_party(sources[el["source_id"]]) and el["evidence_class"] in ("documented", "company_measured")
             for el in els
@@ -762,7 +780,12 @@ class PublicationGate:
             first_party = bool(cl) and all(self._first_party(sources[el["source_id"]]) for el in cl)
             if any(self._first_party(sources[el["source_id"]]) for el in cl):
                 self.first_party_claims.add(cid)
-            if first_party and (hit := scanners.absolute(text)) and not scanners.is_attributed(text):
+            if (
+                first_party
+                and (hit := scanners.absolute(text))
+                and not scanners.is_attributed(text)
+                and not self._relayed_third_party(text)
+            ):
                 label = f"According to {who}"
                 if any(sources[el["source_id"]]["source_type"] == "founder_interview" for el in cl):
                     label = "According to the founders"
@@ -902,6 +925,9 @@ class PublicationGate:
         n = 0
         for s in self.b["sources"]:
             why = scanners.suspicious_instant(s["published_at"], self.cutoff)
+            host = (urlparse(s.get("url") or "").hostname or "").removeprefix("www.")
+            if s["published_at"] and (host.endswith("wikipedia.org") or "/wiki/" in (s.get("url") or "")):
+                why = "wiki pages are living documents; their date is usually the page's creation date"
             if why:
                 n += 1
                 self.add(
@@ -1061,6 +1087,27 @@ class PublicationGate:
                 )
             title = s.get("title") or ""
             personal_post = s["surface_key"] in ("x", "reddit")  # post titles there usually name the poster
+            redacted = red.redact(title) or ""
+            # Keep the real title traceable; only an anonymised person's name is replaced.
+            if (
+                title
+                and not personal_post
+                and not scanners.finance_strong(title)
+                and redacted != title
+                and not red.residual(redacted)
+            ):
+                self.add(
+                    "PUB-008",
+                    "REDACT",
+                    "sources",
+                    s["id"],
+                    "A private individual's name in the title is replaced by their role.",
+                    fld="title",
+                    before=title,
+                    after=redacted,
+                )
+                s["title"] = redacted
+                continue
             if title and (personal_post or red.residual(title) or scanners.finance_strong(title)):
                 label = neutral_source_label(s, tdomain)
                 self.add(
@@ -1395,7 +1442,20 @@ class PublicationGate:
             )
 
         target = dict(b["target"])
+        reviewer_desc = ("target", target["id"], "description") in self.overrides
+        if target["description"] and not reviewer_desc:
+            # The target's own marketing line is shown as a quoted self-description, never as Pigtail's words.
+            self.add(
+                "PUB-012",
+                "RELABEL",
+                "target",
+                target["id"],
+                "The target's self-description is shown as a quote with its source, not in Pigtail's voice.",
+                fld="description",
+                before=target["description"],
+            )
         target["description"] = self._public_text("target", target["id"], "description", target["description"])
+        desc_source = None if not target["description"] else "reviewer" if reviewer_desc else "self_description"
         shown = self._display_name()
         if shown != target["name"]:
             self.add(
@@ -1429,6 +1489,7 @@ class PublicationGate:
                 "machine_generated": MACHINE_GENERATED_NOTICE,
             },
             "target": target,
+            "target_description_source": desc_source,
             "repositories": repos,
             "sources": sources,
             "source_fetches": fetches,

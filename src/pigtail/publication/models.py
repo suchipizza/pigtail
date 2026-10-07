@@ -92,6 +92,7 @@ class PublicReportBundle(_Strict):
     notices: PublicNotices
 
     target: Target
+    target_description_source: Literal["self_description", "reviewer"] | None = None
     repositories: list[Repository]
     sources: list[PublicSource]
     source_fetches: list[PublicSourceFetch]

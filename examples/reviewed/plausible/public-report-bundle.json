@@ -39,6 +39,7 @@
       "plausible.io"
     ]
   },
+  "target_description_source": "self_description",
   "repositories": [
     {
       "id": "01a10e6c-10c5-738b-a7ae-ac2af694417b",
@@ -1292,7 +1293,7 @@
       "canonical_url": "https://docs.opensaas.sh/blog/2025-02-27-meet-marko-saric-co-founder-of-privacy-friendly-plausible-analytics",
       "surface_key": "web",
       "source_type": "founder_interview",
-      "title": "Founder interview",
+      "title": "Meet Marko Saric, Co-founder of Privacy-friendly Plausible Analytics",
       "author": null,
       "published_at": "2025-02-27T00:00:00Z",
       "discovered_at": "2026-10-05T23:39:01Z",
@@ -1351,7 +1352,7 @@
       "source_type": "third_party_analysis",
       "title": "Plausible Analytics - Wikipedia",
       "author": null,
-      "published_at": "2025-02-15T00:00:00Z",
+      "published_at": null,
       "discovered_at": "2026-10-05T23:39:01Z",
       "policy": {
         "policy_key": "web",
@@ -2443,7 +2444,7 @@
     },
     {
       "id": "01a10e6c-25cf-7125-8318-81e6b51f2e2d",
-      "statement": "A Hacker News story titled “An alternative to using Google Analytics on your website” was posted by a co-founder on April 08, 2020; it had 462 points and 301 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “An alternative to using Google Analytics on your website” was posted by Marko Saric on April 08, 2020; it had 462 points and 301 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2464,7 +2465,7 @@
     },
     {
       "id": "01a10e6c-25cf-712a-b971-22bd1c68cd02",
-      "statement": "A Hacker News story titled “Show HN: Plausible – Self-Hosted Google Analytics alternative” was posted by a co-founder on October 06, 2020; it had 351 points and 139 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “Show HN: Plausible – Self-Hosted Google Analytics alternative” was posted by Marko Saric on October 06, 2020; it had 351 points and 139 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2485,7 +2486,7 @@
     },
     {
       "id": "01a10e6c-25cf-712f-a0c9-7a15fa662c04",
-      "statement": "A Hacker News story titled “How to pay your rent with your open source project” was posted by a co-founder on July 27, 2020; it had 342 points and 168 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “How to pay your rent with your open source project” was posted by Marko Saric on July 27, 2020; it had 342 points and 168 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2527,7 +2528,7 @@
     },
     {
       "id": "01a10e6c-25cf-7139-8f0e-1b9316ff324e",
-      "statement": "A Hacker News story titled “Why we’re changing to the AGPL license” was posted by a co-founder on October 13, 2020; it had 286 points and 254 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “Why we’re changing to the AGPL license” was posted by Marko Saric on October 13, 2020; it had 286 points and 254 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2590,7 +2591,7 @@
     },
     {
       "id": "01a10e6c-25d1-7062-9104-94fed9290819",
-      "statement": "A Hacker News story titled “Lessons from building and growing an open source SaaS” was posted by a co-founder on December 17, 2020; it had 173 points and 41 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “Lessons from building and growing an open source SaaS” was posted by Marko Saric on December 17, 2020; it had 173 points and 41 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -3619,7 +3620,7 @@
     },
     {
       "id": "01a10e6f-5d73-71c5-b2be-6eac3d0728e2",
-      "statement": "The founder wrote Plausible's first line of code in December 2018.",
+      "statement": "Uku wrote Plausible's first line of code in December 2018.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -3745,7 +3746,7 @@
     },
     {
       "id": "01a10e6f-5d73-71d1-9f5b-61a334bd1757",
-      "statement": "A marketer co-founder joined Plausible on March 16, 2020 after the founder cold-emailed her.",
+      "statement": "A marketer co-founder joined Plausible on March 16, 2020 after Uku cold-emailed her.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -4564,7 +4565,7 @@
     },
     {
       "id": "01a10e6f-5d75-731f-a166-8b4f1c6538c7",
-      "statement": "Plausible stopped being a solo project in March 2020 when the founder began working with the marketer.",
+      "statement": "Plausible stopped being a solo project in March 2020 when the founder began working with marketer Marko.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -4585,7 +4586,7 @@
     },
     {
       "id": "01a10e6f-5d75-7321-8438-cd9f48a80b42",
-      "statement": "The founder reached out to a co-founder after seeing his post on Google alternatives.",
+      "statement": "The founder reached out to Marko after seeing his post on Google alternatives.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -4606,7 +4607,7 @@
     },
     {
       "id": "01a10e6f-5d75-7323-8062-0ef09fd863bb",
-      "statement": "A co-founder improved Plausible's onboarding email sequences, rewrote landing page copy, and wrote articles.",
+      "statement": "Marko improved Plausible's onboarding email sequences, rewrote landing page copy, and wrote articles.",
       "claim_kind": "tactic",
       "subject_ref": {
         "type": "target",
@@ -4753,7 +4754,7 @@
     },
     {
       "id": "01a10e6f-5d76-723c-9102-27593f0beb9e",
-      "statement": "A marketing co-founder started working with the founder on Plausible on March 16th.",
+      "statement": "A marketing co-founder started working with Uku on Plausible on March 16th.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -5089,7 +5090,7 @@
     },
     {
       "id": "01a10e6f-5d76-725e-8296-122dccfa83d7",
-      "statement": "The founder started developing Plausible on his own in December 2018.",
+      "statement": "Uku started developing Plausible on his own in December 2018.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -5635,7 +5636,7 @@
     },
     {
       "id": "01a10e6f-5d77-70db-bc35-e3b90c81f94a",
-      "statement": "In 2020 Plausible had a few hundred paying customers when a co-founder joined to handle marketing and communications.",
+      "statement": "In 2020 Plausible had a few hundred paying customers when Marko Saric joined to handle marketing and communications.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -7504,7 +7505,7 @@
     },
     {
       "id": "01a10e6f-5d7a-7225-897f-ecd6825736eb",
-      "statement": "A co-founder's blog post about why to stop using Google Analytics reached the front page of Hacker News in April 2020.",
+      "statement": "Marko's blog post about why to stop using Google Analytics reached the front page of Hacker News in April 2020.",
       "claim_kind": "launch",
       "subject_ref": {
         "type": "target",
@@ -7966,7 +7967,7 @@
     },
     {
       "id": "01a10e6f-5d7b-712c-ab81-f28e35799ccd",
-      "statement": "The founder said it took about three months to get a simple beta of Plausible going initially.",
+      "statement": "Uku Täht said it took about three months to get a simple beta of Plausible going initially.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -7987,7 +7988,7 @@
     },
     {
       "id": "01a10e6f-5d7b-712e-9200-b3356fc9b448",
-      "statement": "Before writing code, the founder published a blog post inviting beta signups, shared it on Twitter and communities, and got about 20-30 interested people.",
+      "statement": "Before writing code, Uku Täht published a blog post inviting beta signups, shared it on Twitter and communities, and got about 20-30 interested people.",
       "claim_kind": "first_users",
       "subject_ref": {
         "type": "target",
@@ -8008,7 +8009,7 @@
     },
     {
       "id": "01a10e6f-5d7b-7130-a05a-d78e0c37a625",
-      "statement": "For about a year the founder tried blog posts, outreach emails for inclusion in Google Analytics alternative lists, Indie Hackers updates and Hacker News posts, with minor success.",
+      "statement": "For about a year Uku Täht tried blog posts, outreach emails for inclusion in Google Analytics alternative lists, Indie Hackers updates and Hacker News posts, with minor success.",
       "claim_kind": "acquisition_channel",
       "subject_ref": {
         "type": "target",
@@ -8029,7 +8030,7 @@
     },
     {
       "id": "01a10e6f-5d7b-7132-8e13-4e6b2fa58fa0",
-      "statement": "The founder found the marketer via a de-Googling blog post on Twitter in January and brought him on to handle marketing.",
+      "statement": "Uku Täht found marketer Marko Saric via a de-Googling blog post on Twitter in January and brought him on to handle marketing.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -8071,7 +8072,7 @@
     },
     {
       "id": "01a10e6f-5d7b-7136-bbc0-f2723f26aada",
-      "statement": "The founder prioritized cookie-free analytics as a differentiator to give people a reason to switch from Google Analytics.",
+      "statement": "Uku Täht prioritized cookie-free analytics as a differentiator to give people a reason to switch from Google Analytics.",
       "claim_kind": "product_change",
       "subject_ref": {
         "type": "target",
@@ -8113,7 +8114,7 @@
     },
     {
       "id": "01a10e6f-5d7b-713a-9bef-44b1a23cc45b",
-      "statement": "A co-founder's 'Why you should stop using Google Analytics' post was published on April 8.",
+      "statement": "Marko Saric's 'Why you should stop using Google Analytics' post was published on April 8.",
       "claim_kind": "launch",
       "subject_ref": {
         "type": "target",
@@ -8575,7 +8576,7 @@
     },
     {
       "id": "01a10e6f-5d7c-707f-a013-188141298ba2",
-      "statement": "At Plausible, co-founder focuses on development while the author focuses on communication.",
+      "statement": "At Plausible, co-founder Uku focuses on development while the author focuses on communication.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -8617,7 +8618,7 @@
     },
     {
       "id": "01a10e6f-5d7c-7085-b7f1-95ffbfca53f9",
-      "statement": "Plausible attributed its revenue growth to a co-founder's work on getting the word out.",
+      "statement": "Plausible attributed its revenue growth to Marko's work on getting the word out.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -9079,7 +9080,7 @@
     },
     {
       "id": "01a10e6f-5d7d-73af-a252-3ffc7db2002b",
-      "statement": "Plausible's site had 69k visitors in July 2020, up 151%, after a co-founder's article on paying rent with an open source project hit the Hacker News front page.",
+      "statement": "Plausible's site had 69k visitors in July 2020, up 151%, after Marko's article on paying rent with an open source project hit the Hacker News front page.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -9499,7 +9500,7 @@
     },
     {
       "id": "01a10e6f-5d7e-7272-b102-c2ee355120db",
-      "statement": "A co-founder ran Plausible's Product Hunt launch.",
+      "statement": "Marko ran Plausible's Product Hunt launch.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -10003,7 +10004,7 @@
     },
     {
       "id": "01a10e6f-5d7f-71cd-89f0-4387c7195437",
-      "statement": "Plausible attributes its October 2020 traffic and signup records to three articles by a co-founder that reached the Hacker News front page.",
+      "statement": "Plausible attributes its October 2020 traffic and signup records to three articles by Marko that reached the Hacker News front page.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -10192,7 +10193,7 @@
     },
     {
       "id": "01a10e6f-5d7f-71e3-afac-e1c620e8194e",
-      "statement": "A co-founder originally chose the MIT license for Plausible as the default.",
+      "statement": "Co-founder Uku originally chose the MIT license for Plausible as the default.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -10843,7 +10844,7 @@
     },
     {
       "id": "01a10e6f-5d80-73d4-ad8b-06d8247b9092",
-      "statement": "The founder started Plausible solo; the co-founder joined about a year and a half in to focus on marketing.",
+      "statement": "Uku started Plausible solo; the co-founder joined about a year and a half in to focus on marketing.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -11725,7 +11726,7 @@
     },
     {
       "id": "01a10e6f-5d81-72f8-b283-bbe2d97b0b4a",
-      "statement": "The founder released the first version of Plausible in summer 2019.",
+      "statement": "Uku released the first version of Plausible in summer 2019.",
       "claim_kind": "launch",
       "subject_ref": {
         "type": "target",
@@ -11746,7 +11747,7 @@
     },
     {
       "id": "01a10e6f-5d81-72fa-904c-ca20eab63bb0",
-      "statement": "Plausible was not open source initially; the founder open-sourced it about six months after starting, including billing code.",
+      "statement": "Plausible was not open source initially; Uku open-sourced it about six months after starting, including billing code.",
       "claim_kind": "strategy",
       "subject_ref": {
         "type": "target",
@@ -11767,7 +11768,7 @@
     },
     {
       "id": "01a10e6f-5d81-72fc-9525-85dca3d4aa37",
-      "statement": "A co-founder joined the founder in mid-March 2020, focusing on communication and marketing.",
+      "statement": "Marko Saric joined Uku as co-founder in mid-March 2020, focusing on communication and marketing.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -12145,7 +12146,7 @@
     },
     {
       "id": "01a10e6f-5d82-7323-a4d5-063da797efd2",
-      "statement": "Plausible's team consisted only of the two co-founders (development and design) and a co-founder (marketing and communication).",
+      "statement": "Plausible's team consisted only of the two co-founders (development and design) and Marko Saric (marketing and communication).",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -12166,7 +12167,7 @@
     },
     {
       "id": "01a10e6f-5d82-7325-8159-2a651270d777",
-      "statement": "When a co-founder joined about a year before the interview, Plausible was at about $400 MRR.",
+      "statement": "When Marko Saric joined about a year before the interview, Plausible was at about $400 MRR.",
       "claim_kind": "metric",
       "subject_ref": {
         "type": "target",
@@ -12334,7 +12335,7 @@
     },
     {
       "id": "01a10e6f-5d82-7337-993a-05cb471f98d3",
-      "statement": "A co-founder says most people adopt Plausible for compliance, simplicity and speed rather than privacy/open source positioning alone.",
+      "statement": "Marko Saric says most people adopt Plausible for compliance, simplicity and speed rather than privacy/open source positioning alone.",
       "claim_kind": "positioning",
       "subject_ref": {
         "type": "target",
@@ -12418,7 +12419,7 @@
     },
     {
       "id": "01a10e6f-5d82-7341-9973-d469521b95ed",
-      "statement": "The founder found a co-founder through a co-founder's blogging about ethical alternatives to Google tools.",
+      "statement": "Uku found Marko Saric through Marko's blogging about ethical alternatives to Google tools.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -12439,7 +12440,7 @@
     },
     {
       "id": "01a10e6f-5d82-7343-ba53-880fc6f3a9e4",
-      "statement": "The founder built and designed Plausible on his own over a couple of months in early 2019.",
+      "statement": "Uku built and designed Plausible on his own over a couple of months in early 2019.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -12460,7 +12461,7 @@
     },
     {
       "id": "01a10e6f-5d82-7345-b74c-9a9e751d34bc",
-      "statement": "The founder built Plausible in the open, sharing his process on a blog and engaging communities such as Indie Hackers.",
+      "statement": "Uku built Plausible in the open, sharing his process on a blog and engaging communities such as Indie Hackers.",
       "claim_kind": "tactic",
       "subject_ref": {
         "type": "target",
@@ -12565,7 +12566,7 @@
     },
     {
       "id": "01a10e6f-5d82-7351-863a-bee6f3e3dea1",
-      "statement": "A co-founder connected with Plausible co-founder through his blog where he shared privacy-friendly alternatives to big tech products.",
+      "statement": "Marko Saric connected with Plausible co-founder Uku through his blog where he shared privacy-friendly alternatives to big tech products.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -12691,7 +12692,7 @@
     },
     {
       "id": "01a10e6f-5d82-735d-9b42-1e2674a1e4c3",
-      "statement": "About 14 months in, Plausible had about 100 subscribers and $400 MRR, with the founder working alone.",
+      "statement": "About 14 months in, Plausible had about 100 subscribers and $400 MRR, with Uku working alone.",
       "claim_kind": "metric",
       "subject_ref": {
         "type": "target",
@@ -12712,7 +12713,7 @@
     },
     {
       "id": "01a10e6f-5d82-735f-adef-cf900330b9ed",
-      "statement": "The founder then sought a marketing co-founder, bringing on a co-founder.",
+      "statement": "Uku then sought a marketing co-founder, bringing on Marko Saric.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -12733,7 +12734,7 @@
     },
     {
       "id": "01a10e6f-5d82-7361-b498-5ca191286367",
-      "statement": "After a co-founder joined, Plausible changed its positioning to clearly compare itself with Google Analytics.",
+      "statement": "After Marko joined, Plausible changed its positioning to clearly compare itself with Google Analytics.",
       "claim_kind": "positioning",
       "subject_ref": {
         "type": "target",
@@ -12775,7 +12776,7 @@
     },
     {
       "id": "01a10e6f-5d82-7365-b907-0ca84b533caf",
-      "statement": "A co-founder's first blog post, 'Why You Should Remove Google Analytics from Your Site', went viral on Hacker News and drove traffic.",
+      "statement": "Marko's first blog post, 'Why You Should Remove Google Analytics from Your Site', went viral on Hacker News and drove traffic.",
       "claim_kind": "launch",
       "subject_ref": {
         "type": "target",
@@ -12922,7 +12923,7 @@
     },
     {
       "id": "01a10e6f-5d82-7375-b20e-faf530bdc116",
-      "statement": "Plausible was started by the developer after he was asked to install Google Analytics on a startup's site.",
+      "statement": "Plausible was started by developer Uku after he was asked to install Google Analytics on a startup's site.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -12943,7 +12944,7 @@
     },
     {
       "id": "01a10e6f-5d83-71ce-95c1-ab68d4e78062",
-      "statement": "The founder released the first Plausible beta less than two months after having the idea.",
+      "statement": "Uku released the first Plausible beta less than two months after having the idea.",
       "claim_kind": "launch",
       "subject_ref": {
         "type": "target",
@@ -13048,7 +13049,7 @@
     },
     {
       "id": "01a10e6f-5d83-71d8-8843-1cc825cfc98e",
-      "statement": "A co-founder joined about a year and a half in, working on positioning and blog posts.",
+      "statement": "Marko joined as co-founder about a year and a half in, working on positioning and blog posts.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -13174,7 +13175,7 @@
     },
     {
       "id": "01a10e6f-5d83-71e6-96fa-bce6511de8f5",
-      "statement": "Plausible was a two-person company in April 2021: a co-founder and a developer co-founder.",
+      "statement": "Plausible was a two-person company in April 2021: Marko Saric and a developer co-founder.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -13195,7 +13196,7 @@
     },
     {
       "id": "01a10e6f-5d83-71e8-9272-32dc82d14ea4",
-      "statement": "A co-founder joined Plausible in March 2020 to handle communication and marketing when the product was ready to be released.",
+      "statement": "Marko Saric joined Plausible in March 2020 to handle communication and marketing when the product was ready to be released.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -13216,7 +13217,7 @@
     },
     {
       "id": "01a10e6f-5d83-71ea-b80e-95ec82a5b0db",
-      "statement": "When a co-founder joined in March 2020, Plausible had a couple hundred customers and about $400 MRR.",
+      "statement": "When Saric joined in March 2020, Plausible had a couple hundred customers and about $400 MRR.",
       "claim_kind": "metric",
       "subject_ref": {
         "type": "target",
@@ -13321,7 +13322,7 @@
     },
     {
       "id": "01a10e6f-5d83-71f4-a5f9-c6036a14f6c5",
-      "statement": "A co-founder attributes Plausible's growth to the broader privacy trend that also benefited ProtonMail and Hey.com.",
+      "statement": "Saric attributes Plausible's growth to the broader privacy trend that also benefited ProtonMail and Hey.com.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -13342,7 +13343,7 @@
     },
     {
       "id": "01a10e6f-5d83-71f6-833d-7ccecc344347",
-      "statement": "A co-founder attributes growth partly to Plausible's direct, upfront positioning against Google Analytics on its website.",
+      "statement": "Saric attributes growth partly to Plausible's direct, upfront positioning against Google Analytics on its website.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -13447,7 +13448,7 @@
     },
     {
       "id": "01a10e6f-5d83-7202-9b1c-809fe75aab63",
-      "statement": "A co-founder of Plausible Analytics was the first guest on the Lifestyle Democracy Channel interview series.",
+      "statement": "Marko Saric of Plausible Analytics was the first guest on the Lifestyle Democracy Channel interview series.",
       "claim_kind": "press",
       "subject_ref": {
         "type": "target",
@@ -13468,7 +13469,7 @@
     },
     {
       "id": "01a10e6f-5d83-7204-9f47-47739b966e2b",
-      "statement": "A co-founder positions Plausible as fighting against proprietary tools and surveillance capitalism on the web.",
+      "statement": "Marko Saric positions Plausible as fighting against proprietary tools and surveillance capitalism on the web.",
       "claim_kind": "positioning",
       "subject_ref": {
         "type": "target",
@@ -13489,7 +13490,7 @@
     },
     {
       "id": "01a10e6f-5d83-7208-ac12-102d24b71c62",
-      "statement": "Plausible Analytics was founded by the founder in December 2018.",
+      "statement": "Plausible Analytics was founded by Uku Täht in December 2018.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -13510,7 +13511,7 @@
     },
     {
       "id": "01a10e6f-5d83-720a-a841-93a2a8b3b049",
-      "statement": "Plausible Analytics was launched in 2019 by the founder and a co-founder.",
+      "statement": "Plausible Analytics was launched in 2019 by Uku Täht and Marko Saric.",
       "claim_kind": "launch",
       "subject_ref": {
         "type": "target",
@@ -13783,7 +13784,7 @@
     },
     {
       "id": "01a10e6f-5d84-725d-bd10-a56b95761873",
-      "statement": "A co-founder joined Plausible in March 2020 to handle marketing.",
+      "statement": "Marko Saric joined Plausible as co-founder in March 2020 to handle marketing.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -13867,7 +13868,7 @@
     },
     {
       "id": "01a10e6f-5d84-7265-81a0-6d522814752f",
-      "statement": "A co-founder published on average about one blog post per week for a year and a half.",
+      "statement": "Marko published on average about one blog post per week for a year and a half.",
       "claim_kind": "tactic",
       "subject_ref": {
         "type": "target",
@@ -13888,7 +13889,7 @@
     },
     {
       "id": "01a10e6f-5d84-7267-8791-1493d5df8198",
-      "statement": "A co-founder says content and word of mouth drive Plausible's growth, with no money spent on paid ads.",
+      "statement": "Marko says content and word of mouth drive Plausible's growth, with no money spent on paid ads.",
       "claim_kind": "attribution",
       "subject_ref": {
         "type": "target",
@@ -14140,7 +14141,7 @@
     },
     {
       "id": "01a10e6f-5d84-7281-9700-0276f42edb47",
-      "statement": "A co-founder joined Plausible in March 2020 to lead communications and marketing.",
+      "statement": "Marko Saric joined Plausible in March 2020 to lead communications and marketing.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -14203,7 +14204,7 @@
     },
     {
       "id": "01a10e6f-5d84-7287-bf36-7f9f9ff1ad0c",
-      "statement": "A co-founder worked to get Plausible covered on Hacker News and Lobsters and built a Twitter presence.",
+      "statement": "Marko worked to get Plausible covered on Hacker News and Lobsters and built a Twitter presence.",
       "claim_kind": "acquisition_channel",
       "subject_ref": {
         "type": "target",
@@ -14266,7 +14267,7 @@
     },
     {
       "id": "01a10e6f-5d84-728d-a9dc-30ac74315c47",
-      "statement": "Four or five Plausible blog posts went viral within the first six months of a co-founder's blogging strategy.",
+      "statement": "Four or five Plausible blog posts went viral within the first six months of Marko's blogging strategy.",
       "claim_kind": "tactic",
       "subject_ref": {
         "type": "target",
@@ -14329,7 +14330,7 @@
     },
     {
       "id": "01a10e6f-5d84-7293-a406-e0c2142cc4e6",
-      "statement": "The founder estimates around 90% of Plausible customers would otherwise have run Google Analytics.",
+      "statement": "Uku estimates around 90% of Plausible customers would otherwise have run Google Analytics.",
       "claim_kind": "metric",
       "subject_ref": {
         "type": "target",
@@ -14497,7 +14498,7 @@
     },
     {
       "id": "01a10e6f-5d84-72a7-b118-c64a55876ad6",
-      "statement": "A co-founder joined Plausible in early 2020, when it had fewer than 100 customers and $400 MRR.",
+      "statement": "Marko Saric joined Plausible as co-founder in early 2020, when it had fewer than 100 customers and $400 MRR.",
       "claim_kind": "metric",
       "subject_ref": {
         "type": "target",
@@ -25561,7 +25562,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "I started sharing these alternatives on my blog which is how I connected with my…",
       "notes": null
     },
     {
@@ -25582,7 +25583,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "have more than 14,000 active subscribers at this point",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -26485,7 +26486,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "Plausible Analytics was founded by Uku Täht in December 2018",
       "notes": null
     },
     {
@@ -26527,7 +26528,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "funded through subscriptions to its SaaS version. The startup is self-funded and bootstrapped.",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -27052,7 +27053,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "In winter 2018, Uku started coding a project that he thought was desperately needed—a viable…",
       "notes": null
     },
     {
@@ -27073,7 +27074,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "The first attempt, using PostgreSQL, was technically naïve, as it became overwhelmed and inefficient pretty…",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -31241,7 +31242,7 @@
       "id": "01a10e6c-25cf-7127-8315-5e1b90d828e7",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: An alternative to using Google Analytics on your website",
-      "summary": "Hacker News post by a co-founder: 462 points, 301 comments.",
+      "summary": "Hacker News post by Marko Saric: 462 points, 301 comments.",
       "time": {
         "start": "2020-04-08T14:21:07Z",
         "end": "2020-04-08T14:21:07Z",
@@ -31270,7 +31271,7 @@
       "id": "01a10e6c-25cf-712c-ab12-e4d3e44ac14d",
       "event_type": "show_hn",
       "title": "Show HN: Plausible – Self-Hosted Google Analytics alternative",
-      "summary": "Show HN by a co-founder: 351 points, 139 comments.",
+      "summary": "Show HN by Marko Saric: 351 points, 139 comments.",
       "time": {
         "start": "2020-10-06T09:49:27Z",
         "end": "2020-10-06T09:49:27Z",
@@ -31294,7 +31295,7 @@
       "id": "01a10e6c-25cf-7131-96de-33f2cf33e793",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: How to pay your rent with your open source project",
-      "summary": "Hacker News post by a co-founder: 342 points, 168 comments.",
+      "summary": "Hacker News post by Marko Saric: 342 points, 168 comments.",
       "time": {
         "start": "2020-07-27T08:27:44Z",
         "end": "2020-07-27T08:27:44Z",
@@ -31348,7 +31349,7 @@
       "id": "01a10e6c-25cf-713b-802e-9a4085bf650a",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: Why we’re changing to the AGPL license",
-      "summary": "Hacker News post by a co-founder: 286 points, 254 comments.",
+      "summary": "Hacker News post by Marko Saric: 286 points, 254 comments.",
       "time": {
         "start": "2020-10-13T09:19:59Z",
         "end": "2020-10-13T09:19:59Z",
@@ -31426,7 +31427,7 @@
       "id": "01a10e6c-25d1-7064-a23d-c1e083aae4c3",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: Lessons from building and growing an open source SaaS",
-      "summary": "Hacker News post by a co-founder: 173 points, 41 comments.",
+      "summary": "Hacker News post by Marko Saric: 173 points, 41 comments.",
       "time": {
         "start": "2020-12-17T12:07:51Z",
         "end": "2020-12-17T12:07:51Z",
@@ -31649,8 +31650,8 @@
     {
       "id": "01a10e71-7b77-7086-a810-fce92dab2120",
       "event_type": "other",
-      "title": "The founder starts building Plausible",
-      "summary": "The founder wrote Plausible's first line of code and began developing it alone in December 2018 as a privacy-friendly Google Analytics alternative.",
+      "title": "Uku Täht starts building Plausible",
+      "summary": "Uku Täht wrote Plausible's first line of code and began developing it alone in December 2018 as a privacy-friendly Google Analytics alternative.",
       "time": {
         "start": "2018-12-01T00:00:00Z",
         "end": "2018-12-31T23:59:59Z",
@@ -31750,8 +31751,8 @@
     {
       "id": "01a10e71-7b78-716a-b635-78c0d6ea5bb5",
       "event_type": "hiring",
-      "title": "A co-founder joins as marketing co-founder",
-      "summary": "A co-founder started working on Plausible on March 16, 2020 after the founder reached out to him over his posts on Google alternatives.",
+      "title": "Marko Saric joins as marketing co-founder",
+      "summary": "Marko Saric started working on Plausible on March 16, 2020 after Uku reached out to him over his posts on Google alternatives.",
       "time": {
         "start": "2020-03-16T00:00:00Z",
         "end": "2020-03-16T23:59:59Z",
@@ -41798,7 +41799,7 @@
         "01a10e6f-5d83-721c-8622-377c43ee8f97"
       ],
       "review_state": "machine_extracted",
-      "public_attribution": "third-party measured"
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e71-7b82-703f-af76-cd2b83cc3d23",
@@ -43842,7 +43843,7 @@
     {
       "id": "01a10e71-7b82-7045-8294-c3043e49d6f9",
       "label": "Solo-founder side project, free beta",
-      "summary": "The founder started Plausible alone in December 2018 as a simpler, privacy-friendly Google Analytics alternative. He ran a free beta with no subscriptions for about five months. Sources disagree on the beta date: one says January 2019 on Indie Hackers, another says February.",
+      "summary": "Uku Täht started Plausible alone in December 2018 as a simpler, privacy-friendly Google Analytics alternative. He ran a free beta with no subscriptions for about five months. Sources disagree on the beta date: one says January 2019 on Indie Hackers, another says February.",
       "time": {
         "start": "2018-12-01T00:00:00Z",
         "end": "2019-05-31T23:59:59Z",
@@ -43934,7 +43935,7 @@
     {
       "id": "01a10e71-7b82-704a-a6dc-130e7eaad168",
       "label": "Build in public and niche communities",
-      "summary": "The founder shared progress on a blog, Twitter and Indie Hackers. All early users came from these build-in-public updates. For about a year, blog posts, outreach and HN posts brought only minor success.",
+      "summary": "Uku shared progress on a blog, Twitter and Indie Hackers. All early users came from these build-in-public updates. For about a year, blog posts, outreach and HN posts brought only minor success.",
       "time": {
         "start": "2018-12-01T00:00:00Z",
         "end": "2020-03-31T23:59:59Z",
@@ -43955,7 +43956,7 @@
     {
       "id": "01a10e71-7b82-704b-b959-2e07ae8e995c",
       "label": "Content marketing and positioning against Google Analytics",
-      "summary": "After a co-founder joined, Plausible repositioned itself as an explicit Google Analytics alternative. It published blog posts weekly or more often. Several posts reached the Hacker News front page, and Google search became the top source of trial signups.",
+      "summary": "After Marko joined, Plausible repositioned itself as an explicit Google Analytics alternative. It published blog posts weekly or more often. Several posts reached the Hacker News front page, and Google search became the top source of trial signups.",
       "time": {
         "start": "2020-03-01T00:00:00Z",
         "end": "2021-12-31T23:59:59Z",
@@ -44436,7 +44437,7 @@
         "precision": "month",
         "label": "August 2020"
       },
-      "implementation": "A co-founder ran the August 2020 launch. It finished #2 of the day.",
+      "implementation": "Marko ran the August 2020 launch. It finished #2 of the day.",
       "outcome_ids": [],
       "claim_ids": [
         "01a10e6f-5d72-713d-9164-8d26a82303a6",
@@ -45292,7 +45293,7 @@
     },
     {
       "id": "01a10e71-7b83-72f6-85f1-91bb1f927edf",
-      "summary": "Customers when a co-founder joined in early 2020: a couple/few hundred vs fewer than 100 or about 100.",
+      "summary": "Customers when Marko joined in early 2020: a couple/few hundred vs fewer than 100 or about 100.",
       "claim_ids": [
         "01a10e6f-5d83-71ea-b80e-95ec82a5b0db",
         "01a10e6f-5d77-70db-bc35-e3b90c81f94a",
@@ -45518,7 +45519,7 @@
       "inference_strength": "strong_inference"
     },
     "origin": {
-      "text": "The founder began building Plausible around December 2018. While working on a startup, he was asked to install Google Analytics. He did not trust it, and he found existing alternatives such as Simple Analytics and Fathom too barebones. He set out to build a simpler Google Analytics alternative with better privacy, offering '80% of the benefit with 20% of the complexity'. He planned never to store IP addresses or sell data, and considered open-sourcing the code so people could verify those claims.",
+      "text": "Uku Täht began building Plausible around December 2018. While working on a startup, he was asked to install Google Analytics. He did not trust it, and he found existing alternatives such as Simple Analytics and Fathom too barebones. He set out to build a simpler Google Analytics alternative with better privacy, offering '80% of the benefit with 20% of the complexity'. He planned never to store IP addresses or sell data, and considered open-sourcing the code so people could verify those claims.",
       "claim_ids": [
         "01a10e6f-5d77-70d7-a51c-82e33d5f7faa",
         "01a10e6f-5d81-72f4-a004-c15c9fcdb620",
@@ -45533,7 +45534,7 @@
       "inference_strength": "explicit"
     },
     "first_users": {
-      "text": "Before writing much code, the founder published a blog post describing the tool he wanted and recruited beta users through Twitter and email. About 20–30 people showed interest. The beta was announced on Twitter and Indie Hackers, not through a big launch; sources place it in January or February 2019. All early users came from these build-in-public updates, and early users were mostly developers and personal bloggers. Paid plans opened in May 2019 to about 60 beta users, who got a third off. That month ended at $64 MRR.",
+      "text": "Before writing much code, Uku published a blog post describing the tool he wanted and recruited beta users through Twitter and email. About 20–30 people showed interest. The beta was announced on Twitter and Indie Hackers, not through a big launch; sources place it in January or February 2019. All early users came from these build-in-public updates, and early users were mostly developers and personal bloggers. Paid plans opened in May 2019 to about 60 beta users, who got a third off. That month ended at $64 MRR.",
       "claim_ids": [
         "01a10e6f-5d7b-712e-9200-b3356fc9b448",
         "01a10e6f-5d77-70fd-8b3d-4d3c2b4dff48",
@@ -45550,7 +45551,7 @@
       "inference_strength": "explicit"
     },
     "flywheel": {
-      "text": "The claims point to a loop in which content and open source feed each other. A co-founder's posts against Google Analytics, and his posts about open source, repeatedly reached the Hacker News front page. Those posts drove traffic and trials, and spilled over to GitHub, where Plausible appeared on the Trending list. Open source code and aligned values led people to write about and recommend Plausible. Educational and comparison posts built steady Google search traffic, which became the top source of trial signups. Paying customers then spread the word. Several GitHub star spikes happened around the same days as Plausible-related Hacker News posts, for example April 8, 2020, July 27, 2020, October 6–13, 2020 and March 7, 2021. That overlap is timing only.",
+      "text": "The claims point to a loop in which content and open source feed each other. Marko's posts against Google Analytics, and his posts about open source, repeatedly reached the Hacker News front page. Those posts drove traffic and trials, and spilled over to GitHub, where Plausible appeared on the Trending list. Open source code and aligned values led people to write about and recommend Plausible. Educational and comparison posts built steady Google search traffic, which became the top source of trial signups. Paying customers then spread the word. Several GitHub star spikes happened around the same days as Plausible-related Hacker News posts, for example April 8, 2020, July 27, 2020, October 6–13, 2020 and March 7, 2021. That overlap is timing only.",
       "claim_ids": [
         "01a10e6f-5d83-71dc-b7a1-9cfb863893d7",
         "01a10e6f-5d84-7263-8689-34aaf85aef17",
@@ -45575,7 +45576,7 @@
       "inference_strength": "moderate_inference"
     },
     "did_differently": {
-      "text": "Several choices stand out. Plausible positioned itself directly as 'the alternative to Google Analytics', which the company says started its growth. It made cookie-free tracking the default, so customers do not need consent banners. It refused paid advertising, affiliate programs and sales calls, even when some publishers declined to list it for having no affiliate program. It published traffic and revenue numbers openly. It relicensed from MIT to AGPL in 2020 after larger companies sought to resell its self-hosted version, and later moved some premium features to the cloud-only offering. Whether these choices drove growth more than broader privacy trends is not settled; a co-founder also credits the general privacy trend.",
+      "text": "Several choices stand out. Plausible positioned itself directly as 'the alternative to Google Analytics', which the company says started its growth. It made cookie-free tracking the default, so customers do not need consent banners. It refused paid advertising, affiliate programs and sales calls, even when some publishers declined to list it for having no affiliate program. It published traffic and revenue numbers openly. It relicensed from MIT to AGPL in 2020 after larger companies sought to resell its self-hosted version, and later moved some premium features to the cloud-only offering. Whether these choices drove growth more than broader privacy trends is not settled; Marko Saric also credits the general privacy trend.",
       "claim_ids": [
         "01a10e6f-5d81-72ee-9ae3-efd829a092ee",
         "01a10e6f-5d83-71f6-833d-7ccecc344347",

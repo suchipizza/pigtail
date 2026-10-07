@@ -38,6 +38,7 @@
       "pocketbase.io"
     ]
   },
+  "target_description_source": "self_description",
   "repositories": [
     {
       "id": "01a10e63-d907-7348-a902-9561fab50cc0",
@@ -569,7 +570,7 @@
       "canonical_url": "https://dir.floss.fund/view/funding/@pocketbase.io",
       "surface_key": "web",
       "source_type": "directory_or_listing",
-      "title": "Article on dir.floss.fund",
+      "title": "The maintainer",
       "author": null,
       "published_at": "2026-01-18T00:00:00Z",
       "discovered_at": "2026-10-05T23:27:37Z",

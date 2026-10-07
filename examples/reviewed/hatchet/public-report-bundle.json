@@ -38,6 +38,7 @@
       "hatchet.run"
     ]
   },
+  "target_description_source": "self_description",
   "repositories": [
     {
       "id": "01a10e61-0563-704f-8f38-21e9594bb4cc",
@@ -2076,7 +2077,7 @@
     },
     {
       "id": "01a10e61-226c-73bf-9dc7-ae20f08cb001",
-      "statement": "A Hacker News story titled “Show HN: Hatchet – Open-source distributed task queue” was posted by a co-founder on March 08, 2024; it had 578 points and 189 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “Show HN: Hatchet – Open-source distributed task queue” was posted by Alexander Belanger on March 08, 2024; it had 578 points and 189 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2097,7 +2098,7 @@
     },
     {
       "id": "01a10e61-226c-73c4-8771-4e7969734e44",
-      "statement": "A Hacker News story titled “The startup's Postgres survival guide” was posted by a co-founder on July 22, 2026; it had 523 points and 240 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “The startup's Postgres survival guide” was posted by Alexander Belanger on July 22, 2026; it had 523 points and 240 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2118,7 +2119,7 @@
     },
     {
       "id": "01a10e61-226c-73c9-8f34-bc7a1f5803f6",
-      "statement": "A Hacker News story titled “Building a TUI is easy now” was posted by a co-founder on February 13, 2026; it had 306 points and 255 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “Building a TUI is easy now” was posted by Alexander Belanger on February 13, 2026; it had 306 points and 255 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2139,7 +2140,7 @@
     },
     {
       "id": "01a10e61-226c-73ce-9df5-1f5688815a57",
-      "statement": "A Hacker News story titled “Launch HN: Hatchet (YC W24) – Open-source task queue, now with a cloud version” was posted by a co-founder on June 27, 2024; it had 245 points and 95 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “Launch HN: Hatchet (YC W24) – Open-source task queue, now with a cloud version” was posted by Alexander Belanger on June 27, 2024; it had 245 points and 95 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2160,7 +2161,7 @@
     },
     {
       "id": "01a10e61-226c-73d3-a641-e716946699ba",
-      "statement": "A Hacker News story titled “Show HN: Hatchet v1 – A task orchestration platform built on Postgres” was posted by a co-founder on April 03, 2025; it had 240 points and 74 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “Show HN: Hatchet v1 – A task orchestration platform built on Postgres” was posted by Alexander Belanger on April 03, 2025; it had 240 points and 74 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2181,7 +2182,7 @@
     },
     {
       "id": "01a10e61-226d-72b6-a467-650640e728d4",
-      "statement": "A Hacker News story titled “Go is a good fit for agents” was posted by a co-founder on June 04, 2025; it had 236 points and 175 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “Go is a good fit for agents” was posted by Alexander Belanger on June 04, 2025; it had 236 points and 175 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2202,7 +2203,7 @@
     },
     {
       "id": "01a10e61-226d-72bb-8580-688fb7a591d6",
-      "statement": "A Hacker News story titled “Multi-tenant queues in Postgres” was posted by a co-founder on April 18, 2024; it had 233 points and 45 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “Multi-tenant queues in Postgres” was posted by Alexander Belanger on April 18, 2024; it had 233 points and 45 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2223,7 +2224,7 @@
     },
     {
       "id": "01a10e61-226d-72c0-ade0-cf8762bcdd8b",
-      "statement": "A Hacker News story titled “How to think about durable execution” was posted by a co-founder on December 12, 2025; it had 96 points and 37 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “How to think about durable execution” was posted by Alexander Belanger on December 12, 2025; it had 96 points and 37 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2244,7 +2245,7 @@
     },
     {
       "id": "01a10e61-226d-72c5-a383-fe5bf4797106",
-      "statement": "A Hacker News story titled “The pitfalls of partitioning Postgres yourself” was posted by a co-founder on December 16, 2025; it had 93 points and 6 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “The pitfalls of partitioning Postgres yourself” was posted by Alexander Belanger on December 16, 2025; it had 93 points and 6 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2265,7 +2266,7 @@
     },
     {
       "id": "01a10e61-226d-72ca-914f-3cb9fd3fe4f7",
-      "statement": "A Hacker News story titled “The fastest Postgres inserts” was posted by a co-founder on May 16, 2025; it had 59 points and 25 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “The fastest Postgres inserts” was posted by Alexander Belanger on May 16, 2025; it had 59 points and 25 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2286,7 +2287,7 @@
     },
     {
       "id": "01a10e61-226d-72cf-96f6-772e663c3985",
-      "statement": "A Hacker News story titled “Supertoast tables” was posted by a co-founder on March 06, 2026; it had 56 points and 12 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “Supertoast tables” was posted by Alexander Belanger on March 06, 2026; it had 56 points and 12 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2307,7 +2308,7 @@
     },
     {
       "id": "01a10e61-226d-72d4-8dd9-b7b127a25766",
-      "statement": "A Hacker News story titled “The First Idempotency Key” was posted by a co-founder on July 28, 2026; it had 36 points and 9 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “The First Idempotency Key” was posted by Alexander Belanger on July 28, 2026; it had 36 points and 9 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2328,7 +2329,7 @@
     },
     {
       "id": "01a10e61-226d-72d9-9c73-1ceef1347a56",
-      "statement": "A Hacker News story titled “Bufo pulls the andon cord” was posted by a co-founder on August 17, 2026; it had 16 points and 2 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “Bufo pulls the andon cord” was posted by Alexander Belanger on August 17, 2026; it had 16 points and 2 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2349,7 +2350,7 @@
     },
     {
       "id": "01a10e61-226d-72de-bf7e-7ed4863ee02a",
-      "statement": "A Hacker News story titled “The Problems with Celery for Python” was posted by a co-founder on June 05, 2024; it had 8 points and 0 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “The Problems with Celery for Python” was posted by Alexander Belanger on June 05, 2024; it had 8 points and 0 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -2370,7 +2371,7 @@
     },
     {
       "id": "01a10e61-226d-72e3-a6e5-069f592ac79b",
-      "statement": "A Hacker News story titled “Show HN: Hatchet – open-source, event-based workflow engine” was posted by a co-founder on January 12, 2024; it had 7 points and 2 comments when Pigtail checked.",
+      "statement": "A Hacker News story titled “Show HN: Hatchet – open-source, event-based workflow engine” was posted by Alexander Belanger on January 12, 2024; it had 7 points and 2 comments when Pigtail checked.",
       "claim_kind": "hn_post",
       "subject_ref": {
         "type": "target",
@@ -5331,7 +5332,7 @@
     },
     {
       "id": "01a10e62-9c6b-7415-a387-5b54b30661f4",
-      "statement": "Hatchet was founded by a co-founder and Gabe and positioned as a modern task queue alternative to Celery and BullMQ.",
+      "statement": "Hatchet was founded by Alexander and Gabe and positioned as a modern task queue alternative to Celery and BullMQ.",
       "claim_kind": "positioning",
       "subject_ref": {
         "type": "target",
@@ -5646,7 +5647,7 @@
     },
     {
       "id": "01a10e62-9c6b-7435-8e64-1fa11116ac54",
-      "statement": "Hatchet's founders are ex-CTOs of YC S20 companies: a co-founder of Porter and Gabe of Clearmix.",
+      "statement": "Hatchet's founders are ex-CTOs of YC S20 companies: Alexander of Porter and Gabe of Clearmix.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -5667,7 +5668,7 @@
     },
     {
       "id": "01a10e62-9c6b-7437-82ed-0ad56b9ae35a",
-      "statement": "A co-founder started Hatchet after years of wrangling task queues and distributed systems at Porter and Oneleet.",
+      "statement": "Alexander started Hatchet after years of wrangling task queues and distributed systems at Porter and Oneleet.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -5751,7 +5752,7 @@
     },
     {
       "id": "01a10e62-9c6b-7443-adf0-7a3de5f8a2cc",
-      "statement": "Hatchet was founded by a co-founder, who is its CEO.",
+      "statement": "Hatchet was founded by Alexander Belanger, who is its CEO.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -5835,7 +5836,7 @@
     },
     {
       "id": "01a10e62-9c6b-744d-a9f6-b511e22e701b",
-      "statement": "Hatchet was founded by the co-founders.",
+      "statement": "Hatchet was founded by Alexander Belanger and Gabriel Ruttner.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -10746,7 +10747,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "Founded by Alexander Belanger and Gabriel Ruttner, Hatchet is an open-source, distributed task queue platform.",
       "notes": null
     },
     {
@@ -10767,7 +10768,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "This firsthand experience led to the creation of Hatchet.",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -12849,7 +12850,7 @@
       "id": "01a10e61-226c-73c1-827a-0595d098ac65",
       "event_type": "show_hn",
       "title": "Show HN: Hatchet – Open-source distributed task queue",
-      "summary": "Show HN by a co-founder: 578 points, 189 comments.",
+      "summary": "Show HN by Alexander Belanger: 578 points, 189 comments.",
       "time": {
         "start": "2024-03-08T17:07:35Z",
         "end": "2024-03-08T17:07:35Z",
@@ -12879,7 +12880,7 @@
       "id": "01a10e61-226c-73c6-9605-b4a50a30870e",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: The startup's Postgres survival guide",
-      "summary": "Hacker News post by a co-founder: 523 points, 240 comments.",
+      "summary": "Hacker News post by Alexander Belanger: 523 points, 240 comments.",
       "time": {
         "start": "2026-07-22T12:36:08Z",
         "end": "2026-07-22T12:36:08Z",
@@ -12907,7 +12908,7 @@
       "id": "01a10e61-226c-73cb-ac0f-9b9bdcbc6b99",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: Building a TUI is easy now",
-      "summary": "Hacker News post by a co-founder: 306 points, 255 comments.",
+      "summary": "Hacker News post by Alexander Belanger: 306 points, 255 comments.",
       "time": {
         "start": "2026-02-13T17:50:54Z",
         "end": "2026-02-13T17:50:54Z",
@@ -12933,7 +12934,7 @@
       "id": "01a10e61-226c-73d0-8e93-3ecd1e5e9c18",
       "event_type": "launch_hn",
       "title": "Launch HN: Hatchet (YC W24) – Open-source task queue, now with a cloud version",
-      "summary": "Launch HN by a co-founder: 245 points, 95 comments.",
+      "summary": "Launch HN by Alexander Belanger: 245 points, 95 comments.",
       "time": {
         "start": "2024-06-27T14:35:34Z",
         "end": "2024-06-27T14:35:34Z",
@@ -12961,7 +12962,7 @@
       "id": "01a10e61-226c-73d5-ac5c-03a136f77c08",
       "event_type": "show_hn",
       "title": "Show HN: Hatchet v1 – A task orchestration platform built on Postgres",
-      "summary": "Show HN by a co-founder: 240 points, 74 comments.",
+      "summary": "Show HN by Alexander Belanger: 240 points, 74 comments.",
       "time": {
         "start": "2025-04-03T17:17:54Z",
         "end": "2025-04-03T17:17:54Z",
@@ -12990,7 +12991,7 @@
       "id": "01a10e61-226d-72b8-8fd5-a76739f76179",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: Go is a good fit for agents",
-      "summary": "Hacker News post by a co-founder: 236 points, 175 comments.",
+      "summary": "Hacker News post by Alexander Belanger: 236 points, 175 comments.",
       "time": {
         "start": "2025-06-04T12:14:39Z",
         "end": "2025-06-04T12:14:39Z",
@@ -13016,7 +13017,7 @@
       "id": "01a10e61-226d-72bd-805d-98d06191d06f",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: Multi-tenant queues in Postgres",
-      "summary": "Hacker News post by a co-founder: 233 points, 45 comments.",
+      "summary": "Hacker News post by Alexander Belanger: 233 points, 45 comments.",
       "time": {
         "start": "2024-04-18T15:26:57Z",
         "end": "2024-04-18T15:26:57Z",
@@ -13042,7 +13043,7 @@
       "id": "01a10e61-226d-72c2-b191-8e6f133a9586",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: How to think about durable execution",
-      "summary": "Hacker News post by a co-founder: 96 points, 37 comments.",
+      "summary": "Hacker News post by Alexander Belanger: 96 points, 37 comments.",
       "time": {
         "start": "2025-12-12T15:49:16Z",
         "end": "2025-12-12T15:49:16Z",
@@ -13066,7 +13067,7 @@
       "id": "01a10e61-226d-72c7-a197-de79aab64c69",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: The pitfalls of partitioning Postgres yourself",
-      "summary": "Hacker News post by a co-founder: 93 points, 6 comments.",
+      "summary": "Hacker News post by Alexander Belanger: 93 points, 6 comments.",
       "time": {
         "start": "2025-12-16T18:21:21Z",
         "end": "2025-12-16T18:21:21Z",
@@ -13090,7 +13091,7 @@
       "id": "01a10e61-226d-72cc-8650-04b0b4104fb5",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: The fastest Postgres inserts",
-      "summary": "Hacker News post by a co-founder: 59 points, 25 comments.",
+      "summary": "Hacker News post by Alexander Belanger: 59 points, 25 comments.",
       "time": {
         "start": "2025-05-16T14:24:23Z",
         "end": "2025-05-16T14:24:23Z",
@@ -13116,7 +13117,7 @@
       "id": "01a10e61-226d-72d1-bc79-4eed6a6d3da9",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: Supertoast tables",
-      "summary": "Hacker News post by a co-founder: 56 points, 12 comments.",
+      "summary": "Hacker News post by Alexander Belanger: 56 points, 12 comments.",
       "time": {
         "start": "2026-03-06T16:46:50Z",
         "end": "2026-03-06T16:46:50Z",
@@ -13140,7 +13141,7 @@
       "id": "01a10e61-226d-72d6-87cc-ad68d424830c",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: The First Idempotency Key",
-      "summary": "Hacker News post by a co-founder: 36 points, 9 comments.",
+      "summary": "Hacker News post by Alexander Belanger: 36 points, 9 comments.",
       "time": {
         "start": "2026-07-28T13:04:51Z",
         "end": "2026-07-28T13:04:51Z",
@@ -13166,7 +13167,7 @@
       "id": "01a10e61-226d-72db-85c0-68b2e865a60b",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: Bufo pulls the andon cord",
-      "summary": "Hacker News post by a co-founder: 16 points, 2 comments.",
+      "summary": "Hacker News post by Alexander Belanger: 16 points, 2 comments.",
       "time": {
         "start": "2026-08-17T15:36:27Z",
         "end": "2026-08-17T15:36:27Z",
@@ -13190,7 +13191,7 @@
       "id": "01a10e61-226d-72e0-a4c6-477e85c2948d",
       "event_type": "hacker_news_post",
       "title": "On Hacker News: The Problems with Celery for Python",
-      "summary": "Hacker News post by a co-founder: 8 points, 0 comments.",
+      "summary": "Hacker News post by Alexander Belanger: 8 points, 0 comments.",
       "time": {
         "start": "2024-06-05T13:20:55Z",
         "end": "2024-06-05T13:20:55Z",
@@ -13214,7 +13215,7 @@
       "id": "01a10e61-226d-72e5-992a-fdae592f52d2",
       "event_type": "show_hn",
       "title": "Show HN: Hatchet – open-source, event-based workflow engine",
-      "summary": "Show HN by a co-founder: 7 points, 2 comments.",
+      "summary": "Show HN by Alexander Belanger: 7 points, 2 comments.",
       "time": {
         "start": "2024-01-12T16:27:39Z",
         "end": "2024-01-12T16:27:39Z",
@@ -35648,7 +35649,7 @@
         "01a10e62-9c6c-727d-8ef1-24bc97cdaa7c"
       ],
       "review_state": "machine_extracted",
-      "public_attribution": "company reported"
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e63-8cfb-707c-a5d1-4cae44ae603c",
@@ -37775,7 +37776,7 @@
       "inference_strength": "strong_inference"
     },
     "origin": {
-      "text": "A co-founder was previously CTO at Porter. There he spent several years building an in-house orchestration system and wrote three versions of its provisioner. He later researched durable execution platforms and built a Terraform automation project on Temporal, which he abandoned. He then introduced Temporal at another company before starting Hatchet. Hatchet was co-founded with Gabe a co-founder, the former CTO of Clearmix. The founders describe it as built out of frustration with existing tools and a belief that Postgres is the right base for a task queue. It entered YC W24 with just an idea, and the repository was created on December 15, 2023.",
+      "text": "Alexander Belanger was previously CTO at Porter. There he spent several years building an in-house orchestration system and wrote three versions of its provisioner. He later researched durable execution platforms and built a Terraform automation project on Temporal, which he abandoned. He then introduced Temporal at another company before starting Hatchet. Hatchet was co-founded with Gabe Ruttner, the former CTO of Clearmix. The founders describe it as built out of frustration with existing tools and a belief that Postgres is the right base for a task queue. It entered YC W24 with just an idea, and the repository was created on December 15, 2023.",
       "claim_ids": [
         "01a10e61-0563-7050-b617-de0febd195f9",
         "01a10e62-9c69-7139-9386-4cfd3cf1ae7b",

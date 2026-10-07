@@ -32,6 +32,7 @@
       "tally.so"
     ]
   },
+  "target_description_source": "self_description",
   "repositories": [],
   "sources": [
     {
@@ -3363,7 +3364,7 @@
     },
     {
       "id": "01a10e74-423f-71fb-a6c9-931a94bb5469",
-      "statement": "The co-founders are the founders of Tally and host monthly office hours.",
+      "statement": "Marie and Filip are the founders of Tally and host monthly office hours.",
       "claim_kind": "community",
       "subject_ref": {
         "type": "target",
@@ -4098,7 +4099,7 @@
     },
     {
       "id": "01a10e74-4240-7166-aca1-66f46cb06d2b",
-      "statement": "The founders started Tally to build a sustainable lifestyle business as indie hackers.",
+      "statement": "Founders Filip and Marie started Tally to build a sustainable lifestyle business as indie hackers.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -4392,7 +4393,7 @@
     },
     {
       "id": "01a10e74-4241-7169-af93-56add736dc58",
-      "statement": "Tally was launched in 2020 by the co-founders with no funding, no team, and no playbook.",
+      "statement": "Tally was launched in 2020 by co-founders Marie and Filip with no funding, no team, and no playbook.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -5316,7 +5317,7 @@
     },
     {
       "id": "01a10e74-4243-73c0-b3c2-a5a051f14b5a",
-      "statement": "A co-founder gave a keynote at SaasOpen in New York about how Tally launched and grew in a competitive market.",
+      "statement": "Marie gave a keynote at SaasOpen in New York about how Tally launched and grew in a competitive market.",
       "claim_kind": "press",
       "subject_ref": {
         "type": "target",
@@ -5400,7 +5401,7 @@
     },
     {
       "id": "01a10e74-4243-73ca-8303-113b8e4b3375",
-      "statement": "Tally's co-founders are the co-founders.",
+      "statement": "Tally's co-founders are Marie and Filip.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -5610,7 +5611,7 @@
     },
     {
       "id": "01a10e74-4244-718e-8ab7-f58f1935e9f7",
-      "statement": "Tally planned to hire a support person and an engineer to help a co-founder on the product.",
+      "statement": "Tally planned to hire a support person and an engineer to help Filip on the product.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -5883,7 +5884,7 @@
     },
     {
       "id": "01a10e74-4244-71aa-8b1c-ffa983c1d785",
-      "statement": "Tally was founded by two co-founders and technical co-founder.",
+      "statement": "Tally was founded by two co-founders, Marie and technical co-founder Filip.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -6261,7 +6262,7 @@
     },
     {
       "id": "01a10e74-4245-705e-b2d5-6eeada87a761",
-      "statement": "A co-founder, Tally co-founder, previously built Delta, a crypto portfolio app acquired by eToro.",
+      "statement": "Filip Minev, Tally co-founder, previously built Delta, a crypto portfolio app acquired by eToro.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -6723,7 +6724,7 @@
     },
     {
       "id": "01a10e74-4245-7096-a43b-78cba757189b",
-      "statement": "A co-founder is a maker of Tally.",
+      "statement": "Marie is a maker of Tally.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -6765,7 +6766,7 @@
     },
     {
       "id": "01a10e74-4245-709c-8ccd-f5bfabf42380",
-      "statement": "Tally co-founder discussed building Tally in public in a conversation with Kevon Cheung, founder of Public Lab.",
+      "statement": "Tally co-founder Marie Martens discussed building Tally in public in a conversation with Kevon Cheung, founder of Public Lab.",
       "claim_kind": "press",
       "subject_ref": {
         "type": "target",
@@ -6807,7 +6808,7 @@
     },
     {
       "id": "01a10e74-4246-722a-9a90-4ff56abd854d",
-      "statement": "Tally was co-founded by a co-founder and her partner in the summer of 2020.",
+      "statement": "Tally was co-founded by Marie and her partner Filip in the summer of 2020.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -6828,7 +6829,7 @@
     },
     {
       "id": "01a10e74-4246-722c-8c64-e92b030622fb",
-      "statement": "Tally's co-founder handles tech while a co-founder handles marketing.",
+      "statement": "Tally's co-founder Filip handles tech while Marie handles marketing.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -6849,7 +6850,7 @@
     },
     {
       "id": "01a10e74-4246-722e-ad28-4ca06936bf4d",
-      "statement": "A co-founder used cold outreach among other methods to get Tally's first users and customers.",
+      "statement": "Marie used cold outreach among other methods to get Tally's first users and customers.",
       "claim_kind": "acquisition_channel",
       "subject_ref": {
         "type": "target",
@@ -6912,7 +6913,7 @@
     },
     {
       "id": "01a10e74-4246-7234-8778-a7913eb7d270",
-      "statement": "A co-founder appeared on the Get The Audience podcast to discuss cold outreach.",
+      "statement": "Marie appeared on the Get The Audience podcast to discuss cold outreach.",
       "claim_kind": "press",
       "subject_ref": {
         "type": "target",
@@ -6975,7 +6976,7 @@
     },
     {
       "id": "01a10e74-4246-723c-9fcb-e6bd3fc6afb6",
-      "statement": "Tally was bootstrapped by a team of 2, the co-founders.",
+      "statement": "Tally was bootstrapped by a team of 2, Filip and Marie.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -7269,7 +7270,7 @@
     },
     {
       "id": "01a10e74-4246-725e-862e-4d818ed1d296",
-      "statement": "Tally is bootstrapped by the co-founders with a team of 2.",
+      "statement": "Tally is bootstrapped by Filip and a co-founder with a team of 2.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -7458,7 +7459,7 @@
     },
     {
       "id": "01a10e74-4246-7274-a746-9bc4dd56fac1",
-      "statement": "Tally was founded by the co-founders and is made in Ghent, Belgium.",
+      "statement": "Tally was founded by Marie Martens and Filip Minev and is made in Ghent, Belgium.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -7479,7 +7480,7 @@
     },
     {
       "id": "01a10e74-4246-7276-9929-fd208cf310d2",
-      "statement": "Tally co-founder previously founded Delta, a crypto portfolio tracking app acquired by eToro.",
+      "statement": "Tally co-founder Filip Minev previously founded Delta, a crypto portfolio tracking app acquired by eToro.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -7941,7 +7942,7 @@
     },
     {
       "id": "01a10e74-4247-710f-9de1-aa1a2421b151",
-      "statement": "A co-founder of Tally left her stable marketing job to start Tally with her partner.",
+      "statement": "Marie Martens, co-founder of Tally, left her stable marketing job to start Tally with her partner Filip.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -8130,7 +8131,7 @@
     },
     {
       "id": "01a10e74-4247-7125-8556-04ff34c932a3",
-      "statement": "Tally's team, the co-founders, were interviewed in Ghent for the No-Code world radio podcast.",
+      "statement": "Tally's team, Marie Martens and Filip Minev, were interviewed in Ghent for the No-Code world radio podcast.",
       "claim_kind": "press",
       "subject_ref": {
         "type": "target",
@@ -8214,7 +8215,7 @@
     },
     {
       "id": "01a10e74-4247-712f-b4a8-465396cefc2e",
-      "statement": "Tally co-founder was interviewed on the Indie Hackers podcast by Courtland Allen.",
+      "statement": "Tally co-founder Marie Martens was interviewed on the Indie Hackers podcast by Courtland Allen.",
       "claim_kind": "press",
       "subject_ref": {
         "type": "target",
@@ -8256,7 +8257,7 @@
     },
     {
       "id": "01a10e74-4248-725e-8198-26fbb411d5f0",
-      "statement": "Tally co-founder discussed Tally's Product Hunt launch with Lemlist founder Guillaume Moubeche.",
+      "statement": "Tally co-founder Marie discussed Tally's Product Hunt launch with Lemlist founder Guillaume Moubeche.",
       "claim_kind": "press",
       "subject_ref": {
         "type": "target",
@@ -8340,7 +8341,7 @@
     },
     {
       "id": "01a10e74-4248-7268-a95b-14e29d5f32f1",
-      "statement": "Tally was founded by the co-founders after their travel startup Hotspot was hit by COVID-19 in 2020.",
+      "statement": "Tally was founded by Marie Martens and Filip Minev after their travel startup Hotspot was hit by COVID-19 in 2020.",
       "claim_kind": "origin",
       "subject_ref": {
         "type": "target",
@@ -8361,7 +8362,7 @@
     },
     {
       "id": "01a10e74-4248-726a-861a-4519ed8c5917",
-      "statement": "A co-founder found Tally's first users through cold outreach to Product Hunt upvoters, Twitter creators and community members.",
+      "statement": "Marie Martens found Tally's first users through cold outreach to Product Hunt upvoters, Twitter creators and community members.",
       "claim_kind": "first_users",
       "subject_ref": {
         "type": "target",
@@ -8760,7 +8761,7 @@
     },
     {
       "id": "01a10e74-4248-7296-97c3-5fc37208174e",
-      "statement": "The co-founders bootstrapped Tally as their second startup after shelving HotSpot due to COVID.",
+      "statement": "Marie Martens and Filip Minev bootstrapped Tally as their second startup after shelving HotSpot due to COVID.",
       "claim_kind": "founding",
       "subject_ref": {
         "type": "target",
@@ -8844,7 +8845,7 @@
     },
     {
       "id": "01a10e74-4248-729e-93f9-19f38ae5ce04",
-      "statement": "A co-founder said the few creators who replied to cold outreach became Tally's first users.",
+      "statement": "Marie Martens said the few creators who replied to cold outreach became Tally's first users.",
       "claim_kind": "first_users",
       "subject_ref": {
         "type": "target",
@@ -9222,7 +9223,7 @@
     },
     {
       "id": "01a10e74-4249-72b1-a744-d24b573ab04c",
-      "statement": "Tally founders build in public, sharing wins, challenges, and lessons.",
+      "statement": "Tally founders Marie and Filip build in public, sharing wins, challenges, and lessons.",
       "claim_kind": "tactic",
       "subject_ref": {
         "type": "target",
@@ -13797,7 +13798,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "In 2020, Filip (my partner in life and co-founder) and I launched Tally. We started…",
       "notes": null
     },
     {
@@ -13818,7 +13819,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "We bootstrapped from day one.",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -16695,7 +16696,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "Marie talked to Kevon Cheung about building Tally in public. Kevon is the founder of…",
       "notes": null
     },
     {
@@ -16737,7 +16738,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "Marie co-founded Tally with her partner Filip, in the summer of 2020.",
       "notes": null
     },
     {
@@ -16779,7 +16780,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "talk about getting your first users through cold outreach",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -17241,7 +17242,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "Filip and I are bootstrapping Tally, the simplest way to create forms, with a team…",
       "notes": null
     },
     {
@@ -17262,7 +17263,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "We’re not trying to raise capital, so we don’t need financial projections for investors.",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -17430,7 +17431,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "Tally is founded by Marie Martens and Filip Minev, and made in Ghent, Belgium.",
       "notes": null
     },
     {
@@ -17451,7 +17452,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "He has founded other startups in the past (for example Delta, a crypto portfolio tracking…",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -17934,7 +17935,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "She left her stable marketing job to start Tally with her partner in crime Filip…",
       "notes": null
     },
     {
@@ -17955,7 +17956,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "they've grown Tally to over 16,000 users almost $10k MRR",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -18123,7 +18124,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "I headed there to meet with Marie Martens and Filip Minev to know more about…",
       "notes": null
     },
     {
@@ -18144,7 +18145,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "Tally.so a no-code form builder",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -18165,7 +18166,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "Marie Martens (@mariemartens) who has gained over 10,000 users in less than a year for…",
       "notes": null
     },
     {
@@ -18186,7 +18187,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "Tally isn't even a new idea. In fact, incumbents like Google are already in the…",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -18228,7 +18229,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": null,
+      "excerpt": "Co-founder Marie had the honor to talk to Guillaume Moubeche, founder of Lemlist, about launching…",
       "notes": null
     },
     {
@@ -18270,7 +18271,7 @@
         "kind": "text_fragment",
         "value": ""
       },
-      "excerpt": "We created a hands-on checklist based on our own experience, with tips, no-code tools &…",
+      "excerpt": null,
       "notes": null
     },
     {
@@ -27535,7 +27536,7 @@
         "01a10e74-423b-7198-8bd5-3024ef89fcdc"
       ],
       "review_state": "machine_extracted",
-      "public_attribution": "company reported"
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e76-9bb6-7088-b6a4-9765748fffe4",
@@ -27557,7 +27558,7 @@
         "01a10e74-423b-7198-8bd5-3024ef89fcdc"
       ],
       "review_state": "machine_extracted",
-      "public_attribution": "company reported"
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e76-9bb7-7071-93da-bb2e6df9fc3e",
@@ -27902,7 +27903,7 @@
         "01a10e74-4248-7286-a1bc-5e7fdcb5e884"
       ],
       "review_state": "machine_extracted",
-      "public_attribution": "company reported"
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e76-9bba-7100-961d-0f254187bcda",
@@ -27944,7 +27945,7 @@
         "01a10e74-4240-7140-8aad-09e2066c1a4b"
       ],
       "review_state": "machine_extracted",
-      "public_attribution": "company reported"
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e76-9bbb-71f3-9744-c3adc2746908",
@@ -28058,7 +28059,7 @@
     {
       "id": "01a10e76-9bbc-719d-8c09-70eb3eff26f8",
       "label": "Two-founder bootstrapped, customer-funded business",
-      "summary": "Tally Pro was introduced in October 2020. The founders say Tally has been cash-flow positive from the start. For about two years the co-founders ran it alone as a profitable, bootstrapped business funded by subscriptions. MRR rose from $64 in October 2020 to $30K in October 2022.",
+      "summary": "Tally Pro was introduced in October 2020. The founders say Tally has been cash-flow positive from the start. For about two years Marie and Filip ran it alone as a profitable, bootstrapped business funded by subscriptions. MRR rose from $64 in October 2020 to $30K in October 2022.",
       "time": {
         "start": "2020-10-01T00:00:00Z",
         "end": "2022-10-31T23:59:59Z",
@@ -29583,7 +29584,7 @@
     },
     "origin": null,
     "first_users": {
-      "text": "The first users were makers, indie hackers, no-coders and startup founders. A co-founder manually messaged hundreds of people, by one account over 1,000, who had engaged with similar products on Product Hunt and Twitter. The few who replied became the first users and gave feedback. Everyone they talked to was invited into a Slack channel, which grew to about 400 people by late 2020. The founders also answered questions in no-code communities, Reddit and Indie Hackers, offered instant support and shipped features weekly. Tally had about 300 users after its first two to three months and ended 2020 with about 1,500. The March 2021 Product Hunt launch roughly doubled that to 3,000.",
+      "text": "The first users were makers, indie hackers, no-coders and startup founders. Marie manually messaged hundreds of people, by one account over 1,000, who had engaged with similar products on Product Hunt and Twitter. The few who replied became the first users and gave feedback. Everyone they talked to was invited into a Slack channel, which grew to about 400 people by late 2020. The founders also answered questions in no-code communities, Reddit and Indie Hackers, offered instant support and shipped features weekly. Tally had about 300 users after its first two to three months and ended 2020 with about 1,500. The March 2021 Product Hunt launch roughly doubled that to 3,000.",
       "claim_ids": [
         "01a10e74-423e-701a-a0ee-a1d3c4e0b594",
         "01a10e74-4248-729c-a30d-bb84c353c0c3",
