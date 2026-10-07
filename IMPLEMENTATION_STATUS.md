@@ -142,13 +142,17 @@ $3–5 each. Cost reduction ideas: cap claims per page, use a smaller model for 
 
 ## Owner decisions needed
 
-0. **Human publication review — in progress.** 2026-10-07: owner remarks on Plausible and PocketBase
-   applied (generic filter fixes + reviewer edits `manual-*`); all 5 republished.
-   **Human publication review — after the site is online.** The owner decided (2026-10-06) that an AI
-   makes the review decisions now and the owner reviews the live site afterwards. Decisions are in
-   `golden-runs/runs/*/publication/publication-review.yaml` (reviewer "AI … on behalf of the owner";
-   sheet: `~/Documents/Pigtail/Documents/publication-review-2026-10-06.md`). Corrections: edit
-   the entries, re-run the gate, republish with `--reviewed-by human`.
+0. **Publication review — owner read-through done (2026-10-07).** The owner reviewed all five live
+   examples; every remark was applied as a generic gate rule plus reviewer edits (`manual-*`), and all
+   five were republished. Decisions are still recorded as "AI (Claude Opus 5.5) on behalf of the owner;
+   human review pending" in `golden-runs/runs/*/publication/publication-review.yaml` (gitignored, local
+   only); sheet with every round: `~/Documents/Pigtail/Documents/publication-review-2026-10-06.md`.
+   The website no longer shows review status (owner request). Optional: formal sign-off = put the
+   owner's name in `reviewer`, re-run the gate, republish with `--reviewed-by human`.
+   Owner policy decisions from the review (all in docs/publication-gate.md): name founders/executives,
+   anonymise private people; no estimate/company-database sites (GetLatka, Dealroom…); setbacks
+   attributed to the company; no family/relationship/health details; security incidents only precise
+   and attributed; sales-pitch self-descriptions replaced by neutral ones.
 1. ~~Publish the website~~ — done 2026-10-06: https://suchipizza.github.io/pigtail/ ; README links point there.
 2. ~~License~~ — decided 2026-10-06: **MIT**.
 3. ~~Default model~~ — decided 2026-10-06: **Claude Sonnet 5.5** (schemas and web search smoke-tested; a full run's cost/quality not yet measured).
@@ -159,6 +163,14 @@ $3–5 each. Cost reduction ideas: cap claims per page, use a smaller model for 
 7. ~~Superhuman example~~ — decided 2026-10-06: keep.
 
 ## Next tasks
+
+- Open question for the owner: website footer says "reviewed before publication"; change to
+  "checked before publication"?
+- Plausible lost 13 GetLatka-only facts (≈3,300 customers / $23.3K MRR May 2021, 2% churn, 1,000
+  trials/month); find non-estimate sources on a future refresh.
+- New example runs: `publication_gate.py` → `fill_source_titles.py` (free) → `ai_review.py --budget-usd`
+  (paid, ask for budget) → gate → `publish_example.py` → push → `gh workflow run pages.yml` (manual).
+- Fetcher now prefers the page heading over a generic site-name title; only future runs benefit.
 
 - Note: the earlier raw example bundles (with names, model/cost metadata) remain in git history and in
   the v0.1.0 tag. Rewriting history was not done; decide if it matters.
