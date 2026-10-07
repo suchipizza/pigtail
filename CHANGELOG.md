@@ -17,6 +17,11 @@ All notable changes to this project are listed here. Versions follow [SemVer](ht
 - Owner review of Superhuman (2026-10-07): founders and executives are named in their role, private
   individuals anonymised; real source titles kept; header shows company-reported figures only; relayed
   third-party figures labelled as such; self-descriptions quoted; Wikipedia pages undated.
+- Owner review of Tally (2026-10-07): personal-life details (family, relationships, health) are removed
+  like personal finances, including in excerpts; security incidents count as negative-sensitive; setbacks
+  in outcomes, company stages and summaries stay attributed, and first-party setback claims are labelled
+  "According to the company"; sales-pitch self-descriptions need a neutral description; "hiring X as
+  marketing manager" reads "hiring a marketing manager"; "Filip and a co-founder" names the other founder.
 - Owner review of Hatchet (2026-10-07): setbacks a company described about itself stay attributed
   (PUB-009); a generic "the founder" is written as the named founder when it is clear which one;
   "introduced X as its maintainer" no longer turns into "the maintainer … as its maintainer"; estimate and

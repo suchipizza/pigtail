@@ -808,3 +808,73 @@ def test_relayed_figures_wiki_dates_and_header_cards(b, blog):
     vm = build_view_model(res.public_bundle, public=True)
     assert all("third-party" not in s["label"] for s in vm["stats"])
     assert "Self-description" in res.report_html
+
+
+def test_personal_life_security_and_sales_pitch(b, blog):
+    """Owner review of Tally (2026-10-07)."""
+    b["target"]["description"] = "The simplest way to create forms. Unlimited forms, forever free."
+    family = add_claim(b, "Example postponed its launch because the founders' daughter was born early.", [blog])
+    company = add_claim(b, "Example was born as a pivot from an earlier startup.", [blog])
+    workflows = add_claim(b, "Example launched child workflows.", [blog])
+    breach = add_claim(b, "A compromise of Example's internal analytics tool exposed email addresses.", [blog])
+    res = gate(b)
+    ids = claim_ids(res)
+    assert family not in ids and breach not in ids and {company, workflows} <= ids
+    assert "forever free" not in res.report_html  # pending sales pitch is not shown
+    pitch = next(i for i in res.review_items if i.object_ref.type == "target")
+    f_family = next(f for f in res.audit.findings if f.object_ref.id == family and f.rule_id == "PUB-005")
+    f_breach = next(f for f in res.audit.findings if f.object_ref.id == breach and f.rule_id == "PUB-003")
+    neutral = "Example is a form builder with a free plan and a paid tier."
+    items = [
+        ReviewEntry(
+            finding_id=f_family.finding_id,
+            rule_id="PUB-005",
+            object_ref=f_family.object_ref,
+            field="statement",
+            decision="approve_public_text",
+            public_text="Example postponed its launch.",
+            reviewer="tester",
+        ),
+        ReviewEntry(
+            finding_id=f_breach.finding_id,
+            rule_id="PUB-003",
+            object_ref=f_breach.object_ref,
+            decision="mark_manually_verified",
+            reviewer="tester",
+        ),
+        pitch.model_copy(update={"decision": "approve_public_text", "public_text": neutral, "reviewer": "tester"}),
+    ]
+    res2 = gate(b, ReviewFile(policy_version="0.1.0", items=items))
+    s = {c["id"]: c["statement"] for c in res2.public_bundle["claims"]}
+    assert s[family] == "Example postponed its launch." and breach in s
+    assert res2.public_bundle["target"]["description"] == neutral
+    assert res2.public_bundle["target_description_source"] == "reviewer"
+
+
+def test_setbacks_in_outcomes_and_hired_role_wording(b, blog):
+    b["target"]["name"] = "Example"
+    b["people"] += [
+        {"id": new_id(), "name": "Ann Lee", "role": "Co-founder", "external_ids": [], "claim_ids": []},
+        {"id": new_id(), "name": "Bob Lee", "role": "Co-founder", "external_ids": [], "claim_ids": []},
+        {"id": new_id(), "name": "Ward Smith", "role": "Marketing manager", "external_ids": [], "claim_ids": []},
+    ]
+    c1 = add_claim(b, "Example grew to 11 people, hiring Ward Smith as marketing manager.", [blog])
+    c2 = add_claim(b, "Example is bootstrapped by Ann and a co-founder.", [blog])
+    c3 = add_claim(b, "Example downscaled its engineering team in 2023.", [blog])
+    out = {
+        "id": new_id(),
+        "summary": "Engineering hires did not work out and the team was downscaled.",
+        "event_id": None,
+        "tactic_occurrence_id": None,
+        "metric_snapshot_ids": [],
+        "causal_attribution": "weakly_associated",
+        "claim_ids": [c3],
+        "review_state": "machine_inferred",
+    }
+    b["outcomes"].append(out)
+    res = gate(b)
+    s = {c["id"]: c for c in res.public_bundle["claims"]}
+    assert s[c1]["statement"] == "Example grew to 11 people, hiring a marketing manager."
+    assert s[c2]["statement"] == "Example is bootstrapped by Ann and Bob Lee."
+    assert s[c3]["public_attribution"] == "According to the project"  # fixture target is a repository
+    assert any(i.object_ref.id == out["id"] and i.rule_id == "PUB-009" for i in res.review_items)

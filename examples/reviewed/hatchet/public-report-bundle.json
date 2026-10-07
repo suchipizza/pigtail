@@ -3322,7 +3322,7 @@
       "extraction_certainty": 0.95,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": null,
+      "public_attribution": "According to the project",
       "manually_verified": false
     },
     {
@@ -3427,7 +3427,7 @@
       "extraction_certainty": 0.9,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": null,
+      "public_attribution": "According to the project",
       "manually_verified": false
     },
     {
@@ -3553,7 +3553,7 @@
       "extraction_certainty": 0.9,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": null,
+      "public_attribution": "According to the project",
       "manually_verified": false
     },
     {
@@ -3574,7 +3574,7 @@
       "extraction_certainty": 0.9,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": null,
+      "public_attribution": "According to the project",
       "manually_verified": false
     },
     {
@@ -3595,7 +3595,7 @@
       "extraction_certainty": 0.9,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": null,
+      "public_attribution": "According to the project",
       "manually_verified": false
     },
     {
@@ -3931,7 +3931,7 @@
       "extraction_certainty": 0.85,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": null,
+      "public_attribution": "According to the project",
       "manually_verified": false
     },
     {
@@ -4141,7 +4141,7 @@
       "extraction_certainty": 0.9,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": null,
+      "public_attribution": "According to the project",
       "manually_verified": false
     },
     {
@@ -4204,12 +4204,12 @@
       "extraction_certainty": 0.85,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": null,
+      "public_attribution": "According to the project",
       "manually_verified": false
     },
     {
       "id": "01a10e62-9c6a-70b7-8fdc-4bd300b5764b",
-      "statement": "Postgres expert an outside expert helped Hatchet debug the incident by suggesting manually running ANALYZE on parent tables.",
+      "statement": "An outside Postgres expert helped Hatchet debug the incident by suggesting manually running ANALYZE on parent tables.",
       "claim_kind": "partnership",
       "subject_ref": {
         "type": "target",
@@ -4225,7 +4225,7 @@
       "extraction_certainty": 0.9,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": null,
+      "public_attribution": "According to the project",
       "manually_verified": false
     },
     {
@@ -4267,7 +4267,7 @@
       "extraction_certainty": 0.7,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": null,
+      "public_attribution": "According to the project",
       "manually_verified": false
     },
     {
@@ -4288,7 +4288,7 @@
       "extraction_certainty": 0.85,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": null,
+      "public_attribution": "According to the project",
       "manually_verified": false
     },
     {

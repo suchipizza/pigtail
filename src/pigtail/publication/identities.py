@@ -165,6 +165,12 @@ def _role_with_article(m: re.Match[str]) -> str:
 
 
 _LABEL_NOUN = r"(?:maintainer|engineer|contributor|team member|team lead|co-founder|founder|CEO|CTO|CPO)"
+# A role label produced by role_label(): "a marketing team member", "the maintainer", "a community contributor".
+_LABEL_PHRASE = r"(?:(?:marketing |support |community |outside )?(?:" + _LABEL_NOUN[3:-1] + r"|expert))"
+_ROLE_WORD = (
+    r"(?:maintainer|engineer|developer|designer|contributor|manager|lead|head|director|marketer|writer|member"
+    r"|hire|employee|co-founder|founder|CEO|CTO|CPO|COO|CFO|CMO|VP|advisor|specialist|officer|analyst)"
+)
 
 
 def _article(phrase: str) -> str:
@@ -347,6 +353,12 @@ class Redactor:
             else:
                 text = rx.sub(repl, text)
         text = self._sub_tokens(text)
+        # "Postgres expert an outside expert" -> "An outside Postgres expert"
+        text = re.sub(
+            r"\b((?:[A-Z][\w-]+ )?)expert an outside expert\b",
+            lambda m: _cap(f"an outside {m.group(1)}expert", m),
+            text,
+        )
         # "a co-founder and a co-founder" -> "the co-founders"
         text = re.sub(
             r"\b([Aa]|[Tt]he) (co-founder|founder|team member|engineer|contributor) and (?:a|the) \2\b",
@@ -355,18 +367,20 @@ class Redactor:
         )
         # "A community contributor, a community contributor, did" -> "A community contributor did"
         text = re.sub(r"\b((?:[Aa]n?|[Tt]he) ((?:[\w-]+ )?[\w-]+)), (?:an?|the) \2,?", r"\1", text)
+        # A role label followed by the role it was hired into says the role twice:
         # "Hatchet introduced the maintainer as its OSS maintainer" -> "Hatchet introduced an OSS maintainer"
+        # "hiring a marketing team member as marketing manager" -> "hiring a marketing manager"
         text = re.sub(
-            rf"\b(introduced|hired|named|appointed|welcomed|added|announced) (?:the|an?) ({_LABEL_NOUN}) as "
-            rf"(?:its|their|our|his|her|an?|the) ([^.,;]*?\b\2)\b",
-            lambda m: f"{m.group(1)} {_article(m.group(3))} {m.group(3)}",
+            rf"\b(introduced|introducing|hired|hiring|hires?|named|appointed|welcomed|added|adding|announced)"
+            rf" (?:the|an?) {_LABEL_PHRASE} as (?:its|their|our|his|her|an?|the)?\s*([^.,;]*?\b{_ROLE_WORD})\b",
+            lambda m: f"{m.group(1)} {_article(m.group(2))} {m.group(2)}",
             text,
         )
         # "The maintainer introduced as OSS maintainer" -> "OSS maintainer introduced"
         text = re.sub(
-            rf"(?:(?<=^)|(?<=[.!?] ))(?:[Tt]he|[Aa]n?) ({_LABEL_NOUN}) (introduced|hired|named|appointed|joined|added)"
-            rf" as (?:its |their |an? |the )?([^.,;]*?\b\1)\b",
-            lambda m: m.group(3)[0].upper() + m.group(3)[1:] + " " + m.group(2),
+            rf"(?:(?<=^)|(?<=[.!?] ))(?:[Tt]he|[Aa]n?) {_LABEL_PHRASE} (introduced|hired|named|appointed|joined|added)"
+            rf" as (?:its |their |an? |the )?([^.,;]*?\b{_ROLE_WORD})\b",
+            lambda m: m.group(2)[0].upper() + m.group(2)[1:] + " " + m.group(1),
             text,
         )
         # "A co-founder joined Plausible as co-founder" -> "A co-founder joined Plausible"
@@ -405,6 +419,10 @@ class Redactor:
                 if len(sole) == 1:
                     return None if sole[0] in named else sole[0]
             if named:
+                others = [n for n in everyone if n not in named]
+                # "Filip and a co-founder", "with the co-founder": the other one of two founders
+                if len(others) == 1 and len(everyone) == 2 and re.search(r"\b(?:and|with|&)\s*$", before[0]):
+                    return others[0]
                 return None  # another founder is named here; which one is meant is unclear
             if len(everyone) == 1:
                 return everyone[0]
@@ -416,12 +434,17 @@ class Redactor:
                     return None
             return None
 
+        before = [""]
+
         def sub(m: re.Match[str]) -> str:
+            before[0] = m.string[: m.start()]
             name = pick(bool(m.group(1)))
             if name is None:
                 return m.group(0)
-            if name in m.string[: m.start()] or (
-                self.target_name and re.search(rf"\b{tn}\b", m.string[: m.start()], re.I)
+            if (
+                name in m.string[: m.start()]
+                or re.search(r"\b(?:and|with|&)\s*$", m.string[: m.start()])
+                or (self.target_name and re.search(rf"\b{tn}\b", m.string[: m.start()], re.I))
             ):
                 return name
             role = "founder" if self.founders[name]["sole"] else "co-founder"

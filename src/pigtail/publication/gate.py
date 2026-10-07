@@ -773,6 +773,33 @@ class PublicationGate:
                         allowed=REVIEW_DECISIONS,
                     )
                 self.effect(f, "claims", cid)
+            if not c["is_negative_sensitive"] and (hit := scanners.security(text)):
+                n_drop += 1
+                f = self.add(
+                    "PUB-003",
+                    "DROP",
+                    "claims",
+                    cid,
+                    f"Security incident ({hit!r}) is negative-sensitive. Publish it only after checking the source, "
+                    "with precise wording attributed to the company (mark_manually_verified plus a reviewer edit).",
+                    before=text,
+                    allowed=("mark_manually_verified",),
+                )
+                self.effect(f, "claims", cid)
+            if hit := scanners.personal_life(text):
+                n_drop += 1
+                f = self.add(
+                    "PUB-005",
+                    "DROP",
+                    "claims",
+                    cid,
+                    f"Personal life detail ({hit!r}: family, health) is excluded from Pigtail-hosted reports, even "
+                    "when the person shared it. Supply public_text without it.",
+                    fld="statement",
+                    before=text,
+                    allowed=("approve_public_text",),
+                )
+                self.effect(f, "claims", cid, "statement")
             if hit := scanners.finance_strong(text):
                 n_drop += 1
                 f = self.add(
@@ -827,6 +854,23 @@ class PublicationGate:
             if any(self._first_party(sources[el["source_id"]]) for el in cl):
                 self.first_party_claims.add(cid)
             if (
+                first_party
+                and (hit := scanners.negative(text))
+                and not scanners.is_attributed(text)
+                and not self._relayed_third_party(text)
+            ):
+                label = f"According to {who}"
+                self.attribution[cid] = label
+                self.add(
+                    "PUB-009",
+                    "RELABEL",
+                    "claims",
+                    cid,
+                    f"A setback the company described about itself ({hit!r}) is shown as attributed.",
+                    before=text,
+                    after=f"{label}: {text}",
+                )
+            elif (
                 first_party
                 and (hit := scanners.absolute(text))
                 and not scanners.is_attributed(text)
@@ -949,9 +993,34 @@ class PublicationGate:
                     allowed=REVIEW_DECISIONS,
                 )
                 self.effect(f, coll, oid, fld)
+            if hit := scanners.personal_life(text):
+                f = self.add(
+                    "PUB-005",
+                    "DROP",
+                    coll,
+                    oid,
+                    f"Personal life detail ({hit!r}: family, health) is excluded from Pigtail-hosted reports.",
+                    fld=fld,
+                    before=text,
+                    allowed=("approve_public_text",),
+                )
+                self.effect(f, coll, oid, fld)
+            if hit := scanners.security(text):
+                f = self.add(
+                    "PUB-003",
+                    "REQUIRE_REVIEW",
+                    coll,
+                    oid,
+                    f"Mentions a security incident ({hit!r}). State it precisely and attributed to the company, "
+                    "with context, or exclude it.",
+                    fld=fld,
+                    before=text,
+                    allowed=("approve_public_text", "exclude"),
+                )
+                self.effect(f, coll, oid, fld)
             if (
-                coll == "constraints"
-                and fld == "description"
+                coll in ("constraints", "outcomes", "company_stages", "narrative")
+                and fld in ("description", "summary", "text")
                 and (hit := scanners.negative(text))
                 and not scanners.is_attributed(text)
                 and set(o.get("claim_ids", [])) & self.first_party_claims
@@ -1316,6 +1385,8 @@ class PublicationGate:
                     reason = "At most one excerpt per source is shown; this one is replaced by the claim and link."
                 elif self.redactor.residual(el["excerpt"]):
                     reason = "The excerpt names a person or handle; quotes are not altered, so it is not shown."
+                elif scanners.personal_life(el["excerpt"]) or scanners.finance_strong(el["excerpt"]):
+                    reason = "The excerpt contains personal life or finance details, so it is not shown."
                 else:
                     new = _words_clip(el["excerpt"], PUBLIC_EXCERPT_MAX_WORDS, self.max_chars.get(sid, 0) or 0)
                     if self.max_chars.get(sid, 0) <= 0:
@@ -1537,12 +1608,19 @@ class PublicationGate:
 
         gaps = []
         for g in b["gaps"]:
+            if not self.alive("gaps", g["id"]):
+                continue
             refs = [r for r in g["related_refs"] if r["id"] in all_live]
             summary = g["summary"]
             why = None
             if len(refs) < len(g["related_refs"]):
                 why = "It referred to content removed from the public report."
-            elif scanners.finance_strong(summary) or scanners.misconduct(summary):
+            elif (
+                scanners.finance_strong(summary)
+                or scanners.misconduct(summary)
+                or scanners.personal_life(summary)
+                or scanners.security(summary)
+            ):
                 why = "It repeated sensitive content."
             if why:
                 self.add(
@@ -1599,6 +1677,21 @@ class PublicationGate:
                 fld="description",
                 before=target["description"],
             )
+        if target["description"] and (hit := scanners.promotional(target["description"])):
+            f = self.add(
+                "PUB-009",
+                "REQUIRE_REVIEW",
+                "target",
+                target["id"],
+                f"The self-description is a sales pitch ({hit!r}). Supply a neutral one-line description as "
+                "public_text, or approve showing it as a quoted self-description.",
+                fld="description",
+                before=target["description"],
+                allowed=("approve_public_text", "approve_as_is"),
+            )
+            if self.resolve(f, "target", target["id"], "description") == "drop":
+                target["description"] = None
+            reviewer_desc = ("target", target["id"], "description") in self.overrides
         target["description"] = self._public_text("target", target["id"], "description", target["description"])
         desc_source = None if not target["description"] else "reviewer" if reviewer_desc else "self_description"
         shown = self._display_name()

@@ -61,16 +61,42 @@ ABSOLUTE = re.compile(
 )
 ATTRIBUTED = re.compile(
     r"\b(?:says?|said|states?|stated|according to|reports?|reported|claims?|claimed|wrote|writes|describes?"
-    r"|described|announced|told|tweeted|posted|calls?|called|estimates?|estimated)\b",
+    r"|described|announced|told|tweeted|posted|calls?|called|estimates?|estimated)\b|\bper (?:the )?[A-Z]",
     _I,
 )
 
 # PUB-009: setbacks a company describes about itself. Stated in Pigtail's voice they read as Pigtail's
 # verdict on the product, so they stay attributed ("Hatchet wrote that…").
 NEGATIVE = re.compile(
-    r"\b(?:incidents?|outages?|slow(?:ed|er|down)?|abandon(?:ed|s)?|delay(?:ed|s)?|bloat(?:ed)?|fail(?:ed|ures?|s)?"
-    r"|broke(?:n)?|bugs?|problems?|issues?|paus(?:e|ed|es)|churn(?:ed)?|degrad(?:ed|ation)|drift(?:ed)?|poor"
-    r"|errors?|eroded|struggl(?:ed|es?)|setbacks?|mistakes?|lost|losing|decline[sd]?|bottlenecks?|unreliable)\b",
+    r"\b(?:incidents?|outages?|slowed|slowdown|abandon(?:ed|s)?|delay(?:ed|s)?|bloat(?:ed)?|failed|failures? (?:to|of)"
+    r"|broke(?:n)?|had problems|problems with|paus(?:e|ed|es)|high churn|churned|churn (?:rose|increased|exceed\w*|may)"
+    r"|degrad(?:ed|ation)|drift(?:ed|ing)?|poor|erod\w*|struggl(?:ed|es?)|setbacks?|mistakes?|lost|losing"
+    r"|declin(?:ed|ing) (?:by|to|from|sharply|steadily)|decline in|bottlenecks?|unreliable"
+    r"|downscal(?:e|ed|ing)|laid off|layoffs?|let go)\b",
+    _I,
+)
+
+# PUB-005: personal life (family, health) of identifiable people. It rarely explains growth and is the
+# most personal kind of detail, so it is removed even when the person shared it themselves.
+PERSONAL_LIFE = re.compile(
+    r"\b(?:(?:their|her|his|my|our|founders?['’]s?|[A-Z][\w-]+['’]s)\s+(?:newborn |first |second |two |young )?"
+    r"(?:daughters?|sons?|kids?|child(?:ren)?|bab(?:y|ies)|wife|husband|partner|family|health)"
+    r"|daughters?|newborn|pregnan\w*|maternity|paternity|parental leave|birth card|birth of (?:their|her|his|our)"
+    r"|(?:was|were) born (?:early|earlier|prematurely)|illness|hospitali[sz]ed|in (?:the )?hospital|cancer"
+    r"|diagnosed|surgery|passed away|funeral|divorced?|burn-?out|mental health|depression|wedding|honeymoon"
+    r"|married|partner in life|life partner)\b",
+    _I,
+)
+# PUB-003: security incidents are negative-sensitive even when the extractor did not flag them.
+SECURITY = re.compile(
+    r"\b(?:data breach|breach(?:ed)?|compromis(?:e|ed)|hacked|data leak|leaked|zero-day|vulnerabilit\w*"
+    r"|exposed (?:\w+ ){0,3}(?:data|emails?|passwords?|addresses))\b",
+    _I,
+)
+# Words that make a self-description a sales pitch rather than a description.
+PROMOTIONAL = re.compile(
+    r"\b(?:forever free|free forever|unlimited|simplest|easiest|best|beautiful|in seconds|no coding|#1|leading"
+    r"|world'?s)\b",
     _I,
 )
 
@@ -102,6 +128,21 @@ def misconduct(text: str) -> str | None:
 
 def absolute(text: str) -> str | None:
     m = ABSOLUTE.search(text or "")
+    return m.group(0) if m else None
+
+
+def personal_life(text: str) -> str | None:
+    m = PERSONAL_LIFE.search(text or "")
+    return m.group(0) if m else None
+
+
+def security(text: str) -> str | None:
+    m = SECURITY.search(text or "")
+    return m.group(0) if m else None
+
+
+def promotional(text: str) -> str | None:
+    m = PROMOTIONAL.search(text or "")
     return m.group(0) if m else None
 
 

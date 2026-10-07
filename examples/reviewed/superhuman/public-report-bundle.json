@@ -4568,7 +4568,7 @@
       "extraction_certainty": 0.9,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": null,
+      "public_attribution": "According to the company",
       "manually_verified": false
     },
     {
@@ -8096,7 +8096,7 @@
       "extraction_certainty": 0.8,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": null,
+      "public_attribution": "According to the company",
       "manually_verified": false
     },
     {

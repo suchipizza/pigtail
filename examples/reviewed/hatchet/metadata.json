@@ -4,7 +4,7 @@
   "description": "An open-source task queue that launched repeatedly on Hacker News (Show HN, Launch HN, v1) — a repeated-launch case study.",
   "kind": "repository",
   "featured": true,
-  "published_at": "2026-10-07T13:13:17Z",
+  "published_at": "2026-10-07T13:22:47Z",
   "bundle_schema_version": "0.1.0",
   "publication_policy_version": "0.1.0",
   "reviewed_by": "ai"
