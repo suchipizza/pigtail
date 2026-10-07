@@ -14,6 +14,14 @@ All notable changes to this project are listed here. Versions follow [SemVer](ht
 - `scripts/ai_review.py`: owner-authorized AI reviewer for publication-review items, recorded as AI
   decisions; examples carry `reviewed_by` and the website shows when a human review is pending.
 - Names shared by people with different roles (e.g. a surname) go to review instead of being guessed.
+- From the first owner review (2026-10-07): reviewer edits persist by object and survive finding changes
+  (and can be added by hand); company-reported figures require a first-party source (estimate sites are
+  "third-party estimate"); uncited sources are not listed; title-only sources are labelled; summaries are
+  never "Stated in sources"; better role wording; the target name follows its sources' spelling; the
+  footer says "automated publication checks".
+
+### Fixed
+- Launch rows before a repository had any stars show "not public yet" instead of +0 (also in local reports).
 
 ### Changed
 - `examples/reviewed/` holds publication-gated output only. All five examples are republished through

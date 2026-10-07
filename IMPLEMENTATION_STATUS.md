@@ -142,7 +142,9 @@ $3–5 each. Cost reduction ideas: cap claims per page, use a smaller model for 
 
 ## Owner decisions needed
 
-0. **Human publication review — after the site is online.** The owner decided (2026-10-06) that an AI
+0. **Human publication review — in progress.** 2026-10-07: owner remarks on Plausible and PocketBase
+   applied (generic filter fixes + reviewer edits `manual-*`); all 5 republished.
+   **Human publication review — after the site is online.** The owner decided (2026-10-06) that an AI
    makes the review decisions now and the owner reviews the live site afterwards. Decisions are in
    `golden-runs/runs/*/publication/publication-review.yaml` (reviewer "AI … on behalf of the owner";
    sheet: `~/Documents/Pigtail/Documents/publication-review-2026-10-06.md`). Corrections: edit

@@ -313,7 +313,7 @@
       {% for s in vm.sources %}
       <a class="source-item" id="src-{{ s.n }}" href="{{ s.url }}" target="_blank" rel="noopener">
         <b><span class="srcnum">[{{ s.n }}]</span> {{ s.title }}</b>
-        <span>{{ s.host }} · {{ s.type }}{% if s.published %} · {{ s.published }}{% endif %} · {{ s.claims }} claim{{ "" if s.claims == 1 else "s" }}{% if s.fetch_status != "success" %} · {{ s.fetch_status | replace("_", " ") }}{% endif %}</span>
+        <span>{{ s.host }} · {{ s.type }}{% if s.published %} · {{ s.published }}{% endif %} · {{ s.claims }} claim{{ "" if s.claims == 1 else "s" }}{% if s.note %} · {{ s.note }}{% elif s.fetch_status != "success" %} · {{ s.fetch_status | replace("_", " ") }}{% endif %}</span>
       </a>
       {% endfor %}
     </div>

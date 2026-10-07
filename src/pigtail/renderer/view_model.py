@@ -198,6 +198,7 @@ def build_view_model(bundle: ResearchBundle | dict, public: bool = False) -> dic
                     "fetch_status": f.get("status"),
                     "content_hash": f.get("content_hash"),
                     "display_mode": s["policy"]["public_display_mode"],
+                    "note": s.get("public_note"),
                 }
             )
         return {
@@ -269,7 +270,7 @@ def build_view_model(bundle: ResearchBundle | dict, public: bool = False) -> dic
             continue
         elif public:
             # Company-reported and third-party figures stay separate series (PUB-010).
-            attr = metric_attribution(
+            attr = m.get("public_attribution") or metric_attribution(
                 [el for cid in m["claim_ids"] for el in links_by_claim.get(cid, [])],
                 " ".join(claims[cid]["statement"] for cid in m["claim_ids"] if cid in claims),
             )
@@ -381,6 +382,7 @@ def build_view_model(bundle: ResearchBundle | dict, public: bool = False) -> dic
             outcomes_by_event[o["event_id"]].append(o)
 
     launch_eps = []
+    first_star_day = next((p["t"] for p in star_points if p["v"] and p["v"] > 0), None)
     for le in sorted(b["launch_episodes"], key=lambda x: x["time"]["start"] or ""):
         evs = [event_view_by_id[i] for i in le["event_ids"] if i in event_view_by_id]
         outs = []
@@ -406,12 +408,16 @@ def build_view_model(bundle: ResearchBundle | dict, public: bool = False) -> dic
         windows = {mtr["label"]: mtr["raw"] for o in outs for mtr in o["metrics"]}
         before = windows.get("Stars before")
         cols = []
+        le_start = (le["time"]["start"] or "")[:10]
+        # Star history only counts stars once the repository is public: a launch before the first star
+        # has no meaningful "+0" (it reads like a failed launch).
+        not_public = bool(first_star_day and le_start and le_start < first_star_day)
         for lab in ("+24h", "+7d", "+30d", "+90d"):
             v = windows.get(f"Stars {lab}")
-            cols.append("—" if v is None or before is None else f"+{_fmt_num(v - before)}")
+            cols.append("—" if v is None or before is None or not_public else f"+{_fmt_num(v - before)}")
         launch_eps.append(
             {
-                "before": _fmt_num(before) if before is not None else "—",
+                "before": "not public yet" if not_public else _fmt_num(before) if before is not None else "—",
                 "cols": cols,
                 "id": le["id"],
                 "title": le["title"],
@@ -503,6 +509,9 @@ def build_view_model(bundle: ResearchBundle | dict, public: bool = False) -> dic
     ]
     reversals = [ev for ev in event_views if ev["type"] in ("reversal", "pricing_change", "strategy_change")]
 
+    # Pigtail's own summaries are never labelled as if a source said them (public reports).
+    inference_labels = {**INFERENCE_LABELS, "explicit": "Summarized from cited sources"} if public else INFERENCE_LABELS
+
     def narrative_block(key: str) -> dict | None:
         blk = b["narrative"].get(key)
         if not blk:
@@ -510,7 +519,7 @@ def build_view_model(bundle: ResearchBundle | dict, public: bool = False) -> dic
         return {
             "text": blk["text"],
             "cites": cite(blk["claim_ids"]),
-            "inference": INFERENCE_LABELS[blk["inference_strength"]],
+            "inference": inference_labels[blk["inference_strength"]],
             "inferred": blk["inference_strength"] != "explicit",
         }
 
@@ -521,7 +530,7 @@ def build_view_model(bundle: ResearchBundle | dict, public: bool = False) -> dic
         {
             "text": k["text"],
             "cites": cite(k["claim_ids"]),
-            "inference": INFERENCE_LABELS[k["inference_strength"]],
+            "inference": inference_labels[k["inference_strength"]],
         }
         for k in b["narrative"]["key_takeaways"]
     ]
@@ -582,6 +591,7 @@ def build_view_model(bundle: ResearchBundle | dict, public: bool = False) -> dic
                 "display_mode": s["policy"]["public_display_mode"].replace("_", " "),
                 "claims": used_by.get(s["id"], 0),
                 "fetch_status": (fetch_by_source.get(s["id"]) or {}).get("status", "not fetched"),
+                "note": s.get("public_note"),
             }
             for s in b["sources"]
         ],

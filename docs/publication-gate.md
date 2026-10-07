@@ -48,6 +48,12 @@ new factual claims. Where new wording is needed, a person writes it.
 | PUB-017 | Anything that rested on a removed claim is removed too; if only some of its claims were removed, it needs review. |
 | PUB-018 | Gaps stay visible but never repeat removed sensitive content. |
 
+Also: a figure counts as "company reported" only when it comes from the company's own site, repository
+or a founder interview; estimate sites (e.g. getlatka.com) are labelled "third-party estimate". Sources
+that support no public claim are not listed. A source where only the title and metadata could be read
+says so on every citation. Pigtail's own summaries are labelled "Summarized from cited sources", never
+"Stated in sources". The target's name is written the way its sources write it.
+
 Anything waiting for a decision is left out of the preview report, so a non-PASS output never shows
 unresolved content.
 
@@ -86,7 +92,10 @@ Exit codes: 0 `PASS`, 1 `NEEDS_REVIEW`, 2 `BLOCKED`, 3 input problem.
 | `exclude` | Leave it out. |
 | `mark_manually_verified` | You checked the source yourself (for unreadable sources and sensitive claims). The original fetch status is not changed. |
 
-Add `rationale` and `reviewer`. To keep a person's name because it is needed to understand the
+Add `rationale` and `reviewer`. A decision sticks to its object (rule + object + field), so it still
+applies if the finding that prompted it is no longer raised. To change something the gate did not
+flag, add your own entry with any unique `finding_id` (e.g. `manual-1`), `rule_id: PUB-REVIEW`, the
+`object_ref` and `field`, and `approve_public_text` or `exclude`. To keep a person's name because it is needed to understand the
 analysis, add them under `keep_identities` with a rationale. Then run the gate again. Reviewer names
 are recorded in the internal audit only, never in the report. The review file is internal; never
 publish it.

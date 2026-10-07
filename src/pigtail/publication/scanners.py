@@ -56,7 +56,7 @@ MISCONDUCT = re.compile(
 # PUB-009: absolute wording that should stay attributed when it comes from the company itself.
 ABSOLUTE = re.compile(
     r"\b(?:never|always|only|no one|nobody|100 ?%|solely|exclusively|entirely|completely|purely|zero"
-    r"|first-ever|the first|best|largest|biggest|fastest|most popular|number one)\b|#1\b",
+    r"|first-ever|best|largest|biggest|fastest|most popular|number one)\b|#1\b",
     _I,
 )
 ATTRIBUTED = re.compile(

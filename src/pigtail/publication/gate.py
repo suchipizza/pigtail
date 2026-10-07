@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from markupsafe import escape
 
@@ -116,6 +117,24 @@ NARRATIVE_KEYS = ("thirty_second", "origin", "first_users", "flywheel", "did_dif
 DISPLAY_ORDER = {"link_only": 0, "paraphrase_and_link": 1, "paraphrase_link_excerpt": 2}
 SUCCESS = "success"
 NEUTRAL_GAP = "Public evidence was insufficient to verify this detail."
+# Pages written by the company/project itself (or its founders, in interviews) count as first-party.
+FIRST_PARTY_TYPES = {"first_party", "founder_interview", "readme", "release_list", "repository_api"}
+# Sites whose company figures are estimates or modelled data, not company reports (PUB-010).
+ESTIMATE_HOSTS = (
+    "getlatka.com",
+    "growjo.com",
+    "owler.com",
+    "similarweb.com",
+    "semrush.com",
+    "zoominfo.com",
+    "craft.co",
+    "tracxn.com",
+    "cbinsights.com",
+    "crunchbase.com",
+    "pitchbook.com",
+    "builtwith.com",
+)
+METADATA_ONLY_NOTE = "Title and metadata only; page not read"
 REVIEW_DECISIONS: tuple[Decision, ...] = ("approve_as_is", "approve_public_text", "exclude")
 
 
@@ -171,6 +190,8 @@ class PublicationGate:
         self.input_hash = input_hash
         self.review_hash = review_hash
         self.decisions = {e.finding_id: e for e in (review.items if review else [])}
+        # Decisions also match by rule + object + field, so they survive finding-ID changes.
+        self.by_key = {(e.rule_id, e.object_ref.type, e.object_ref.id, e.field): e for e in self.decisions.values()}
         # One approved public_text settles every finding on the same text field.
         self.shared_text = {
             (e.object_ref.type, e.object_ref.id, e.field or "statement"): e
@@ -200,7 +221,8 @@ class PublicationGate:
         severity: Severity | None = None,
     ) -> Finding:
         ref = AuditRef(type=REF_TYPE.get(coll, coll), id=oid)
-        fid = "pub-" + hashlib.sha256(f"{rule}|{action}|{ref.type}|{oid}|{fld}".encode()).hexdigest()[:12]
+        scope = self.src.get("target", {}).get("id", "")
+        fid = "pub-" + hashlib.sha256(f"{scope}|{rule}|{action}|{ref.type}|{oid}|{fld}".encode()).hexdigest()[:12]
         if fid in self.findings:
             return self.findings[fid]
         review = action in ("REQUIRE_REVIEW", "BLOCK")
@@ -223,7 +245,7 @@ class PublicationGate:
 
     def resolve(self, f: Finding, coll: str, oid: str, fld: str | None) -> str:
         """Apply any review decision. Returns 'keep' or 'drop' for the object."""
-        entry = self.decisions.get(f.finding_id)
+        entry = self.lookup(f)
         if (entry is None or entry.decision == "pending") and "approve_public_text" in f.allowed_decisions:
             entry = self.shared_text.get((f.object_ref.type, f.object_ref.id, fld or f.field or "statement"))
         dropping = f.action in ("DROP", "REQUIRE_REVIEW", "BLOCK")
@@ -274,6 +296,11 @@ class PublicationGate:
         f.resolution = entry.decision
         return "drop" if entry.decision == "exclude" else "keep"
 
+    def lookup(self, f: Finding) -> ReviewEntry | None:
+        return self.decisions.get(f.finding_id) or self.by_key.get(
+            (f.rule_id, f.object_ref.type, f.object_ref.id, f.field)
+        )
+
     def effect(self, f: Finding, coll: str, oid: str, fld: str | None = None) -> str:
         effects = self.effects.setdefault((coll, oid), {})
         if f.finding_id not in effects:
@@ -306,6 +333,7 @@ class PublicationGate:
 
         keep_ids = {k.name for k in (self.review.keep_identities if self.review else [])}
         self.redactor = Redactor.from_bundle(b, keep_ids)
+        self._apply_review_edits()
 
         self._source_policies()
         self._evidence_eligibility()
@@ -323,6 +351,7 @@ class PublicationGate:
         self.steps.append(StepResult(name="Apply excerpt limits", result=f"{n_trunc} changed" if n_trunc else "PASS"))
 
         public = self._project()
+        self._record_orphan_edits()
         self._check_projection(public)
         html = None
         if render:
@@ -380,10 +409,26 @@ class PublicationGate:
         items = []
         listed = set()
         for f in findings:
-            existing = self.decisions.get(f.finding_id)
+            existing = self.lookup(f)
             if not (f.review_required and f.allowed_decisions) and existing is None:
                 continue
+            if existing is None and f.resolution:  # settled by an approved text on the same field
+                shared = self.shared_text.get((f.object_ref.type, f.object_ref.id, f.field or "statement"))
+                existing = ReviewEntry(
+                    finding_id=f.finding_id,
+                    rule_id=f.rule_id,
+                    object_ref=f.object_ref,
+                    decision=f.resolution,  # type: ignore[arg-type]
+                    public_text=shared.public_text if shared else None,
+                    rationale=f"Covered by {shared.finding_id}." if shared else None,
+                    reviewer=shared.reviewer if shared else None,
+                )
             listed.add(f.finding_id)
+            if existing is not None:
+                listed.add(existing.finding_id)
+            if existing is not None and f.rule_id == "PUB-REVIEW":
+                items.append(existing)  # a reviewer's own edit keeps its ID
+                continue
             items.append(
                 ReviewEntry(
                     finding_id=f.finding_id,
@@ -399,7 +444,104 @@ class PublicationGate:
                     reviewer=existing.reviewer if existing else None,
                 )
             )
+        # Keep reviewer entries whose finding is no longer raised: their edits still apply.
+        items += [e for fid, e in self.decisions.items() if fid not in listed and e.decision != "pending"]
         return items
+
+    def _edit_target(self, e: ReviewEntry) -> tuple[str, str, str]:
+        coll = COLL_FOR_REF.get(e.object_ref.type, e.object_ref.type)
+        default = "text" if coll == "narrative" else "statement" if coll == "claims" else None
+        fld = e.field or default or TEXT_FIELDS.get(coll, ("description",))[0]
+        return coll, e.object_ref.id, fld
+
+    def _apply_review_edits(self) -> None:
+        """A reviewer's rewrite or exclusion sticks to its object, even if the finding that prompted it
+        is no longer raised (e.g. another approval resolved a dependency) or was added by hand."""
+        for e in self.decisions.values():
+            if e.decision not in ("approve_public_text", "exclude"):
+                continue
+            coll, oid, fld = self._edit_target(e)
+            if e.decision == "exclude":
+                self.kill(coll, oid)
+                continue
+            text = (e.public_text or "").strip()
+            if not text:
+                continue
+            self.overrides[(coll, oid, fld)] = text
+            for rule, hit in (("PUB-005", scanners.finance_strong(text)), ("PUB-004", scanners.misconduct(text))):
+                if hit:
+                    self.add(
+                        rule,
+                        "BLOCK",
+                        coll,
+                        oid,
+                        f"The approved public_text still contains {hit!r}.",
+                        fld=f"{fld}:public_text",
+                        before=text,
+                        allowed=("exclude",),
+                    )
+                    self.kill(coll, oid)
+
+    def _record_orphan_edits(self) -> None:
+        for e in self.decisions.values():
+            matched = e.finding_id in self.findings or any(self.lookup(f) is e for f in self.findings.values())
+            if matched or e.decision not in ("approve_public_text", "exclude"):
+                continue
+            coll, oid, fld = self._edit_target(e)
+            f = self.add(
+                "PUB-REVIEW",
+                "DROP" if e.decision == "exclude" else "RELABEL",
+                coll,
+                oid,
+                "Reviewer edit applied" + (f" ({e.rationale})" if e.rationale else "") + ".",
+                fld=fld,
+                after=e.public_text,
+            )
+            f.resolution = e.decision
+
+    def _first_party(self, source: dict) -> bool:
+        host = (urlparse(source.get("url") or "").hostname or "").removeprefix("www.")
+        if any(host == h or host.endswith("." + h) for h in ESTIMATE_HOSTS):
+            return False
+        domain = self.b["target"].get("domain")
+        if domain and (host == domain or host.endswith("." + domain)):
+            return True
+        for r in self.b["repositories"]:
+            if host == "github.com" and (source.get("url") or "").lower().startswith(
+                f"https://github.com/{r['owner'].lower()}/"
+            ):
+                return True
+        return source.get("source_type") in FIRST_PARTY_TYPES
+
+    def _metric_attribution(self, m: dict, links: dict[str, list[dict]], sources: dict[str, dict]) -> str:
+        els = [el for cid in m["claim_ids"] for el in links.get(cid, [])]
+        srcs = [sources[el["source_id"]] for el in els if el["source_id"] in sources]
+        stmts = " ".join(c["statement"] for c in self.b["claims"] if c["id"] in m["claim_ids"]).lower()
+        if any(
+            self._first_party(sources[el["source_id"]]) and el["evidence_class"] in ("documented", "company_measured")
+            for el in els
+        ):
+            return "company reported"
+        hosts = [(urlparse(x.get("url") or "").hostname or "").removeprefix("www.") for x in srcs]
+        if "estimat" in stmts or any(any(h == e or h.endswith("." + e) for e in ESTIMATE_HOSTS) for h in hosts):
+            return "third-party estimate"
+        if any(el["evidence_class"] == "third_party_measured" for el in els):
+            return "third-party measured"
+        if els and all(el["evidence_class"] == "inferred" for el in els):
+            return "Pigtail inference"
+        return "third-party reported"
+
+    def _display_name(self) -> str:
+        """'pocketbase' -> 'PocketBase' when the sources consistently write it that way (PUB-015)."""
+        name = self.b["target"]["name"]
+        if name != name.lower():
+            return name
+        counts: dict[str, int] = {}
+        for c in self.b["claims"]:
+            for m in re.finditer(rf"(?<![\w-]){re.escape(name)}(?![\w-])", c["statement"], re.I):
+                if m.group(0) != name:
+                    counts[m.group(0)] = counts.get(m.group(0), 0) + 1
+        return max(counts, key=lambda k: counts[k]) if counts else name
 
     # ---- PUB-013 -----------------------------------------------------------------------------
 
@@ -533,6 +675,7 @@ class PublicationGate:
         for el in b["evidence_links"]:
             links.setdefault(el["claim_id"], []).append(el)
         self.attribution: dict[str, str] = {}
+        self.first_party_claims: set[str] = set()
         n_drop = n_review = 0
         who = "the project" if b["target"]["kind"] == "repository" else "the company"
         for c in b["claims"]:
@@ -616,9 +759,9 @@ class PublicationGate:
                 self.effect(f, "claims", cid, "statement")
             # PUB-009: first-party absolute statements keep a visible attribution.
             cl = links.get(cid, [])
-            first_party = bool(cl) and all(
-                el["source_directness"] in ("primary_direct", "primary_indirect") for el in cl
-            )
+            first_party = bool(cl) and all(self._first_party(sources[el["source_id"]]) for el in cl)
+            if any(self._first_party(sources[el["source_id"]]) for el in cl):
+                self.first_party_claims.add(cid)
             if first_party and (hit := scanners.absolute(text)) and not scanners.is_attributed(text):
                 label = f"According to {who}"
                 if any(sources[el["source_id"]]["source_type"] == "founder_interview" for el in cl):
@@ -737,7 +880,7 @@ class PublicationGate:
                     allowed=REVIEW_DECISIONS,
                 )
                 self.effect(f, coll, oid, fld)
-            if coll == "narrative" and relabeled_claims & set(o.get("claim_ids", [])):
+            if coll == "narrative" and (relabeled_claims | self.first_party_claims) & set(o.get("claim_ids", [])):
                 hit = scanners.absolute(text)
                 if hit and not scanners.is_attributed(text):
                     f = self.add(
@@ -1083,22 +1226,40 @@ class PublicationGate:
                     continue
             links.append({**el, "notes": self.redactor.redact(el["notes"])})
         cited_sources = {el["source_id"] for el in links}
-        linked_any = {el["source_id"] for el in b["evidence_links"]}
+        fetches_by_source: dict[str, list[dict]] = {}
+        for fch in b["source_fetches"]:
+            fetches_by_source.setdefault(fch["source_id"], []).append(fch)
         sources = []
         for s in b["sources"]:
-            if s["id"] not in cited_sources and s["id"] in linked_any:
+            if s["id"] not in cited_sources:
                 self.add(
                     "PUB-017",
                     "DROP",
                     "sources",
                     s["id"],
-                    "The source no longer supports any public claim.",
+                    "The source supports no public claim, so it is not listed.",
                     before=s.get("title"),
                 )
                 continue
             pol = dict(s["policy"])
             pol["public_display_mode"] = self.display[s["id"]]
-            sources.append({**s, "author": None, "policy": pol})
+            fs = fetches_by_source.get(s["id"], [])
+            note = None
+            partly_read = any(fch["status"] == SUCCESS for fch in fs) and any(fch["status"] != SUCCESS for fch in fs)
+            metadata_api = s["source_type"] in ("hn_story", "community") or any(
+                fch["status"] == SUCCESS and not fch["parser_version"].startswith("trafilatura") for fch in fs
+            )
+            if partly_read and metadata_api:
+                note = METADATA_ONLY_NOTE
+                self.add(
+                    "PUB-001",
+                    "RELABEL",
+                    "sources",
+                    s["id"],
+                    "Only the title and metadata were read (the page fetch failed); the citation says so.",
+                    after=note,
+                )
+            sources.append({**s, "author": None, "policy": pol, "public_note": note})
         live_sources = {s["id"] for s in sources}
         fetches = [
             {k: f[k] for k in ("id", "source_id", "retrieved_at", "status", "content_hash")}
@@ -1222,8 +1383,32 @@ class PublicationGate:
             x for i, t in enumerate(n["key_takeaways"]) if (x := block(f"key_takeaways[{i}]", t)) is not None
         ]
 
+        src_by_id = {x["id"]: x for x in b["sources"]}
+        links_by_claim: dict[str, list[dict]] = {}
+        for el in links:
+            links_by_claim.setdefault(el["claim_id"], []).append(el)
+        for m in out["metric_snapshots"]:
+            m["public_attribution"] = (
+                None
+                if m["metric_key"].startswith("github_")
+                else self._metric_attribution(m, links_by_claim, src_by_id)
+            )
+
         target = dict(b["target"])
         target["description"] = self._public_text("target", target["id"], "description", target["description"])
+        shown = self._display_name()
+        if shown != target["name"]:
+            self.add(
+                "PUB-015",
+                "RELABEL",
+                "target",
+                target["id"],
+                "Display name written the way the sources write it.",
+                fld="name",
+                before=target["name"],
+                after=shown,
+            )
+            target["name"] = shown
         repos = [{**r, "claim_ids": ids(r["claim_ids"], fact)} for r in b["repositories"]]
         presences = out["surface_presences"]
 

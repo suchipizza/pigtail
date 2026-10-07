@@ -20,8 +20,8 @@ THIRD_PARTY_NOTICE = (
     "linked data remain subject to their respective rights and are not relicensed by Pigtail."
 )
 MACHINE_GENERATED_NOTICE = (
-    "Machine-generated analysis of public sources, checked by Pigtail's publication gate. It can contain "
-    "mistakes; check the linked sources before relying on a claim."
+    "Machine-generated analysis of public sources that passed Pigtail's automated publication checks. It can "
+    "contain mistakes; check the linked sources before relying on a claim."
 )
 
 # Files that make up a published example directory, and files that must never be in one.

@@ -350,7 +350,7 @@ def test_at08_usernames_and_at09_founder_names_minimized(b):
     assert all(s["author"] is None for s in res.public_bundle["sources"])
     stmts = {c["id"]: c["statement"] for c in res.public_bundle["claims"]}
     assert stmts[c1] == "A Show HN post reached 300 points."
-    assert stmts[c2].startswith("The founder of Example said a contributor added Docker support")
+    assert stmts[c2].startswith("The founder of Example said a community contributor added Docker support")
     assert res.public_bundle["narrative"]["origin"]["text"] == "The founder built Example alone."
     title = next(s["title"] for s in res.public_bundle["sources"] if s["id"] == interview[0])
     assert title == "Founder interview"
@@ -620,3 +620,56 @@ def test_ai_review_fills_only_allowed_decisions(bundle_dict, tmp_path):
     assert done[0]["reviewer"].startswith("AI (fake)") and done[0]["rationale"].startswith("[AI]")
     again = run_gate(run).result
     assert again.status == "NEEDS_REVIEW" and again.unresolved == 1
+
+
+def test_estimate_sites_are_never_company_reported(b, blog):
+    latka = add_source(b, "https://getlatka.com/companies/example", stype="third_party_analysis")
+    cid = add_claim(
+        b,
+        "As of May 2021, Example had MRR of roughly $23,300.",
+        [(*latka, {"cls": "company_measured", "direct": "primary_indirect"})],
+        kind="metric",
+    )
+    add_metric(b, "mrr", "MRR", 23300, cid)
+    res = gate(b)
+    m = next(
+        m for m in res.public_bundle["metric_snapshots"] if m["metric_key"] == "mrr" and m["value_numeric"] == 23300
+    )
+    assert m["public_attribution"] == "third-party estimate"
+    c = next(c for c in res.public_bundle["claims"] if c["id"] == cid)
+    assert c["public_attribution"] is None  # not "According to the company"
+
+
+def test_uncited_sources_are_not_listed_and_name_casing(b, blog):
+    comment = add_source(
+        b,
+        "https://news.ycombinator.com/item?id=9",
+        surface="hacker_news",
+        stype="hn_comment",
+        key="hacker_news",
+        title="Interesting! I haven't made anything serious yet",
+    )
+    b["target"]["name"] = "example"
+    add_claim(b, "Example shipped its first release.", [blog])
+    res = gate(b)
+    assert comment[0] not in {s["id"] for s in res.public_bundle["sources"]}
+    assert "Interesting!" not in res.report_html
+    assert res.public_bundle["target"]["name"] == "Example"
+    assert "endorsed by Example." in res.report_html
+
+
+def test_reviewer_edit_survives_when_its_finding_disappears(b, blog):
+    cid = add_claim(b, "Example shipped v1 to customers.", [blog])
+    orphan = ReviewEntry(
+        finding_id="manual-1",
+        rule_id="PUB-REVIEW",
+        object_ref={"type": "claim", "id": cid},
+        field="statement",
+        decision="approve_public_text",
+        public_text="Example says it shipped v1 to customers.",
+        reviewer="tester",
+    )
+    res = gate(b, ReviewFile(policy_version="0.1.0", items=[orphan]))
+    assert next(c for c in res.public_bundle["claims"] if c["id"] == cid)["statement"] == orphan.public_text
+    assert any(f.rule_id == "PUB-REVIEW" and f.object_ref.id == cid for f in res.audit.findings)
+    assert any(i.finding_id == "manual-1" for i in res.review_items)  # kept in the review file

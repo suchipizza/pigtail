@@ -11,7 +11,7 @@
   "notices": {
     "independence": "Independent analysis based on public sources. Pigtail is not affiliated with or endorsed by Superhuman.",
     "third_party_content": "Pigtail's software license applies to Pigtail code. Third-party names, source material, excerpts and linked data remain subject to their respective rights and are not relicensed by Pigtail.",
-    "machine_generated": "Machine-generated analysis of public sources, checked by Pigtail's publication gate. It can contain mistakes; check the linked sources before relying on a claim."
+    "machine_generated": "Machine-generated analysis of public sources that passed Pigtail's automated publication checks. It can contain mistakes; check the linked sources before relying on a claim."
   },
   "target": {
     "id": "01a10e66-00b8-7329-8e47-99caddd2aabf",
@@ -35,78 +35,6 @@
   "repositories": [],
   "sources": [
     {
-      "id": "01a10e67-ff7a-720f-80b2-874a7f8a96ba",
-      "url": "https://www.producthunt.com/stories/blood-sweat-and-prompts-how-we-built-superhuman-ai",
-      "canonical_url": "https://producthunt.com/stories/blood-sweat-and-prompts-how-we-built-superhuman-ai",
-      "surface_key": "product_hunt",
-      "source_type": "first_party",
-      "title": "Blood, sweat, and prompts: How we built Superhuman AI 🧠",
-      "author": null,
-      "published_at": null,
-      "discovered_at": "2026-10-05T23:30:59Z",
-      "policy": {
-        "policy_key": "product_hunt",
-        "policy_version": "1",
-        "coverage_tier": "C",
-        "retention_mode": "metadata_only",
-        "public_display_mode": "link_only"
-      }
-    },
-    {
-      "id": "01a10e67-ff7a-7212-b7ac-3c672203958c",
-      "url": "https://twitter.com/Superhuman/status/1762517673030963220",
-      "canonical_url": "https://twitter.com/Superhuman/status/1762517673030963220",
-      "surface_key": "x",
-      "source_type": "first_party",
-      "title": "Post on X",
-      "author": null,
-      "published_at": null,
-      "discovered_at": "2026-10-05T23:30:59Z",
-      "policy": {
-        "policy_key": "x",
-        "policy_version": "1",
-        "coverage_tier": "C",
-        "retention_mode": "metadata_only",
-        "public_display_mode": "link_only"
-      }
-    },
-    {
-      "id": "01a10e67-ff7a-7214-87bf-a23ef3179b20",
-      "url": "https://www.producthunt.com/products/superhuman/launches",
-      "canonical_url": "https://producthunt.com/products/superhuman/launches",
-      "surface_key": "product_hunt",
-      "source_type": "launch_page",
-      "title": "Superhuman - Product Information, Latest Updates, and Reviews 2024",
-      "author": null,
-      "published_at": null,
-      "discovered_at": "2026-10-05T23:30:59Z",
-      "policy": {
-        "policy_key": "product_hunt",
-        "policy_version": "1",
-        "coverage_tier": "C",
-        "retention_mode": "metadata_only",
-        "public_display_mode": "link_only"
-      }
-    },
-    {
-      "id": "01a10e67-ff7a-7216-a63a-fdef35746557",
-      "url": "https://www.producthunt.com/products/superhuman",
-      "canonical_url": "https://producthunt.com/products/superhuman",
-      "surface_key": "product_hunt",
-      "source_type": "launch_page",
-      "title": "Superhuman: The most productive email app. Save 4 hours a week.",
-      "author": null,
-      "published_at": null,
-      "discovered_at": "2026-10-05T23:30:59Z",
-      "policy": {
-        "policy_key": "product_hunt",
-        "policy_version": "1",
-        "coverage_tier": "C",
-        "retention_mode": "metadata_only",
-        "public_display_mode": "link_only"
-      }
-    },
-    {
       "id": "01a10e69-a98c-70bb-a38d-3b0cc82c12c9",
       "url": "https://superhuman.com/",
       "canonical_url": "https://superhuman.com/",
@@ -122,7 +50,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a98c-70c9-a672-0dda4927bb9f",
@@ -140,7 +69,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a98d-7227-9a97-fc08c18eab32",
@@ -158,7 +88,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a98d-7237-b760-d39827b21cae",
@@ -176,7 +107,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a98e-733b-84f4-f3318b1a1031",
@@ -194,7 +126,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a98e-734f-836d-41eab9d50640",
@@ -212,7 +145,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a98e-7361-8894-ee73dc907391",
@@ -230,7 +164,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a98f-70ba-85af-e2b7f9a78b81",
@@ -248,7 +183,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a98f-70da-9c2b-364396f2af3d",
@@ -266,7 +202,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a990-73d8-bdfd-8cb995a1277c",
@@ -284,7 +221,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a990-73e8-ab34-c6f50d5ffe9b",
@@ -302,7 +240,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a990-73f8-9963-6106e5e0f1d4",
@@ -320,7 +259,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a991-7077-bfaf-46d02dc2b3c7",
@@ -338,7 +278,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a991-7085-83e6-4e023adec634",
@@ -356,7 +297,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a991-7099-91f5-abe75818fe60",
@@ -374,7 +316,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a991-70b5-811b-f5f2ff4d9cd6",
@@ -392,7 +335,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a992-7103-98ab-90d1afd80edc",
@@ -410,7 +354,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a992-7111-adc7-ea182cda40e2",
@@ -428,7 +373,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a992-712f-9502-1fbdc1baa384",
@@ -446,7 +392,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a993-741a-8be0-dca257fe7a9c",
@@ -464,7 +411,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a994-7370-87fa-e4b7b12e1e7e",
@@ -482,7 +430,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a994-73a4-a1f6-bfd5ddf3ce2a",
@@ -500,7 +449,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a995-71d1-8828-37e0a31cba66",
@@ -518,7 +468,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a995-71ef-beac-39b33b446d82",
@@ -536,7 +487,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a995-720f-89de-756dda8e9fd6",
@@ -554,25 +506,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
-    },
-    {
-      "id": "01a10e69-a996-71cd-92ee-26aeb0ec9a07",
-      "url": "https://hunted.space/product/superhuman-for-android",
-      "canonical_url": "https://hunted.space/product/superhuman-for-android",
-      "surface_key": "web",
-      "source_type": "directory_or_listing",
-      "title": "Product Hunt launch",
-      "author": null,
-      "published_at": null,
-      "discovered_at": "2026-10-05T23:32:48Z",
-      "policy": {
-        "policy_key": "web",
-        "policy_version": "1",
-        "coverage_tier": "C",
-        "retention_mode": "metadata_and_excerpt",
-        "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a996-71d0-9668-9fb8381dd21e",
@@ -590,7 +525,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a996-71e4-a93d-be8c23b59480",
@@ -608,7 +544,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a996-71f8-b43f-4c236f73d4dc",
@@ -626,25 +563,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
-    },
-    {
-      "id": "01a10e69-a997-7071-9611-9ada29c90836",
-      "url": "https://www.lennysnewsletter.com/p/how-the-biggest-consumer-apps-got",
-      "canonical_url": "https://lennysnewsletter.com/p/how-the-biggest-consumer-apps-got",
-      "surface_key": "web",
-      "source_type": "third_party_analysis",
-      "title": "How the biggest consumer apps got their first 1,000 users",
-      "author": null,
-      "published_at": "2020-05-12T00:00:00Z",
-      "discovered_at": "2026-10-05T23:32:48Z",
-      "policy": {
-        "policy_key": "web",
-        "policy_version": "1",
-        "coverage_tier": "C",
-        "retention_mode": "metadata_and_excerpt",
-        "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a997-7074-bea1-0e3570d2c48e",
@@ -662,7 +582,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a997-7096-8001-56e60cb07c99",
@@ -680,7 +601,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a997-70b4-a348-546c7406f1ed",
@@ -698,7 +620,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a998-7299-9d27-39962da3051f",
@@ -716,7 +639,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a998-72b7-ab4d-1d3d42b3d79e",
@@ -734,7 +658,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a998-72c3-9d6d-cfd3d261d022",
@@ -752,7 +677,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a999-73e4-a3f8-3051df5b2ad8",
@@ -770,7 +696,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a999-73fa-8e58-f5f2cf84fee0",
@@ -788,7 +715,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e69-a999-740c-bf7f-9cd0d9e38bd2",
@@ -806,56 +734,11 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
-    },
-    {
-      "id": "01a10e69-a99a-7339-a84f-64a4f45d4f7f",
-      "url": "https://www.businesswire.com/news/home/20260708124646/en/Superhuman-Launches-Superhuman-Docs-a-Collaboration-Surface-for-Teams-to-Write-Track-and-Build-With-AI",
-      "canonical_url": "https://businesswire.com/news/home/20260708124646/en/Superhuman-Launches-Superhuman-Docs-a-Collaboration-Surface-for-Teams-to-Write-Track-and-Build-With-AI",
-      "surface_key": "web",
-      "source_type": "news",
-      "title": "Superhuman Launches Superhuman Docs, a Collaboration Surface for Teams to Write, Track, and Build With AI",
-      "author": null,
-      "published_at": null,
-      "discovered_at": "2026-10-05T23:32:48Z",
-      "policy": {
-        "policy_key": "web",
-        "policy_version": "1",
-        "coverage_tier": "C",
-        "retention_mode": "metadata_and_excerpt",
-        "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     }
   ],
   "source_fetches": [
-    {
-      "id": "01a10e67-ff7a-7210-adad-68a86945a1c2",
-      "source_id": "01a10e67-ff7a-720f-80b2-874a7f8a96ba",
-      "retrieved_at": "2026-10-05T23:30:59Z",
-      "status": "skipped_policy",
-      "content_hash": null
-    },
-    {
-      "id": "01a10e67-ff7a-7213-975c-cf0794e8dcc9",
-      "source_id": "01a10e67-ff7a-7212-b7ac-3c672203958c",
-      "retrieved_at": "2026-10-05T23:30:59Z",
-      "status": "skipped_policy",
-      "content_hash": null
-    },
-    {
-      "id": "01a10e67-ff7a-7215-8d74-5086a1e0a994",
-      "source_id": "01a10e67-ff7a-7214-87bf-a23ef3179b20",
-      "retrieved_at": "2026-10-05T23:30:59Z",
-      "status": "skipped_policy",
-      "content_hash": null
-    },
-    {
-      "id": "01a10e67-ff7a-7217-a95e-5132bda321d5",
-      "source_id": "01a10e67-ff7a-7216-a63a-fdef35746557",
-      "retrieved_at": "2026-10-05T23:30:59Z",
-      "status": "skipped_policy",
-      "content_hash": null
-    },
     {
       "id": "01a10e69-a98c-70bc-8119-6b90c2c3f6f3",
       "source_id": "01a10e69-a98c-70bb-a38d-3b0cc82c12c9",
@@ -1032,13 +915,6 @@
       "content_hash": "sha256:1e75a36055a3f93e7484c96ee12eba8dbce3e517bab8a5dfed11c4144415b8ac"
     },
     {
-      "id": "01a10e69-a996-71ce-a2d6-71eb2e825b21",
-      "source_id": "01a10e69-a996-71cd-92ee-26aeb0ec9a07",
-      "retrieved_at": "2026-10-05T23:32:48Z",
-      "status": "success",
-      "content_hash": "sha256:dc656d4ce230396c94336e69208e1750b2394b82c7fc2333a48711539f829f32"
-    },
-    {
       "id": "01a10e69-a996-71d1-9019-92128fead9de",
       "source_id": "01a10e69-a996-71d0-9668-9fb8381dd21e",
       "retrieved_at": "2026-10-05T23:32:48Z",
@@ -1058,13 +934,6 @@
       "retrieved_at": "2026-10-05T23:32:48Z",
       "status": "success",
       "content_hash": "sha256:d579c9ee64fed8696d8fe173e15049bdc030b5882f377c4f574927d70f7c05d1"
-    },
-    {
-      "id": "01a10e69-a997-7072-9dc5-785928563ce0",
-      "source_id": "01a10e69-a997-7071-9611-9ada29c90836",
-      "retrieved_at": "2026-10-05T23:32:48Z",
-      "status": "success",
-      "content_hash": "sha256:496823d8ff6f06ef78d6b68a5b17f07b54879bc63109792563261dc8501a05f6"
     },
     {
       "id": "01a10e69-a997-7075-a399-d1eb6ccfcc4f",
@@ -1128,13 +997,6 @@
       "retrieved_at": "2026-10-05T23:32:48Z",
       "status": "success",
       "content_hash": "sha256:0d3d04489b15daae6d9c48c39f585976c4f0968d83d54c9d9ce392ecb23e72a7"
-    },
-    {
-      "id": "01a10e69-a99a-733a-b97d-c4e5c2719c8d",
-      "source_id": "01a10e69-a99a-7339-a84f-64a4f45d4f7f",
-      "retrieved_at": "2026-10-05T23:32:48Z",
-      "status": "network_failed",
-      "content_hash": null
     }
   ],
   "claims": [
@@ -5230,7 +5092,7 @@
       "extraction_certainty": 0.95,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": "According to the founders",
+      "public_attribution": null,
       "manually_verified": false
     },
     {
@@ -6070,7 +5932,7 @@
       "extraction_certainty": 0.9,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": "According to the founders",
+      "public_attribution": null,
       "manually_verified": false
     },
     {
@@ -23834,7 +23696,8 @@
         "01a10e69-a995-71fd-957b-d5c9094ae614",
         "01a10e69-a997-708a-a73e-90c871b798d9"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e6b-9462-7376-b0f7-382f227501e6",
@@ -23855,7 +23718,8 @@
         "01a10e69-a98c-70d9-bc72-913a42b36120",
         "01a10e69-a995-71ff-a871-51e33b87a577"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e6b-9462-7379-acf7-570ff7b45645",
@@ -23875,7 +23739,8 @@
       "claim_ids": [
         "01a10e69-a995-7219-a5a5-11705df04fa7"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e6b-9462-737b-af7f-e600b2854f0d",
@@ -23896,7 +23761,8 @@
         "01a10e69-a98c-70db-9965-dfddfe818c70",
         "01a10e69-a997-708e-a89c-98cde0442f12"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e6b-9462-737f-af82-570cdc805f59",
@@ -23918,7 +23784,8 @@
         "01a10e69-a993-7432-b809-e7df06c8e921",
         "01a10e69-a995-71f5-9043-305c305f9963"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e6b-9462-7384-bee3-fc436785f661",
@@ -23938,7 +23805,8 @@
       "claim_ids": [
         "01a10e69-a993-7400-b66f-968f21549afb"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e6b-9462-7386-8db4-d2e4049466ff",
@@ -23958,7 +23826,8 @@
       "claim_ids": [
         "01a10e69-a993-7426-a998-e148b82d9ef3"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e6b-9462-7388-94f9-691dab868f54",
@@ -23978,7 +23847,8 @@
       "claim_ids": [
         "01a10e69-a997-7092-bdcb-8ee7bc0bd7df"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e6b-9462-738a-9b01-4d9ee392e112",
@@ -23998,7 +23868,8 @@
       "claim_ids": [
         "01a10e69-a998-72b9-9722-d89d3e925eca"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e6b-9462-738c-b5ca-fe5621659712",
@@ -24018,7 +23889,8 @@
       "claim_ids": [
         "01a10e69-a996-71fe-8acb-07864aedf8be"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e6b-9462-738e-b4f9-7a63dbdb67bc",
@@ -24038,7 +23910,8 @@
       "claim_ids": [
         "01a10e69-a997-7094-9ce8-a59506ac31d0"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e6b-9463-70e3-ac0d-577c7eac7fe1",
@@ -24058,7 +23931,8 @@
       "claim_ids": [
         "01a10e69-a993-73fe-81ce-3fa18240cf6b"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e6b-9463-70e5-a268-a5ba7e9c2169",
@@ -24078,7 +23952,8 @@
       "claim_ids": [
         "01a10e69-a997-7092-bdcb-8ee7bc0bd7df"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e6b-9463-70e7-a263-9f112f7bea9a",
@@ -24098,7 +23973,8 @@
       "claim_ids": [
         "01a10e69-a998-72a7-8a7c-75bf11e359ca"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e6b-9463-70e9-8b3c-b469cd70485f",
@@ -24118,7 +23994,8 @@
       "claim_ids": [
         "01a10e69-a998-72a9-9e9e-ec01fc85b620"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party estimate"
     },
     {
       "id": "01a10e6b-9463-70eb-a5d5-3f803cfb789c",
@@ -24138,7 +24015,8 @@
       "claim_ids": [
         "01a10e69-a999-73d4-9a13-838e13095875"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e6b-9464-70c7-93d6-b8268d1f30ef",
@@ -24158,7 +24036,8 @@
       "claim_ids": [
         "01a10e69-a998-72d9-93ac-7c30ea49e571"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party estimate"
     },
     {
       "id": "01a10e6b-9464-70c9-9a9e-0ff4832d24f6",
@@ -24178,7 +24057,8 @@
       "claim_ids": [
         "01a10e69-a998-72c1-b38a-64e4f8b9f8ba"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e6b-9464-70cb-85af-a97fc6565b39",
@@ -24198,7 +24078,8 @@
       "claim_ids": [
         "01a10e69-a998-729d-a81e-68cb29ee4bb6"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party estimate"
     },
     {
       "id": "01a10e6b-9464-70cd-8965-fb28da3d0498",
@@ -24219,7 +24100,8 @@
         "01a10e69-a999-73d6-8da5-d2fe1f93e335",
         "01a10e69-a998-7297-81b5-45e5d2169dd8"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party estimate"
     },
     {
       "id": "01a10e6b-9465-727b-b0d4-66704137496b",
@@ -24239,7 +24121,8 @@
       "claim_ids": [
         "01a10e69-a998-729b-ac77-d71c78e33483"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party estimate"
     },
     {
       "id": "01a10e6b-9465-727d-8cca-af5b740d5abe",
@@ -24259,7 +24142,8 @@
       "claim_ids": [
         "01a10e69-a999-73de-8dfe-9bd92244494b"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e6b-9465-727f-854d-60541956c23e",
@@ -24280,7 +24164,8 @@
         "01a10e69-a999-73d8-88ba-911ca5a97313",
         "01a10e69-a998-72af-8c49-e5a2423e6009"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e6b-9465-7282-b63a-da0dde864baf",
@@ -24300,7 +24185,8 @@
       "claim_ids": [
         "01a10e69-a996-71fc-af1b-47f968541ce1"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e6b-9465-7284-b8ba-c01430406464",
@@ -24320,7 +24206,8 @@
       "claim_ids": [
         "01a10e69-a993-743a-8135-319e1cebff7a"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e6b-9465-7286-9fbd-84cc34fd6765",
@@ -24342,7 +24229,8 @@
         "01a10e69-a992-70f9-9340-5d8737f33b40",
         "01a10e69-a994-737a-99c6-dd00ede8af5f"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e6b-9465-728a-abe5-5756d076fc45",
@@ -24363,7 +24251,8 @@
         "01a10e69-a98d-7247-a1b8-dcea44774731",
         "01a10e69-a990-73f2-9260-5d435009d7cb"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e6b-9465-728d-b648-85ded50da9de",
@@ -24383,7 +24272,8 @@
       "claim_ids": [
         "01a10e69-a994-737c-8e36-3bb2dd2558d0"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     }
   ],
   "company_stages": [

@@ -11,7 +11,7 @@
   "notices": {
     "independence": "Independent analysis based on public sources. Pigtail is not affiliated with or endorsed by Plausible.",
     "third_party_content": "Pigtail's software license applies to Pigtail code. Third-party names, source material, excerpts and linked data remain subject to their respective rights and are not relicensed by Pigtail.",
-    "machine_generated": "Machine-generated analysis of public sources, checked by Pigtail's publication gate. It can contain mistakes; check the linked sources before relying on a claim."
+    "machine_generated": "Machine-generated analysis of public sources that passed Pigtail's automated publication checks. It can contain mistakes; check the linked sources before relying on a claim."
   },
   "target": {
     "id": "01a10e6c-10c5-7386-9fae-eeb9865350fa",
@@ -86,7 +86,8 @@
         "coverage_tier": "A",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-1e6e-7128-b090-e7ba0821c597",
@@ -104,7 +105,8 @@
         "coverage_tier": "A",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-2053-7203-9f7d-fa9fdea0ce4f",
@@ -122,7 +124,8 @@
         "coverage_tier": "A",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25cd-7169-b1b0-8c9d56595e1d",
@@ -140,7 +143,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25ce-7178-96c2-474246dddd8b",
@@ -158,7 +162,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25ce-717d-8b77-81c6a0028f90",
@@ -176,7 +181,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25cf-7119-b2f5-f70b828e9ae2",
@@ -194,7 +200,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25cf-711e-a9c8-5f0362c2fcfd",
@@ -212,7 +219,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25cf-7123-8965-67052c95b531",
@@ -230,7 +238,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25cf-7128-8c38-fc7bc2257a00",
@@ -248,7 +257,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": "Title and metadata only; page not read"
     },
     {
       "id": "01a10e6c-25cf-712d-888d-06db96e0b90a",
@@ -266,7 +276,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25cf-7132-a74a-6fba87ceb889",
@@ -284,7 +295,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25cf-7137-a3e3-527b86e9d22a",
@@ -302,7 +314,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25cf-713c-aab9-71199aed5f6c",
@@ -320,7 +333,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25d0-71a4-864e-22e39aa1fb79",
@@ -338,7 +352,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25d1-7060-a996-e29d61617727",
@@ -356,7 +371,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25d1-7065-bd1c-f793f94daa3b",
@@ -374,7 +390,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25d1-706a-839d-97d51ff3c273",
@@ -392,7 +409,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25d1-706f-99fe-23c1f73c5f30",
@@ -410,7 +428,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25d1-7074-bafd-358fa3234e40",
@@ -428,7 +447,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25d1-7079-9ee4-f11f74d0250d",
@@ -446,7 +466,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25d1-707e-9b13-90407ced893b",
@@ -464,7 +485,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6c-25d1-7083-adcb-4703f8835ae9",
@@ -482,7 +504,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6d-3274-7371-ab00-61cfc7ed0b6b",
@@ -500,25 +523,8 @@
         "coverage_tier": "B",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
-    },
-    {
-      "id": "01a10e6d-4149-72b5-9b6b-6f1d3b2b3e22",
-      "url": "https://www.producthunt.com/products/plausible-analytics",
-      "canonical_url": "https://producthunt.com/products/plausible-analytics",
-      "surface_key": "product_hunt",
-      "source_type": "launch_page",
-      "title": "Plausible Analytics: Simple analytics for your website",
-      "author": null,
-      "published_at": null,
-      "discovered_at": "2026-10-05T23:36:43Z",
-      "policy": {
-        "policy_key": "product_hunt",
-        "policy_version": "1",
-        "coverage_tier": "C",
-        "retention_mode": "metadata_only",
-        "public_display_mode": "link_only"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d6f-72d7-999f-1ad07d03e896",
@@ -536,7 +542,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d71-7047-bd40-34f949e2d027",
@@ -554,7 +561,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d72-7125-be04-8e46d7026daa",
@@ -572,7 +580,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d72-713f-a9ac-23cdc481d1ed",
@@ -590,7 +599,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d73-71e7-8636-7b5a3af15427",
@@ -608,7 +618,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d74-71d0-aea4-dfbd272c31e7",
@@ -626,7 +637,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d75-7313-896d-5af4c1f150ab",
@@ -644,7 +656,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d76-7232-bb3c-bdf2d400b284",
@@ -662,7 +675,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d76-7258-bd2f-3db895e14dc9",
@@ -680,7 +694,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d77-70bf-9c06-9a494fbf0258",
@@ -698,7 +713,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d77-70d5-8804-e2c37cfb7349",
@@ -716,7 +732,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d77-70f1-a386-2f3b21245dbc",
@@ -734,7 +751,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d78-73b4-a77b-04eb900b44d7",
@@ -752,7 +770,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d78-73c2-b48b-a86b68d46c3e",
@@ -770,7 +789,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d78-73da-b6fd-df84dd398bf8",
@@ -788,7 +808,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d78-73ec-903c-e42b48f92566",
@@ -806,7 +827,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d79-737d-83ce-7fcc1c0a6008",
@@ -824,7 +846,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d79-7397-a4f2-f308909a65db",
@@ -842,7 +865,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7a-7201-b2ad-c1f1fa8ce5ec",
@@ -860,7 +884,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7a-7221-b16e-eb2f79378bea",
@@ -878,7 +903,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7a-723b-a2c1-f28f21f43a45",
@@ -896,7 +922,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7b-712a-abf6-8673a9dacbee",
@@ -914,7 +941,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7b-7150-8f62-3088c7ac2e03",
@@ -932,7 +960,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7c-7075-9e76-35aeb01037a2",
@@ -950,7 +979,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7c-7081-8ab6-1653689f0ad4",
@@ -968,7 +998,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7c-709d-8b1f-cd8e24dbf978",
@@ -986,7 +1017,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7d-73a9-b050-f76ca0d3df9a",
@@ -1004,7 +1036,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7e-725e-b383-a7d4c4a6a922",
@@ -1022,7 +1055,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7e-7276-b8fb-689d6d7ad193",
@@ -1040,7 +1074,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7e-728e-8e3e-272eeaba631c",
@@ -1058,7 +1093,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7f-71c5-9e83-17ebcf63a91e",
@@ -1076,7 +1112,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7f-71db-9fa5-644dcd42e906",
@@ -1094,7 +1131,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d7f-71f3-bfa2-2831809a935d",
@@ -1112,7 +1150,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d80-73bc-a7a6-9dc442bdeeab",
@@ -1130,7 +1169,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d80-73dc-8682-0acd67b457b4",
@@ -1148,7 +1188,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d80-73ee-9c0f-5769b241bc49",
@@ -1166,7 +1207,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d81-72d2-8bb5-97ac565981be",
@@ -1184,7 +1226,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d81-72f2-ad46-f60fad86906c",
@@ -1202,7 +1245,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d82-731d-82de-7aeaaab7195a",
@@ -1220,7 +1264,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d82-7339-8713-a8d6f9537762",
@@ -1238,7 +1283,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d82-734f-8a99-b3ea854dd678",
@@ -1256,7 +1302,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d82-736f-8ef0-cd8cea80fc11",
@@ -1274,7 +1321,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d83-71e2-8069-ffbc173ad101",
@@ -1292,7 +1340,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d83-7206-9f69-00b34b5aad4c",
@@ -1310,7 +1359,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d83-7220-a022-2cbf0d079ec8",
@@ -1328,7 +1378,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d84-7277-a3b8-40b7c50043c5",
@@ -1346,7 +1397,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d84-7297-8b32-4eeb46002293",
@@ -1364,7 +1416,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d84-72a3-826f-8e1b8cc52620",
@@ -1382,7 +1435,8 @@
         "coverage_tier": "C",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     },
     {
       "id": "01a10e6f-5d85-7196-afbf-526ae632266e",
@@ -1400,7 +1454,8 @@
         "coverage_tier": "A",
         "retention_mode": "metadata_and_excerpt",
         "public_display_mode": "paraphrase_link_excerpt"
-      }
+      },
+      "public_note": null
     }
   ],
   "source_fetches": [
@@ -1571,13 +1626,6 @@
       "retrieved_at": "2026-10-05T23:36:39Z",
       "status": "success",
       "content_hash": "sha256:d9352f149a9122f2bd6d3f1c29295551b2cf7844c43fb3d496dffea756b83caf"
-    },
-    {
-      "id": "01a10e6d-4149-72b6-a278-fb205c5a8787",
-      "source_id": "01a10e6d-4149-72b5-9b6b-6f1d3b2b3e22",
-      "retrieved_at": "2026-10-05T23:36:43Z",
-      "status": "skipped_policy",
-      "content_hash": null
     },
     {
       "id": "01a10e6f-5d70-71b2-a24f-49ce153b6810",
@@ -3293,7 +3341,7 @@
       "extraction_certainty": 0.95,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": "According to the project",
+      "public_attribution": null,
       "manually_verified": false
     },
     {
@@ -3335,7 +3383,7 @@
       "extraction_certainty": 0.95,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": "According to the project",
+      "public_attribution": null,
       "manually_verified": false
     },
     {
@@ -6590,7 +6638,7 @@
       "extraction_certainty": 0.95,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": "According to the project",
+      "public_attribution": null,
       "manually_verified": false
     },
     {
@@ -7178,7 +7226,7 @@
       "extraction_certainty": 0.95,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": "According to the project",
+      "public_attribution": null,
       "manually_verified": false
     },
     {
@@ -7199,7 +7247,7 @@
       "extraction_certainty": 0.95,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": "According to the project",
+      "public_attribution": null,
       "manually_verified": false
     },
     {
@@ -7855,7 +7903,7 @@
     },
     {
       "id": "01a10e6f-5d7b-7124-95f5-9943a3266a38",
-      "statement": "A community contributor, a support team member, submitted a pull request adding Docker support to Plausible, merged in May 2020 toward self-hosting.",
+      "statement": "A community contributor submitted a pull request adding Docker support to Plausible, merged in May 2020 toward self-hosting.",
       "claim_kind": "community",
       "subject_ref": {
         "type": "target",
@@ -11693,7 +11741,7 @@
       "extraction_certainty": 0.9,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": "According to the founders",
+      "public_attribution": null,
       "manually_verified": false
     },
     {
@@ -11719,7 +11767,7 @@
     },
     {
       "id": "01a10e6f-5d81-72fc-9525-85dca3d4aa37",
-      "statement": "A co-founder joined the founder as co-founder in mid-March 2020, focusing on communication and marketing.",
+      "statement": "A co-founder joined the founder in mid-March 2020, focusing on communication and marketing.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -11845,7 +11893,7 @@
     },
     {
       "id": "01a10e6f-5d81-7308-9de8-600c39390b47",
-      "statement": "Plausible released an official version one of self-hosted Plausible, with Docker setup largely contributed by community member a support team member.",
+      "statement": "Plausible released an official version one of self-hosted Plausible, with Docker setup largely contributed by a community contributor.",
       "claim_kind": "product_change",
       "subject_ref": {
         "type": "target",
@@ -12260,7 +12308,7 @@
       "extraction_certainty": 0.9,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": "According to the founders",
+      "public_attribution": null,
       "manually_verified": false
     },
     {
@@ -12911,7 +12959,7 @@
       "extraction_certainty": 0.95,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": "According to the founders",
+      "public_attribution": null,
       "manually_verified": false
     },
     {
@@ -12995,12 +13043,12 @@
       "extraction_certainty": 0.9,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": "According to the founders",
+      "public_attribution": null,
       "manually_verified": false
     },
     {
       "id": "01a10e6f-5d83-71d8-8843-1cc825cfc98e",
-      "statement": "A co-founder joined as co-founder about a year and a half in, working on positioning and blog posts.",
+      "statement": "A co-founder joined about a year and a half in, working on positioning and blog posts.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -13415,7 +13463,7 @@
       "extraction_certainty": 0.9,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": "According to the founders",
+      "public_attribution": null,
       "manually_verified": false
     },
     {
@@ -13735,7 +13783,7 @@
     },
     {
       "id": "01a10e6f-5d84-725d-bd10-a56b95761873",
-      "statement": "A co-founder joined Plausible as co-founder in March 2020 to handle marketing.",
+      "statement": "A co-founder joined Plausible in March 2020 to handle marketing.",
       "claim_kind": "team",
       "subject_ref": {
         "type": "target",
@@ -14449,7 +14497,7 @@
     },
     {
       "id": "01a10e6f-5d84-72a7-b118-c64a55876ad6",
-      "statement": "A co-founder joined Plausible as co-founder in early 2020, when it had fewer than 100 customers and $400 MRR.",
+      "statement": "A co-founder joined Plausible in early 2020, when it had fewer than 100 customers and $400 MRR.",
       "claim_kind": "metric",
       "subject_ref": {
         "type": "target",
@@ -14528,7 +14576,7 @@
       "extraction_certainty": 0.8,
       "is_negative_sensitive": false,
       "status": "active",
-      "public_attribution": "According to the project",
+      "public_attribution": null,
       "manually_verified": false
     },
     {
@@ -31824,7 +31872,7 @@
       "id": "01a10e71-7b78-717d-9617-6cd85fa17ee9",
       "event_type": "release",
       "title": "Self-hosted beta released with Docker",
-      "summary": "Plausible launched a Docker-based self-hosted beta in June 2020, with Docker support contributed by community member a support team member.",
+      "summary": "Plausible launched a Docker-based self-hosted beta in June 2020, with Docker support contributed by a community contributor.",
       "time": {
         "start": "2020-06-01T00:00:00Z",
         "end": "2020-06-30T23:59:59Z",
@@ -32694,7 +32742,8 @@
       "claim_ids": [
         "01a10e6c-10c6-7298-8146-353daa45fd9f"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e72-7011-98bb-01d1cf1e0980",
@@ -32714,7 +32763,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-724c-9cd7-c0d31289cc40",
@@ -32734,7 +32784,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-724d-8b53-fad0224083c7",
@@ -32754,7 +32805,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-724e-9312-8287ec08b40e",
@@ -32774,7 +32826,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-724f-8aea-dbfa9f42a65e",
@@ -32794,7 +32847,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7250-a37f-e89cd56fbaa7",
@@ -32814,7 +32868,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7251-b656-63b33285e977",
@@ -32834,7 +32889,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7252-ab6a-71b08393eb39",
@@ -32854,7 +32910,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7253-88af-9c50d89fce97",
@@ -32874,7 +32931,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7254-9c44-d3790d266a07",
@@ -32894,7 +32952,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7255-bdca-6597dd8de59d",
@@ -32914,7 +32973,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7256-b042-6533c4f4335a",
@@ -32934,7 +32994,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7257-a869-6aead7297757",
@@ -32954,7 +33015,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7258-9b5c-2596c675f83f",
@@ -32974,7 +33036,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7259-bba6-57e718c61bd0",
@@ -32994,7 +33057,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-725a-ab03-dd4637331abe",
@@ -33014,7 +33078,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-725b-8baa-27656b626f9c",
@@ -33034,7 +33099,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-725c-ab41-f9491f8c94d0",
@@ -33054,7 +33120,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-725d-8b3c-65b25707245e",
@@ -33074,7 +33141,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-725e-bdf1-988c320bc7b4",
@@ -33094,7 +33162,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-725f-b9ec-6e3bcde03a89",
@@ -33114,7 +33183,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7260-8fd9-d45e67ce0390",
@@ -33134,7 +33204,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7261-a7f7-baeca06bc8cf",
@@ -33154,7 +33225,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7262-a71e-060c62eb5e15",
@@ -33174,7 +33246,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7263-b695-d4eecce3a582",
@@ -33194,7 +33267,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7264-ad91-4951f0ce9fb0",
@@ -33214,7 +33288,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7265-a54b-33c20906b380",
@@ -33234,7 +33309,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7266-b1d0-df8faf57834f",
@@ -33254,7 +33330,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7267-bd08-6dd0ef2a4c4d",
@@ -33274,7 +33351,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7268-b293-af89c24fb16c",
@@ -33294,7 +33372,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7269-9968-016cbc0e6cfb",
@@ -33314,7 +33393,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-726a-86a7-d94054f65f61",
@@ -33334,7 +33414,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-726b-bff7-90e00a82f130",
@@ -33354,7 +33435,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-726c-9bbd-1fbbd3b10a72",
@@ -33374,7 +33456,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-726d-b26d-95a0b06dbe4d",
@@ -33394,7 +33477,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-726e-bc20-2bd75184ef16",
@@ -33414,7 +33498,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-726f-bd39-c20973caf0df",
@@ -33434,7 +33519,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7270-a53f-eb196a1ffa7f",
@@ -33454,7 +33540,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7271-a818-f2d05fbba660",
@@ -33474,7 +33561,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7272-bb6f-a951533903b9",
@@ -33494,7 +33582,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7273-a1a0-7bf92849c829",
@@ -33514,7 +33603,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7274-a376-8658bf58dc5d",
@@ -33534,7 +33624,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7275-8a86-15cb114b55ac",
@@ -33554,7 +33645,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7276-b983-b9206070b406",
@@ -33574,7 +33666,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7277-8788-06d57841f332",
@@ -33594,7 +33687,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7278-98e1-b3554f343156",
@@ -33614,7 +33708,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7279-8e9e-d9638be4caf9",
@@ -33634,7 +33729,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-727a-9b99-4959fd033215",
@@ -33654,7 +33750,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-727b-8f4c-03049a525057",
@@ -33674,7 +33771,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-727c-9fb3-102944486a5f",
@@ -33694,7 +33792,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-727d-a37a-16d752c7f2ca",
@@ -33714,7 +33813,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-727e-91c1-1dafa5ca9427",
@@ -33734,7 +33834,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-727f-b36e-fc9b8d1bc961",
@@ -33754,7 +33855,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7280-a6e4-24c0717e08bc",
@@ -33774,7 +33876,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7281-8749-33ec3f20adee",
@@ -33794,7 +33897,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7282-b3fa-2c1d06142505",
@@ -33814,7 +33918,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7283-abbd-b13b23260898",
@@ -33834,7 +33939,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e73-7284-bd23-f07effa448f6",
@@ -33854,7 +33960,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7271-aa9f-814b41fcd203",
@@ -33874,7 +33981,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7272-a8e6-ce612355d0d4",
@@ -33894,7 +34002,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7273-9154-a9fb2e03baf3",
@@ -33914,7 +34023,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7274-b63a-1c6b561b1e32",
@@ -33934,7 +34044,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7275-b4be-f488cbe2ea44",
@@ -33954,7 +34065,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7276-b5e8-bacad9ab82e2",
@@ -33974,7 +34086,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7277-beca-7df948d18fe5",
@@ -33994,7 +34107,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7278-9f4b-fca9d695eecd",
@@ -34014,7 +34128,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7279-9c63-7a04fdd54e8f",
@@ -34034,7 +34149,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-727a-ba93-914601b72b3a",
@@ -34054,7 +34170,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-727b-a7ec-a4e02fcbb8bc",
@@ -34074,7 +34191,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-727c-942a-9a81a947edff",
@@ -34094,7 +34212,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-727d-a18a-4d4230954a93",
@@ -34114,7 +34233,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-727e-86e1-b8a029fe2ba4",
@@ -34134,7 +34254,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-727f-a6ed-328b225b3a10",
@@ -34154,7 +34275,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7280-9231-f234a6326443",
@@ -34174,7 +34296,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7281-98cd-1a06323363b4",
@@ -34194,7 +34317,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7282-9537-54e03f7d453c",
@@ -34214,7 +34338,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7283-8520-0f25e27be784",
@@ -34234,7 +34359,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7284-8391-4da770c12fa1",
@@ -34254,7 +34380,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7285-a28d-c8f1ae6dd759",
@@ -34274,7 +34401,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7286-b0b9-7aada87438dc",
@@ -34294,7 +34422,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7287-a1cc-f78d3058ac28",
@@ -34314,7 +34443,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7288-aa36-628578551ae3",
@@ -34334,7 +34464,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7289-81dc-f36fb5897cc9",
@@ -34354,7 +34485,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-728a-b731-da5fd90e9505",
@@ -34374,7 +34506,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-728b-bba0-4a991c07f188",
@@ -34394,7 +34527,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-728c-95b8-bea23e125093",
@@ -34414,7 +34548,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-728d-a5e1-f55bc64fce86",
@@ -34434,7 +34569,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-728e-8151-1662e844cfb0",
@@ -34454,7 +34590,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-728f-94d4-72e5faf5258f",
@@ -34474,7 +34611,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7290-a528-76ad1d4b95bd",
@@ -34494,7 +34632,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7291-83e8-04da20d0e77c",
@@ -34514,7 +34653,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7292-b726-4494193e04cc",
@@ -34534,7 +34674,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7293-8f52-55cae280b561",
@@ -34554,7 +34695,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7294-b92c-36a952e831de",
@@ -34574,7 +34716,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7295-8383-5208cee8beeb",
@@ -34594,7 +34737,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7296-8d3e-615e3e04a228",
@@ -34614,7 +34758,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7297-ae71-a8b75aa52a3a",
@@ -34634,7 +34779,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7298-87ec-87ff436c572b",
@@ -34654,7 +34800,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-7299-b433-bb4f439b37ed",
@@ -34674,7 +34821,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-729a-a265-bad37467e099",
@@ -34694,7 +34842,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-729b-9906-3d83f96aef1d",
@@ -34714,7 +34863,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-729c-b353-9c8fd2f90ef8",
@@ -34734,7 +34884,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-729d-a447-e38668619ba3",
@@ -34754,7 +34905,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-729e-97b1-facdd9d3ed3b",
@@ -34774,7 +34926,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-729f-b9d7-e11d2283a2ae",
@@ -34794,7 +34947,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72a0-b0e4-ccf22c8d0603",
@@ -34814,7 +34968,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72a1-8bf9-19f3d08604f8",
@@ -34834,7 +34989,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72a2-b1b9-2676203d5102",
@@ -34854,7 +35010,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72a3-b1d6-619d9d00b102",
@@ -34874,7 +35031,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72a4-bbee-65c370781ed4",
@@ -34894,7 +35052,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72a5-9227-6b8bce63e43d",
@@ -34914,7 +35073,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72a6-9754-9d8e02b80687",
@@ -34934,7 +35094,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72a7-bf12-0065f7b9c38a",
@@ -34954,7 +35115,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72a8-80ef-7cb9fde1c032",
@@ -34974,7 +35136,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72a9-b8e6-062c308b48eb",
@@ -34994,7 +35157,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72aa-abac-50be087d57b1",
@@ -35014,7 +35178,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72ab-8943-551742c9b54f",
@@ -35034,7 +35199,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72ac-b649-e54174f1ad5e",
@@ -35054,7 +35220,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72ad-a708-7b95b10f4840",
@@ -35074,7 +35241,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72ae-a880-6a0c906d20b3",
@@ -35094,7 +35262,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72af-a833-6d9aee5bdc89",
@@ -35114,7 +35283,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72b0-b90a-0ff3878ceea3",
@@ -35134,7 +35304,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72b1-9312-848ba58a91d0",
@@ -35154,7 +35325,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e74-72b2-81fe-bae09923109c",
@@ -35174,7 +35346,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-707a-9eb4-a0e9bd34335c",
@@ -35194,7 +35367,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-707b-a564-87254a3ebd51",
@@ -35214,7 +35388,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-707c-8334-3b10c32e842b",
@@ -35234,7 +35409,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-707d-90ad-a9a0af526e87",
@@ -35254,7 +35430,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-707e-89d5-7cf7b42dbf7b",
@@ -35274,7 +35451,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-707f-be08-53f4b702c37d",
@@ -35294,7 +35472,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7080-8190-bf54f99a88c5",
@@ -35314,7 +35493,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7081-b600-5e120ae61766",
@@ -35334,7 +35514,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7082-9da4-8aebb2ef4fa8",
@@ -35354,7 +35535,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7083-953c-92c6ac8e0bbb",
@@ -35374,7 +35556,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7084-b72e-a476b6870e1e",
@@ -35394,7 +35577,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7085-9e4e-642c058a7b61",
@@ -35414,7 +35598,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7086-b731-936b3df7ecd7",
@@ -35434,7 +35619,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7087-9d95-727769cb4094",
@@ -35454,7 +35640,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7088-b64a-f0efaa5ecfdc",
@@ -35474,7 +35661,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7089-b632-6488b57d6e42",
@@ -35494,7 +35682,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-708a-8d98-b5406a10a9e0",
@@ -35514,7 +35703,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-708b-b1bd-ae25cb7b2b0e",
@@ -35534,7 +35724,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-708c-abed-86b6c9b6288c",
@@ -35554,7 +35745,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-708d-8a80-75aa8aa703d3",
@@ -35574,7 +35766,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-708e-a58b-63f26e9e2bc6",
@@ -35594,7 +35787,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-708f-88b4-0e17a7663283",
@@ -35614,7 +35808,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7090-952c-bd77a62047ab",
@@ -35634,7 +35829,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7091-b9b5-697b5463b8f4",
@@ -35654,7 +35850,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7092-9b29-7eec06428b91",
@@ -35674,7 +35871,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7093-b3c8-ef04dbd44a6f",
@@ -35694,7 +35892,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7094-84c8-032e44636408",
@@ -35714,7 +35913,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7095-9dd2-bb857b4b4bae",
@@ -35734,7 +35934,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7096-a0a3-064df89ae181",
@@ -35754,7 +35955,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7097-aca0-7a2f571ea477",
@@ -35774,7 +35976,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7098-b9b5-e22e7a8cd867",
@@ -35794,7 +35997,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-7099-80a5-d1f5f507f1c1",
@@ -35814,7 +36018,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-709a-a069-9816ce4615c2",
@@ -35834,7 +36039,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-709b-ac34-1946aa4b0a6c",
@@ -35854,7 +36060,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-709c-b58b-a95794ae5a1b",
@@ -35874,7 +36081,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-709d-87d6-8b2dae545566",
@@ -35894,7 +36102,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-709e-9732-3835cdbf0a2a",
@@ -35914,7 +36123,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-709f-9b61-d2dcc8b0d786",
@@ -35934,7 +36144,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70a0-b987-450e320ac185",
@@ -35954,7 +36165,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70a1-b203-67991ac62abe",
@@ -35974,7 +36186,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70a2-bf28-d46399968c25",
@@ -35994,7 +36207,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70a3-8165-7562c03e2023",
@@ -36014,7 +36228,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70a4-a42f-728d5ec618bd",
@@ -36034,7 +36249,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70a5-a97f-a27531d1a21c",
@@ -36054,7 +36270,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70a6-bccc-f848b535bc4a",
@@ -36074,7 +36291,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70a7-bc34-8bd7a7425214",
@@ -36094,7 +36312,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70a8-9aa5-faf796a445f1",
@@ -36114,7 +36333,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70a9-a2f9-fb93ca469521",
@@ -36134,7 +36354,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70aa-a6ec-19d3d46f7946",
@@ -36154,7 +36375,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70ab-8f0c-040a60933509",
@@ -36174,7 +36396,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70ac-a029-6a2d7b5d4a4b",
@@ -36194,7 +36417,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70ad-8771-dcd5cd8bb019",
@@ -36214,7 +36438,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70ae-ac7f-912501893b5b",
@@ -36234,7 +36459,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70af-a126-21dababe66d7",
@@ -36254,7 +36480,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70b0-aaf8-0bfe572a76d0",
@@ -36274,7 +36501,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70b1-a2e6-566cba98c4d2",
@@ -36294,7 +36522,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70b2-a011-f18b4a4b75c6",
@@ -36314,7 +36543,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70b3-8fb9-ff40b6ba0594",
@@ -36334,7 +36564,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e75-70b4-9f6e-62233da6991f",
@@ -36354,7 +36585,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71a5-9415-f2c23a0502f4",
@@ -36374,7 +36606,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71a6-9a87-d9e4d46c2d0a",
@@ -36394,7 +36627,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71a7-8bb2-0dce41914485",
@@ -36414,7 +36648,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71a8-a0d1-f6781af27403",
@@ -36434,7 +36669,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71a9-a8da-74fbc4057e9f",
@@ -36454,7 +36690,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71aa-89e3-f8cb4de83b66",
@@ -36474,7 +36711,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71ab-bfb2-9ad61fdb59ec",
@@ -36494,7 +36732,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71ac-9582-4b9e0106b322",
@@ -36514,7 +36753,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71ad-8ebc-7fe02a066c9d",
@@ -36534,7 +36774,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71ae-b4af-b33568966db3",
@@ -36554,7 +36795,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71af-8610-a9369608a8e0",
@@ -36574,7 +36816,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71b0-abfc-723042e0fcea",
@@ -36594,7 +36837,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71b1-939d-8b1be6801365",
@@ -36614,7 +36858,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71b2-87d8-b4e1325d84fd",
@@ -36634,7 +36879,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71b3-8dd9-05d65f3f3a1c",
@@ -36654,7 +36900,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71b4-97f9-5e8e3c89fabe",
@@ -36674,7 +36921,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71b5-8f68-6c539cb8ab5e",
@@ -36694,7 +36942,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71b6-bc72-3eff9c5381ad",
@@ -36714,7 +36963,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71b7-8215-dcd8025867b9",
@@ -36734,7 +36984,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71b8-8863-8ec4bdb76d61",
@@ -36754,7 +37005,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71b9-9625-8b0797ad637f",
@@ -36774,7 +37026,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71ba-bf99-69226cbce2ae",
@@ -36794,7 +37047,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71bb-b8c4-894ec4487477",
@@ -36814,7 +37068,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71bc-ab51-911d64dd2460",
@@ -36834,7 +37089,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71bd-8813-d015724b7c84",
@@ -36854,7 +37110,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71be-91d7-55b45025625d",
@@ -36874,7 +37131,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71bf-b01e-73493d1048f4",
@@ -36894,7 +37152,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71c0-a38e-af9f0e0cca42",
@@ -36914,7 +37173,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71c1-b5dc-24e9fbce62d8",
@@ -36934,7 +37194,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71c2-b9f7-dab64c1806f1",
@@ -36954,7 +37215,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71c3-800e-7abc1d308867",
@@ -36974,7 +37236,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71c4-a182-89a80a18b856",
@@ -36994,7 +37257,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71c5-8e7e-8c403f712b8c",
@@ -37014,7 +37278,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71c6-9622-9b1d054d5386",
@@ -37034,7 +37299,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71c7-8288-74a2ba39bf73",
@@ -37054,7 +37320,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71c8-905d-7673896c523f",
@@ -37074,7 +37341,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71c9-a859-75870f53c05c",
@@ -37094,7 +37362,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71ca-9138-41c450e2f986",
@@ -37114,7 +37383,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71cb-9c5f-01dab1ac3708",
@@ -37134,7 +37404,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71cc-b055-1773b8a65762",
@@ -37154,7 +37425,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71cd-bbfc-bcf4499c816c",
@@ -37174,7 +37446,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71ce-bc8c-a75697396143",
@@ -37194,7 +37467,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71cf-8148-754222921e67",
@@ -37214,7 +37488,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71d0-835f-8b30d06f4282",
@@ -37234,7 +37509,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71d1-8f09-417724364701",
@@ -37254,7 +37530,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71d2-8758-e4e53a8eaa75",
@@ -37274,7 +37551,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71d3-b2d8-71fa77ec877b",
@@ -37294,7 +37572,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71d4-90cd-0282d3549cd8",
@@ -37314,7 +37593,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71d5-a4f4-86f37e15f398",
@@ -37334,7 +37614,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71d6-b3f1-2e3093f10648",
@@ -37354,7 +37635,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71d7-9a9c-e72a5f19bb94",
@@ -37374,7 +37656,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71d8-9171-5b3bb1d4d3e2",
@@ -37394,7 +37677,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71d9-8b4a-1282c10e45cd",
@@ -37414,7 +37698,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71da-b4f7-db44343bde75",
@@ -37434,7 +37719,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71db-b94f-b8cd5d6d66dc",
@@ -37454,7 +37740,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71dc-bb72-1026a206c866",
@@ -37474,7 +37761,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71dd-bda2-d7b2e120b9df",
@@ -37494,7 +37782,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71de-9a2f-a91373bc0ef8",
@@ -37514,7 +37803,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71df-ab57-262e7b06ce67",
@@ -37534,7 +37824,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71e0-ba88-429f28cca515",
@@ -37554,7 +37845,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71e1-966a-0af3ee0e9a6d",
@@ -37574,7 +37866,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71e2-a401-038720c68759",
@@ -37594,7 +37887,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71e3-a525-d183190d26a8",
@@ -37614,7 +37908,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71e4-a5af-f27c91ea8061",
@@ -37634,7 +37929,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71e5-8ef0-a06dfb40b732",
@@ -37654,7 +37950,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71e6-a2df-909ac9349bea",
@@ -37674,7 +37971,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71e7-adec-74156e94e36d",
@@ -37694,7 +37992,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71e8-9234-528e1e34d547",
@@ -37714,7 +38013,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71e9-9ff3-a92337235f94",
@@ -37734,7 +38034,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71ea-956f-03147938efaa",
@@ -37754,7 +38055,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71eb-8461-d6e02bdd9aa1",
@@ -37774,7 +38076,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71ec-843c-eb6a506320ff",
@@ -37794,7 +38097,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71ed-8425-4bb324d0f9e1",
@@ -37814,7 +38118,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71ee-828b-b10f5ec5dcd2",
@@ -37834,7 +38139,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71ef-9428-eb684b8a1f88",
@@ -37854,7 +38160,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71f0-8116-4c3046a6a434",
@@ -37874,7 +38181,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71f1-9015-2eae515690c6",
@@ -37894,7 +38202,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71f2-9bac-0baa4c1bdfce",
@@ -37914,7 +38223,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71f3-b0ea-7a28bfbebe63",
@@ -37934,7 +38244,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71f4-ad3c-b78a51399b7c",
@@ -37954,7 +38265,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71f5-b240-95951ddd97ec",
@@ -37974,7 +38286,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e76-71f6-a79e-e3a4f2f4a4b6",
@@ -37994,7 +38307,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-73f8-add1-669650b106e4",
@@ -38014,7 +38328,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-73f9-adf9-c7ceac37c26d",
@@ -38034,7 +38349,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-73fa-8061-39e24b6a4f04",
@@ -38054,7 +38370,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-73fb-bb61-66d01d106d04",
@@ -38074,7 +38391,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-73fc-88c4-6576d74263d7",
@@ -38094,7 +38412,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-73fd-8129-106b3a7dd14c",
@@ -38114,7 +38433,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-73fe-8c09-68aab2122bf1",
@@ -38134,7 +38454,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-73ff-a135-034c29966122",
@@ -38154,7 +38475,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7400-a73a-60214aaba3e9",
@@ -38174,7 +38496,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7401-a586-f331451e29ab",
@@ -38194,7 +38517,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7402-9e48-6feb012a8718",
@@ -38214,7 +38538,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7403-a03b-34c6192e8d39",
@@ -38234,7 +38559,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7404-b721-5a52771a8169",
@@ -38254,7 +38580,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7405-b18c-e140ab79c290",
@@ -38274,7 +38601,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7406-8f31-f324bc10beb9",
@@ -38294,7 +38622,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7407-a968-1c25a4e58743",
@@ -38314,7 +38643,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7408-8f34-1d817a4c099e",
@@ -38334,7 +38664,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7409-9085-0464d14d7580",
@@ -38354,7 +38685,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-740a-9416-05ac38b8e332",
@@ -38374,7 +38706,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-740b-b8f0-a84c62519185",
@@ -38394,7 +38727,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-740c-a7dc-7a7e8a91e6ff",
@@ -38414,7 +38748,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-740d-b385-0fe8c33bf673",
@@ -38434,7 +38769,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-740e-bc87-40eaa2ddd7e1",
@@ -38454,7 +38790,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-740f-a909-3f15ef6d05ca",
@@ -38474,7 +38811,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7410-82e4-c9bdf42859bc",
@@ -38494,7 +38832,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7411-9f56-aa271e6c47da",
@@ -38514,7 +38853,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7412-94a1-3627f7c38439",
@@ -38534,7 +38874,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7413-b66f-ca193b50b86a",
@@ -38554,7 +38895,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7414-9051-d64aa3eb7dff",
@@ -38574,7 +38916,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7415-8d3b-6b78aa09c5a5",
@@ -38594,7 +38937,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7416-9e0c-e48006885800",
@@ -38614,7 +38958,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7417-8071-ce6a758f6e39",
@@ -38634,7 +38979,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7418-8d19-d31c24898106",
@@ -38654,7 +39000,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7419-8537-f9613ecef77b",
@@ -38674,7 +39021,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-741a-9864-1dccad5b5828",
@@ -38694,7 +39042,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-741b-84e5-b6c1db5d2efc",
@@ -38714,7 +39063,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-741c-bc07-d01759dc897e",
@@ -38734,7 +39084,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-741d-9fde-e1725ef273c4",
@@ -38754,7 +39105,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-741e-95c1-8f4b1553186b",
@@ -38774,7 +39126,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-741f-8b4f-af1e88dcc361",
@@ -38794,7 +39147,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7420-8444-5c8f87fffadb",
@@ -38814,7 +39168,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7421-9b10-10bd6d0e74b1",
@@ -38834,7 +39189,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7422-9826-9f9816edd29f",
@@ -38854,7 +39210,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7423-9ed2-97b210f34b5a",
@@ -38874,7 +39231,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7424-9660-ea928505a674",
@@ -38894,7 +39252,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7425-9390-78a286e8cbc7",
@@ -38914,7 +39273,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7426-9821-8561d92bf4a0",
@@ -38934,7 +39294,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7427-922e-a34e40add6dd",
@@ -38954,7 +39315,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7428-9741-0d08e22aaee4",
@@ -38974,7 +39336,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7429-9949-d8fbf874300c",
@@ -38994,7 +39357,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-742a-b16c-c22f141b51bd",
@@ -39014,7 +39378,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-742b-bf51-6e0af11ddccc",
@@ -39034,7 +39399,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-742c-b73a-7fb83cc372fc",
@@ -39054,7 +39420,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-742d-9a8d-5fec421a39a5",
@@ -39074,7 +39441,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-742e-88cd-5edcc3569565",
@@ -39094,7 +39462,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-742f-a0bd-6998f3f90920",
@@ -39114,7 +39483,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7430-b7e6-bedda8fb11ec",
@@ -39134,7 +39504,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7431-934f-d7a872dbddeb",
@@ -39154,7 +39525,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7432-9f5e-ce43a574be63",
@@ -39174,7 +39546,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7433-80d3-8dcad2847678",
@@ -39194,7 +39567,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7434-876d-8dfe49f21e5d",
@@ -39214,7 +39588,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7435-9529-dc2ef2e7618a",
@@ -39234,7 +39609,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7436-8a8c-ce19ca180df4",
@@ -39254,7 +39630,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7437-91cc-6f336a4322b1",
@@ -39274,7 +39651,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7438-8394-e83eabcbf4e5",
@@ -39294,7 +39672,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7439-80c8-3549ad75d55a",
@@ -39314,7 +39693,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-743a-bdad-710f7abd21ab",
@@ -39334,7 +39714,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-743b-aa23-c5e606eaf7cf",
@@ -39354,7 +39735,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-743c-87e1-72fbf833a4dc",
@@ -39374,7 +39756,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-743d-834a-f7113896e905",
@@ -39394,7 +39777,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-743e-b811-fcd9d28672ff",
@@ -39414,7 +39798,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-743f-bb09-422ea0796269",
@@ -39434,7 +39819,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7440-9879-ff4b8b8b76e8",
@@ -39454,7 +39840,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7441-8b42-44866044a8dc",
@@ -39474,7 +39861,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7442-b2d7-0c9aa834686d",
@@ -39494,7 +39882,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7443-bddb-c4c94833c482",
@@ -39514,7 +39903,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7444-b272-fe03e9cc885c",
@@ -39534,7 +39924,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7445-b1d6-34a0c3922caf",
@@ -39554,7 +39945,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7446-9aa6-436e328a6eb3",
@@ -39574,7 +39966,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7447-ba76-90be4d56264d",
@@ -39594,7 +39987,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7448-a471-b06ce8047cb1",
@@ -39614,7 +40008,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-7449-8ec9-2f7b09f891ca",
@@ -39634,7 +40029,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-744a-b2ac-9a2ad2e30342",
@@ -39654,7 +40050,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-744b-9d60-76fd274da4ad",
@@ -39674,7 +40071,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-744c-91cf-df09519df72f",
@@ -39694,7 +40092,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e77-744d-b420-9470050b9ac7",
@@ -39714,7 +40113,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7204-8f91-80f14763d9b4",
@@ -39734,7 +40134,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7205-98e1-7df82cb118a5",
@@ -39754,7 +40155,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7206-b676-de0ead14e86c",
@@ -39774,7 +40176,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7207-b5db-ac974bc60e41",
@@ -39794,7 +40197,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7208-be3c-8e85f3ad5e7b",
@@ -39814,7 +40218,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7209-81f3-f5699b5407d2",
@@ -39834,7 +40239,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-720a-9b6e-f8d9b013bb23",
@@ -39854,7 +40260,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-720b-b689-139b9f8167a5",
@@ -39874,7 +40281,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-720c-81f0-23dd0de263cc",
@@ -39894,7 +40302,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-720d-ad2f-1bf25e927008",
@@ -39914,7 +40323,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-720e-a290-fff654cb71d1",
@@ -39934,7 +40344,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-720f-8b40-713625f2d4fe",
@@ -39954,7 +40365,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7210-bf03-7957c51adc74",
@@ -39974,7 +40386,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7211-9e82-6db14ca98bd0",
@@ -39994,7 +40407,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7212-8222-8e908bd213b4",
@@ -40014,7 +40428,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7213-b2ff-07117e3d63fd",
@@ -40034,7 +40449,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7214-9fc2-ef708671e658",
@@ -40054,7 +40470,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7215-abef-6dd39c3418f7",
@@ -40074,7 +40491,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7216-af6b-9d7ab020f68e",
@@ -40094,7 +40512,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7217-8569-5bbbed04ec51",
@@ -40114,7 +40533,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7218-8e1e-c1fd3f510561",
@@ -40134,7 +40554,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7219-abaa-e4cd0ae73f89",
@@ -40154,7 +40575,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-721a-85ad-1bf630cfe4ba",
@@ -40174,7 +40596,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-721b-a135-cd1d96990d0a",
@@ -40194,7 +40617,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-721c-bcfd-8b6b238e8f6b",
@@ -40214,7 +40638,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-721d-a846-dff9463d51a4",
@@ -40234,7 +40659,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-721e-873d-70e46ab33a4d",
@@ -40254,7 +40680,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-721f-ac34-818b53a79e01",
@@ -40274,7 +40701,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7220-882d-e0d5933f7a21",
@@ -40294,7 +40722,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7221-80de-36f3d0a0694d",
@@ -40314,7 +40743,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7222-af95-db3566e1c30f",
@@ -40334,7 +40764,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7223-878c-c966489b49f8",
@@ -40354,7 +40785,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7224-8671-6517138dd2a7",
@@ -40374,7 +40806,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7225-bb17-61433f91261e",
@@ -40394,7 +40827,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e78-7226-b00a-16032fb4967d",
@@ -40414,7 +40848,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e7c-7363-ac22-a022a9468f0d",
@@ -40434,7 +40869,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e7c-7367-b073-4641e3f150f5",
@@ -40454,7 +40890,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e7c-7368-ab04-c7fc14025e29",
@@ -40474,7 +40911,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e7d-7289-911c-712a0f86fe5c",
@@ -40494,7 +40932,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e7d-728a-8041-1ff46332f12d",
@@ -40514,7 +40953,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e7d-728e-b965-4ea67a18c057",
@@ -40534,7 +40974,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e7d-7292-943b-053b4b0e3790",
@@ -40554,7 +40995,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e7d-7296-9f4d-0d6aef976f94",
@@ -40574,7 +41016,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e7d-7297-9eb1-77cf7a2963ed",
@@ -40594,7 +41037,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e7e-702e-9558-ae744066fa60",
@@ -40614,7 +41058,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e6c-1e7e-702f-8426-e8d1e33add3d",
@@ -40634,7 +41079,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b7b-7259-a0cd-369ee506a7fe",
@@ -40654,7 +41100,8 @@
       "claim_ids": [
         "01a10e6f-5d73-71c9-8076-ff6c23b105c1"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7b-725b-8246-a3e4ade3eaa7",
@@ -40674,7 +41121,8 @@
       "claim_ids": [
         "01a10e6f-5d78-73ca-b60c-7f2ce278b9df"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7b-725d-9c34-2e7fa7e9b148",
@@ -40694,7 +41142,8 @@
       "claim_ids": [
         "01a10e6f-5d78-73c8-9d0b-6be2287a78fb"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7b-725f-9b8b-ab860262c7b6",
@@ -40714,7 +41163,8 @@
       "claim_ids": [
         "01a10e6f-5d79-736f-86f3-dd6c651bedcd"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7c-72f4-a8eb-6e4476bb3060",
@@ -40734,7 +41184,8 @@
       "claim_ids": [
         "01a10e6f-5d79-7383-a3c0-1f3cd00f7e4c"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7c-72f6-b197-81a91657973f",
@@ -40755,7 +41206,8 @@
         "01a10e6f-5d75-7315-a7cc-c50842c7fef7",
         "01a10e6f-5d7b-7146-a099-b4cb395ec422"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7c-72f9-99c2-5b202596895f",
@@ -40775,7 +41227,8 @@
       "claim_ids": [
         "01a10e6f-5d7a-723d-9fc0-6ef97221c40d"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7d-7214-8f52-a1c09d721466",
@@ -40795,7 +41248,8 @@
       "claim_ids": [
         "01a10e6f-5d7c-7083-9ebc-04841b584ea1"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7d-7216-a01f-30264dd5d25d",
@@ -40816,7 +41270,8 @@
         "01a10e6f-5d7d-73ab-93a7-6d957c917e58",
         "01a10e6f-5d76-7236-937d-77cb99fbbaf8"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7d-7219-9e34-6b55b370080c",
@@ -40836,7 +41291,8 @@
       "claim_ids": [
         "01a10e6f-5d7e-7268-8db2-b0fb509e4798"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7d-721b-9960-e3e9aaceed3b",
@@ -40856,7 +41312,8 @@
       "claim_ids": [
         "01a10e6f-5d74-71d2-8e42-bd56df311795"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7e-7113-a62f-4bca32087d11",
@@ -40876,7 +41333,8 @@
       "claim_ids": [
         "01a10e6f-5d7f-71c7-9aed-dda9586e4284"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7e-7115-9fbc-c89117ec0e6a",
@@ -40896,7 +41354,8 @@
       "claim_ids": [
         "01a10e6f-5d83-71ec-90f2-8e816826c515"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7e-7117-9c12-798af9b88250",
@@ -40916,7 +41375,8 @@
       "claim_ids": [
         "01a10e6f-5d84-72ab-bd99-4297536af302"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party estimate"
     },
     {
       "id": "01a10e71-7b7e-7119-8fa5-37b24e8689d3",
@@ -40936,7 +41396,8 @@
       "claim_ids": [
         "01a10e6f-5d73-71df-b2f8-ff9ffe03ece1"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7e-711b-b481-bf770586683b",
@@ -40956,7 +41417,8 @@
       "claim_ids": [
         "01a10e6f-5d73-71df-b2f8-ff9ffe03ece1"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7f-7046-8098-945f29adecf3",
@@ -40976,7 +41438,8 @@
       "claim_ids": [
         "01a10e6f-5d73-71bf-80a5-0e55668a82b4"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7f-7048-bdfd-d49bdf69e2ab",
@@ -40997,7 +41460,8 @@
         "01a10e6f-5d73-71bf-80a5-0e55668a82b4",
         "01a10e6f-5d83-7218-8554-20c006efaa7c"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7f-704b-9242-f1fe8b50e003",
@@ -41017,7 +41481,8 @@
       "claim_ids": [
         "01a10e6f-5d7d-73ad-a984-cb2f41867723"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7f-704d-9392-6d3ff7397e40",
@@ -41037,7 +41502,8 @@
       "claim_ids": [
         "01a10e6f-5d7e-726a-b7bb-543dc4fcd0d8"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7f-704f-a31d-b0861aeffa1a",
@@ -41057,7 +41523,8 @@
       "claim_ids": [
         "01a10e6f-5d74-71d4-a1c6-6594805ab22d"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b7f-7051-83ac-4d7ebd6c5470",
@@ -41077,7 +41544,8 @@
       "claim_ids": [
         "01a10e6f-5d7f-71c9-826c-d55cb4136177"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b80-73a2-b4d2-a12df6a990ce",
@@ -41097,7 +41565,8 @@
       "claim_ids": [
         "01a10e6f-5d83-71e4-a879-674daf47d98f"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b80-73a4-8e69-328862e387fd",
@@ -41117,7 +41586,8 @@
       "claim_ids": [
         "01a10e6f-5d84-72a9-9631-1dde275a331b"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party estimate"
     },
     {
       "id": "01a10e71-7b80-73a6-9717-f86ea40638b4",
@@ -41137,7 +41607,8 @@
       "claim_ids": [
         "01a10e6f-5d73-71bf-80a5-0e55668a82b4"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b80-73a8-b0a0-6cc487f24770",
@@ -41157,7 +41628,8 @@
       "claim_ids": [
         "01a10e6f-5d7a-7229-a6f3-3eebea4759f6"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b80-73aa-bf66-6a37b8cebeeb",
@@ -41178,7 +41650,8 @@
         "01a10e6f-5d7a-722b-8441-6cbc5fe22c95",
         "01a10e6f-5d7b-713e-b6ba-3907b139338a"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b80-73ad-a98b-b848cb0cf7c2",
@@ -41198,7 +41671,8 @@
       "claim_ids": [
         "01a10e6f-5d7e-724e-8b10-f9cf63692d85"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b81-73fd-a608-910114d74369",
@@ -41218,7 +41692,8 @@
       "claim_ids": [
         "01a10e6f-5d81-72e2-b310-13f931eb21cb"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b81-73ff-911a-a008e811edc7",
@@ -41238,7 +41713,8 @@
       "claim_ids": [
         "01a10e6f-5d81-72e4-8113-af707191654f"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b81-7401-9684-00fe8e7f102e",
@@ -41258,7 +41734,8 @@
       "claim_ids": [
         "01a10e6f-5d81-72e6-be08-8a5ce8bb0bdf"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b81-7403-80af-b5b814905e85",
@@ -41278,7 +41755,8 @@
       "claim_ids": [
         "01a10e6f-5d81-72e8-9602-660eaaa47184"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b82-703b-8fc9-debb7df3cf33",
@@ -41298,7 +41776,8 @@
       "claim_ids": [
         "01a10e6f-5d81-731a-8d0f-5174a05060aa"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "company reported"
     },
     {
       "id": "01a10e71-7b82-703d-8a6d-91d2f95ed2ca",
@@ -41318,7 +41797,8 @@
       "claim_ids": [
         "01a10e6f-5d83-721c-8622-377c43ee8f97"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party measured"
     },
     {
       "id": "01a10e71-7b82-703f-af76-cd2b83cc3d23",
@@ -41338,7 +41818,8 @@
       "claim_ids": [
         "01a10e6f-5d83-721a-8283-cf3dd4cc17a1"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": "third-party reported"
     },
     {
       "id": "01a10e71-7b86-7322-892e-f8820f50999e",
@@ -41358,7 +41839,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b86-7323-8412-53bea5f16b97",
@@ -41378,7 +41860,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b86-7324-b9c1-a9e327db819b",
@@ -41398,7 +41881,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b86-7325-82d4-3556a7b047b4",
@@ -41418,7 +41902,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b86-7326-9be7-a997df86542e",
@@ -41438,7 +41923,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b86-7327-9371-0cdbdfbd3aa8",
@@ -41458,7 +41944,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b86-732a-b16d-ee88433603cb",
@@ -41478,7 +41965,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b86-732b-b61c-3324d5c6e18e",
@@ -41498,7 +41986,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b86-732c-89c9-0f345bada245",
@@ -41518,7 +42007,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b86-732d-a286-79fa2b9533ae",
@@ -41538,7 +42028,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b86-732e-8dce-5cf50897ae01",
@@ -41558,7 +42049,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b86-732f-80cd-770d86a96ebc",
@@ -41578,7 +42070,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b86-7332-a2e1-badb6a75e0a3",
@@ -41598,7 +42091,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-7335-ae4c-831e049bbdf8",
@@ -41618,7 +42112,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-7336-bf04-fe670081d3f0",
@@ -41638,7 +42133,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-7337-974e-3aace8809cc7",
@@ -41658,7 +42154,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-7338-a12f-eef5147ede49",
@@ -41678,7 +42175,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-7339-a05c-b792abc23774",
@@ -41698,7 +42196,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-733c-ad9e-670c12dd2b71",
@@ -41718,7 +42217,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-733d-8e4a-008b475aaf27",
@@ -41738,7 +42238,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-733e-b5ee-6b8a95e08af2",
@@ -41758,7 +42259,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-733f-8e75-74ddd5d73753",
@@ -41778,7 +42280,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-7340-8328-26bace58332e",
@@ -41798,7 +42301,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-7341-b664-88631553c49a",
@@ -41818,7 +42322,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-7344-a59b-9847b2c7fb0b",
@@ -41838,7 +42343,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-7345-bba7-198a3edc1eca",
@@ -41858,7 +42364,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-7346-9ce5-e51a1d9f680f",
@@ -41878,7 +42385,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-7347-b438-d97ab317364b",
@@ -41898,7 +42406,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-7348-86ed-93d595db5378",
@@ -41918,7 +42427,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b87-7349-8ff5-6f01ec13f6d5",
@@ -41938,7 +42448,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-706b-a2ba-899d98b0da8b",
@@ -41958,7 +42469,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-706c-865e-50b67392c586",
@@ -41978,7 +42490,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-706d-a490-4c0176123c20",
@@ -41998,7 +42511,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-706e-8237-7c30fe6d050e",
@@ -42018,7 +42532,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-706f-a9c9-f3b8c9526e63",
@@ -42038,7 +42553,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-7070-92c7-56693bf5985c",
@@ -42058,7 +42574,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-7073-9897-915d121cea50",
@@ -42078,7 +42595,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-7074-af1c-1bedfbfb1898",
@@ -42098,7 +42616,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-7075-a733-cc728803e093",
@@ -42118,7 +42637,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-7076-b8f3-33d0264e49e4",
@@ -42138,7 +42658,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-7077-a8b8-880651ed1130",
@@ -42158,7 +42679,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-7078-90a5-e09687ff3b60",
@@ -42178,7 +42700,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-707b-b558-db489cc9ab3c",
@@ -42198,7 +42721,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-707c-8a81-5fe30dead7d3",
@@ -42218,7 +42742,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b88-707d-b46d-f3fb7dc93864",
@@ -42238,7 +42763,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-71fa-bc83-0fda2e80d78e",
@@ -42258,7 +42784,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-71fb-99f5-0811b40cddab",
@@ -42278,7 +42805,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-71fc-bfa8-82a48925f48c",
@@ -42298,7 +42826,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-71ff-b1e7-619942f2db28",
@@ -42318,7 +42847,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-7200-90ef-2e16b48511f8",
@@ -42338,7 +42868,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-7201-83c2-bb8ec7057a9c",
@@ -42358,7 +42889,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-7202-9a5a-429c70a0a6fb",
@@ -42378,7 +42910,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-7203-853a-3f55f84a4e29",
@@ -42398,7 +42931,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-7204-b223-4af3d283ec27",
@@ -42418,7 +42952,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-7207-b24d-0d280b666355",
@@ -42438,7 +42973,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-7208-960c-51b94084ddc1",
@@ -42458,7 +42994,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-7209-856d-bc1722df1c59",
@@ -42478,7 +43015,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-720a-96a5-b5452a51bb69",
@@ -42498,7 +43036,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-720b-af9d-14295ecbef17",
@@ -42518,7 +43057,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-720c-a019-8b26ec8c5b5a",
@@ -42538,7 +43078,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b89-720f-a6aa-2158c3070553",
@@ -42558,7 +43099,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-7009-aead-8b66072f7f03",
@@ -42578,7 +43120,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-700a-bb69-a7a80008f454",
@@ -42598,7 +43141,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-700b-9482-ccbb4d28e4a5",
@@ -42618,7 +43162,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-700c-aa04-15e292cac649",
@@ -42638,7 +43183,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-700d-a081-da0e832fd88f",
@@ -42658,7 +43204,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-7010-8c6e-af29be6506f2",
@@ -42678,7 +43225,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-7011-bde5-6c556916a991",
@@ -42698,7 +43246,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-7012-a4c5-c11eabab9e5d",
@@ -42718,7 +43267,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-7013-9ae7-6620c146588b",
@@ -42738,7 +43288,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-7014-89ba-333e67e61912",
@@ -42758,7 +43309,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-7015-8b8e-5877e3ec89df",
@@ -42778,7 +43330,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-7018-b02b-9d9ecbdc0c83",
@@ -42798,7 +43351,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-7019-9932-11fc96d3653d",
@@ -42818,7 +43372,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-701a-b17c-00d3ab5cb8d7",
@@ -42838,7 +43393,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-701b-a96b-d88e3d713579",
@@ -42858,7 +43414,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-701c-a98e-35c06ceeab3c",
@@ -42878,7 +43435,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8a-701d-a9c1-5adb5fad7414",
@@ -42898,7 +43456,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-7144-b117-b9222518bb22",
@@ -42918,7 +43477,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-7145-9452-175e40ec88d2",
@@ -42938,7 +43498,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-7146-8db8-39523f82d4a6",
@@ -42958,7 +43519,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-7147-9614-5cf62a0000d9",
@@ -42978,7 +43540,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-7148-9629-7490e3e86d50",
@@ -42998,7 +43561,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-7149-a8cc-0597ef86a6d1",
@@ -43018,7 +43582,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-714c-8a2a-4a19054538af",
@@ -43038,7 +43603,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-714d-b4b1-13b1614ca39a",
@@ -43058,7 +43624,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-714e-8f9f-c914b4918702",
@@ -43078,7 +43645,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-714f-bd62-2aed7c61f840",
@@ -43098,7 +43666,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-7150-9d83-057bfc658ca4",
@@ -43118,7 +43687,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-7151-b788-b5c22cde396a",
@@ -43138,7 +43708,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-7154-89db-c93f0177c1a5",
@@ -43158,7 +43729,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-7155-8242-1daa9d889b90",
@@ -43178,7 +43750,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-7156-93c1-f692d26d0e71",
@@ -43198,7 +43771,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-7157-8e69-8623928e6ab1",
@@ -43218,7 +43792,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-7158-87db-a988b218b05c",
@@ -43238,7 +43813,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     },
     {
       "id": "01a10e71-7b8b-7159-9157-1b71ee1bcf5c",
@@ -43258,7 +43834,8 @@
       "claim_ids": [
         "01a10e6c-1e71-7315-b910-01f504f2d293"
       ],
-      "review_state": "machine_extracted"
+      "review_state": "machine_extracted",
+      "public_attribution": null
     }
   ],
   "company_stages": [
@@ -44920,7 +45497,7 @@
   ],
   "narrative": {
     "thirty_second": {
-      "text": "Plausible is an open source, cookie-free web analytics tool that a solo developer started in December 2018 and later ran with a marketing co-founder. It has never paid for ads, affiliates or sponsorships. Its growth has come mainly from opinionated blog posts that reached the Hacker News front page, comparison and educational content that ranks in Google, and word of mouth. Revenue comes only from subscriptions to the hosted version, priced by pageviews with a 30-day free trial. It reached $1M ARR in June 2022, and later reported more than 21,000 paying subscribers and over 29,000 GitHub stars.",
+      "text": "Plausible is an open source, cookie-free web analytics tool that a solo developer started in December 2018 and later ran with a marketing co-founder. The company says it has never paid for ads, affiliates or sponsorships. Its growth has come mainly from opinionated blog posts that reached the Hacker News front page, comparison and educational content that ranks in Google, and word of mouth. Revenue comes only from subscriptions to the hosted version, priced by pageviews with a 30-day free trial. It reached $1M ARR in June 2022, and later reported more than 21,000 paying subscribers and over 29,000 GitHub stars.",
       "claim_ids": [
         "01a10e6f-5d77-70d7-a51c-82e33d5f7faa",
         "01a10e6f-5d73-71c5-b2be-6eac3d0728e2",

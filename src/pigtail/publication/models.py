@@ -53,6 +53,14 @@ class PublicClaim(Claim):
     manually_verified: bool = False
 
 
+class PublicSource(Source):
+    public_note: str | None = None
+
+
+class PublicMetricSnapshot(MetricSnapshot):
+    public_attribution: str | None = None
+
+
 class PublicSourceFetch(_Strict):
     id: Id
     source_id: Id
@@ -85,7 +93,7 @@ class PublicReportBundle(_Strict):
 
     target: Target
     repositories: list[Repository]
-    sources: list[Source]
+    sources: list[PublicSource]
     source_fetches: list[PublicSourceFetch]
     claims: list[PublicClaim]
     evidence_links: list[EvidenceLink]
@@ -93,7 +101,7 @@ class PublicReportBundle(_Strict):
     events: list[Event]
     launch_episodes: list[LaunchEpisode]
     growth_episodes: list[GrowthEpisode]
-    metric_snapshots: list[MetricSnapshot]
+    metric_snapshots: list[PublicMetricSnapshot]
     company_stages: list[CompanyStage]
     strategy_phases: list[StrategyPhase]
     surfaces: list[Surface]

@@ -75,6 +75,8 @@ def role_label(role: str | None, n_founders: int) -> str:
         return "a co-founder"
     if _FOUNDER.search(r):
         return "the founder" if n_founders <= 1 else "a founder"
+    if "contributor" in r or "community" in r:
+        return "a community contributor" if "community" in r else "a contributor"
     for key, label in (("investor", "an investor"), ("advisor", "an advisor"), ("adviser", "an advisor")):
         if key in r:
             return label
@@ -256,6 +258,15 @@ class Redactor:
                     "__ROLE__",
                 )
             )
+        # "community member Chandra" -> the person's role label
+        self._role_rx.append(
+            (
+                re.compile(
+                    rf"\b(?:[Cc]ommunity (?:member|contributor)|[Cc]ontributor|[Uu]ser)\s+@?(?P<tok>{alts})(?![\w])"
+                ),
+                "__LABEL__",
+            )
+        )
         # "co-founder abelanger's posts" -> "the co-founder's posts" (any known name, first name or handle)
         self._role_rx.append((re.compile(rf"\b({_ROLE_NOUN})\s+@?(?:{alts})(?![\w])"), "__ROLE_ONLY__"))
 
@@ -263,6 +274,8 @@ class Redactor:
         for rx, repl in self._role_rx:
             if repl == "__ROLE_ONLY__":
                 text = rx.sub(_role_with_article, text)
+            elif repl == "__LABEL__":
+                text = rx.sub(lambda m: _cap(self.replacements.get(m.group("tok"), "someone"), m), text)
             elif repl == "__ROLE__":
 
                 def role_sub(m: re.Match[str]) -> str:
@@ -276,9 +289,17 @@ class Redactor:
                 text = rx.sub(repl, text)
         text = self._sub_tokens(text)
         # "a co-founder and a co-founder" -> "the co-founders"
-        return re.sub(
+        text = re.sub(
             r"\b([Aa]|[Tt]he) (co-founder|founder|team member|engineer|contributor) and (?:a|the) \2\b",
             lambda m: ("The" if m.group(1)[0].isupper() else "the") + f" {m.group(2)}s",
+            text,
+        )
+        # "A community contributor, a community contributor, did" -> "A community contributor did"
+        text = re.sub(r"\b((?:[Aa]n?|[Tt]he) ((?:[\w-]+ )?[\w-]+)), (?:an?|the) \2,?", r"\1", text)
+        # "A co-founder joined Plausible as co-founder" -> "A co-founder joined Plausible"
+        return re.sub(
+            r"\b((?:[Aa]n?|[Tt]he) (co-founder|founder|maintainer|CEO|CTO)\b[^.;]*?) as (?:an? |the )?\2\b",
+            r"\1",
             text,
         )
 

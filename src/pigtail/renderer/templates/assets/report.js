@@ -63,6 +63,7 @@
         esc(ev.title) + " ↗</a>";
       if (ev.excerpt) h += "<blockquote>" + esc(ev.excerpt) + "</blockquote>";
       var trace = [];
+      if (ev.note) trace.push(esc(ev.note));
       if (ev.locator) trace.push("Locator: " + esc(ev.locator));
       if (c.manually_verified && ev.fetch_status && ev.fetch_status !== "success") trace.push("source not read (" + esc(ev.fetch_status.replace("_", " ")) + ")");
       if (ev.retrieved_at) trace.push("retrieved " + esc(ev.retrieved_at.slice(0, 10)));
