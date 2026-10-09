@@ -155,17 +155,33 @@ $3–5 each. Cost reduction ideas: cap claims per page, use a smaller model for 
    and attributed; sales-pitch self-descriptions replaced by neutral ones.
 1. ~~Publish the website~~ — done 2026-10-06: https://suchipizza.github.io/pigtail/ ; README links point there.
 2. ~~License~~ — decided 2026-10-06: **MIT**.
-3. ~~Default model~~ — decided 2026-10-06: **Claude Sonnet 5.5** (schemas and web search smoke-tested; a full run's cost/quality not yet measured).
+3. ~~Default model~~ — decided 2026-10-06: **Claude Sonnet 5.5**. `--model sonnet|opus|haiku|fable` or any Claude ID (2026-10-09). First measured Sonnet runs: brag repo ≈ $0.44.
 4. Legal review of `source-policies/web.yaml` (transient fetch, ≤280-char quotes) and whether to
-   enable Product Hunt (a `PH_API_TOKEN` exists in the sibling project) and Reddit.
+   enable Product Hunt (a `PH_API_TOKEN` exists in the sibling project). Reddit: ~~decided 2026-10-09~~
+   — official API with the user's own keys, local reports only, never published (PUB-019, `--no-reddit`).
+   Verified working with the owner's keys on 2026-10-09 (brag).
 5. ~~Release~~ — decided 2026-10-06: tag `v0.1.0`; the release workflow builds sdist/wheel + notes.
 6. Website domain — decided 2026-10-06: GitHub Pages for now; maybe `pigtail.dev` later (it is already the schema `$id`).
+   **When a domain is bought:** change `WEBSITE_URL` in `src/pigtail/__init__.py` (report logo link), README
+   links, `PIGTAIL_SITE_BASE_PATH` in `.github/workflows/pages.yml`, the repo homepage, then republish examples.
 7. ~~Superhuman example~~ — decided 2026-10-06: keep.
 
 ## Next tasks
 
-- Open question for the owner: website footer says "reviewed before publication"; change to
-  "checked before publication"?
+Carried over from the 2026-10-09 session (start here):
+- **Landing page "free" wording is NOT committed** (`site/src/app/page.tsx`, local only): hero tag
+  "Free & open source" and the Try section line "Free and open source… you only pay your own Anthropic API
+  usage, usually a few dollars or less per report." Waiting for the owner's OK to commit + deploy
+  (`gh workflow run pages.yml`). Consider also mentioning optional Reddit keys / model choice on the site.
+- Owner questions still open: (a) hero copy from the pig-intro script ("Pigtail / Reverse-engineer how
+  products actually grow.") vs the model's copy (currently the model's); (b) make a smaller copy of the
+  1 MB mascot PNG (owner asked to keep the asset unchanged, so not done).
+- Published example reports predate the report header links (logo → website, GitHub button): re-run the
+  gate and republish (free) when convenient.
+- Consider a `v0.1.1` release: model choice, optional Reddit API, header links, Reddit fixes since v0.1.0.
+- Haiku and Fable are offered by `--model` but untested with Pigtail; measure on one target if wanted (paid).
+- Reddit posts that name a project only by a short name (no repo path or domain) are still missed.
+- ~~Footer "checked before publication" question~~ — owner: leave it (2026-10-07).
 - Plausible lost 13 GetLatka-only facts (≈3,300 customers / $23.3K MRR May 2021, 2% churn, 1,000
   trials/month); find non-estimate sources on a future refresh.
 - New example runs: run the analysis with `--no-reddit` (published reports never include Reddit API
