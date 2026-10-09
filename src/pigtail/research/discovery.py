@@ -58,12 +58,11 @@ def build_plan(t: ResolvedTarget, max_queries: int) -> DiscoveryPlan:
         full = t.repo.full_name
         q += [
             f'"{n}" {t.repo.owner} launch announcement',
-            # Reddit posts about a project usually link the repository but often never repeat a short
-            # name ("brag") in their title, so search by repository path as well as by name.
-            f'site:reddit.com "{full}"',
-            f'site:reddit.com "{n}" github',
             f'"{n}" Show HN',
             f'"{n}" Product Hunt launch',
+            # Anthropic's web search returns no reddit.com pages (checked 2026-10-09, even with
+            # site:reddit.com or a post's exact title); this finds pages that mention Reddit posts.
+            f'"{n}" reddit {t.repo.owner}',
             f"how {n} grew github stars",
             f'"{full}" open source',
             f'"{n}" founder interview',
@@ -82,7 +81,7 @@ def build_plan(t: ResolvedTarget, max_queries: int) -> DiscoveryPlan:
             f'"{n}" {d} launch announcement',
             f'"{n}" how {n} grew',
             f'"{n}" {d} users milestone',
-            f'site:reddit.com "{n}" {d}',
+            f'"{n}" reddit {d}',
             f'"{n}" {d} pricing change OR funding OR acquisition',
         ]
     seen, out = set(), []

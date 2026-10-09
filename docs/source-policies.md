@@ -11,7 +11,7 @@ What it may do with each platform is written down in version-controlled files in
 | GitHub | `github.yaml` | A | Yes, via the API | metadata, counts, ≤500-char excerpt | paraphrase, link, short excerpt |
 | Hacker News | `hacker-news.yaml` | B | Yes, via the HN Search API by Algolia | title, author, date, points, comments | paraphrase, link, title |
 | Other web pages (blogs, news, docs) | `web.yaml` | C | Yes, one request per page, robots.txt respected | metadata, hash, ≤280-char quote | paraphrase, link, short quote |
-| Reddit | `reddit.yaml` | C | **No** — link only | link, search-result title and date | link only |
+| Reddit | `reddit.yaml` | C | Only with **your own** Reddit API keys (optional); never the web pages | link, title, subreddit, date, upvotes, comments — no text, no usernames | link only; never on the Pigtail website |
 | Product Hunt | `product-hunt.yaml` | C | **No** — link only | link and search-result title | link only |
 | X (Twitter) | `x.yaml` | C | **No** — link only | link and search-result title | link only |
 
@@ -23,13 +23,23 @@ What it may do with each platform is written down in version-controlled files in
 
 Pigtail never claims complete coverage of a platform it cannot fully search.
 
-## Why Reddit, Product Hunt and X are link-only
+## Reddit: your own API keys, local reports only
+
+*Owner decision 2026-10-09.* Reddit is searched only through Reddit's official Data API, and only when
+you set your own app keys (`REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`; setup in the
+[quick start](quickstart.md)). Creating the keys means you accept Reddit's Data API terms. Pigtail
+signs in with application-only OAuth, makes a few search requests per run, skips removed and deleted
+posts, reads post text only to check that it mentions the project, and stores metadata only.
+Without keys, Reddit is not searched and the report says so as a material gap. Reports published on
+the Pigtail website never contain Reddit API data: they are produced with `--no-reddit`, and the
+publication gate blocks any Reddit API data (PUB-019).
+
+## Why Product Hunt and X are link-only
 
 Their APIs need registration and have terms that have not yet been reviewed for this use. Until
-they are, Pigtail does not fetch their content. If a web search finds a Reddit thread or a Product
-Hunt page, the report lists the link and records a gap saying it was not read. A Reddit post whose
-search result shows a date also goes on the timeline as "On Reddit: <title>", so it can be lined up
-with star growth; the post itself is still not read. A Product Hunt
+they are, Pigtail does not fetch their content. If a web search finds a Product Hunt page or a post on
+X (or, rarely, a Reddit thread), the report lists the link and records a gap saying it was not read. A
+dated Reddit link found that way also goes on the timeline as "On Reddit: <title>". A Product Hunt
 launch can still appear on the timeline when a permitted source, such as the maker's own blog post,
 describes it.
 

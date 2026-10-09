@@ -32,6 +32,8 @@ def test_validate_and_render_without_credentials(tmp_path, bundle, monkeypatch):
     assert r.exit_code == 0, r.stdout
     html = (tmp_path / "out" / "report.html").read_text()
     assert "Example" in html
+    assert 'class="brand" href="https://suchipizza.github.io/pigtail/"' in html  # logo links to the website
+    assert 'class="pill gh-link" href="https://github.com/suchipizza/pigtail"' in html
     idx = json.loads((tmp_path / "out" / "source-index.json").read_text())
     assert len(idx["sources"]) == len(bundle.sources)
 

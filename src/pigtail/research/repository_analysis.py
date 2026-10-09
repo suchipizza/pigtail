@@ -13,6 +13,7 @@ from datetime import UTC, date, datetime, timedelta
 from pigtail.domain.time import day_range, human_label, instant, iso, parse_dt
 from pigtail.policies.loader import PolicyRegistry
 from pigtail.providers.community.hacker_news import HackerNewsClient, HNStory
+from pigtail.providers.community.reddit import RedditPost
 from pigtail.providers.github.client import (
     GitHubClient,
     GitHubError,
@@ -580,6 +581,57 @@ def hn_event(b: BundleBuilder, s: HNStory, pol) -> dict:
             [cid],
             b,
             ["hacker_news"],
+        ),
+    )
+
+
+REDDIT_API_PARSER = "reddit-api-v1"  # marks data from the Reddit API; the publication gate refuses it
+
+
+def reddit_api_event(b: BundleBuilder, p: RedditPost, pol) -> dict:
+    """A Reddit post found through the user's own Reddit API keys. Metadata only: no text, no username."""
+    src = b.add_source(
+        p.url,
+        surface_key="reddit",
+        source_type="reddit_post",
+        policy=pol,
+        title=p.title,
+        published_at=iso(p.created_at),
+    )
+    f = b.add_fetch(
+        src,
+        status="success",
+        http_status=200,
+        content_hash=sha256_text(json.dumps([p.id, p.title, p.created_utc, p.score, p.num_comments])),
+        parser_version=REDDIT_API_PARSER,
+    )
+    cid = b.add_claim(
+        f"A Reddit post titled “{p.title}” was posted in r/{p.subreddit} on {p.created_at:%B %d, %Y}; it had "
+        f"{p.score} upvotes and {p.num_comments} comments when Pigtail checked.",
+        kind="reddit_post",
+        time=instant(p.created_at, "minute"),
+        evidence=[
+            EvidenceSpec(
+                src["id"],
+                f["id"],
+                "third_party_measured",
+                "community_report",
+                "json_path",
+                f"t3_{p.id}",
+            )
+        ],
+        certainty=1.0 if p.matched_by == "link" else 0.9,
+    )
+    return b.add(
+        "events",
+        _event(
+            "reddit_post",
+            f"On Reddit (r/{p.subreddit}): {p.title}",
+            f"Reddit post in r/{p.subreddit}: {p.score} upvotes, {p.num_comments} comments.",
+            instant(p.created_at, "minute"),
+            [cid],
+            b,
+            ["reddit"],
         ),
     )
 

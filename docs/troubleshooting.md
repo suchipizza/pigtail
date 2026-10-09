@@ -33,6 +33,16 @@ The name looks like a Claude model, but your Anthropic account cannot use it (a 
 account has no access to). Check it for free with `pigtail doctor --model <name>`. Pigtail never
 switches to a different model silently.
 
+**`Reddit: off` / "Reddit was not searched" in the report**
+Reddit is optional and needs your own free Reddit app keys (`REDDIT_CLIENT_ID`,
+`REDDIT_CLIENT_SECRET`); see the [quick start](quickstart.md). Without them the report has no Reddit
+data and records that as a gap.
+
+**`Reddit API: Reddit rejected the app keys`**
+Check that the client ID is the short string under your app's name at
+<https://www.reddit.com/prefs/apps> (not the app name), that the secret is current, and that the app
+type is **script**. `pigtail doctor` checks the keys for free.
+
 **`GitHub API rate limit reached`**
 Without a token GitHub allows 60 requests per hour. Set `GITHUB_TOKEN` (no special permissions
 needed) for 5,000 per hour.
@@ -80,6 +90,13 @@ max_queries = 12
 [github]
 token_env = "GITHUB_TOKEN"
 request_timeout_seconds = 30
+
+[reddit]                            # optional; used only when both keys are set
+enabled = true                      # false = never search Reddit (same as --no-reddit every run)
+client_id_env = "REDDIT_CLIENT_ID"
+client_secret_env = "REDDIT_CLIENT_SECRET"
+min_score = 3                       # skip posts with fewer upvotes
+max_posts = 15
 
 [logging]
 level = "INFO"

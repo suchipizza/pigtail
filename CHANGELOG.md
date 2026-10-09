@@ -5,6 +5,16 @@ All notable changes to this project are listed here. Versions follow [SemVer](ht
 ## [Unreleased]
 
 ### Added
+- Optional Reddit search through Reddit's official Data API with the user's own app keys
+  (`REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`): posts that link to or mention the repository path or
+  the product's domain go on the timeline with their title, subreddit, date, upvotes and comments (no
+  text, no usernames) and line up with growth episodes and launches. Without keys, each run says
+  Reddit is off and the report records a material gap ("Reddit was not searched…"). `--no-reddit`
+  skips it for one run; `[reddit]` in `pigtail.toml` configures it; `pigtail doctor` checks the keys.
+  Published reports never contain Reddit API data: new publication rule PUB-019 blocks it, and
+  published runs use `--no-reddit`. Reddit source policy v2 (owner decision 2026-10-09).
+- Every report links its "pigtail." logo to the Pigtail website and shows a GitHub link to the
+  repository at the top (URLs in `pigtail/__init__.py`; the website URL changes when Pigtail has a domain).
 - Choosing the Claude model is easier: `--model` takes a short name (`sonnet`, `opus`, `haiku`,
   `fable`) or a plain model ID (`claude-opus-5-5`); the old `anthropic/<id>` form still works. The
   default stays Claude Sonnet 5.5. New `pigtail models` lists the choices with prices; `pigtail doctor
@@ -41,6 +51,9 @@ All notable changes to this project are listed here. Versions follow [SemVer](ht
   footer says "automated publication checks".
 
 ### Fixed
+- Reddit: the `site:reddit.com` queries added below were removed again. Anthropic's web search returns
+  no reddit.com pages at all (checked 2026-10-09 with the repository path and a post's exact title),
+  so they only added unrelated results. Reddit remains a blind spot; the docs now say so.
 - Reddit posts about a project were missed in growth analysis. Pigtail now also searches Reddit by
   repository path (`site:reddit.com "owner/repo"`), keeps maker posts whose titles omit the project's
   name when the search that found them names the repository, and puts dated Reddit posts on the

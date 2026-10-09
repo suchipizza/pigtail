@@ -336,6 +336,7 @@ class PublicationGate:
             self.steps.append(StepResult(name="Validate Research Bundle", result="FAIL"))
             return self._result(None, None)
         self.steps.append(StepResult(name="Validate Research Bundle", result="PASS"))
+        self._no_reddit_api_data()
 
         keep_ids = {k.name for k in (self.review.keep_identities if self.review else [])}
         self.redactor = Redactor.from_bundle(b, keep_ids)
@@ -581,6 +582,25 @@ class PublicationGate:
         return max(counts, key=lambda k: counts[k]) if counts else name
 
     # ---- PUB-013 -----------------------------------------------------------------------------
+
+    # ---- PUB-019 -------------------------------------------------------------------------------
+
+    def _no_reddit_api_data(self) -> None:
+        """Published reports never contain Reddit API data (owner decision 2026-10-09)."""
+        fetches = [f for f in self.b["source_fetches"] if (f.get("parser_version") or "").startswith("reddit-api")]
+        for f in fetches:
+            self.add(
+                "PUB-019",
+                "BLOCK",
+                "sources",
+                f["source_id"],
+                "This source comes from the Reddit API. Published reports never include Reddit API data: "
+                "re-run the analysis with --no-reddit before publishing.",
+                allowed=(),
+            )
+        self.steps.append(
+            StepResult(name="No Reddit API data", result=f"{len(fetches)} blocked" if fetches else "PASS")
+        )
 
     def _source_policies(self) -> None:
         self.display: dict[str, str] = {}

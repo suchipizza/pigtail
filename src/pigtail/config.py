@@ -43,6 +43,16 @@ class GitHubConfig(_Section):
     request_timeout_seconds: int = Field(default=30, ge=1)
 
 
+class RedditConfig(_Section):
+    """Optional Reddit search through Reddit's Data API with your own app keys (see docs/quickstart.md)."""
+
+    enabled: bool = True  # used only when both keys are set; --no-reddit turns it off for one run
+    client_id_env: str = "REDDIT_CLIENT_ID"
+    client_secret_env: str = "REDDIT_CLIENT_SECRET"
+    min_score: int = Field(default=3, ge=0)
+    max_posts: int = Field(default=15, ge=1, le=100)
+
+
 class ResearchConfig(_Section):
     policy_version: str = "0.1.0"
     source_cutoff: str = "now"
@@ -65,6 +75,7 @@ class Config(_Section):
     model: ModelConfig = Field(default_factory=ModelConfig)
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
     github: GitHubConfig = Field(default_factory=GitHubConfig)
+    reddit: RedditConfig = Field(default_factory=RedditConfig)
     research: ResearchConfig = Field(default_factory=ResearchConfig)
     renderer: RendererConfig = Field(default_factory=RendererConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)

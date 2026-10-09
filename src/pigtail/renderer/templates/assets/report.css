@@ -38,7 +38,10 @@ code { font-size: 12px; }
 .shell { max-width: 1200px; margin: 0 auto; padding: 24px 24px 80px; }
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .topbar-right { display: flex; gap: 8px; flex-wrap: wrap; }
-.brand { font-weight: 850; letter-spacing: -.03em; font-size: 22px; }
+.brand { font-weight: 850; letter-spacing: -.03em; font-size: 22px; text-decoration: none; }
+.brand:hover span { text-decoration: underline; }
+.gh-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text); text-decoration: none; }
+.gh-link:hover { border-color: var(--accent); }
 .brand span { color: var(--accent); }
 .pill { border: 1px solid var(--line); background: var(--panel); padding: 6px 11px; border-radius: 999px; font-size: 12px; color: var(--muted); font-family: inherit; }
 .theme-toggle { cursor: pointer; }

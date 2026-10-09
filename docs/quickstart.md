@@ -11,6 +11,10 @@ This guide takes you from nothing to your first growth report.
   for one or two repositories. With one, you get 5,000 per hour. A token with no extra permissions
   is enough: <https://github.com/settings/tokens>.
 
+- **Optional: Reddit app keys (free).** Without them the report has **no Reddit data**: Reddit posts and
+  launches are missing, and growth explanations rest on Hacker News, GitHub and the web only. See
+  step 3.
+
 You do **not** need a Pigtail account, a database, Docker, or any other service.
 
 ## 2. Install
@@ -40,13 +44,34 @@ export GITHUB_TOKEN="ghp_..."        # optional
 
 Pigtail also reads a `.env` file in the folder you run it from. Never put keys in `pigtail.toml`.
 
+**Optional: Reddit.** Pigtail can search Reddit for posts that link to or mention your target, through
+Reddit's official API with your own app keys. It keeps only each post's title, link, subreddit, date,
+upvotes and comment count. To get keys:
+
+1. Sign in to Reddit and open <https://www.reddit.com/prefs/apps>.
+2. Click **create another app…**, give it a name (for example `pigtail`), choose **script**, and enter
+   `http://localhost:8080` as the redirect URI (Pigtail does not use it, but Reddit requires one).
+   Reddit may first ask you to accept its [Data API terms](https://redditinc.com/policies/data-api-terms)
+   or to request API access.
+3. Copy the app's **client ID** (the short string under the app name) and its **secret**:
+
+```bash
+export REDDIT_CLIENT_ID="..."
+export REDDIT_CLIENT_SECRET="..."
+pigtail doctor        # the "Reddit API" line should say OK
+```
+
+Each run starts by saying whether Reddit is on. Without keys it says Reddit is off, and the report
+records that Reddit was not searched.
+
 ## 4. Check your setup
 
 ```bash
 pigtail doctor
 ```
 
-Every line should say `OK` (a `WARN` for the GitHub token is fine). Doctor does not spend money.
+Every line should say `OK` (a `WARN` for the GitHub token or the optional Reddit keys is fine). Doctor
+does not spend money.
 
 ## 5. Run your first analysis
 
@@ -92,6 +117,7 @@ pigtail <target> --model opus                         # use the larger model (ab
 pigtail <target> --output ./reports                    # choose where reports go
 pigtail <target> --source https://example.com/post     # add a source you know about (repeatable)
 pigtail <target> --no-open                             # don't open the browser at the end
+pigtail <target> --no-reddit                           # skip Reddit even if your Reddit keys are set
 ```
 
 ### Choosing the Claude model

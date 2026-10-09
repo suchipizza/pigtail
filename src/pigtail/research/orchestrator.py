@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import httpx
 from rich.console import Console
 
 from pigtail.bundle.writer import dump_json, write_bundle
@@ -20,6 +21,7 @@ from pigtail.logging import get_logger
 from pigtail.policies.loader import default_registry, surface_for_url
 from pigtail.providers.base import Meter
 from pigtail.providers.community.hacker_news import HackerNewsClient
+from pigtail.providers.community.reddit import RedditAuthError, RedditClient
 from pigtail.providers.fetchers.web import PARSER_VERSION, FetchedPage, WebFetcher
 from pigtail.providers.github.client import GitHubClient
 from pigtail.providers.models.registry import make_model_provider
@@ -33,6 +35,7 @@ from pigtail.research.repository_analysis import (
     analyze_repository,
     hn_event,
     link_episodes_and_launches,
+    reddit_api_event,
     reddit_post_event,
 )
 from pigtail.research.target_resolution import ResolvedTarget, resolve
@@ -237,6 +240,9 @@ async def run_analysis(
                 f"{target.repo.stars:,} stars · history {st.history.quality} · {len(st.episodes)} growth "
                 f"episode(s) · {len(st.hn_stories)} HN stor{'y' if len(st.hn_stories) == 1 else 'ies'}"
             )
+
+        # ---------------------------------------------------------------- reddit (optional, user's own keys)
+        await _reddit(b, target, cfg, meter, policies, prog)
 
         # ---------------------------------------------------------------- discover
         prog.stage(STAGES[2])
@@ -567,6 +573,61 @@ async def run_analysis(
         )
     finally:
         await asyncio.gather(gh.close(), hn.close(), web.close(), return_exceptions=True)
+
+
+def reddit_status(cfg: Config) -> str:
+    """'on', 'off' (turned off by config or --no-reddit) or 'no_keys'."""
+    if not cfg.reddit.enabled:
+        return "off"
+    if cfg.secret(cfg.reddit.client_id_env) and cfg.secret(cfg.reddit.client_secret_env):
+        return "on"
+    return "no_keys"
+
+
+REDDIT_NOT_SEARCHED = (
+    "Reddit was not searched{why}, so Reddit posts and launches are missing from this report. Growth "
+    "explanations rely on Hacker News, GitHub and other public web sources only."
+)
+
+
+async def _reddit(b: BundleBuilder, target: ResolvedTarget, cfg: Config, meter: Meter, policies, prog) -> None:
+    """Search Reddit with the user's own API keys; otherwise record that Reddit data is missing."""
+    status = reddit_status(cfg)
+    if status != "on":
+        why = " (turned off for this run)" if status == "off" else " (no Reddit API keys were set)"
+        b.gap("surface_not_covered", REDDIT_NOT_SEARCHED.format(why=why), severity="material", surface_key="reddit")
+        return
+    terms: list[str] = []
+    if target.repo:
+        terms.append(target.repo.full_name)
+    for d in [target.domain, target.repo.homepage if target.repo else None]:
+        host = (d or "").replace("https://", "").replace("http://", "").split("/")[0].removeprefix("www.")
+        if host and "github" not in host and host not in terms:
+            terms.append(host)
+    client = RedditClient(
+        cfg.secret(cfg.reddit.client_id_env) or "", cfg.secret(cfg.reddit.client_secret_env) or "", meter
+    )
+    try:
+        posts = await client.posts_for(terms, min_score=cfg.reddit.min_score, limit=cfg.reddit.max_posts)
+    except RedditAuthError as exc:
+        b.gap(
+            "source_inaccessible",
+            REDDIT_NOT_SEARCHED.format(why=f" ({exc})"),
+            severity="material",
+            surface_key="reddit",
+        )
+        return
+    except httpx.HTTPError as exc:
+        posts = []
+        client.errors.append(type(exc).__name__)
+    finally:
+        await client.close()
+    pol = policies.policy_for("https://www.reddit.com", "reddit")
+    for p in posts:
+        reddit_api_event(b, p, pol)
+    if client.errors:
+        b.gap("source_inaccessible", "Reddit search was partly unavailable during this run.", surface_key="reddit")
+    prog.info(f"{len(posts)} Reddit post{'' if len(posts) == 1 else 's'} mentioning {', '.join(terms)}")
 
 
 def _pub(meta: PageExtraction | None, fallback: str | None) -> str | None:

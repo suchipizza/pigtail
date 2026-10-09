@@ -45,6 +45,8 @@ environment.)
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."   # required: Pigtail uses Claude to read sources and search the web
 export GITHUB_TOKEN="ghp_..."           # optional: raises GitHub's limit from 60 to 5,000 requests/hour
+export REDDIT_CLIENT_ID="..."           # optional, free: include Reddit posts (see "Reddit" below)
+export REDDIT_CLIENT_SECRET="..."
 
 pigtail doctor                                    # checks your setup, costs nothing
 pigtail https://github.com/plausible/analytics    # an open-source project
@@ -76,6 +78,34 @@ Any other Claude model ID (`claude-…`) is accepted too. You can also set the m
 `pigtail.toml` (`[model] model = "opus"`, see [troubleshooting](docs/troubleshooting.md#configuration-file)).
 Pigtail itself is free; you pay Anthropic for the tokens a run uses, and `run.json` records the cost.
 Pigtail never switches models silently: the run starts by printing the model it uses.
+
+### Reddit (optional)
+
+Reddit is where many projects are first shared, but Pigtail can only see it through Reddit's official
+API, with **your own free Reddit app keys**. With them, Pigtail searches Reddit for posts that link to
+or mention the repository (or the product's domain) and puts them on the timeline next to the star
+history, like Hacker News posts. It keeps only each post's title, link, subreddit, date, upvotes and
+comment count — never the post text or usernames.
+
+**Without the keys, reports have no Reddit data**: the run says so when it starts, and the report
+records it as a gap, so growth explanations rest on Hacker News, GitHub and the web only. To set up
+the keys:
+
+1. Sign in to Reddit and open <https://www.reddit.com/prefs/apps>.
+2. Click **create another app…**, give it a name (for example `pigtail`), choose **script**, and enter
+   `http://localhost:8080` as the redirect URI (Pigtail does not use it, but Reddit requires one).
+   Reddit may first ask you to accept its [Data API terms](https://redditinc.com/policies/data-api-terms)
+   or to request API access.
+3. Copy the app's **client ID** (the short string under the app name) and its **secret**:
+
+```bash
+export REDDIT_CLIENT_ID="..."
+export REDDIT_CLIENT_SECRET="..."
+pigtail doctor        # the "Reddit API" line should say OK
+```
+
+`pigtail <target> --no-reddit` skips Reddit for one run. Reports on the Pigtail website never include
+Reddit data.
 
 ## What you get
 
@@ -127,10 +157,10 @@ More in [docs/methodology.md](docs/methodology.md) and [docs/evidence.md](docs/e
 - It does not know anything that is not public. Private metrics, internal experiments and
   unannounced decisions are invisible to it.
 - It does not prove causes. It shows what happened when, and what the company said about it.
-- It does not read Reddit, Product Hunt or X directly yet (link-only until their terms are
-  reviewed — see [source policies](docs/source-policies.md)). Launches there appear when another
-  source, such as the maker's blog, mentions them. Reddit posts found by web search appear on the
-  timeline with their title and date, but their content is not read.
+- It does not read Product Hunt or X directly (link-only until their terms are reviewed — see
+  [source policies](docs/source-policies.md)); launches there appear when another source, such as the
+  maker's blog, mentions them. Reddit posts appear only if you set your own Reddit API keys (see
+  "Reddit (optional)").
 - It does not accept bare product names (`"Notion"`), only a domain (`notion.so`) or a GitHub URL,
   because names are ambiguous.
 - It is not a hosted service: there is no account, dashboard or API. You run it on your computer.
@@ -165,6 +195,7 @@ pigtail analyze <target>                          # same as `pigtail <target>`
 pigtail <target> --model opus                     # choose the Claude model (see "Choosing a Claude model")
 pigtail models                                    # list the models you can choose
 pigtail <target> --output ./reports
+pigtail <target> --no-reddit                      # skip Reddit even if your Reddit keys are set
 pigtail <target> --source https://example.com/launch-post   # add a source you know (checked like any other)
 pigtail render research-bundle.json               # rebuild report.html, no keys or network needed
 pigtail validate research-bundle.json             # check a bundle against the schema and integrity rules
@@ -179,7 +210,8 @@ Configuration (`pigtail.toml`), exit codes and common errors: [docs/troubleshoot
 - **Model:** Anthropic Claude. Default `claude-sonnet-5-5`; choose another with `--model` (`sonnet`, `opus`, `haiku`, `fable` or any Claude model ID). Pigtail never switches models silently.
 - **Web search:** Anthropic's web-search tool (same API key). Can be turned off in config.
 - **Sources read directly:** GitHub API (repository, star history, releases, README), Hacker News
-  (HN Search by Algolia), and public web pages that allow it in `robots.txt`.
+  (HN Search by Algolia), public web pages that allow it in `robots.txt`, and — optionally, with your
+  own keys — Reddit's official API (post metadata only).
 
 ## How it compares
 

@@ -1,17 +1,20 @@
 key: reddit
-version: "1"
+version: "2"
 display_name: Reddit
 coverage_tier: C
 
 access:
   discovery_allowed: true
+  # Reddit pages are never fetched by the web fetcher. Reddit data comes only from Reddit's official
+  # Data API, and only when the user sets their own app keys (REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET).
   automated_retrieval_allowed: false
-  method: link_only
+  method: official_api_with_user_keys
   authentication: required
   rate_limit_notes: >-
-    Reddit's Data API requires OAuth registration and has its own terms. Pigtail does not call it.
-    Reddit links may appear in general web-search results; they are recorded as links only, with the
-    title and date the search provider shows.
+    Optional. With the user's own Reddit app keys, Pigtail signs in with application-only OAuth and
+    makes about four search requests per run (Reddit allows 100 per minute per app), with a
+    descriptive User-Agent. Without keys Pigtail does not call Reddit; Reddit links found by web search
+    (rare: Anthropic's web search returns almost no Reddit pages) are recorded as links only.
 
 retention:
   mode: metadata_only
@@ -22,19 +25,22 @@ public_display:
   mode: link_only
   attribution_required: true
   notes: >-
-    Only the link and the title and date shown by the search provider are kept. A dated post appears
-    on the timeline as "On Reddit: <title>"; its content is never fetched.
+    Kept per post: link, title, subreddit, date, upvotes and comment count. Post text is read only to
+    check that the post mentions the project and is never stored; usernames are not kept. Published
+    reports (Pigtail website) never include Reddit API data: the publication gate blocks it (PUB-019)
+    and published runs use --no-reddit.
 
 obligations:
   deletion_refresh: >-
-    If Reddit API access is enabled later, deleted posts must be removed on refresh per Reddit's
-    Data API terms.
+    Removed and deleted posts are skipped when Pigtail searches. Reports are snapshots: re-run to
+    refresh. Each user agrees to Reddit's Data API terms when creating their own app keys.
   terms_url: "https://redditinc.com/policies/data-api-terms"
-  reviewed_at: "2026-10-06"
+  reviewed_at: "2026-10-09"
 
 implementation:
   adapter: reddit
   enabled_by_default: false
   notes: >-
-    Disabled by default until access and retention terms are reviewed. Link-only discovery via the
-    configured web-search provider is allowed; no Reddit content is fetched or stored.
+    Owner decision 2026-10-09: Reddit API search is available in local reports run with the user's
+    own keys, and never in published reports. Without keys the report records a material gap saying
+    Reddit was not searched.

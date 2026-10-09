@@ -70,6 +70,12 @@ def analyze(
     ] = None,
     config: Annotated[str | None, typer.Option("--config", help="Path to a pigtail.toml config file.")] = None,
     no_open: Annotated[bool, typer.Option("--no-open", help="Do not open the report in a browser when done.")] = False,
+    no_reddit: Annotated[
+        bool,
+        typer.Option(
+            "--no-reddit", help="Do not search Reddit, even if Reddit API keys are set (used for published reports)."
+        ),
+    ] = False,
     verbose: Annotated[
         bool, typer.Option("--verbose", help="Show more operational detail (never model reasoning).")
     ] = False,
@@ -86,6 +92,9 @@ def analyze(
         )
         _choose_model(cfg, model)
         console.print(f"Model: {cfg.model.model}" + ("" if model else " (default; change it with --model)"))
+        if no_reddit:
+            cfg.reddit.enabled = False
+        console.print(REDDIT_NOTICE[reddit_status(cfg)])
         if output:
             cfg.engine.output_root = str(output)
         result = asyncio.run(run_analysis(target, cfg, extra_sources=source or [], console=console, verbose=verbose))
@@ -217,6 +226,30 @@ def doctor(
         ok = False
         line("fail", "Model credentials", f"{cfg.model.api_key_env} is not set. See {DOCS_URL}/quickstart.md")
 
+    rs = reddit_status(cfg)
+    if rs == "on" and not offline:
+        try:
+            asyncio.run(_reddit_sign_in(cfg))
+            line("ok", "Reddit API", "your Reddit app keys work; reports will include Reddit posts")
+        except Exception as exc:
+            ok = False
+            line(
+                "fail",
+                "Reddit API",
+                f"{str(exc).rstrip('.')}. Check {cfg.reddit.client_id_env} and {cfg.reddit.client_secret_env}",
+            )
+    elif rs == "on":
+        line("ok", "Reddit API", "keys are set (not checked offline)")
+    elif rs == "no_keys":
+        line(
+            "warn",
+            "Reddit API",
+            f"not set (optional). Without {cfg.reddit.client_id_env} and {cfg.reddit.client_secret_env} "
+            "reports have no Reddit posts. See docs/quickstart.md",
+        )
+    else:
+        line("warn", "Reddit API", "turned off in config ([reddit] enabled = false)")
+
     if cfg.discovery.provider not in SUPPORTED_SEARCH_PROVIDERS:
         ok = False
         line("fail", "Discovery provider", f"{cfg.discovery.provider!r} is not supported")
@@ -298,6 +331,33 @@ def doctor(
         "\nReady to run `pigtail <target>`." if ok else f"\nSome checks failed. See {DOCS_URL}/troubleshooting.md"
     )
     raise typer.Exit(0 if ok else 3)
+
+
+REDDIT_NOTICE = {
+    "on": "Reddit: on (your Reddit API keys)",
+    "off": "Reddit: off for this run. The report will have no Reddit posts.",
+    "no_keys": "Reddit: off. Set REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET to include Reddit posts "
+    "(optional, free; see docs/quickstart.md). Without them the report has no Reddit data.",
+}
+
+
+def reddit_status(cfg: Config) -> str:
+    from pigtail.research.orchestrator import reddit_status as status
+
+    return status(cfg)
+
+
+async def _reddit_sign_in(cfg: Config) -> None:
+    from pigtail.providers.base import Meter
+    from pigtail.providers.community.reddit import RedditClient
+
+    client = RedditClient(
+        cfg.secret(cfg.reddit.client_id_env) or "", cfg.secret(cfg.reddit.client_secret_env) or "", Meter()
+    )
+    try:
+        await client.sign_in()
+    finally:
+        await client.close()
 
 
 def _choose_model(cfg: Config, choice: str | None) -> None:

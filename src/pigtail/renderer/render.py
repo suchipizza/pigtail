@@ -10,6 +10,7 @@ from pathlib import Path
 from jinja2 import Environment, StrictUndefined, select_autoescape
 from markupsafe import Markup, escape
 
+from pigtail import REPO_URL, WEBSITE_URL
 from pigtail.bundle.models import ResearchBundle
 from pigtail.bundle.writer import dump_json, source_index, validate_bundle
 from pigtail.errors import BundleValidationError, RenderError
@@ -80,6 +81,7 @@ def _render(vm: dict) -> str:
     }
     return template.render(
         vm=vm,
+        links={"website": WEBSITE_URL, "repo": REPO_URL},
         css=Markup(_asset("report.css")),
         js=Markup(_asset("report.js")),
         data_json=_json_for_script(client_data),

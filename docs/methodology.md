@@ -84,12 +84,15 @@ inference*.
 
 ## Known blind spots
 
-- Product Hunt, Reddit and X are **link-only** (see [source-policies.md](source-policies.md)).
-  Launches there are shown only when another permitted source, such as the maker's blog, states them.
-  Exception: a Reddit post found by web search goes on the timeline with its search-result title and
-  date (day, or the week for "2 weeks ago"), so it can be lined up with star growth. Pigtail searches
-  Reddit by the repository path (`owner/repo`) as well as by name, because makers often title posts
-  without the project's name.
+- Product Hunt and X are **link-only** (see [source-policies.md](source-policies.md)). Launches there
+  are shown only when another permitted source, such as the maker's blog, states them.
+- **Reddit needs your own API keys.** With them, Pigtail searches Reddit's official API for posts
+  that link to or mention the repository path or the product's domain, keeps only those whose link,
+  title or text really contains it, and puts them on the timeline (title, subreddit, date, upvotes,
+  comments). Without keys Reddit is not searched and the report records a material gap: Anthropic's
+  web search returns no reddit.com pages (checked 2026-10-09), so there is no other way in. Posts that
+  mention the project only by a short name (without the repository path or domain) are still missed.
+  Reports on the Pigtail website never include Reddit API data.
 - Hacker News posts are found by URL and name; posts that mention neither are missed.
 - Private or deleted information, internal metrics and unpublished experiments are unknown.
 - Company-reported numbers are shown as reported; they are not audited.

@@ -741,6 +741,10 @@ def build_view_model(bundle: ResearchBundle | dict, public: bool = False) -> dic
         "reversals": reversals,
         "conflicts": conflicts,
         "gaps": gaps,
+        # Disclosed in the Scope notice at the top: without Reddit API keys the data has no Reddit posts.
+        "reddit_missing": any(
+            g.get("surface_key") == "reddit" and g["summary"].startswith("Reddit was not searched") for g in b["gaps"]
+        ),
         "sources": source_list,
         "claims": claim_views,
         "counts": {

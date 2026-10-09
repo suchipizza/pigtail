@@ -168,7 +168,8 @@ $3–5 each. Cost reduction ideas: cap claims per page, use a smaller model for 
   "checked before publication"?
 - Plausible lost 13 GetLatka-only facts (≈3,300 customers / $23.3K MRR May 2021, 2% churn, 1,000
   trials/month); find non-estimate sources on a future refresh.
-- New example runs: `publication_gate.py` → `fill_source_titles.py` (free) → `ai_review.py --budget-usd`
+- New example runs: run the analysis with `--no-reddit` (published reports never include Reddit API
+  data; the gate blocks it, PUB-019) → `publication_gate.py` → `fill_source_titles.py` (free) → `ai_review.py --budget-usd`
   (paid, ask for budget) → gate → `publish_example.py` → push → `gh workflow run pages.yml` (manual).
 - Fetcher now prefers the page heading over a generic site-name title; only future runs benefit.
 

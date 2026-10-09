@@ -1,4 +1,4 @@
-"""Reddit posts are found by repository path, dated from search results and lined up with star growth."""
+"""Reddit posts that reach Pigtail are dated from search results and lined up with star growth."""
 
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
@@ -25,7 +25,7 @@ def test_page_age_formats():
         assert range_from_page_age(unknown, NOW) is None
 
 
-def test_plan_searches_reddit_by_repository_path():
+def test_plan_keeps_one_reddit_query():
     t = ResolvedTarget(
         kind="repository",
         name="brag",
@@ -34,8 +34,8 @@ def test_plan_searches_reddit_by_repository_path():
         repo=SimpleNamespace(full_name="latent-spaces/brag", owner="latent-spaces"),  # type: ignore[arg-type]
     )
     queries = [q.text for q in build_plan(t, 12).queries]
-    assert 'site:reddit.com "latent-spaces/brag"' in queries
-    assert 'site:reddit.com "brag" github' in queries
+    assert '"brag" reddit latent-spaces' in queries
+    assert not any(q.startswith("site:reddit.com") for q in queries)  # web search has no Reddit pages
 
 
 def _builder() -> tuple[BundleBuilder, dict, dict]:
