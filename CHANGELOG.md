@@ -5,6 +5,11 @@ All notable changes to this project are listed here. Versions follow [SemVer](ht
 ## [Unreleased]
 
 ### Added
+- Choosing the Claude model is easier: `--model` takes a short name (`sonnet`, `opus`, `haiku`,
+  `fable`) or a plain model ID (`claude-opus-5-5`); the old `anthropic/<id>` form still works. The
+  default stays Claude Sonnet 5.5. New `pigtail models` lists the choices with prices; `pigtail doctor
+  --model <name>` checks the model is available to your key (free); an unknown name stops before any
+  paid work; each run prints the model it uses. Documented in the README, quick start and troubleshooting.
 - Publication gate for Pigtail-hosted reports (`src/pigtail/publication/`, `scripts/publication_gate.py`,
   [docs/publication-gate.md](docs/publication-gate.md)): turns a Research Bundle into a minimized public
   projection with an audit, a file-based human review and a hash-bound manifest. Rules PUB-001…PUB-018.
@@ -36,6 +41,11 @@ All notable changes to this project are listed here. Versions follow [SemVer](ht
   footer says "automated publication checks".
 
 ### Fixed
+- Reddit posts about a project were missed in growth analysis. Pigtail now also searches Reddit by
+  repository path (`site:reddit.com "owner/repo"`), keeps maker posts whose titles omit the project's
+  name when the search that found them names the repository, and puts dated Reddit posts on the
+  timeline (title, link and search-result date only; posts are still not read) so they line up with
+  growth episodes and launches. "N weeks ago" dates are kept as a one-week range.
 - Launch rows before a repository had any stars show "not public yet" instead of +0 (also in local reports).
 
 ### Changed

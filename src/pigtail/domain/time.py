@@ -124,3 +124,49 @@ def human_label(tr: dict | None) -> str:
     if p == "range" and end and end.date() != start.date():
         return f"{start.strftime('%b %d, %Y')} – {end.strftime('%b %d, %Y')}"
     return start.strftime("%b %d, %Y")
+
+
+_TEXT_DAY = re.compile(r"^([A-Za-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$")  # September 24, 2026 / Sep 24 2026
+_DAY_TEXT = re.compile(r"^(\d{1,2})\s+([A-Za-z]+)\.?,?\s+(\d{4})$")  # 24 September 2026
+_AGO = re.compile(r"^(\d+|an?|one)\s+(minute|hour|day|week|month|year)s?\s+ago$")
+
+
+def range_from_page_age(value: str | None, now: datetime) -> dict | None:
+    """TimeRange from a search result's page age ('September 24, 2026', '2026-09-24', '2 weeks ago').
+
+    Absolute dates and 'N days ago' give day precision. 'N weeks/months ago' only says which week or
+    month, so it gives a 'range' covering that span. Anything else returns None (no date invented).
+    """
+    if not value:
+        return None
+    v = value.strip().lower()
+    if m := _TEXT_DAY.match(v):
+        mon, day, year = MONTHS.get(m[1]), int(m[2]), int(m[3])
+    elif m := _DAY_TEXT.match(v):
+        mon, day, year = MONTHS.get(m[2]), int(m[1]), int(m[3])
+    else:
+        mon = None
+    if mon:
+        try:
+            return day_range(date(year, mon, day))
+        except ValueError:
+            return None
+    if m := _AGO.match(v):
+        n = 1 if m[1] in ("a", "an", "one") else int(m[1])
+        unit = m[2]
+        if unit in ("minute", "hour"):
+            return day_range(now - timedelta(**{unit + "s": n}))
+        if unit == "day":
+            return day_range(now - timedelta(days=n))
+        span = {"week": 7, "month": 30, "year": 365}[unit]
+        # "2 weeks ago" means 14–20 days ago; never narrower than the provider said.
+        end = (now - timedelta(days=n * span)).date()
+        start = end - timedelta(days=span - 1)
+        return {
+            "start": iso(datetime(start.year, start.month, start.day, tzinfo=UTC)),
+            "end": iso(datetime(end.year, end.month, end.day, 23, 59, 59, tzinfo=UTC)),
+            "precision": "range",
+            "label": f"{value.strip()} (as of {now:%b %d, %Y})",
+        }
+    t = range_from_partial(value.strip())
+    return t if t["precision"] != "unknown" else None

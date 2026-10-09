@@ -14,7 +14,7 @@ from rich.console import Console
 
 from pigtail.bundle.writer import dump_json, write_bundle
 from pigtail.config import Config
-from pigtail.domain.time import iso, parse_dt, range_from_partial, utcnow
+from pigtail.domain.time import iso, parse_dt, range_from_page_age, range_from_partial, utcnow
 from pigtail.errors import BundleValidationError, CredentialsError, PigtailError, RenderError
 from pigtail.logging import get_logger
 from pigtail.policies.loader import default_registry, surface_for_url
@@ -28,7 +28,13 @@ from pigtail.renderer.render import ForensicRenderer
 from pigtail.research import conflicts, discovery, feeds, gaps, normalization, reconstruction, synthesis
 from pigtail.research.builder import BundleBuilder, EvidenceSpec, sha256_text
 from pigtail.research.extraction import PageExtraction, VerifiedClaim, extract_claims
-from pigtail.research.repository_analysis import RepoState, analyze_repository, hn_event, link_episodes_and_launches
+from pigtail.research.repository_analysis import (
+    RepoState,
+    analyze_repository,
+    hn_event,
+    link_episodes_and_launches,
+    reddit_post_event,
+)
 from pigtail.research.target_resolution import ResolvedTarget, resolve
 
 log = get_logger("orchestrator")
@@ -275,7 +281,7 @@ async def run_analysis(
         ]
         fetchable = [c for c in cands if c not in link_only]
         selected = await discovery.triage(fetchable, target, model, budget) if fetchable else []
-        link_only_kept = await discovery.triage(link_only, target, model, 15) if link_only else []
+        link_only_kept = await discovery.triage(link_only, target, model, 15, link_only=True) if link_only else []
         prog.info(f"{len(cands)} candidates · {len(selected)} selected to read · {len(link_only_kept)} link-only")
 
         if st and st.weak_hn:
@@ -325,8 +331,13 @@ async def run_analysis(
         for c in link_only_kept:
             pol = policies.policy_for(c.url, c.surface_key)
             s = b.add_source(c.url, surface_key=c.surface_key, source_type=c.source_kind, policy=pol, title=c.title)
-            b.add_fetch(s, status="skipped_policy", error_code="link_only_policy", parser_version="none")
+            f = b.add_fetch(s, status="skipped_policy", error_code="link_only_policy", parser_version="none")
             link_counts[c.surface_key] = link_counts.get(c.surface_key, 0) + 1
+            # A dated Reddit post goes on the timeline (title + date from search; the post is not read),
+            # so it can be lined up with star growth like a Hacker News post.
+            when = range_from_page_age(c.page_age, cutoff) if c.surface_key == "reddit" else None
+            if when and c.title:
+                reddit_post_event(b, s, f, c.title, when)
         ok_pages = [(c, p) for c, p in pages if p.status == "success" and p.text]
         prog.info(
             f"{len(ok_pages)}/{len(pages)} pages read"

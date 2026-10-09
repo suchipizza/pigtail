@@ -11,7 +11,7 @@ What it may do with each platform is written down in version-controlled files in
 | GitHub | `github.yaml` | A | Yes, via the API | metadata, counts, ≤500-char excerpt | paraphrase, link, short excerpt |
 | Hacker News | `hacker-news.yaml` | B | Yes, via the HN Search API by Algolia | title, author, date, points, comments | paraphrase, link, title |
 | Other web pages (blogs, news, docs) | `web.yaml` | C | Yes, one request per page, robots.txt respected | metadata, hash, ≤280-char quote | paraphrase, link, short quote |
-| Reddit | `reddit.yaml` | C | **No** — link only | link and search-result title | link only |
+| Reddit | `reddit.yaml` | C | **No** — link only | link, search-result title and date | link only |
 | Product Hunt | `product-hunt.yaml` | C | **No** — link only | link and search-result title | link only |
 | X (Twitter) | `x.yaml` | C | **No** — link only | link and search-result title | link only |
 
@@ -27,7 +27,9 @@ Pigtail never claims complete coverage of a platform it cannot fully search.
 
 Their APIs need registration and have terms that have not yet been reviewed for this use. Until
 they are, Pigtail does not fetch their content. If a web search finds a Reddit thread or a Product
-Hunt page, the report lists the link and records a gap saying it was not read. A Product Hunt
+Hunt page, the report lists the link and records a gap saying it was not read. A Reddit post whose
+search result shows a date also goes on the timeline as "On Reddit: <title>", so it can be lined up
+with star growth; the post itself is still not read. A Product Hunt
 launch can still appear on the timeline when a permitted source, such as the maker's own blog post,
 describes it.
 

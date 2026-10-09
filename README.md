@@ -54,6 +54,29 @@ pigtail tally.so                                  # a product website
 A run takes a few minutes. With the larger Claude Opus 5.5 model it cost **$1–3** for a repository and **$2–5** for a product website, measured on 10 targets ([validation report](validation/2026-10-06/REPORT.md)). The default model, Claude Sonnet 5.5, costs half as much per token, so expect roughly half that; this has not been measured yet. When it
 finishes, the report opens in your browser.
 
+### Choosing a Claude model
+
+Pigtail uses **Claude Sonnet 5.5** unless you choose another model with `--model`:
+
+```bash
+pigtail tally.so --model opus              # a short name…
+pigtail tally.so --model claude-opus-5-5   # …or a full Claude model ID
+pigtail models                             # list the choices
+pigtail doctor --model opus                # check the model works with your key (free)
+```
+
+| `--model` | Model | $ per 1M tokens (in / out) | Notes |
+|---|---|---|---|
+| `sonnet` (default) | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | $2 / $10 | Used when you don't pass `--model`. Balanced cost and quality. |
+| `opus` | Claude Opus 5.5 (`claude-opus-5-5`) | $4 / $20 | About twice the cost. Measured $1–3 per repository, $2–5 per product website. |
+| `haiku` | Claude Haiku 4.5 (`claude-haiku-4-5`) | $1 / $5 | Cheapest. Not tested with Pigtail yet; reports may be thinner. |
+| `fable` | Claude Fable 5.1 (`claude-fable-5-1`) | $10 / $50 | Most capable, about 5x the default cost. Not tested with Pigtail yet. |
+
+Any other Claude model ID (`claude-…`) is accepted too. You can also set the model in
+`pigtail.toml` (`[model] model = "opus"`, see [troubleshooting](docs/troubleshooting.md#configuration-file)).
+Pigtail itself is free; you pay Anthropic for the tokens a run uses, and `run.json` records the cost.
+Pigtail never switches models silently: the run starts by printing the model it uses.
+
 ## What you get
 
 Each run writes a folder like `pigtail-output/plausible-1a2b3c4d/`:
@@ -106,7 +129,8 @@ More in [docs/methodology.md](docs/methodology.md) and [docs/evidence.md](docs/e
 - It does not prove causes. It shows what happened when, and what the company said about it.
 - It does not read Reddit, Product Hunt or X directly yet (link-only until their terms are
   reviewed — see [source policies](docs/source-policies.md)). Launches there appear when another
-  source, such as the maker's blog, mentions them.
+  source, such as the maker's blog, mentions them. Reddit posts found by web search appear on the
+  timeline with their title and date, but their content is not read.
 - It does not accept bare product names (`"Notion"`), only a domain (`notion.so`) or a GitHub URL,
   because names are ambiguous.
 - It is not a hosted service: there is no account, dashboard or API. You run it on your computer.
@@ -138,7 +162,8 @@ the report, the public report data, a publication manifest and a metadata file.
 
 ```bash
 pigtail analyze <target>                          # same as `pigtail <target>`
-pigtail <target> --model anthropic/claude-opus-5-5
+pigtail <target> --model opus                     # choose the Claude model (see "Choosing a Claude model")
+pigtail models                                    # list the models you can choose
 pigtail <target> --output ./reports
 pigtail <target> --source https://example.com/launch-post   # add a source you know (checked like any other)
 pigtail render research-bundle.json               # rebuild report.html, no keys or network needed
@@ -151,7 +176,7 @@ Configuration (`pigtail.toml`), exit codes and common errors: [docs/troubleshoot
 ## Supported environments and integrations
 
 - Python 3.12 or newer. Tested on macOS and on Linux (CI). Windows should work but is not tested yet.
-- **Model:** Anthropic Claude (default `claude-sonnet-5-5`; use `--model anthropic/claude-opus-5-5` for the larger model). Pigtail never switches models silently.
+- **Model:** Anthropic Claude. Default `claude-sonnet-5-5`; choose another with `--model` (`sonnet`, `opus`, `haiku`, `fable` or any Claude model ID). Pigtail never switches models silently.
 - **Web search:** Anthropic's web-search tool (same API key). Can be turned off in config.
 - **Sources read directly:** GitHub API (repository, star history, releases, README), Hacker News
   (HN Search by Algolia), and public web pages that allow it in `robots.txt`.

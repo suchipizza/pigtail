@@ -10,7 +10,7 @@ from pathlib import Path
 import anthropic
 from pydantic import ValidationError
 
-from pigtail.errors import CredentialsError, ResearchError
+from pigtail.errors import CredentialsError, ResearchError, UsageError
 from pigtail.logging import get_logger
 from pigtail.providers.base import Meter, StructuredModelRequest, T
 
@@ -40,6 +40,42 @@ EFFORT_MODELS = {
     "claude-sonnet-5-5",
     "claude-sonnet-5",
 }
+
+
+DEFAULT_MODEL = "claude-sonnet-5-5"
+
+# Short names accepted by --model and pigtail.toml, with what we know about each one in Pigtail.
+# Only the default and Opus have been run end to end; the others are allowed but not yet tested.
+ALIASES: dict[str, str] = {
+    "sonnet": "claude-sonnet-5-5",
+    "opus": "claude-opus-5-5",
+    "haiku": "claude-haiku-4-5",
+    "fable": "claude-fable-5-1",
+}
+MODEL_NOTES: dict[str, str] = {
+    "claude-sonnet-5-5": "Default. Balanced cost and quality.",
+    "claude-opus-5-5": "About 2x the default cost. Measured $1–3 per repo, $2–5 per product.",
+    "claude-haiku-4-5": "Cheapest. Not tested with Pigtail yet; reports may be thinner.",
+    "claude-fable-5-1": "Most capable. About 5x the default cost. Not tested with Pigtail yet.",
+}
+
+
+def resolve_model(value: str) -> str:
+    """Turn a short name (`opus`) or a model ID (`claude-opus-5-5`) into a model ID.
+
+    Model IDs Pigtail does not know yet are allowed (new models appear often) as long as they look like
+    a Claude model; anything else is a usage error that lists the choices. Never substitutes silently.
+    """
+    v = value.strip().lower()
+    if v in ALIASES:
+        return ALIASES[v]
+    if v.startswith("claude-"):
+        return v
+    names = ", ".join(ALIASES)
+    raise UsageError(
+        f"Unknown model {value!r}.",
+        hint=f"Use one of: {names}, or a Claude model ID such as {DEFAULT_MODEL}. See `pigtail models`.",
+    )
 
 
 def price_for(model: str) -> tuple[float, float]:

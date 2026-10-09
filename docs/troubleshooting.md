@@ -23,9 +23,15 @@ source-policy files and network access, without spending money.
 Export the key in the same terminal (`export ANTHROPIC_API_KEY=...`) or put it in a `.env` file in
 the folder where you run Pigtail.
 
+**`Unknown model 'x'`**
+`--model` takes a short name (`sonnet`, `opus`, `haiku`, `fable`) or a Claude model ID such as
+`claude-opus-5-5`. Run `pigtail models` to see the list. Without `--model`, Pigtail uses
+`claude-sonnet-5-5`.
+
 **`Model 'x' is not available to this API key`**
-Check the model name: `--model anthropic/claude-sonnet-5-5`. Pigtail never switches to a different
-model silently.
+The name looks like a Claude model, but your Anthropic account cannot use it (a typo, or a model your
+account has no access to). Check it for free with `pigtail doctor --model <name>`. Pigtail never
+switches to a different model silently.
 
 **`GitHub API rate limit reached`**
 Without a token GitHub allows 60 requests per hour. Set `GITHUB_TOKEN` (no special permissions
@@ -63,7 +69,7 @@ max_runtime_minutes = 20
 
 [model]
 provider = "anthropic"
-model = "claude-sonnet-5-5"
+model = "claude-sonnet-5-5"         # or a short name: "sonnet", "opus", "haiku", "fable"; --model overrides it
 api_key_env = "ANTHROPIC_API_KEY"
 
 [discovery]

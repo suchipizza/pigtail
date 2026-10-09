@@ -584,7 +584,66 @@ def hn_event(b: BundleBuilder, s: HNStory, pol) -> dict:
     )
 
 
+def reddit_post_event(b: BundleBuilder, src: dict, fetch: dict, title: str, time: dict) -> dict:
+    """A Reddit post known only from web search (title + page date). Reddit is link-only: nothing is read."""
+    when = time["label"] or f"{parse_dt(time['start']):%B %d, %Y}"
+    cid = b.add_claim(
+        f"A Reddit post titled “{title}” appeared {'on ' if time['precision'] == 'day' else ''}{when}, according to "
+        "web search results. Pigtail did not read the post.",
+        kind="reddit_post",
+        time=time,
+        evidence=[
+            EvidenceSpec(
+                src["id"],
+                fetch["id"],
+                "third_party_reported",
+                "community_report",
+                "other",
+                "web search result: title and page date",
+                inference_strength="moderate_inference",
+            )
+        ],
+        certainty=0.6,
+    )
+    return b.add(
+        "events",
+        _event(
+            "reddit_post",
+            f"On Reddit: {title}",
+            "Found by web search. Pigtail records only the title, link and date of Reddit posts.",
+            time,
+            [cid],
+            b,
+            ["reddit"],
+        ),
+    )
+
+
 # ----------------------------------------------------------------- phase B (after reconstruction)
+def events_near(events: list[dict], start: date, end: date) -> list[dict]:
+    """Events dated from 3 days before a growth episode to its end (timing only, never cause).
+
+    Day-precise events count by their day. Events only known to within a week (a search result's
+    "2 weeks ago") count when that week overlaps the window.
+    """
+    lo = start - timedelta(days=3)
+    out = []
+    for e in events:
+        if e["event_type"] == "repository_created":
+            continue
+        t = e["time"]
+        s0, s1 = parse_dt(t["start"]), parse_dt(t["end"])
+        if not s0:
+            continue
+        precise = t["precision"] in ("second", "minute", "hour", "day")
+        within_a_week = t["precision"] == "range" and s1 is not None and s1 - s0 <= timedelta(days=7)
+        if (precise and lo <= s0.date() <= end) or (
+            within_a_week and s1 is not None and s0.date() <= end and s1.date() >= lo
+        ):
+            out.append(e)
+    return out
+
+
 def link_episodes_and_launches(b: BundleBuilder, st: RepoState, today: date) -> None:
     """Associate events with growth episodes (timing only), group launches, compute outcome windows."""
     dated = []
@@ -593,11 +652,7 @@ def link_episodes_and_launches(b: BundleBuilder, st: RepoState, today: date) -> 
         if s and e["time"]["precision"] in ("second", "minute", "hour", "day"):
             dated.append((e, s.date()))
     for ep, g in st.episodes:
-        related = [
-            e
-            for e, d in dated
-            if ep.start - timedelta(days=3) <= d <= ep.end and e["event_type"] != "repository_created"
-        ]
+        related = events_near(b.c["events"], ep.start, ep.end)
         g["related_event_ids"] = [e["id"] for e in related]
         if related:
             g["causal_attribution"] = "weakly_associated"

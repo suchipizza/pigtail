@@ -10,7 +10,8 @@ access:
   authentication: required
   rate_limit_notes: >-
     Reddit's Data API requires OAuth registration and has its own terms. Pigtail does not call it.
-    Reddit links may appear in general web-search results; they are recorded as links only.
+    Reddit links may appear in general web-search results; they are recorded as links only, with the
+    title and date the search provider shows.
 
 retention:
   mode: metadata_only
@@ -20,7 +21,9 @@ retention:
 public_display:
   mode: link_only
   attribution_required: true
-  notes: Only the link and the title shown by the search provider are kept.
+  notes: >-
+    Only the link and the title and date shown by the search provider are kept. A dated post appears
+    on the timeline as "On Reddit: <title>"; its content is never fetched.
 
 obligations:
   deletion_refresh: >-

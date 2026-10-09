@@ -21,11 +21,11 @@ from pigtail import (
     RESEARCH_POLICY_VERSION,
     SOURCE_POLICY_VERSION,
 )
-from pigtail.config import load_config, load_dotenv
+from pigtail.config import Config, load_config, load_dotenv
 from pigtail.errors import DOCS_URL, BundleValidationError, PigtailError
 from pigtail.logging import setup_logging
 
-RESERVED = {"analyze", "render", "validate", "doctor", "version"}
+RESERVED = {"analyze", "render", "validate", "doctor", "models", "version"}
 
 app = typer.Typer(
     name="pigtail",
@@ -54,7 +54,12 @@ def analyze(
         typer.Argument(help="GitHub repository URL (https://github.com/owner/repo) or a product domain (example.com)."),
     ],
     model: Annotated[
-        str | None, typer.Option("--model", help="Model as provider/model, e.g. anthropic/claude-sonnet-5-5.")
+        str | None,
+        typer.Option(
+            "--model",
+            help="Claude model: sonnet (default), opus, haiku, fable, or a model ID such as claude-opus-5-5. "
+            "See `pigtail models`.",
+        ),
     ] = None,
     output: Annotated[
         Path | None, typer.Option("--output", help="Output root directory (default ./pigtail-output).")
@@ -79,10 +84,8 @@ def analyze(
             "INFO" if verbose else cfg.logging.level if cfg.logging.level != "INFO" else "WARNING",
             cfg.logging.format,
         )
-        if model:
-            if "/" not in model:
-                raise PigtailError("--model must look like provider/model, e.g. anthropic/claude-sonnet-5-5")
-            cfg.model.provider, cfg.model.model = model.split("/", 1)
+        _choose_model(cfg, model)
+        console.print(f"Model: {cfg.model.model}" + ("" if model else " (default; change it with --model)"))
         if output:
             cfg.engine.output_root = str(output)
         result = asyncio.run(run_analysis(target, cfg, extra_sources=source or [], console=console, verbose=verbose))
@@ -159,8 +162,11 @@ def validate(
 def doctor(
     config: Annotated[str | None, typer.Option("--config", help="Path to a pigtail.toml config file.")] = None,
     offline: Annotated[bool, typer.Option("--offline", help="Skip network connectivity checks.")] = False,
+    model: Annotated[
+        str | None, typer.Option("--model", help="Also check that this model is available (see `pigtail models`).")
+    ] = None,
 ) -> None:
-    """Check your setup: Python, config, credentials, output folder, source policies, connectivity."""
+    """Check your setup: Python, config, model, credentials, output folder, source policies, connectivity."""
     import httpx
 
     from pigtail.policies.loader import load_policies
@@ -184,6 +190,11 @@ def doctor(
         line("ok", "Config", cfg.source_path or "built-in defaults (no pigtail.toml found)")
     except PigtailError as err:
         line("fail", "Config", err.message)
+        raise typer.Exit(2) from None
+    try:
+        _choose_model(cfg, model)
+    except PigtailError as err:
+        line("fail", "Model", f"{err.message} {err.hint or ''}".strip())
         raise typer.Exit(2) from None
 
     from pigtail.providers.models.registry import SUPPORTED_MODEL_PROVIDERS
@@ -258,7 +269,7 @@ def doctor(
             checks.append(
                 (
                     "Anthropic API",
-                    "https://api.anthropic.com/v1/models?limit=1",
+                    f"https://api.anthropic.com/v1/models/{cfg.model.model}",
                     {"x-api-key": cfg.secret(cfg.model.api_key_env) or "", "anthropic-version": "2023-06-01"},
                 )
             )
@@ -270,11 +281,16 @@ def doctor(
                     if name == "GitHub API":
                         core = r.json().get("resources", {}).get("core", {})
                         detail += f" ({core.get('remaining')}/{core.get('limit')} requests left this hour)"
+                    if name == "Anthropic API":
+                        detail += f" · model {cfg.model.model} is available"
                     line("ok", name, detail)
                 else:
                     if name == "Anthropic API":
                         ok = False
-                    line("warn" if name != "Anthropic API" else "fail", name, f"HTTP {r.status_code}")
+                    detail = f"HTTP {r.status_code}"
+                    if name == "Anthropic API" and r.status_code == 404:
+                        detail = f"model {cfg.model.model!r} is not available to this API key (see `pigtail models`)"
+                    line("warn" if name != "Anthropic API" else "fail", name, detail)
             except httpx.HTTPError as exc:
                 line("warn", name, f"unreachable ({type(exc).__name__})")
 
@@ -282,6 +298,39 @@ def doctor(
         "\nReady to run `pigtail <target>`." if ok else f"\nSome checks failed. See {DOCS_URL}/troubleshooting.md"
     )
     raise typer.Exit(0 if ok else 3)
+
+
+def _choose_model(cfg: Config, choice: str | None) -> None:
+    """Apply --model (or the config file's model) to cfg, resolving short names. Never switches silently."""
+    if choice:
+        provider, _, name = choice.rpartition("/")
+        cfg.model.provider = provider or "anthropic"
+        cfg.model.model = name
+    if cfg.model.provider == "anthropic":
+        from pigtail.providers.models.anthropic import resolve_model
+
+        cfg.model.model = resolve_model(cfg.model.model)
+
+
+@app.command()
+def models() -> None:
+    """List the Claude models you can pass to --model."""
+    from rich.table import Table
+
+    from pigtail.providers.models.anthropic import ALIASES, DEFAULT_MODEL, MODEL_NOTES, PRICES
+
+    table = Table(box=None, pad_edge=False, header_style="bold")
+    for col in ("--model", "model ID", "$ / 1M tokens in/out", "notes"):
+        table.add_column(col, no_wrap=col != "notes")
+    for alias, model_id in ALIASES.items():
+        pin, pout = PRICES[model_id]
+        name = f"{alias} (default)" if model_id == DEFAULT_MODEL else alias
+        table.add_row(name, model_id, f"${pin:g} / ${pout:g}", MODEL_NOTES[model_id])
+    out.print(table)
+    out.print(
+        "\nExample: pigtail tally.so --model opus. Any other Claude model ID (claude-...) also works.\n"
+        "Pigtail is free; you pay Anthropic for the tokens a run uses."
+    )
 
 
 @app.command()

@@ -1,6 +1,7 @@
 import json
 import re
 
+import pytest
 from typer.testing import CliRunner
 
 from pigtail.cli import _rewrite_argv, app
@@ -78,3 +79,48 @@ def test_hostile_strings_are_escaped(bundle_dict):
     assert 'href="javascript:' not in html and '"url":"javascript:' not in html
     assert "<script>alert(2)</script>" not in html
     assert "</script><script>alert(3)" not in html
+
+
+def test_model_short_names_and_ids_resolve():
+    from pigtail.providers.models.anthropic import DEFAULT_MODEL, resolve_model
+
+    assert DEFAULT_MODEL == "claude-sonnet-5-5"
+    assert resolve_model("opus") == "claude-opus-5-5"
+    assert resolve_model("Sonnet") == "claude-sonnet-5-5"
+    assert resolve_model("claude-haiku-4-5") == "claude-haiku-4-5"
+    assert resolve_model("claude-future-9") == "claude-future-9"  # new models are not blocked
+
+
+def test_choose_model_keeps_default_and_accepts_all_forms():
+    from pigtail.cli import _choose_model
+    from pigtail.config import Config
+    from pigtail.errors import UsageError
+
+    cfg = Config()
+    _choose_model(cfg, None)
+    assert (cfg.model.provider, cfg.model.model) == ("anthropic", "claude-sonnet-5-5")
+    for choice in ("opus", "claude-opus-5-5", "anthropic/claude-opus-5-5", "anthropic/opus"):
+        cfg = Config()
+        _choose_model(cfg, choice)
+        assert (cfg.model.provider, cfg.model.model) == ("anthropic", "claude-opus-5-5"), choice
+    cfg = Config()
+    cfg.model.model = "haiku"  # short names work in pigtail.toml too
+    _choose_model(cfg, None)
+    assert cfg.model.model == "claude-haiku-4-5"
+    with pytest.raises(UsageError):
+        _choose_model(Config(), "gpt-5")
+
+
+def test_unknown_model_fails_before_any_paid_work(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")  # gitleaks:allow
+    r = runner.invoke(app, ["analyze", "tally.so", "--model", "gpt-5", "--no-open"])
+    assert r.exit_code == 2
+    assert "Unknown model" in r.output and "pigtail models" in r.output
+
+
+def test_models_command_lists_choices_and_default():
+    r = runner.invoke(app, ["models"])
+    assert r.exit_code == 0
+    for name in ("sonnet (default)", "opus", "haiku", "fable", "claude-sonnet-5-5", "claude-opus-5-5"):
+        assert name in r.stdout
+    assert _rewrite_argv(["models"]) == ["models"]

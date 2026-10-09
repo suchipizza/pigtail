@@ -88,11 +88,24 @@ pigtail tally.so
 ## 6. Useful options
 
 ```bash
-pigtail <target> --model anthropic/claude-opus-5-5     # use the larger model (about twice the cost)
+pigtail <target> --model opus                         # use the larger model (about twice the cost)
 pigtail <target> --output ./reports                    # choose where reports go
 pigtail <target> --source https://example.com/post     # add a source you know about (repeatable)
 pigtail <target> --no-open                             # don't open the browser at the end
 ```
+
+### Choosing the Claude model
+
+Without `--model`, Pigtail uses Claude Sonnet 5.5. To use another model, pass a short name or a
+full Claude model ID. `pigtail models` lists the choices, and `pigtail doctor --model <name>` checks
+that the model works with your key without spending anything.
+
+| `--model` | Model | $ per 1M tokens (in / out) | Notes |
+|---|---|---|---|
+| `sonnet` (default) | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | $2 / $10 | Used when you don't pass `--model`. Balanced cost and quality. |
+| `opus` | Claude Opus 5.5 (`claude-opus-5-5`) | $4 / $20 | About twice the cost. Measured $1–3 per repository, $2–5 per product website. |
+| `haiku` | Claude Haiku 4.5 (`claude-haiku-4-5`) | $1 / $5 | Cheapest. Not tested with Pigtail yet; reports may be thinner. |
+| `fable` | Claude Fable 5.1 (`claude-fable-5-1`) | $10 / $50 | Most capable, about 5x the default cost. Not tested with Pigtail yet. |
 
 Sources you add with `--source` are checked like any other source. Pigtail does not assume they
 are true.

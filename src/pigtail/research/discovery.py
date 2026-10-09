@@ -58,9 +58,12 @@ def build_plan(t: ResolvedTarget, max_queries: int) -> DiscoveryPlan:
         full = t.repo.full_name
         q += [
             f'"{n}" {t.repo.owner} launch announcement',
+            # Reddit posts about a project usually link the repository but often never repeat a short
+            # name ("brag") in their title, so search by repository path as well as by name.
+            f'site:reddit.com "{full}"',
+            f'site:reddit.com "{n}" github',
             f'"{n}" Show HN',
             f'"{n}" Product Hunt launch',
-            f'"{n}" reddit {t.repo.owner}',
             f"how {n} grew github stars",
             f'"{full}" open source',
             f'"{n}" founder interview',
@@ -79,7 +82,7 @@ def build_plan(t: ResolvedTarget, max_queries: int) -> DiscoveryPlan:
             f'"{n}" {d} launch announcement',
             f'"{n}" how {n} grew',
             f'"{n}" {d} users milestone',
-            f'"{n}" reddit {d}',
+            f'site:reddit.com "{n}" {d}',
             f'"{n}" {d} pricing change OR funding OR acquisition',
         ]
     seen, out = set(), []
@@ -121,8 +124,23 @@ TRIAGE_SYSTEM = (
 )
 
 
+LINK_ONLY_NOTE = (
+    "\n\nThese are community posts (Reddit, X, Product Hunt) that Pigtail may not read: you only see the "
+    "title, URL and the search query that found them. Makers often title posts about their own project "
+    'without its name ("My side project crossed 7,000 GitHub stars"). Set about_target=true when the '
+    "query that found the post names this exact project (its repository path or domain) and the title "
+    "plausibly describes it, even if the title does not repeat the name. Reject posts clearly about "
+    "something else."
+)
+
+
 async def triage(
-    candidates: list[SourceCandidate], t: ResolvedTarget, model: ModelProvider, limit: int
+    candidates: list[SourceCandidate],
+    t: ResolvedTarget,
+    model: ModelProvider,
+    limit: int,
+    *,
+    link_only: bool = False,
 ) -> list[SourceCandidate]:
     if not candidates:
         return []
@@ -144,7 +162,7 @@ async def triage(
         + "\n".join(lines)
         + f"\n\nReturn one item per candidate index. Mark keep=true for at most {limit} sources that are about "
         "this exact target and likely to contain verifiable facts about its history, launches, users, "
-        "metrics, channels or strategy."
+        "metrics, channels or strategy." + (LINK_ONLY_NOTE if link_only else "")
     )
     res = await model.structured(
         StructuredModelRequest(
