@@ -179,7 +179,7 @@ export default function Home() {
         <div>
           <div className="eyebrow">Your repo is the next case file</div>
           <h2>See what Pigtail finds in your growth trail.</h2>
-          <p>Free and open source. Runs locally. No subscription: you only pay your own Anthropic API usage, usually a few dollars or less per report. Your output is a portable HTML forensic plus a structured Research Bundle.</p>
+          <p>Free and open source. Runs locally. No subscription: you only pay your own Anthropic API usage, usually a few dollars or less per report. Reddit search is optional: add your own free Reddit API keys to include Reddit posts. Your output is a portable HTML forensic plus a structured Research Bundle.</p>
           <div className="cta"><a className="btn pink" href={`${GITHUB}#install`} target="_blank" rel="noreferrer">Install Pigtail →</a><a className="btn" href={GITHUB} target="_blank" rel="noreferrer">View GitHub</a></div>
         </div>
         <div className="terminal">

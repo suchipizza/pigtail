@@ -16,6 +16,10 @@ blog posts, interviews and articles — and writes a **growth report**: how the 
 it found its first users, what it launched and when, which numbers moved, which tactics it used,
 and what is still unknown.
 
+**Reddit search is optional.** Pigtail reads Reddit only through its official API, with your own free
+Reddit app keys. Without them, the report says that Reddit was not searched. See
+[Reddit (optional)](#reddit-optional).
+
 For open-source projects, the report shows the **GitHub star history with launches, posts and
 releases on the same timeline**, so you can see what was happening around every jump in stars:
 
@@ -83,9 +87,9 @@ Pigtail never switches models silently: the run starts by printing the model it 
 
 Reddit is where many projects are first shared, but Pigtail can only see it through Reddit's official
 API, with **your own free Reddit app keys**. With them, Pigtail searches Reddit for posts that link to
-or mention the repository (or the product's domain) and puts them on the timeline next to the star
-history, like Hacker News posts. It keeps only each post's title, link, subreddit, date, upvotes and
-comment count — never the post text or usernames.
+or mention the repository (or the product's domain), plus the same people's other posts that name
+the project, and puts them on the timeline next to the star history, like Hacker News posts. It keeps only each post's title, link, subreddit, date, upvotes and
+comment count — never the post text or usernames (usernames are used only during the search).
 
 **Without the keys, reports have no Reddit data**: the run says so when it starts, and the report
 records it as a gap, so growth explanations rest on Hacker News, GitHub and the web only. To set up
@@ -246,7 +250,7 @@ The report is rendered only from the Research Bundle, a versioned JSON format
 
 ## Roadmap
 
-Near term: Product Hunt and Reddit adapters once their terms are reviewed; package-download
+Near term: a Product Hunt adapter once its terms are reviewed; package-download
 history (npm, PyPI); incremental `pigtail update` of an existing bundle; more reviewed examples.
 Later: a reviewed, cross-product dataset built from Research Bundles.
 
