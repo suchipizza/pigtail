@@ -8,8 +8,9 @@ a first-party claim states the attribution itself.
 
 from __future__ import annotations
 
+import asyncio
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -138,10 +139,13 @@ class RXConstraint(BaseModel):
 
 class Timeline(BaseModel):
     events: list[RXEvent]
-    metrics: list[RXMetric]
     people: list[RXPerson]
     conflicts: list[RXConflict]
     missing: list[str] = Field(description="Important questions the claims cannot answer (max 6)")
+
+
+class Metrics(BaseModel):
+    metrics: list[RXMetric]
 
 
 class Interpretation(BaseModel):
@@ -196,10 +200,11 @@ class ReconstructionInput:
     event_refs: dict[str, str]  # ref -> event id
     event_lines: list[str]
     episode_lines: list[str]
+    metric_lines: list[str] = field(default_factory=list)  # claims that state a number
 
 
 def build_input(b: BundleBuilder, target_desc: str, episode_lines: list[str]) -> ReconstructionInput:
-    claim_refs, lines = {}, []
+    claim_refs, lines, metric_lines = {}, [], []
     src_by_id = {s["id"]: s for s in b.c["sources"]}
     for i, c in enumerate(b.c["claims"], 1):
         if c["claim_kind"] in ("star_history", "star_growth_episode", "release_count"):
@@ -212,12 +217,36 @@ def build_input(b: BundleBuilder, target_desc: str, episode_lines: list[str]) ->
         date = c["time"]["label"] or (c["time"]["start"] or "")[:10] or "undated"
         host = src["canonical_url"].split("/")[2] if src else "?"
         lines.append(f"{ref} [{date}; {c['claim_kind']}; {who}; {host}] {c['statement']}")
+        if c["claim_kind"] in METRIC_CLAIM_KINDS or re.search(r"\d", c["statement"]):
+            metric_lines.append(lines[-1])
     event_refs, elines = {}, []
     for i, e in enumerate(b.c["events"], 1):
         ref = f"e{i}"
         event_refs[ref] = e["id"]
         elines.append(f"{ref} [{(e['time']['start'] or '')[:10]}; {e['event_type']}] {e['title']}")
-    return ReconstructionInput(target_desc, claim_refs, lines, event_refs, elines, episode_lines)
+    return ReconstructionInput(target_desc, claim_refs, lines, event_refs, elines, episode_lines, metric_lines)
+
+
+# Claim kinds that usually carry a number; any claim with a digit is offered to the metrics call too.
+METRIC_CLAIM_KINDS = ("metric", "funding", "pricing", "team", "milestone")
+
+METRICS_TASK = (
+    "\n\nTask: list the target's own growth and business metrics stated in these claims. Completeness matters "
+    "here: create one metric for every distinct measure, date and value a claim states, including company-reported "
+    "figures, third-party estimates and undated values (leave the date empty). When several claims state the same "
+    "value for the same measure and date, make one metric citing all of them. Keep different values as separate "
+    "metrics; never average them.\n"
+    "Use one of these metric_key values whenever it fits, so values of one measure line up: users, "
+    "daily_active_users, monthly_active_users, paying_users, customers, organizations, revenue, mrr, arr, signups, "
+    "downloads, waitlist, traffic, team_size, funding, valuation, price, retention, churn, conversion_rate, "
+    "pmf_score. Put details such as 'Series B' or 'after segmentation' in the label, not the key.\n"
+    "Skip: numbers about other companies (competitors, a parent company before a merger, the founders' earlier "
+    "companies), industry benchmarks or rules of thumb, research effort (survey sample sizes, interview counts), "
+    "Product Hunt or Hacker News votes (they are shown with the launches), one-off purchases, technical "
+    "benchmarks (latency, requests per second, model accuracy), and anything a claim does not state.\n"
+    "Copy each value exactly as stated (convert '$20.7K' to 20700 with currency USD; '275,000' to 275000; "
+    "percentages as 0–100)."
+)
 
 
 def _claims_block(inp: ReconstructionInput) -> str:
@@ -235,21 +264,38 @@ async def reconstruct(model: ModelProvider, inp: ReconstructionInput) -> Reconst
         base
         + "\n\nExisting events already in the record (do not duplicate them):\n"
         + ("\n".join(inp.event_lines) or "(none)")
-        + "\n\nTask: reconstruct the factual timeline. Create events, metrics, people and conflicts from the "
-        "claims. New events must come from claims, not from the existing events. Metrics are growth and business measures only "
-        "(users, customers, revenue/MRR/ARR, signups, downloads, waitlist, traffic, team size, funding), not technical "
-        "benchmarks. For metrics, copy the value "
-        "exactly as stated in a claim (convert '$20.7K' to 20700 with currency USD; percentages as 0–100)."
+        + "\n\nTask: reconstruct the factual timeline. Create events, people and conflicts from the "
+        "claims (metrics are listed separately). New events must come from claims, not from the existing events."
     )
-    tl = await model.structured(
-        StructuredModelRequest(
-            system=SYSTEM,
-            prompt=prompt1,
-            output_type=Timeline,
-            purpose="timeline reconstruction",
-            max_tokens=32000,
-            effort="medium",
+    # Metrics get their own call on the claims that state a number: inside the timeline call a model tends to
+    # keep only a few of them (a Sonnet run of Superhuman kept 8 of 58 metric claims).
+    prompt_m = (
+        f"Target: {inp.target_desc}\n\nClaims that state a number ({len(inp.metric_lines)}), format: ref [date; "
+        "kind; source directness; host] statement\n" + "\n".join(inp.metric_lines) + METRICS_TASK
+    )
+    tl, ms = await asyncio.gather(
+        model.structured(
+            StructuredModelRequest(
+                system=SYSTEM,
+                prompt=prompt1,
+                output_type=Timeline,
+                purpose="timeline reconstruction",
+                max_tokens=32000,
+                effort="medium",
+            )
+        ),
+        model.structured(
+            StructuredModelRequest(
+                system=SYSTEM,
+                prompt=prompt_m,
+                output_type=Metrics,
+                purpose="metric reconstruction",
+                max_tokens=16000,
+                effort="medium",
+            )
         )
+        if inp.metric_lines
+        else _no_metrics(),
     )
     new_lines = [f"n{i} [{e.date or 'undated'}; {e.event_type}] {e.title}" for i, e in enumerate(tl.events, 1)]
     prompt2 = (
@@ -278,7 +324,7 @@ async def reconstruct(model: ModelProvider, inp: ReconstructionInput) -> Reconst
     )
     return Reconstruction(
         events=tl.events,
-        metrics=tl.metrics,
+        metrics=ms.metrics,
         people=tl.people,
         conflicts=tl.conflicts,
         missing=tl.missing,
@@ -289,6 +335,10 @@ async def reconstruct(model: ModelProvider, inp: ReconstructionInput) -> Reconst
         outcomes=it.outcomes,
         constraints=it.constraints,
     )
+
+
+async def _no_metrics() -> Metrics:
+    return Metrics(metrics=[])
 
 
 # ---------------------------------------------------------------------- verification helpers

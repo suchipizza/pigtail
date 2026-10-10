@@ -194,3 +194,54 @@ def test_merge_remaps_references():
     obj = b.add("events", {"claim_ids": [c2]})
     assert merge_duplicate_claims(b) == 1
     assert obj["claim_ids"] == [c1]
+
+
+def test_metrics_come_from_their_own_call_on_claims_with_numbers():
+    import asyncio
+
+    from pigtail.research.reconstruction import Interpretation, Metrics, Timeline, build_input, reconstruct
+
+    b, s, f = _builder()
+    b.add_claim(
+        "T reached 1,000 users in May 2022.",
+        kind="metric",
+        time=day_range(date(2022, 5, 1)),
+        evidence=[EvidenceSpec(s["id"], f["id"], "company_measured", "primary_direct", "text_fragment", "1,000 users")],
+    )
+    b.add_claim(
+        "T is loved by its founders.",
+        kind="positioning",
+        time=day_range(date(2022, 5, 1)),
+        evidence=[EvidenceSpec(s["id"], f["id"], "documented", "primary_direct", "text_fragment", "loved")],
+    )
+    inp = build_input(b, "T", [])
+    assert len(inp.metric_lines) == 1 and "1,000 users" in inp.metric_lines[0]
+    metric = RXMetric(
+        metric_key="users",
+        label="Users",
+        value=1000,
+        value_text="",
+        unit="count",
+        currency="",
+        date="2022-05",
+        date_label="",
+        claims=["c1"],
+    )
+    prompts: dict[str, str] = {}
+
+    class Fake:
+        async def structured(self, request):
+            prompts[request.purpose] = request.prompt
+            if request.output_type is Metrics:
+                return Metrics(metrics=[metric])
+            if request.output_type is Timeline:
+                return Timeline(events=[], people=[], conflicts=[], missing=[])
+            assert request.output_type is Interpretation
+            return Interpretation(
+                company_stages=[], strategy_phases=[], tactics=[], growth_engines=[], outcomes=[], constraints=[]
+            )
+
+    rx = asyncio.run(reconstruct(Fake(), inp))  # type: ignore[arg-type]
+    assert rx.metrics == [metric]
+    assert "Completeness matters" in prompts["metric reconstruction"]
+    assert "loved by its founders" not in prompts["metric reconstruction"]  # only claims that state a number
