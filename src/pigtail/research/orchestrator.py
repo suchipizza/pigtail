@@ -585,8 +585,9 @@ def reddit_status(cfg: Config) -> str:
 
 
 REDDIT_NOT_SEARCHED = (
-    "Reddit was not searched{why}, so Reddit posts and launches are missing from this report. Growth "
-    "explanations rely on Hacker News, GitHub and other public web sources only."
+    "Reddit's API was not used{why}, so Reddit posts appear only when web search found them, which is "
+    "rare. Reddit launches may be missing; growth explanations rely mostly on Hacker News, GitHub and "
+    "other public web sources."
 )
 
 

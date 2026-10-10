@@ -230,7 +230,12 @@ def doctor(
     if rs == "on" and not offline:
         try:
             asyncio.run(_reddit_sign_in(cfg))
-            line("ok", "Reddit API", "your Reddit app keys work; reports will include Reddit posts")
+            line(
+                "ok",
+                "Reddit API",
+                "your keys work; reports will include Reddit posts. Reddit's Data API terms apply to "
+                "you (they restrict commercial use); the data stays on this computer",
+            )
         except Exception as exc:
             ok = False
             line(
@@ -244,8 +249,8 @@ def doctor(
         line(
             "warn",
             "Reddit API",
-            f"not set (optional). Without {cfg.reddit.client_id_env} and {cfg.reddit.client_secret_env} "
-            "reports have no Reddit posts. See docs/quickstart.md",
+            f"not set (optional; new access needs Reddit's approval). Without {cfg.reddit.client_id_env} and "
+            f"{cfg.reddit.client_secret_env}, Reddit posts appear only if web search finds them. See docs/quickstart.md",
         )
     else:
         line("warn", "Reddit API", "turned off in config ([reddit] enabled = false)")
@@ -334,10 +339,10 @@ def doctor(
 
 
 REDDIT_NOTICE = {
-    "on": "Reddit: on (your Reddit API keys)",
-    "off": "Reddit: off for this run. The report will have no Reddit posts.",
-    "no_keys": "Reddit: off. Set REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET to include Reddit posts "
-    "(optional, free; see docs/quickstart.md). Without them the report has no Reddit data.",
+    "on": "Reddit API: on (your own keys; Reddit's Data API terms apply to you)",
+    "off": "Reddit API: off for this run. Reddit posts appear only if web search finds them.",
+    "no_keys": "Reddit API: off. Reddit posts appear only if web search finds them. If Reddit has approved "
+    "API access for you, set REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET (see docs/quickstart.md).",
 }
 
 

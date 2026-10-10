@@ -13,3 +13,6 @@ __version__ = ENGINE_VERSION
 # and the repository's homepage setting.
 WEBSITE_URL = "https://suchipizza.github.io/pigtail/"
 REPO_URL = "https://github.com/suchipizza/pigtail"
+# Shown in every report's banner and footer, and on the website's legal page.
+LEGAL_URL = WEBSITE_URL + "legal/"
+CONTACT_EMAIL = "rakotomalala.noemie@gmail.com"

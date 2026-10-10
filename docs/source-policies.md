@@ -25,19 +25,26 @@ Pigtail never claims complete coverage of a platform it cannot fully search.
 
 ## Reddit: your own API keys, local reports only
 
-*Owner decision 2026-10-09.* Reddit is searched only through Reddit's official Data API, and only when
-you set your own app keys (`REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`; setup in the
-[quick start](quickstart.md)). Creating the keys means you accept Reddit's Data API terms. Pigtail
+*Owner decision 2026-10-09, updated 2026-10-10.* Reddit pages are never fetched. By default, Reddit
+posts appear only as links found by web search. Reddit's official Data API is used only when you set
+your own app keys (`REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`; setup in the
+[quick start](quickstart.md)). New API access needs Reddit's approval under its
+[Responsible Builder Policy](https://support.reddithelp.com/hc/en-us/articles/42728983564564-Responsible-Builder-Policy)
+(checked 2026-10-10), so most users will not have keys. Using the keys means you accept Reddit's Data
+API terms. Pigtail never uses browser cookies, logged-in sessions or keyless access to reddit.com. Pigtail
 signs in with application-only OAuth, makes a few search requests per run, skips removed and deleted
 posts, reads post text only to check that it mentions the project, and stores metadata only.
-Without keys, Reddit is not searched and the report says so as a material gap. Reports published on
+Without keys, the Reddit API is not used and the report says Reddit coverage is incomplete (a
+material gap). Reports published on
 the Pigtail website never contain Reddit API data: they are produced with `--no-reddit`, and the
 publication gate blocks any Reddit API data (PUB-019).
 
 ## Why Product Hunt and X are link-only
 
-Their APIs need registration and have terms that have not yet been reviewed for this use. Until
-they are, Pigtail does not fetch their content. If a web search finds a Product Hunt page or a post on
+Their APIs need registration. X's terms have not been reviewed for this use. Product Hunt's API
+forbids commercial use without permission, and its site terms forbid scraping; *owner decision
+2026-10-10:* Product Hunt stays link-only for now (an adapter using each user's own token is deferred).
+Pigtail does not fetch their content. If a web search finds a Product Hunt page or a post on
 X (or, rarely, a Reddit thread), the report lists the link and records a gap saying it was not read. A
 dated Reddit link found that way also goes on the timeline as "On Reddit: <title>". A Product Hunt
 launch can still appear on the timeline when a permitted source, such as the maker's own blog post,

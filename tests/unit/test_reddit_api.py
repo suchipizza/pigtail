@@ -154,7 +154,7 @@ def test_without_keys_the_report_says_reddit_is_missing(monkeypatch):
     prog = types.SimpleNamespace(info=lambda *_: None)
     asyncio.run(_reddit(b, target, cfg, Meter(), default_registry(), prog))  # type: ignore[arg-type]
     gap = b.c["gaps"][-1]
-    assert gap["severity"] == "material" and "Reddit was not searched" in gap["summary"]
+    assert gap["severity"] == "material" and "Reddit's API was not used" in gap["summary"]
     monkeypatch.setenv("REDDIT_CLIENT_ID", "id")
     monkeypatch.setenv("REDDIT_CLIENT_SECRET", "secret")  # gitleaks:allow
     assert reddit_status(cfg) == "on"

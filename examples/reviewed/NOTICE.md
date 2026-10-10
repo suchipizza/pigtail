@@ -10,4 +10,8 @@ Each example passed Pigtail's automated publication checks before it was added (
 claims were removed or sent to review, excerpts were shortened, and internal run data was left out.
 `metadata.json` says whether the review decisions were made by a person or by AI. `publication-manifest.json` in each folder binds the published files to that check.
 
-To ask for a correction or removal, open an issue: https://github.com/suchipizza/pigtail/issues
+The reports are AI-assisted and may contain errors; things shown close together in time are not proof
+of cause. See https://suchipizza.github.io/pigtail/legal/ for details.
+
+To ask for a correction or removal, write to rakotomalala.noemie@gmail.com or open an issue:
+https://github.com/suchipizza/pigtail/issues

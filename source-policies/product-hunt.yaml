@@ -32,4 +32,8 @@ obligations:
 implementation:
   adapter: product_hunt
   enabled_by_default: false
-  notes: Disabled by default until API terms are reviewed. Link-only discovery is allowed.
+  notes: >-
+    Owner decision 2026-10-10: link-only. Launches found by web search are shown as links; an adapter
+    using each user's own developer token (local reports only) is deferred. The API "must not be used for
+    commercial purposes" and the site terms forbid crawling or scraping, so Product Hunt pages are never
+    fetched.

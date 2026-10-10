@@ -44,25 +44,22 @@ export GITHUB_TOKEN="ghp_..."        # optional
 
 Pigtail also reads a `.env` file in the folder you run it from. Never put keys in `pigtail.toml`.
 
-**Optional: Reddit.** Pigtail can search Reddit for posts that link to or mention your target, through
-Reddit's official API with your own app keys. It keeps only each post's title, link, subreddit, date,
-upvotes and comment count. To get keys:
-
-1. Sign in to Reddit and open <https://www.reddit.com/prefs/apps>.
-2. Click **create another app…**, give it a name (for example `pigtail`), choose **script**, and enter
-   `http://localhost:8080` as the redirect URI (Pigtail does not use it, but Reddit requires one).
-   Reddit may first ask you to accept its [Data API terms](https://redditinc.com/policies/data-api-terms)
-   or to request API access.
-3. Copy the app's **client ID** (the short string under the app name) and its **secret**:
+**Optional: Reddit API.** By default, Reddit posts appear in a report only when web search finds them
+(rare). If Reddit has approved API access for you, Pigtail can also search Reddit through its official
+API with your own app keys, keeping only each post's title, link, subreddit, date, upvotes and comment
+count. New API access needs Reddit's approval: see its
+[Responsible Builder Policy](https://support.reddithelp.com/hc/en-us/articles/42728983564564-Responsible-Builder-Policy).
+Creating an app at <https://www.reddit.com/prefs/apps> is not enough on its own. With approved keys:
 
 ```bash
-export REDDIT_CLIENT_ID="..."
+export REDDIT_CLIENT_ID="..."      # the short string under your app's name
 export REDDIT_CLIENT_SECRET="..."
-pigtail doctor        # the "Reddit API" line should say OK
+pigtail doctor                     # the "Reddit API" line should say OK
 ```
 
-Each run starts by saying whether Reddit is on. Without keys it says Reddit is off, and the report
-records that Reddit was not searched.
+Their terms apply to you, including limits on commercial use; the data stays on your computer. Each
+run starts by saying whether the Reddit API is on. Without keys, the report notes that Reddit
+coverage is incomplete.
 
 ## 4. Check your setup
 

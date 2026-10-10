@@ -7,7 +7,8 @@
   <a href="https://suchipizza.github.io/pigtail/examples/">Example reports</a> ·
   <a href="docs/quickstart.md">5-minute quick start</a> ·
   <a href="docs/methodology.md">How it works</a> ·
-  <a href="docs/">Docs</a>
+  <a href="docs/">Docs</a> ·
+  <a href="https://suchipizza.github.io/pigtail/legal/">Legal &amp; privacy</a>
 </p>
 
 Pigtail is a command-line tool. You give it a **GitHub repository** or a **product website**. It
@@ -16,9 +17,9 @@ blog posts, interviews and articles — and writes a **growth report**: how the 
 it found its first users, what it launched and when, which numbers moved, which tactics it used,
 and what is still unknown.
 
-**Reddit search is optional.** Pigtail reads Reddit only through its official API, with your own free
-Reddit app keys. Without them, the report says that Reddit was not searched. See
-[Reddit (optional)](#reddit-optional).
+**Reddit API search is optional.** By default, Reddit posts appear only when web search finds them.
+If Reddit has approved your own API access, Pigtail can also search Reddit through its official API.
+See [Reddit (optional)](#reddit-optional).
 
 For open-source projects, the report shows the **GitHub star history with launches, posts and
 releases on the same timeline**, so you can see what was happening around every jump in stars:
@@ -49,7 +50,7 @@ environment.)
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."   # required: Pigtail uses Claude to read sources and search the web
 export GITHUB_TOKEN="ghp_..."           # optional: raises GitHub's limit from 60 to 5,000 requests/hour
-export REDDIT_CLIENT_ID="..."           # optional, free: include Reddit posts (see "Reddit" below)
+export REDDIT_CLIENT_ID="..."           # optional, needs Reddit's approval (see "Reddit" below)
 export REDDIT_CLIENT_SECRET="..."
 
 pigtail doctor                                    # checks your setup, costs nothing
@@ -85,31 +86,36 @@ Pigtail never switches models silently: the run starts by printing the model it 
 
 ### Reddit (optional)
 
-Reddit is where many projects are first shared, but Pigtail can only see it through Reddit's official
-API, with **your own free Reddit app keys**. With them, Pigtail searches Reddit for posts that link to
-or mention the repository (or the product's domain), plus the same people's other posts that name
-the project, and puts them on the timeline next to the star history, like Hacker News posts. It keeps only each post's title, link, subreddit, date, upvotes and
-comment count — never the post text or usernames (usernames are used only during the search).
+Reddit is where many projects are first shared. By default, Pigtail finds Reddit posts only through
+web search: a Reddit post appears in the report when web search finds a link to it, with its title and
+date. This is rare, because the search Pigtail uses returns few Reddit pages, so the report notes that
+Reddit coverage is incomplete.
 
-**Without the keys, reports have no Reddit data**: the run says so when it starts, and the report
-records it as a gap, so growth explanations rest on Hacker News, GitHub and the web only. To set up
-the keys:
+**If you already have Reddit API access**, Pigtail can also search Reddit through its official API with
+your own app keys. It finds posts that link to or mention the repository (or the product's domain),
+plus the same people's other posts that name the project, and puts them on the timeline next to the
+star history. It keeps only each post's title, link, subreddit, date, upvotes and comment count, never
+the post text or usernames (usernames are used only during the search).
 
-1. Sign in to Reddit and open <https://www.reddit.com/prefs/apps>.
-2. Click **create another app…**, give it a name (for example `pigtail`), choose **script**, and enter
-   `http://localhost:8080` as the redirect URI (Pigtail does not use it, but Reddit requires one).
-   Reddit may first ask you to accept its [Data API terms](https://redditinc.com/policies/data-api-terms)
-   or to request API access.
-3. Copy the app's **client ID** (the short string under the app name) and its **secret**:
+**New Reddit API access needs Reddit's approval.** Reddit's
+[Responsible Builder Policy](https://support.reddithelp.com/hc/en-us/articles/42728983564564-Responsible-Builder-Policy)
+says you "must request access and get explicit approval before accessing any Reddit data through our
+API". Creating an app at <https://www.reddit.com/prefs/apps> is therefore not enough on its own, and
+approval for personal projects is not guaranteed. Pigtail works fully without it. If you have
+approved keys:
 
 ```bash
-export REDDIT_CLIENT_ID="..."
+export REDDIT_CLIENT_ID="..."      # the short string under your app's name
 export REDDIT_CLIENT_SECRET="..."
-pigtail doctor        # the "Reddit API" line should say OK
+pigtail doctor                     # the "Reddit API" line should say OK
 ```
 
-`pigtail <target> --no-reddit` skips Reddit for one run. Reports on the Pigtail website never include
-Reddit data.
+> **Your responsibility.** Optional data sources use your own keys, and their terms apply to you
+> (Reddit's [Data API Terms](https://redditinc.com/policies/data-api-terms) restrict commercial use).
+> The data stays on your computer; Pigtail's maintainers never receive it.
+
+`pigtail <target> --no-reddit` skips the Reddit API for one run. Reports on the Pigtail website never
+include Reddit API data, only links found by web search.
 
 ## What you get
 
@@ -163,8 +169,8 @@ More in [docs/methodology.md](docs/methodology.md) and [docs/evidence.md](docs/e
 - It does not prove causes. It shows what happened when, and what the company said about it.
 - It does not read Product Hunt or X directly (link-only until their terms are reviewed — see
   [source policies](docs/source-policies.md)); launches there appear when another source, such as the
-  maker's blog, mentions them. Reddit posts appear only if you set your own Reddit API keys (see
-  "Reddit (optional)").
+  maker's blog, mentions them. Reddit posts appear when web search finds them, or through Reddit's
+  API if you have your own approved keys (see "Reddit (optional)").
 - It does not accept bare product names (`"Notion"`), only a domain (`notion.so`) or a GitHub URL,
   because names are ambiguous.
 - It is not a hosted service: there is no account, dashboard or API. You run it on your computer.
@@ -215,7 +221,7 @@ Configuration (`pigtail.toml`), exit codes and common errors: [docs/troubleshoot
 - **Web search:** Anthropic's web-search tool (same API key). Can be turned off in config.
 - **Sources read directly:** GitHub API (repository, star history, releases, README), Hacker News
   (HN Search by Algolia), public web pages that allow it in `robots.txt`, and — optionally, with your
-  own keys — Reddit's official API (post metadata only).
+  own approved keys — Reddit's official API (post metadata only).
 
 ## How it compares
 
@@ -265,3 +271,5 @@ Security issues: see [SECURITY.md](SECURITY.md).
 ## License
 
 MIT — see [LICENSE](LICENSE). Maintained by [@suchipizza](https://github.com/suchipizza).
+Example reports, privacy and optional data sources: [Legal & privacy](https://suchipizza.github.io/pigtail/legal/).
+Corrections or removal requests: rakotomalala.noemie@gmail.com or a GitHub issue.

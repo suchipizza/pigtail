@@ -48,6 +48,9 @@ code { font-size: 12px; }
 .status-completed { color: var(--good); }
 .status-completed_with_gaps { color: var(--warn); }
 .status-failed { color: #d03b3b; }
+.disclaimer { margin: 0 0 16px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--warnbg); font-size: 13px; line-height: 1.5; color: var(--text); }
+.disclaimer b { font-weight: 600; }
+.disclaimer a { color: inherit; text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
 .hero { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 32px; box-shadow: var(--shadow); }
 .hero-grid { display: grid; grid-template-columns: 1.4fr .6fr; gap: 26px; }
 .kicker { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--accent); font-weight: 800; }

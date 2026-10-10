@@ -57,6 +57,8 @@ a{color:inherit}
   background:var(--yellow);box-shadow:3px 3px 0 var(--line);transition:.18s ease;
 }
 .gh-pill:hover{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--line);text-decoration:none!important}
+.gh-icon{display:inline-flex;align-items:center;color:var(--ink);transition:transform .18s ease}
+.gh-icon:hover{transform:translateY(-2px)}
 
 .hero{
   padding:86px 0 70px;
@@ -340,7 +342,7 @@ footer{border-top:1.5px solid var(--line);padding:30px 0 46px;color:var(--muted)
 }
 @media(max-width:680px){
   .wrap{padding:0 16px}
-  .nav{height:auto;padding:18px 0}.nav-links a:not(.gh-pill){display:none}
+  .nav{height:auto;padding:18px 0}.nav-links a:not(.gh-icon){display:none}
   .hero{padding:56px 0 48px;gap:36px}
   h1{font-size:46px}
   .lead{font-size:17px}
@@ -482,3 +484,11 @@ footer{border-top:1.5px solid var(--line);padding:30px 0 46px;color:var(--muted)
   .chart-label small{display:none}
   .chart-label.m-right-below{left:calc(var(--fx) + 8px);right:auto;top:calc(var(--fy) + 14px);bottom:auto}
 }
+
+/* Legal & privacy page */
+.legal h2{font-size:28px;text-align:left;margin:44px 0 12px}
+.legal p,.legal li{max-width:760px;font-size:16px;line-height:1.65}
+.legal p{margin:0 0 14px}
+.legal ul{margin:0 0 16px;padding-left:22px}
+.legal li{margin:0 0 8px}
+.legal a{overflow-wrap:anywhere}

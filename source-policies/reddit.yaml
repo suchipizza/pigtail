@@ -45,4 +45,6 @@ implementation:
   notes: >-
     Owner decision 2026-10-09: Reddit API search is available in local reports run with the user's
     own keys, and never in published reports. Without keys the report records a material gap saying
-    Reddit was not searched.
+    Reddit coverage is incomplete. 2026-10-10: new API access needs Reddit's approval (Responsible
+    Builder Policy), so web-search links are the default way Reddit appears; never cookies, logged-in
+    sessions or keyless access to reddit.com.

@@ -64,6 +64,16 @@ def test_report_is_self_contained(bundle):
     assert "Cause of spike" not in html
 
 
+def test_private_report_says_who_generated_it(bundle):
+    from pigtail import CONTACT_EMAIL, LEGAL_URL
+
+    html = render_html(bundle)
+    assert "AI-assisted analysis based on public sources." in html
+    assert "Not reviewed or endorsed by Pigtail's maintainers." in html
+    assert LEGAL_URL in html
+    assert CONTACT_EMAIL not in html  # the correction address is for published reports only
+
+
 def test_report_shows_star_chart_and_unknowns(bundle):
     html = render_html(bundle)
     assert 'id="starChart"' in html
