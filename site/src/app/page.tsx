@@ -92,7 +92,7 @@ export default function Home() {
           <h1>Want to grow your open-source project? <em>Study the ones that did.</em> <em>Steal their playbook.</em></h1>
           <p className="lead">See how projects went from zero to thousands of stars — the launches, Show HN posts, releases, communities and tactics that happened along the way. <span className="hero-punch">Pigtail reconstructs the public evidence so you can see what they tried, when they tried it, and what happened next.</span></p>
           <div className="cta"><Link className="btn pink" href="/examples/">Explore growth stories <span>→</span></Link><a className="btn" href="#try">Run Pigtail on your repo</a></div>
-          <div className="proofline"><span>Open source</span><span>Evidence-linked</span><span>No Pigtail account</span></div>
+          <div className="proofline"><span>Free &amp; open source</span><span>Evidence-linked</span><span>No Pigtail account</span></div>
         </div>
         <div className="case">
           <div className="case-top">
@@ -179,7 +179,7 @@ export default function Home() {
         <div>
           <div className="eyebrow">Your repo is the next case file</div>
           <h2>See what Pigtail finds in your growth trail.</h2>
-          <p>Open source. Runs locally. Bring your own Anthropic API key. Your output is a portable HTML forensic plus a structured Research Bundle.</p>
+          <p>Free and open source. Runs locally. No subscription: you only pay your own Anthropic API usage, usually a few dollars or less per report. Your output is a portable HTML forensic plus a structured Research Bundle.</p>
           <div className="cta"><a className="btn pink" href={`${GITHUB}#install`} target="_blank" rel="noreferrer">Install Pigtail →</a><a className="btn" href={GITHUB} target="_blank" rel="noreferrer">View GitHub</a></div>
         </div>
         <div className="terminal">
