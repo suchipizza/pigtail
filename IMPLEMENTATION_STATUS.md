@@ -169,10 +169,8 @@ $3–5 each. Cost reduction ideas: cap claims per page, use a smaller model for 
 ## Next tasks
 
 Carried over from the 2026-10-09 session (start here):
-- **Landing page "free" wording is NOT committed** (`site/src/app/page.tsx`, local only): hero tag
-  "Free & open source" and the Try section line "Free and open source… you only pay your own Anthropic API
-  usage, usually a few dollars or less per report." Waiting for the owner's OK to commit + deploy
-  (`gh workflow run pages.yml`). Consider also mentioning optional Reddit keys / model choice on the site.
+- Done 2026-10-10: landing page "free" wording committed (b80b633) and deployed. Still to consider:
+  mentioning optional Reddit keys / model choice on the site.
 - Owner questions still open: (a) hero copy from the pig-intro script ("Pigtail / Reverse-engineer how
   products actually grow.") vs the model's copy (currently the model's); (b) make a smaller copy of the
   1 MB mascot PNG (owner asked to keep the asset unchanged, so not done).
