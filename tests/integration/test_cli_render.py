@@ -68,7 +68,8 @@ def test_private_report_says_who_generated_it(bundle):
     from pigtail import CONTACT_EMAIL, LEGAL_URL
 
     html = render_html(bundle)
-    assert "AI-assisted analysis based on public sources." in html
+    assert html.index("AI-assisted analysis based on public sources.") > html.index('<footer class="footer">')
+    assert "Machine-extracted research." not in html  # the banner replaced the old footer disclaimer
     assert "Not reviewed or endorsed by Pigtail's maintainers." in html
     assert LEGAL_URL in html
     assert CONTACT_EMAIL not in html  # the correction address is for published reports only
