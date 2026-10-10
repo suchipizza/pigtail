@@ -57,6 +57,15 @@ export REDDIT_CLIENT_SECRET="..."
 pigtail doctor                     # the "Reddit API" line should say OK
 ```
 
+**Optional: Product Hunt API.** With your own free developer token, reports add each Product Hunt
+launch with its exact date, upvotes and comments. Get it at
+<https://www.producthunt.com/v2/oauth/applications>: **Add an application** (any name, `https://localhost`
+as redirect URI), then **Create Token** and copy the developer token:
+
+```bash
+export PRODUCTHUNT_TOKEN="..."
+```
+
 Their terms apply to you, including limits on commercial use; the data stays on your computer. Each
 run starts by saying whether the Reddit API is on. Without keys, the report notes that Reddit
 coverage is incomplete.
@@ -115,6 +124,7 @@ pigtail <target> --output ./reports                    # choose where reports go
 pigtail <target> --source https://example.com/post     # add a source you know about (repeatable)
 pigtail <target> --no-open                             # don't open the browser at the end
 pigtail <target> --no-reddit                           # skip Reddit even if your Reddit keys are set
+pigtail <target> --no-producthunt                      # skip Product Hunt even if your token is set
 ```
 
 ### Choosing the Claude model

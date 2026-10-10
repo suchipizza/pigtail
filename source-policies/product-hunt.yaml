@@ -1,16 +1,21 @@
 key: product_hunt
-version: "1"
+version: "2"
 display_name: Product Hunt
 coverage_tier: C
 
 access:
   discovery_allowed: true
+  # Product Hunt pages are never fetched (its Terms of Service forbid crawling and scraping). Launch data
+  # comes only from the official API v2, and only when the user sets their own developer token.
   automated_retrieval_allowed: false
-  method: link_only
+  method: official_api_with_user_keys
   authentication: required
   rate_limit_notes: >-
-    The Product Hunt API v2 needs a developer token and its terms have not been reviewed for this use.
-    Pigtail does not call it by default.
+    Optional. With the user's own developer token (PRODUCTHUNT_TOKEN), Pigtail makes at most 15 small
+    read-only lookups per run (configurable), far below Product Hunt's fair-use limits. The API cannot
+    search, so launches are looked up from Product Hunt links on the product's own site, links found by
+    web search, or slugs guessed from the name; guessed and searched launches must name the product and
+    not be older than the project. The token is sent only to api.producthunt.com.
 
 retention:
   mode: metadata_only
@@ -21,19 +26,23 @@ public_display:
   mode: link_only
   attribution_required: true
   notes: >-
-    Product Hunt launch links found by web search are shown as links. A launch date is only shown
-    when another permitted source (for example the maker's own blog post) states it.
+    Kept per launch: link, name, launch date, upvotes and comment count. Never taglines, descriptions,
+    makers, comments or users. Without a token, Product Hunt launch links found by web search are shown
+    as links, and a launch date only when another permitted source states it. Published reports
+    (Pigtail website) never include Product Hunt API data: the publication gate blocks it (PUB-020)
+    and published runs use --no-producthunt.
 
 obligations:
-  deletion_refresh: null
-  terms_url: "https://www.producthunt.com/terms"
-  reviewed_at: "2026-10-06"
+  deletion_refresh: >-
+    Reports are snapshots: re-run to refresh. Each user agrees to Product Hunt's API terms when creating
+    their own token; the API "must not be used for commercial purposes" without Product Hunt's permission.
+  terms_url: "https://api.producthunt.com/v2/docs"
+  reviewed_at: "2026-10-10"
 
 implementation:
   adapter: product_hunt
   enabled_by_default: false
   notes: >-
-    Owner decision 2026-10-10: link-only. Launches found by web search are shown as links; an adapter
-    using each user's own developer token (local reports only) is deferred. The API "must not be used for
-    commercial purposes" and the site terms forbid crawling or scraping, so Product Hunt pages are never
-    fetched.
+    Owner decision 2026-10-10: a small optional extra for local reports run with the user's own token,
+    never in published reports. Tested against the owner's probe of 6 products on 2026-10-10: the name
+    and project-date checks removed all 5 wrong matches and kept the 5 right ones.

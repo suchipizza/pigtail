@@ -11,6 +11,7 @@ import httpx
 
 from pigtail.errors import TargetResolutionError
 from pigtail.logging import get_logger
+from pigtail.providers.community.product_hunt import refs_in
 from pigtail.providers.fetchers.web import USER_AGENT
 from pigtail.providers.github.client import GitHubClient, GitHubError, RepositorySnapshot
 from pigtail.repository.identity import parse_github, parse_short
@@ -49,6 +50,7 @@ class ResolvedTarget:
     repo: RepositorySnapshot | None = None
     homepage_html_title: str | None = None
     linked_repos: list[tuple[str, str]] = field(default_factory=list)
+    product_hunt_refs: list[str] = field(default_factory=list)  # Product Hunt links/badges on the homepage
     notes: list[str] = field(default_factory=list)
 
 
@@ -186,6 +188,7 @@ async def resolve(raw: str, github: GitHubClient) -> ResolvedTarget:
         aliases=[final_host],
         homepage_html_title=name,
         linked_repos=linked[:5],
+        product_hunt_refs=refs_in(html),
     )
     # A product site that links to a repository whose homepage points back is the same project.
     for o, rp in linked[:3]:

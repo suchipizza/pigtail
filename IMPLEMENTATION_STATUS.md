@@ -182,8 +182,8 @@ Carried over from the 2026-10-09 session (start here):
 - ~~Footer "checked before publication" question~~ — owner: leave it (2026-10-07).
 - Plausible lost 13 GetLatka-only facts (≈3,300 customers / $23.3K MRR May 2021, 2% churn, 1,000
   trials/month); find non-estimate sources on a future refresh.
-- New example runs: run the analysis with `--no-reddit` (published reports never include Reddit API
-  data; the gate blocks it, PUB-019) → `publication_gate.py` → `fill_source_titles.py` (free) → `ai_review.py --budget-usd`
+- New example runs: run the analysis with `--no-reddit --no-producthunt` (published reports never
+  include Reddit or Product Hunt API data; the gate blocks them, PUB-019/PUB-020) → `publication_gate.py` → `fill_source_titles.py` (free) → `ai_review.py --budget-usd`
   (paid, ask for budget) → gate → `publish_example.py` → push → `gh workflow run pages.yml` (manual).
 - Fetcher now prefers the page heading over a generic site-name title; only future runs benefit.
 

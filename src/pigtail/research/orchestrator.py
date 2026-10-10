@@ -7,7 +7,7 @@ import json
 import re
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -21,6 +21,7 @@ from pigtail.logging import get_logger
 from pigtail.policies.loader import default_registry, surface_for_url
 from pigtail.providers.base import Meter
 from pigtail.providers.community.hacker_news import HackerNewsClient
+from pigtail.providers.community.product_hunt import ProductHuntAuthError, ProductHuntClient, refs_in
 from pigtail.providers.community.reddit import RedditAuthError, RedditClient
 from pigtail.providers.fetchers.web import PARSER_VERSION, FetchedPage, WebFetcher
 from pigtail.providers.github.client import GitHubClient
@@ -35,6 +36,7 @@ from pigtail.research.repository_analysis import (
     analyze_repository,
     hn_event,
     link_episodes_and_launches,
+    product_hunt_api_event,
     reddit_api_event,
     reddit_post_event,
 )
@@ -471,6 +473,10 @@ async def run_analysis(
             f" {merged} merged as duplicates)"
         )
 
+        # ---------------------------------------------------------------- product hunt (optional, user's own token)
+        # After extraction (claims date the project) and before reconstruction (which then sees the launches).
+        await _product_hunt(b, target, st, link_only_kept, cfg, meter, policies, prog)
+
         # ---------------------------------------------------------------- reconstruct
         prog.stage(STAGES[5])
         ep_lines = [
@@ -640,3 +646,69 @@ def _pub(meta: PageExtraction | None, fallback: str | None) -> str | None:
 
 
 __all__ = ["AnalysisResult", "json", "run_analysis"]
+
+
+def product_hunt_status(cfg: Config) -> str:
+    """'on', 'off' (turned off by config or --no-producthunt) or 'no_keys'."""
+    if not cfg.product_hunt.enabled:
+        return "off"
+    return "on" if cfg.secret(cfg.product_hunt.token_env) else "no_keys"
+
+
+def _not_before(b: BundleBuilder, target: ResolvedTarget) -> date | None:
+    """When the project started: the repository's creation, else the earliest dated claim."""
+    created = parse_dt(target.repo.created_at) if target.repo and target.repo.created_at else None
+    if created:
+        return created.date()
+    starts = [d for c in b.c["claims"] if c.get("time") and (d := parse_dt(c["time"].get("start")))]
+    return min(starts).date() if starts else None
+
+
+async def _product_hunt(
+    b: BundleBuilder,
+    target: ResolvedTarget,
+    st: RepoState | None,
+    link_only: list[discovery.SourceCandidate],
+    cfg: Config,
+    meter: Meter,
+    policies,
+    prog,
+) -> None:
+    """Look up the product's Product Hunt launches with the user's own token. Off without a token:
+    Product Hunt then appears only as links found by web search, as before."""
+    if product_hunt_status(cfg) != "on":
+        return
+    client = ProductHuntClient(cfg.secret(cfg.product_hunt.token_env) or "", meter)
+    try:
+        own = list(target.product_hunt_refs)
+        if st and st.readme:
+            own += refs_in(st.readme[0])
+        if target.kind == "repository" and target.domain:
+            own += await client.page_refs(f"https://{target.domain}/")
+        own = list(dict.fromkeys(own))
+        searched = list(dict.fromkeys(r for c in link_only for r in refs_in(c.url)))
+        words = [target.name, (target.domain or "").split(".")[0]]
+        if target.repo:
+            words += [target.repo.name, target.repo.full_name]
+        launches = await client.launches_for(
+            target.name,
+            own_refs=own,
+            search_refs=searched,
+            guess_words=words,
+            not_before=_not_before(b, target),
+            max_lookups=cfg.product_hunt.max_lookups,
+        )
+    except ProductHuntAuthError as exc:
+        b.gap("source_inaccessible", f"Product Hunt was not checked ({exc})", surface_key="product_hunt")
+        return
+    except httpx.HTTPError as exc:
+        launches = []
+        client.errors.append(type(exc).__name__)
+    finally:
+        await client.close()
+    pol = policies.policy_for("https://www.producthunt.com", "product_hunt")
+    for launch in launches:
+        product_hunt_api_event(b, launch, pol)
+    if client.errors:
+        b.gap("source_inaccessible", "Product Hunt was partly unavailable during this run.", surface_key="product_hunt")
+    prog.info(f"{len(launches)} Product Hunt launch{'' if len(launches) == 1 else 'es'} found")

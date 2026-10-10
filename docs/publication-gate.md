@@ -48,6 +48,7 @@ new factual claims. Where new wording is needed, a person writes it.
 | PUB-017 | Anything that rested on a removed claim is removed too; if only some of its claims were removed (including a conflict's), it needs review. |
 | PUB-018 | Gaps stay visible but never repeat removed sensitive content. |
 | PUB-019 | Reddit API data (posts found with a user's own Reddit keys) is never published: the report is **blocked** and must be re-run with `--no-reddit`. *(Owner decision 2026-10-09.)* |
+| PUB-020 | Product Hunt API data (launches found with a user's own token) is never published: the report is **blocked** and must be re-run with `--no-producthunt`. *(Owner decision 2026-10-10.)* |
 
 Also: the report header shows company-reported figures only (estimates stay in the metrics section); a
 figure the company relays from someone else ("The New York Times reported…") is third-party; the

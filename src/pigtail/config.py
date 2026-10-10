@@ -53,6 +53,14 @@ class RedditConfig(_Section):
     max_posts: int = Field(default=30, ge=1, le=100)
 
 
+class ProductHuntConfig(_Section):
+    """Optional Product Hunt launches through its official API with your own developer token."""
+
+    enabled: bool = True  # used only when the token is set; --no-producthunt turns it off for one run
+    token_env: str = "PRODUCTHUNT_TOKEN"
+    max_lookups: int = Field(default=15, ge=1, le=50)
+
+
 class ResearchConfig(_Section):
     policy_version: str = "0.1.0"
     source_cutoff: str = "now"
@@ -76,6 +84,7 @@ class Config(_Section):
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
     github: GitHubConfig = Field(default_factory=GitHubConfig)
     reddit: RedditConfig = Field(default_factory=RedditConfig)
+    product_hunt: ProductHuntConfig = Field(default_factory=ProductHuntConfig)
     research: ResearchConfig = Field(default_factory=ResearchConfig)
     renderer: RendererConfig = Field(default_factory=RendererConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)

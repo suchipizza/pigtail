@@ -12,7 +12,7 @@ What it may do with each platform is written down in version-controlled files in
 | Hacker News | `hacker-news.yaml` | B | Yes, via the HN Search API by Algolia | title, author, date, points, comments | paraphrase, link, title |
 | Other web pages (blogs, news, docs) | `web.yaml` | C | Yes, one request per page, robots.txt respected | metadata, hash, ≤280-char quote | paraphrase, link, short quote |
 | Reddit | `reddit.yaml` | C | Only with **your own** Reddit API keys (optional); never the web pages | link, title, subreddit, date, upvotes, comments — no text, no usernames | link only; never on the Pigtail website |
-| Product Hunt | `product-hunt.yaml` | C | **No** — link only | link and search-result title | link only |
+| Product Hunt | `product-hunt.yaml` | C | Only with **your own** developer token (optional); never the web pages | link, launch name, date, upvotes, comments | link only; never on the Pigtail website |
 | X (Twitter) | `x.yaml` | C | **No** — link only | link and search-result title | link only |
 
 **Coverage tiers**
@@ -41,10 +41,16 @@ publication gate blocks any Reddit API data (PUB-019).
 
 ## Why Product Hunt and X are link-only
 
-Their APIs need registration. X's terms have not been reviewed for this use. Product Hunt's API
-forbids commercial use without permission, and its site terms forbid scraping; *owner decision
-2026-10-10:* Product Hunt stays link-only for now (an adapter using each user's own token is deferred).
-Pigtail does not fetch their content. If a web search finds a Product Hunt page or a post on
+Pigtail never fetches their pages: Product Hunt's site terms forbid crawling and scraping, and X's
+terms have not been reviewed for this use.
+
+*Owner decision 2026-10-10:* Product Hunt's official API is a small optional extra for local reports,
+used only with each user's own developer token (`PRODUCTHUNT_TOKEN`). Its API "must not be used for
+commercial purposes" without Product Hunt's permission; creating the token means the user accepts that.
+Pigtail keeps each launch's name, date, upvotes, comment count and link, and sends the token only to
+the API. Guessed or searched launches must name the product and not be older than the project.
+Published reports never contain Product Hunt API data: they are produced with `--no-producthunt`, and
+the publication gate blocks it (PUB-020). If a web search finds a Product Hunt page or a post on
 X (or, rarely, a Reddit thread), the report lists the link and records a gap saying it was not read. A
 dated Reddit link found that way also goes on the timeline as "On Reddit: <title>". A Product Hunt
 launch can still appear on the timeline when a permitted source, such as the maker's own blog post,

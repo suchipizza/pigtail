@@ -337,6 +337,7 @@ class PublicationGate:
             return self._result(None, None)
         self.steps.append(StepResult(name="Validate Research Bundle", result="PASS"))
         self._no_reddit_api_data()
+        self._no_product_hunt_api_data()
 
         keep_ids = {k.name for k in (self.review.keep_identities if self.review else [])}
         self.redactor = Redactor.from_bundle(b, keep_ids)
@@ -600,6 +601,27 @@ class PublicationGate:
             )
         self.steps.append(
             StepResult(name="No Reddit API data", result=f"{len(fetches)} blocked" if fetches else "PASS")
+        )
+
+    # ---- PUB-020 -------------------------------------------------------------------------------
+
+    def _no_product_hunt_api_data(self) -> None:
+        """Published reports never contain Product Hunt API data (owner decision 2026-10-10)."""
+        fetches = [
+            f for f in self.b["source_fetches"] if (f.get("parser_version") or "").startswith("product-hunt-api")
+        ]
+        for f in fetches:
+            self.add(
+                "PUB-020",
+                "BLOCK",
+                "sources",
+                f["source_id"],
+                "This source comes from the Product Hunt API. Published reports never include Product Hunt API "
+                "data: re-run the analysis with --no-producthunt before publishing.",
+                allowed=(),
+            )
+        self.steps.append(
+            StepResult(name="No Product Hunt API data", result=f"{len(fetches)} blocked" if fetches else "PASS")
         )
 
     def _source_policies(self) -> None:

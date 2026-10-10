@@ -98,6 +98,11 @@ client_secret_env = "REDDIT_CLIENT_SECRET"
 min_score = 1                       # skip posts with fewer upvotes
 max_posts = 30
 
+[product_hunt]                      # optional; used only when the token is set
+enabled = true                      # false = never use the Product Hunt API (same as --no-producthunt)
+token_env = "PRODUCTHUNT_TOKEN"
+max_lookups = 15                    # API lookups per run
+
 [logging]
 level = "INFO"
 format = "human"

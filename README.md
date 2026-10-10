@@ -52,6 +52,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."   # required: Pigtail uses Claude to read 
 export GITHUB_TOKEN="ghp_..."           # optional: raises GitHub's limit from 60 to 5,000 requests/hour
 export REDDIT_CLIENT_ID="..."           # optional, needs Reddit's approval (see "Reddit" below)
 export REDDIT_CLIENT_SECRET="..."
+export PRODUCTHUNT_TOKEN="..."          # optional: exact Product Hunt launch dates (see "Product Hunt" below)
 
 pigtail doctor                                    # checks your setup, costs nothing
 pigtail https://github.com/plausible/analytics    # an open-source project
@@ -117,6 +118,36 @@ pigtail doctor                     # the "Reddit API" line should say OK
 `pigtail <target> --no-reddit` skips the Reddit API for one run. Reports on the Pigtail website never
 include Reddit API data, only links found by web search.
 
+### Product Hunt (optional)
+
+By default, Product Hunt launches appear when a source such as the maker's blog mentions them, or as
+links found by web search. With **your own free Product Hunt developer token**, Pigtail also asks
+Product Hunt's official API for the product's launches and adds each one to the timeline with its exact
+date, upvotes and comment count.
+
+The API cannot search by name, so Pigtail looks for Product Hunt links on the product's homepage and
+README (a "Featured on Product Hunt" badge), in web-search results, and tries addresses made from the
+product's name. Many products share a name, so a launch found that way is kept only if its name contains
+the product's name and it is not older than the project. A launch can still be missed, for example a
+first launch under a different name. Pigtail keeps only each launch's name, date, upvotes, comment count
+and link.
+
+1. Sign in at <https://www.producthunt.com/v2/oauth/applications> and click **Add an application**
+   (any name; `https://localhost` as the redirect URI).
+2. On the application's page, click **Create Token** and copy the **developer token**:
+
+```bash
+export PRODUCTHUNT_TOKEN="..."
+pigtail doctor                     # the "Product Hunt API" line should say OK
+```
+
+> **Your responsibility.** Product Hunt's [API terms](https://api.producthunt.com/v2/docs) apply to you:
+> the API "must not be used for commercial purposes" without Product Hunt's permission. The data stays on
+> your computer; Pigtail's maintainers never receive it.
+
+`pigtail <target> --no-producthunt` skips it for one run. Reports on the Pigtail website never include
+Product Hunt API data.
+
 ## What you get
 
 Each run writes a folder like `pigtail-output/plausible-1a2b3c4d/`:
@@ -167,9 +198,9 @@ More in [docs/methodology.md](docs/methodology.md) and [docs/evidence.md](docs/e
 - It does not know anything that is not public. Private metrics, internal experiments and
   unannounced decisions are invisible to it.
 - It does not prove causes. It shows what happened when, and what the company said about it.
-- It does not read Product Hunt or X directly (link-only until their terms are reviewed — see
-  [source policies](docs/source-policies.md)); launches there appear when another source, such as the
-  maker's blog, mentions them. Reddit posts appear when web search finds them, or through Reddit's
+- It never reads Product Hunt or X web pages ([source policies](docs/source-policies.md)); launches
+  there appear when another source, such as the maker's blog, mentions them, or through Product Hunt's
+  API if you set your own token (see "Product Hunt (optional)"). Reddit posts appear when web search finds them, or through Reddit's
   API if you have your own approved keys (see "Reddit (optional)").
 - It does not accept bare product names (`"Notion"`), only a domain (`notion.so`) or a GitHub URL,
   because names are ambiguous.
@@ -206,6 +237,7 @@ pigtail <target> --model opus                     # choose the Claude model (see
 pigtail models                                    # list the models you can choose
 pigtail <target> --output ./reports
 pigtail <target> --no-reddit                      # skip Reddit even if your Reddit keys are set
+pigtail <target> --no-producthunt                 # skip Product Hunt even if your token is set
 pigtail <target> --source https://example.com/launch-post   # add a source you know (checked like any other)
 pigtail render research-bundle.json               # rebuild report.html, no keys or network needed
 pigtail validate research-bundle.json             # check a bundle against the schema and integrity rules
@@ -221,7 +253,8 @@ Configuration (`pigtail.toml`), exit codes and common errors: [docs/troubleshoot
 - **Web search:** Anthropic's web-search tool (same API key). Can be turned off in config.
 - **Sources read directly:** GitHub API (repository, star history, releases, README), Hacker News
   (HN Search by Algolia), public web pages that allow it in `robots.txt`, and — optionally, with your
-  own approved keys — Reddit's official API (post metadata only).
+  own approved keys — Reddit's official API (post metadata only), and with your own token — Product
+  Hunt's official API (launch metadata only).
 
 ## How it compares
 

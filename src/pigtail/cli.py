@@ -76,6 +76,13 @@ def analyze(
             "--no-reddit", help="Do not search Reddit, even if Reddit API keys are set (used for published reports)."
         ),
     ] = False,
+    no_producthunt: Annotated[
+        bool,
+        typer.Option(
+            "--no-producthunt",
+            help="Do not use the Product Hunt API, even if PRODUCTHUNT_TOKEN is set (used for published reports).",
+        ),
+    ] = False,
     verbose: Annotated[
         bool, typer.Option("--verbose", help="Show more operational detail (never model reasoning).")
     ] = False,
@@ -95,6 +102,10 @@ def analyze(
         if no_reddit:
             cfg.reddit.enabled = False
         console.print(REDDIT_NOTICE[reddit_status(cfg)])
+        if no_producthunt:
+            cfg.product_hunt.enabled = False
+        if product_hunt_status(cfg) == "on":
+            console.print(PRODUCT_HUNT_NOTICE)
         if output:
             cfg.engine.output_root = str(output)
         result = asyncio.run(run_analysis(target, cfg, extra_sources=source or [], console=console, verbose=verbose))
@@ -255,6 +266,29 @@ def doctor(
     else:
         line("warn", "Reddit API", "turned off in config ([reddit] enabled = false)")
 
+    ps = product_hunt_status(cfg)
+    if ps == "on" and not offline:
+        try:
+            asyncio.run(_product_hunt_check(cfg))
+            line(
+                "ok",
+                "Product Hunt API",
+                "your token works. Product Hunt's API terms apply to you (no commercial use without their "
+                "permission); the data stays on this computer",
+            )
+        except Exception as exc:
+            ok = False
+            line("fail", "Product Hunt API", f"{str(exc).rstrip('.')}. Check {cfg.product_hunt.token_env}")
+    elif ps == "on":
+        line("ok", "Product Hunt API", "token is set (not checked offline)")
+    elif ps == "no_keys":
+        line(
+            "warn",
+            "Product Hunt API",
+            f"not set (optional). With {cfg.product_hunt.token_env}, reports add exact Product Hunt launch "
+            "dates and upvotes. See docs/quickstart.md",
+        )
+
     if cfg.discovery.provider not in SUPPORTED_SEARCH_PROVIDERS:
         ok = False
         line("fail", "Discovery provider", f"{cfg.discovery.provider!r} is not supported")
@@ -346,10 +380,30 @@ REDDIT_NOTICE = {
 }
 
 
+PRODUCT_HUNT_NOTICE = "Product Hunt API: on (your own token; Product Hunt's API terms apply to you)"
+
+
+def product_hunt_status(cfg: Config) -> str:
+    from pigtail.research.orchestrator import product_hunt_status as status
+
+    return status(cfg)
+
+
 def reddit_status(cfg: Config) -> str:
     from pigtail.research.orchestrator import reddit_status as status
 
     return status(cfg)
+
+
+async def _product_hunt_check(cfg: Config) -> None:
+    from pigtail.providers.base import Meter
+    from pigtail.providers.community.product_hunt import ProductHuntClient
+
+    client = ProductHuntClient(cfg.secret(cfg.product_hunt.token_env) or "", Meter())
+    try:
+        await client.check()
+    finally:
+        await client.close()
 
 
 async def _reddit_sign_in(cfg: Config) -> None:

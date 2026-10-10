@@ -47,6 +47,7 @@ export default function Legal() {
         <li><b>Hacker News search</b> (Algolia): searches for posts about the target.</li>
         <li><b>Public websites</b>: pages found by search, only where their robots.txt allows it.</li>
         <li><b>Reddit</b> (your own approved keys, optional): searches for posts about the target.</li>
+        <li><b>Product Hunt</b> (your own token, optional): lookups of the product&apos;s launches.</li>
       </ul>
       <p>
         Reports and research data are saved only on your computer, in the output folder. Each service&apos;s
@@ -63,11 +64,12 @@ export default function Legal() {
 
       <h2>Optional data sources</h2>
       <p>
-        Pigtail can read Reddit through its official API, but only with keys you create in your own
-        account, and new access needs Reddit&apos;s approval. When you use such a source, you do so under your
-        own agreement with that platform and must follow its terms, including{" "}
-        <a href="https://redditinc.com/policies/data-api-terms" target="_blank" rel="noreferrer">Reddit&apos;s Data API Terms</a>,
-        which restrict commercial use. The data stays on your computer: Pigtail&apos;s maintainers do not
+        Pigtail can read Reddit and Product Hunt through their official APIs, but only with keys you create
+        in your own accounts, and new Reddit access needs Reddit&apos;s approval. When you use such a source,
+        you do so under your own agreement with that platform and must follow its terms, including{" "}
+        <a href="https://redditinc.com/policies/data-api-terms" target="_blank" rel="noreferrer">Reddit&apos;s Data API Terms</a>{" "}
+        and <a href="https://api.producthunt.com/v2/docs" target="_blank" rel="noreferrer">Product Hunt&apos;s API terms</a>,
+        which both restrict commercial use. The data stays on your computer: Pigtail&apos;s maintainers do not
         receive, store or publish it, and reports on this website never include it. Pigtail never uses
         browser cookies, logged-in sessions or scraping to read Reddit or Product Hunt.
       </p>

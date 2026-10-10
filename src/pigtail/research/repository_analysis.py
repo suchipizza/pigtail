@@ -13,6 +13,7 @@ from datetime import UTC, date, datetime, timedelta
 from pigtail.domain.time import day_range, human_label, instant, iso, parse_dt
 from pigtail.policies.loader import PolicyRegistry
 from pigtail.providers.community.hacker_news import HackerNewsClient, HNStory
+from pigtail.providers.community.product_hunt import ProductHuntLaunch
 from pigtail.providers.community.reddit import RedditPost
 from pigtail.providers.github.client import (
     GitHubClient,
@@ -632,6 +633,58 @@ def reddit_api_event(b: BundleBuilder, p: RedditPost, pol) -> dict:
             [cid],
             b,
             ["reddit"],
+        ),
+    )
+
+
+PRODUCT_HUNT_API_PARSER = "product-hunt-api-v2"  # marks data from the Product Hunt API; the gate refuses it
+
+
+def product_hunt_api_event(b: BundleBuilder, p: ProductHuntLaunch, pol) -> dict:
+    """A Product Hunt launch found through the user's own token. Metadata only: no tagline, no makers."""
+    src = b.add_source(
+        p.url,
+        surface_key="product_hunt",
+        source_type="product_hunt_launch",
+        policy=pol,
+        title=f"{p.name} on Product Hunt",
+        published_at=iso(p.launched_at),
+    )
+    f = b.add_fetch(
+        src,
+        status="success",
+        http_status=200,
+        content_hash=sha256_text(json.dumps([p.id, p.name, iso(p.launched_at), p.votes, p.comments])),
+        parser_version=PRODUCT_HUNT_API_PARSER,
+    )
+    featured = "" if p.featured else " It was not featured on the home page."
+    cid = b.add_claim(
+        f"“{p.name}” launched on Product Hunt on {p.launched_at:%B %d, %Y}; it had {p.votes} upvotes and "
+        f"{p.comments} comments when Pigtail checked.{featured}",
+        kind="product_hunt_launch",
+        time=instant(p.launched_at, "day"),
+        evidence=[
+            EvidenceSpec(
+                src["id"],
+                f["id"],
+                "third_party_measured",
+                "community_report",
+                "json_path",
+                f"post/{p.id}",
+            )
+        ],
+        certainty={"own_site": 1.0, "web_search": 0.9}.get(p.found_by, 0.8),
+    )
+    return b.add(
+        "events",
+        _event(
+            "product_hunt_launch",
+            f"{p.name} launched on Product Hunt",
+            f"Product Hunt launch: {p.votes} upvotes, {p.comments} comments.{featured}",
+            instant(p.launched_at, "day"),
+            [cid],
+            b,
+            ["product_hunt"],
         ),
     )
 
