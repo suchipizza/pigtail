@@ -604,11 +604,13 @@ async def _reddit(b: BundleBuilder, target: ResolvedTarget, cfg: Config, meter: 
         host = (d or "").replace("https://", "").replace("http://", "").split("/")[0].removeprefix("www.")
         if host and "github" not in host and host not in terms:
             terms.append(host)
+    # Project names find the same makers' other posts (e.g. a milestone post that says "/brag" only).
+    names = [n for n in [target.name, target.repo.name if target.repo else None] if n]
     client = RedditClient(
         cfg.secret(cfg.reddit.client_id_env) or "", cfg.secret(cfg.reddit.client_secret_env) or "", meter
     )
     try:
-        posts = await client.posts_for(terms, min_score=cfg.reddit.min_score, limit=cfg.reddit.max_posts)
+        posts = await client.posts_for(terms, names=names, min_score=cfg.reddit.min_score, limit=cfg.reddit.max_posts)
     except RedditAuthError as exc:
         b.gap(
             "source_inaccessible",

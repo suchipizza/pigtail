@@ -1,13 +1,15 @@
 """Reddit posts via Reddit's official Data API, with the user's own app keys (policy: source-policies/reddit.yaml).
 
 Optional: used only when REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET are set. Pigtail signs in with
-application-only OAuth (client credentials), searches for posts that link or mention the project, and
-keeps only metadata: title, link, subreddit, date, upvotes and comment count. Post text is read only to
-check that the post really mentions the project; it is never stored. Removed and deleted posts are skipped.
+application-only OAuth (client credentials), searches for posts that link or mention the project (plus
+the same authors' other posts that name it), and keeps only metadata: title, link, subreddit, date,
+upvotes and comment count. Post text and authors are read only to check that the post is about the
+project; they are never stored. Removed and deleted posts are skipped.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -37,7 +39,7 @@ class RedditPost:
     created_utc: float
     score: int
     num_comments: int
-    matched_by: str  # link | title | text
+    matched_by: str  # link | title | text | author (names the project; same author as a linked post)
 
     @property
     def url(self) -> str:
@@ -75,12 +77,12 @@ class RedditClient:
         r.raise_for_status()
         self._token = r.json()["access_token"]
 
-    async def _search(self, q: str) -> list[dict]:
+    async def _listing(self, path: str, params: dict) -> list[dict]:
         self.meter.http_requests += 1
         try:
             r = await self.http.get(
-                f"{API}/search",
-                params={"q": q, "sort": "relevance", "t": "all", "type": "link", "limit": 100, "raw_json": 1},
+                f"{API}{path}",
+                params=params | {"limit": 100, "raw_json": 1},
                 headers={"Authorization": f"bearer {self._token}"},
             )
             r.raise_for_status()
@@ -89,45 +91,90 @@ class RedditClient:
             self.errors.append(type(exc).__name__)
             return []
 
-    async def posts_for(self, terms: list[str], *, min_score: int = 3, limit: int = 15) -> list[RedditPost]:
-        """Posts whose link, title or text contains one of `terms` (a repository path or a domain).
+    async def _search(self, q: str) -> list[dict]:
+        return await self._listing("/search", {"q": q, "sort": "relevance", "t": "all", "type": "link"})
 
-        Reddit's search is fuzzy, so every result is checked locally: a post is kept only if a term
-        literally appears in it. Removed, deleted and NSFW posts are skipped.
+    async def _submitted(self, author: str) -> list[dict]:
+        return await self._listing(f"/user/{author}/submitted", {"sort": "new", "t": "all"})
+
+    async def posts_for(
+        self,
+        terms: list[str],
+        *,
+        names: list[str] | None = None,
+        min_score: int = 1,
+        limit: int = 30,
+        max_authors: int = 5,
+    ) -> list[RedditPost]:
+        """Posts about the project: a post is kept if one of `terms` (a repository path or a domain)
+        literally appears in its link, title or text, or if it names the project (one of `names`, as a
+        word) and was posted by someone who also posted a post kept on `terms`.
+
+        Reddit's search is fuzzy, so every result is checked locally. The second rule finds the same
+        maker's other posts (a milestone post that says "/brag" but not the repository path); authors are
+        used only during the search and never stored. Removed, deleted and NSFW posts are skipped.
         """
         if self._token is None:
             await self.sign_in()
+        lowered = [t.lower() for t in terms]
+        name_res = [
+            re.compile(rf"(?<![\w.-]){re.escape(n.lower())}(?![\w-])")
+            for n in dict.fromkeys(names or [])
+            if len(n) >= 3
+        ]
         found: dict[str, RedditPost] = {}
+        authors: dict[str, int] = {}  # author -> number of posts kept on `terms`
+        maybe: list[dict] = []  # posts that name the project; kept only if their author is known
+
+        def consider(d: dict) -> None:
+            pid = d.get("id")
+            if not pid or pid in found or not d.get("title") or not d.get("created_utc"):
+                return
+            author = d.get("author") or ""
+            if d.get("removed_by_category") or author in ("", "[deleted]", "AutoModerator") or d.get("over_18"):
+                return
+            text = d.get("selftext") or ""
+            if text in ("[removed]", "[deleted]") or int(d.get("score") or 0) < min_score:
+                return
+            link, title, body = (d.get("url") or "").lower(), d["title"].lower(), text.lower()
+            if any(t in link for t in lowered):
+                how = "link"
+            elif any(t in title for t in lowered):
+                how = "title"
+            elif any(t in body for t in lowered):
+                how = "text"
+            elif any(r.search(title) or r.search(body) for r in name_res):
+                maybe.append(d)
+                return
+            else:
+                return  # Reddit matched something else; not about this project
+            authors[author] = authors.get(author, 0) + 1
+            found[pid] = _post(d, how)
+
         for term in terms:
-            t = term.lower()
             for q in (f'"{term}"', f"url:{term}"):
                 for d in await self._search(q):
-                    pid = d.get("id")
-                    if not pid or pid in found or not d.get("title") or not d.get("created_utc"):
-                        continue
-                    if d.get("removed_by_category") or d.get("author") == "[deleted]" or d.get("over_18"):
-                        continue
-                    text = d.get("selftext") or ""
-                    if text in ("[removed]", "[deleted]"):
-                        continue
-                    if t in (d.get("url") or "").lower():
-                        how = "link"
-                    elif t in d["title"].lower():
-                        how = "title"
-                    elif t in text.lower():
-                        how = "text"
-                    else:
-                        continue  # Reddit matched something else; not about this project
-                    if int(d.get("score") or 0) < min_score:
-                        continue
-                    found[pid] = RedditPost(
-                        id=pid,
-                        title=d["title"],
-                        subreddit=d.get("subreddit") or "",
-                        permalink=d.get("permalink") or f"/comments/{pid}/",
-                        created_utc=float(d["created_utc"]),
-                        score=int(d.get("score") or 0),
-                        num_comments=int(d.get("num_comments") or 0),
-                        matched_by=how,
-                    )
+                    consider(d)
+        for name in names or []:
+            for d in await self._search(f'"{name}"'):
+                consider(d)
+        for author in sorted(authors, key=lambda a: -authors[a])[:max_authors] if name_res else []:
+            for d in await self._submitted(author):
+                consider(d)
+        for d in maybe:
+            if d["id"] not in found and d.get("author") in authors:
+                found[d["id"]] = _post(d, "author")
         return sorted(found.values(), key=lambda p: -p.score)[:limit]
+
+
+def _post(d: dict, how: str) -> RedditPost:
+    return RedditPost(
+        id=d["id"],
+        title=d["title"],
+        subreddit=d.get("subreddit") or "",
+        permalink=d.get("permalink") or f"/comments/{d['id']}/",
+        created_utc=float(d["created_utc"]),
+        score=int(d.get("score") or 0),
+        num_comments=int(d.get("num_comments") or 0),
+        matched_by=how,
+    )

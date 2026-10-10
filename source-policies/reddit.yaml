@@ -12,8 +12,9 @@ access:
   authentication: required
   rate_limit_notes: >-
     Optional. With the user's own Reddit app keys, Pigtail signs in with application-only OAuth and
-    makes about four search requests per run (Reddit allows 100 per minute per app), with a
-    descriptive User-Agent. Without keys Pigtail does not call Reddit; Reddit links found by web search
+    makes about 4–10 requests per run (searches, plus the post lists of up to five authors whose
+    posts link the project, to find their other posts that name it; Reddit allows 100 per minute per
+    app), with a descriptive User-Agent. Without keys Pigtail does not call Reddit; Reddit links found by web search
     (rare: Anthropic's web search returns almost no Reddit pages) are recorded as links only.
 
 retention:
@@ -26,7 +27,8 @@ public_display:
   attribution_required: true
   notes: >-
     Kept per post: link, title, subreddit, date, upvotes and comment count. Post text is read only to
-    check that the post mentions the project and is never stored; usernames are not kept. Published
+    check that the post mentions the project and is never stored; usernames are used only during the search (to find the same author's other posts about the project)
+    and are not kept. Published
     reports (Pigtail website) never include Reddit API data: the publication gate blocks it (PUB-019)
     and published runs use --no-reddit.
 

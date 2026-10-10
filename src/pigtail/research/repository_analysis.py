@@ -620,7 +620,7 @@ def reddit_api_event(b: BundleBuilder, p: RedditPost, pol) -> dict:
                 f"t3_{p.id}",
             )
         ],
-        certainty=1.0 if p.matched_by == "link" else 0.9,
+        certainty={"link": 1.0, "author": 0.8}.get(p.matched_by, 0.9),
     )
     return b.add(
         "events",

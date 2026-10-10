@@ -49,8 +49,8 @@ class RedditConfig(_Section):
     enabled: bool = True  # used only when both keys are set; --no-reddit turns it off for one run
     client_id_env: str = "REDDIT_CLIENT_ID"
     client_secret_env: str = "REDDIT_CLIENT_SECRET"
-    min_score: int = Field(default=3, ge=0)
-    max_posts: int = Field(default=15, ge=1, le=100)
+    min_score: int = Field(default=1, ge=0)
+    max_posts: int = Field(default=30, ge=1, le=100)
 
 
 class ResearchConfig(_Section):

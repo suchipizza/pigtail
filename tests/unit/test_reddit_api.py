@@ -48,10 +48,18 @@ SEARCH = [
         selftext="Repo: https://github.com/latent-spaces/brag — feedback welcome",
     ),
     post("b2", "brag: launch videos from the terminal", score=90, url="https://github.com/latent-spaces/brag"),
-    post("c3", "Brag about your wins here", score=900, selftext="weekly thread"),  # does not mention the repo
+    post("c3", "Brag about your wins here", score=900, selftext="weekly thread", author="mod"),  # not the repo
     post("d4", "Removed", selftext="see latent-spaces/brag", removed_by_category="moderator"),
-    post("e5", "Low score latent-spaces/brag", score=1),
+    post("e5", "Low score latent-spaces/brag", score=0),
     post("f6", "nsfw latent-spaces/brag", over_18=True),
+]
+
+
+# The maker's own post list: a milestone post that names the project but not the repository path.
+SUBMITTED = [
+    post("g7", "My side project crossed 7,000 GitHub stars", score=310, selftext="Thanks to all who tried /brag!"),
+    post("h8", "What is the best mechanical keyboard?", score=40, selftext="asking for a friend"),
+    post("i9", "Bragging rights: my first marathon", score=25),  # "brag" only inside a longer word
 ]
 
 
@@ -64,7 +72,8 @@ def fake_reddit(token_status=200):
             if token_status != 200:
                 return httpx.Response(token_status, json={"error": "invalid_grant"})
             return httpx.Response(200, json={"access_token": "tok", "token_type": "bearer", "expires_in": 86400})
-        return httpx.Response(200, json={"kind": "Listing", "data": {"children": SEARCH}})
+        children = SUBMITTED if req.url.path.startswith("/user/") else SEARCH
+        return httpx.Response(200, json={"kind": "Listing", "data": {"children": children}})
 
     return httpx.MockTransport(handler), seen
 
@@ -78,6 +87,17 @@ def test_keeps_only_posts_that_really_mention_the_project():
     search = [r for r in seen if r.url.host == "oauth.reddit.com"]
     assert search and all(r.headers["Authorization"] == "bearer tok" for r in search)
     assert all(r.headers["User-Agent"] == USER_AGENT for r in seen)
+
+
+def test_finds_the_same_makers_other_posts_that_name_the_project():
+    transport, seen = fake_reddit()
+    client = RedditClient("id", "secret", Meter(), transport=transport)
+    posts = asyncio.run(client.posts_for(["latent-spaces/brag"], names=["brag"]))
+    assert [(p.id, p.matched_by) for p in posts] == [("a1", "text"), ("g7", "author"), ("b2", "link")]
+    paths = [r.url.path for r in seen if r.url.host == "oauth.reddit.com"]
+    assert paths.count("/user/maker/submitted") == 1 and not any("/user/mod/" in p for p in paths)
+    assert any(r.url.params.get("q") == '"brag"' for r in seen)
+    assert "c3" not in {p.id for p in posts}  # names the project but posted by someone else
 
 
 def test_wrong_keys_raise_a_clear_error():

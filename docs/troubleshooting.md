@@ -95,8 +95,8 @@ request_timeout_seconds = 30
 enabled = true                      # false = never search Reddit (same as --no-reddit every run)
 client_id_env = "REDDIT_CLIENT_ID"
 client_secret_env = "REDDIT_CLIENT_SECRET"
-min_score = 3                       # skip posts with fewer upvotes
-max_posts = 15
+min_score = 1                       # skip posts with fewer upvotes
+max_posts = 30
 
 [logging]
 level = "INFO"
