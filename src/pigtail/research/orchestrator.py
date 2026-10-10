@@ -521,6 +521,7 @@ async def run_analysis(
             is_repo=bool(st),
             surfaces_seen={s["surface_key"] for s in b.c["sources"]},
             link_only=link_counts,
+            product_hunt_api=product_hunt_status(cfg) == "on",
         )
         thin = gaps.insufficient(b, is_repo=bool(st))
         if thin:

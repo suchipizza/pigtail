@@ -6,7 +6,12 @@ from pigtail.research.builder import BundleBuilder
 
 
 def record_standard_gaps(
-    b: BundleBuilder, *, is_repo: bool, surfaces_seen: set[str], link_only: dict[str, int]
+    b: BundleBuilder,
+    *,
+    is_repo: bool,
+    surfaces_seen: set[str],
+    link_only: dict[str, int],
+    product_hunt_api: bool = False,
 ) -> None:
     kinds = {c["claim_kind"] for c in b.c["claims"]}
     if not b.narrative.get("first_users") and "first_users" not in kinds:
@@ -26,8 +31,11 @@ def record_standard_gaps(
     if not any(e["event_type"] == "product_hunt_launch" for e in b.c["events"]):
         b.gap(
             "surface_not_covered",
-            "No Product Hunt launch was found in permitted sources. Pigtail does not query Product Hunt directly "
-            "(see source policy), so a launch may exist without being shown.",
+            "No Product Hunt launch was found. Product Hunt's API was checked with your token, but it cannot "
+            "search by name, so a launch under a different name may exist without being shown."
+            if product_hunt_api
+            else "No Product Hunt launch was found in permitted sources. Product Hunt's API was not used (it needs "
+            "your own token), so a launch may exist without being shown.",
             surface_key="product_hunt",
         )
     if "reddit" in link_only:
@@ -46,7 +54,8 @@ def record_standard_gaps(
     if "product_hunt" in link_only:
         b.gap(
             "link_only_surface",
-            f"{link_only['product_hunt']} Product Hunt page(s) were found but not read (link-only policy).",
+            f"{link_only['product_hunt']} Product Hunt page(s) were found but not read (link-only policy)"
+            + ("; their addresses were looked up through Product Hunt's API." if product_hunt_api else "."),
             surface_key="product_hunt",
         )
     for o in b.c["outcomes"]:

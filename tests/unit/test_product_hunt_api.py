@@ -182,3 +182,13 @@ def test_publication_gate_blocks_product_hunt_api_data(bundle_dict):
     res = PublicationGate(b, input_hash="sha256:test").run(render=False)
     assert res.status == "BLOCKED"
     assert any(f.rule_id == "PUB-020" for f in res.audit.findings)
+
+
+def test_gap_text_says_whether_the_api_was_used():
+    from pigtail.research.gaps import record_standard_gaps
+
+    for api, words in ((True, "was checked with your token"), (False, "was not used (it needs your own token)")):
+        b = builder()
+        record_standard_gaps(b, is_repo=False, surfaces_seen=set(), link_only={"product_hunt": 2}, product_hunt_api=api)
+        text = " ".join(g["summary"] for g in b.c["gaps"] if g.get("surface_key") == "product_hunt")
+        assert words in text and "does not query Product Hunt directly" not in text
