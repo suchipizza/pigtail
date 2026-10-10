@@ -1,0 +1,13 @@
+{
+  "publication_policy_version": "0.1.0",
+  "sanitizer_version": "0.1.0",
+  "engine_version": "0.1.0",
+  "target_name": "Agent-Reach",
+  "input_bundle_hash": "sha256:3b025a48e0f57dbd94766a2a0bf8b2f41bdc15ab33e3ca7960d62f922eea0dfa",
+  "review_hash": "sha256:4c039b03de64df199e809db2c53035646c668d25d02199688b00ecf563f00dc3",
+  "public_bundle_hash": "sha256:f1d7141f10156ea8761226073da69f86f3b7b597db65585ad97509c396ce822f",
+  "report_hash": "sha256:4c6036f8acde2de3ea83af71034cc2654a1c0d74c28b59baf20ca45fa851e8cf",
+  "status": "PASS",
+  "unresolved_findings": 0,
+  "generated_at": "2026-10-10T15:10:40Z"
+}
