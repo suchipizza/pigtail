@@ -68,6 +68,14 @@ def analyze(
         list[str] | None,
         typer.Option("--source", help="A known source URL to include. Repeatable. Verified like any other source."),
     ] = None,
+    reddit_links: Annotated[
+        Path | None,
+        typer.Option(
+            "--reddit-links",
+            help="A text file of Reddit posts you know about, one per line: link | YYYY-MM-DD | title. "
+            "Pigtail keeps the link, date and title and never reads the post.",
+        ),
+    ] = None,
     config: Annotated[str | None, typer.Option("--config", help="Path to a pigtail.toml config file.")] = None,
     no_open: Annotated[bool, typer.Option("--no-open", help="Do not open the report in a browser when done.")] = False,
     no_reddit: Annotated[
@@ -88,6 +96,7 @@ def analyze(
     ] = False,
 ) -> None:
     """Research a target and write a Research Bundle plus a local HTML report."""
+    from pigtail.research.hand_links import read_reddit_links
     from pigtail.research.orchestrator import run_analysis
 
     load_dotenv()
@@ -108,7 +117,12 @@ def analyze(
             console.print(PRODUCT_HUNT_NOTICE)
         if output:
             cfg.engine.output_root = str(output)
-        result = asyncio.run(run_analysis(target, cfg, extra_sources=source or [], console=console, verbose=verbose))
+        links = read_reddit_links(reddit_links) if reddit_links else []
+        if links:
+            console.print(f"Reddit posts listed by hand: {len(links)}")
+        result = asyncio.run(
+            run_analysis(target, cfg, extra_sources=source or [], console=console, verbose=verbose, reddit_links=links)
+        )
     except PigtailError as err:
         _fail(err)
         return

@@ -31,6 +31,7 @@ from pigtail.renderer.render import ForensicRenderer
 from pigtail.research import conflicts, discovery, feeds, gaps, normalization, reconstruction, synthesis
 from pigtail.research.builder import BundleBuilder, EvidenceSpec, sha256_text
 from pigtail.research.extraction import PageExtraction, VerifiedClaim, extract_claims
+from pigtail.research.hand_links import RedditLink
 from pigtail.research.repository_analysis import (
     RepoState,
     analyze_repository,
@@ -173,7 +174,13 @@ def _claim_time(vc: VerifiedClaim, published: str | None, cutoff: datetime, page
 
 
 async def run_analysis(
-    raw_target: str, cfg: Config, *, extra_sources: list[str], console: Console, verbose: bool = False
+    raw_target: str,
+    cfg: Config,
+    *,
+    extra_sources: list[str],
+    console: Console,
+    verbose: bool = False,
+    reddit_links: list[RedditLink] | None = None,
 ) -> AnalysisResult:
     t_start = time.monotonic()
     started_at = iso(utcnow()) or ""
@@ -244,7 +251,7 @@ async def run_analysis(
             )
 
         # ---------------------------------------------------------------- reddit (optional, user's own keys)
-        await _reddit(b, target, cfg, meter, policies, prog)
+        await _reddit(b, target, cfg, meter, policies, prog, by_hand=len(reddit_links or []))
 
         # ---------------------------------------------------------------- discover
         prog.stage(STAGES[2])
@@ -346,6 +353,16 @@ async def run_analysis(
             when = range_from_page_age(c.page_age, cutoff) if c.surface_key == "reddit" else None
             if when and c.title:
                 reddit_post_event(b, s, f, c.title, when)
+        for rl in reddit_links or []:
+            if b.source_by_url(rl.url):
+                continue  # already found by the Reddit API or web search
+            pol = policies.policy_for(rl.url, "reddit")
+            s = b.add_source(rl.url, surface_key="reddit", source_type="reddit_post", policy=pol, title=rl.title)
+            f = b.add_fetch(s, status="skipped_policy", error_code="link_only_policy", parser_version="none")
+            link_counts["reddit"] = link_counts.get("reddit", 0) + 1
+            when = range_from_page_age(rl.day.isoformat(), cutoff)
+            if when:
+                reddit_post_event(b, s, f, rl.title, when, by_hand=True)
         ok_pages = [(c, p) for c, p in pages if p.status == "success" and p.text]
         prog.info(
             f"{len(ok_pages)}/{len(pages)} pages read"
@@ -593,17 +610,25 @@ def reddit_status(cfg: Config) -> str:
 
 REDDIT_NOT_SEARCHED = (
     "Reddit's API was not used{why}, so Reddit posts appear only when web search found them, which is "
-    "rare. Reddit launches may be missing; growth explanations rely mostly on Hacker News, GitHub and "
+    "rare{hand}. Reddit launches may be missing; growth explanations rely mostly on Hacker News, GitHub and "
     "other public web sources."
 )
 
 
-async def _reddit(b: BundleBuilder, target: ResolvedTarget, cfg: Config, meter: Meter, policies, prog) -> None:
+async def _reddit(
+    b: BundleBuilder, target: ResolvedTarget, cfg: Config, meter: Meter, policies, prog, *, by_hand: int = 0
+) -> None:
     """Search Reddit with the user's own API keys; otherwise record that Reddit data is missing."""
     status = reddit_status(cfg)
     if status != "on":
         why = " (turned off for this run)" if status == "off" else " (no Reddit API keys were set)"
-        b.gap("surface_not_covered", REDDIT_NOT_SEARCHED.format(why=why), severity="material", surface_key="reddit")
+        hand = f", or when they were listed by hand ({by_hand} post{'s' if by_hand != 1 else ''})" if by_hand else ""
+        b.gap(
+            "surface_not_covered",
+            REDDIT_NOT_SEARCHED.format(why=why, hand=hand),
+            severity="material",
+            surface_key="reddit",
+        )
         return
     terms: list[str] = []
     if target.repo:
@@ -622,7 +647,7 @@ async def _reddit(b: BundleBuilder, target: ResolvedTarget, cfg: Config, meter: 
     except RedditAuthError as exc:
         b.gap(
             "source_inaccessible",
-            REDDIT_NOT_SEARCHED.format(why=f" ({exc})"),
+            REDDIT_NOT_SEARCHED.format(why=f" ({exc})", hand=""),
             severity="material",
             surface_key="reddit",
         )

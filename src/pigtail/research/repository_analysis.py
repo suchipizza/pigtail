@@ -689,12 +689,16 @@ def product_hunt_api_event(b: BundleBuilder, p: ProductHuntLaunch, pol) -> dict:
     )
 
 
-def reddit_post_event(b: BundleBuilder, src: dict, fetch: dict, title: str, time: dict) -> dict:
-    """A Reddit post known only from web search (title + page date). Reddit is link-only: nothing is read."""
+def reddit_post_event(
+    b: BundleBuilder, src: dict, fetch: dict, title: str, time: dict, *, by_hand: bool = False
+) -> dict:
+    """A Reddit post known only from web search (title + page date), or listed by hand with
+    --reddit-links. Reddit is link-only: nothing is read."""
     when = time["label"] or f"{parse_dt(time['start']):%B %d, %Y}"
+    origin = "the person who ran Pigtail listed it by hand" if by_hand else "according to web search results"
     cid = b.add_claim(
-        f"A Reddit post titled “{title}” appeared {'on ' if time['precision'] == 'day' else ''}{when}, according to "
-        "web search results. Pigtail did not read the post.",
+        f"A Reddit post titled “{title}” appeared {'on ' if time['precision'] == 'day' else ''}{when}, {origin}. "
+        "Pigtail did not read the post.",
         kind="reddit_post",
         time=time,
         evidence=[
@@ -704,18 +708,19 @@ def reddit_post_event(b: BundleBuilder, src: dict, fetch: dict, title: str, time
                 "third_party_reported",
                 "community_report",
                 "other",
-                "web search result: title and page date",
+                "listed by hand: title and date" if by_hand else "web search result: title and page date",
                 inference_strength="moderate_inference",
             )
         ],
-        certainty=0.6,
+        certainty=0.8 if by_hand else 0.6,
     )
     return b.add(
         "events",
         _event(
             "reddit_post",
             f"On Reddit: {title}",
-            "Found by web search. Pigtail records only the title, link and date of Reddit posts.",
+            ("Listed by hand by the person who ran Pigtail." if by_hand else "Found by web search.")
+            + " Pigtail records only the title, link and date of Reddit posts.",
             time,
             [cid],
             b,

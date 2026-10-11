@@ -39,6 +39,11 @@ material gap). Reports published on
 the Pigtail website never contain Reddit API data: they are produced with `--no-reddit`, and the
 publication gate blocks any Reddit API data (PUB-019).
 
+*2026-10-11.* Reddit posts can also be listed by hand with `--reddit-links FILE` (one post per line:
+link | YYYY-MM-DD | title). Pigtail keeps the link, date and title, marks the post as listed by hand,
+and never opens it. For reports published on the Pigtail website, the maintainer finds these posts by
+browsing Reddit, not by copying Reddit API results.
+
 ## Why Product Hunt and X are link-only
 
 Pigtail never fetches their pages: Product Hunt's site terms forbid crawling and scraping, and X's

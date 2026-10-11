@@ -116,7 +116,22 @@ pigtail doctor                     # the "Reddit API" line should say OK
 > The data stays on your computer; Pigtail's maintainers never receive it.
 
 `pigtail <target> --no-reddit` skips the Reddit API for one run. Reports on the Pigtail website never
-include Reddit API data, only links found by web search.
+include Reddit API data, only links found by web search or listed by hand.
+
+**Reddit posts you already know about** can be added by hand, with or without API keys. Put them in a
+text file, one per line, and pass it with `--reddit-links`:
+
+```text
+# link | date (YYYY-MM-DD) | title
+https://www.reddit.com/r/SideProject/comments/1abc23/my_post/ | 2026-04-06 | My side project crossed 1,000 stars
+```
+
+```bash
+pigtail <target> --reddit-links reddit-posts.txt
+```
+
+Each post goes on the timeline with its title and date, marked as listed by hand. Pigtail never opens
+the post.
 
 ### Product Hunt (optional)
 
@@ -238,6 +253,7 @@ pigtail models                                    # list the models you can choo
 pigtail <target> --output ./reports
 pigtail <target> --no-reddit                      # skip Reddit even if your Reddit keys are set
 pigtail <target> --no-producthunt                 # skip Product Hunt even if your token is set
+pigtail <target> --reddit-links posts.txt         # add Reddit posts you know about (link | date | title)
 pigtail <target> --source https://example.com/launch-post   # add a source you know (checked like any other)
 pigtail render research-bundle.json               # rebuild report.html, no keys or network needed
 pigtail validate research-bundle.json             # check a bundle against the schema and integrity rules

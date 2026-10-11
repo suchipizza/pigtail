@@ -3,6 +3,8 @@
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
 
+import pytest
+
 from pigtail.domain.time import range_from_page_age
 from pigtail.policies.loader import default_registry
 from pigtail.research.builder import BundleBuilder
@@ -77,3 +79,34 @@ def test_reddit_posts_line_up_with_growth_episodes():
     near = events_near(b.c["events"], date(2026, 9, 16), date(2026, 10, 6))
     assert {e["id"] for e in near} == {day["id"], week["id"]}
     assert old not in near
+
+
+def test_reddit_links_file(tmp_path):
+    from pigtail.errors import UsageError
+    from pigtail.research.hand_links import read_reddit_links
+
+    p = tmp_path / "links.txt"
+    p.write_text(
+        "# posts I found by browsing Reddit\n\n"
+        "https://www.reddit.com/r/SideProject/comments/1wp7jgm/my_side_project/ | 2026-04-06 | A title | with a bar\n"
+    )
+    [link] = read_reddit_links(p)
+    assert (link.day, link.title) == (date(2026, 4, 6), "A title | with a bar")
+    for bad in (
+        "https://example.com/r/x/comments/1a/ | 2026-04-06 | t",  # not Reddit
+        "https://www.reddit.com/r/x/ | 2026-04-06 | t",  # a subreddit, not a post
+        "https://www.reddit.com/r/x/comments/1a/ | April 6 | t",  # date format
+        "https://www.reddit.com/r/x/comments/1a/ | 2026-04-06",  # no title
+    ):
+        p.write_text(bad)
+        with pytest.raises(UsageError):
+            read_reddit_links(p)
+
+
+def test_hand_listed_reddit_post_says_so():
+    b, s, f = _builder()
+    when = range_from_page_age("2026-04-06", NOW)
+    assert when is not None
+    ev = reddit_post_event(b, s, f, "Agent-Reach 1.5.0", when, by_hand=True)
+    assert "listed it by hand" in b.c["claims"][-1]["statement"] and "web search" not in b.c["claims"][-1]["statement"]
+    assert ev["summary"].startswith("Listed by hand")

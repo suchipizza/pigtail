@@ -47,4 +47,6 @@ implementation:
     own keys, and never in published reports. Without keys the report records a material gap saying
     Reddit coverage is incomplete. 2026-10-10: new API access needs Reddit's approval (Responsible
     Builder Policy), so web-search links are the default way Reddit appears; never cookies, logged-in
-    sessions or keyless access to reddit.com.
+    sessions or keyless access to reddit.com. 2026-10-11: --reddit-links adds posts listed by hand
+    (link, date, title; the post is never read). For published reports, the links come from browsing
+    Reddit, not from Reddit API results.
