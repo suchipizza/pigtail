@@ -1329,6 +1329,39 @@ class PublicationGate:
                     after=label,
                 )
                 s["title"] = label
+                if personal_post:
+                    n += self._post_title_copies(s, title, label)
+        return n
+
+    def _post_title_copies(self, source: dict, title: str, label: str) -> int:
+        """A Reddit/X post's title is also quoted in its claim and timeline event. The source card gets
+        a neutral label, but the timeline needs the title, so each copy goes to review: keep it, rewrite
+        it without names, or exclude it."""
+        b = self.b
+        claim_ids = {el["claim_id"] for el in b["evidence_links"] if el["source_id"] == source["id"]}
+        # Events first: dropping a claim also drops its events.
+        hits = [("events", e, "title", e["title"]) for e in b["events"] if set(e["claim_ids"]) & claim_ids]
+        hits += [("claims", c, "statement", c["statement"]) for c in b["claims"] if c["id"] in claim_ids]
+        n = 0
+        for coll, o, fld, text in hits:
+            if title not in (text or "") or not self.alive(coll, o["id"]):
+                continue
+            n += 1
+            f = self.add(
+                "PUB-008",
+                "REQUIRE_REVIEW",
+                coll,
+                o["id"],
+                f"This text quotes a {label.lower()} title, which may name a person. Approve it as is, "
+                "supply public_text without names, or exclude it.",
+                fld=fld,
+                before=text,
+                allowed=REVIEW_DECISIONS,
+            )
+            if self.effect(f, coll, o["id"], fld) == "drop":
+                for e in b["events"] if coll == "claims" else []:
+                    if o["id"] in e["claim_ids"]:
+                        self.kill("events", e["id"])
         return n
 
     def _evidence_context(self, coll: str, oid: str) -> str:

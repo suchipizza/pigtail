@@ -882,3 +882,53 @@ def test_setbacks_in_outcomes_and_hired_role_wording(b, blog):
     assert s[c2]["statement"] == "Example is bootstrapped by Ann and Bob Lee."
     assert s[c3]["public_attribution"] == "According to the project"  # fixture target is a repository
     assert any(i.object_ref.id == out["id"] and i.rule_id == "PUB-009" for i in res.review_items)
+
+
+def test_reddit_post_title_quoted_on_the_timeline_goes_to_review(b):
+    title = 'Isra "your agent can search Twitter for free"'
+    sid, fid = add_source(
+        b,
+        "https://www.reddit.com/r/x/comments/1ab/isra/",
+        surface="reddit",
+        stype="reddit_post",
+        key="reddit",
+        mode="link_only",
+        status="skipped_policy",
+        title=title,
+    )
+    day = {"start": "2026-06-16T00:00:00Z", "end": "2026-06-16T23:59:59Z", "precision": "day", "label": None}
+    cid = add_claim(b, f"A Reddit post titled “{title}” appeared on June 16, 2026.", [(sid, fid)], time=day)
+    eid = new_id()
+    b["events"].append(
+        {
+            "id": eid,
+            "event_type": "reddit_post",
+            "title": f"On Reddit: {title}",
+            "summary": "Listed by hand.",
+            "time": day,
+            "surface_ids": [],
+            "claim_ids": [cid],
+            "metric_snapshot_ids": [],
+            "outcome_ids": [],
+            "tactic_occurrence_ids": [],
+            "launch_episode_id": None,
+            "review_state": "machine_extracted",
+            "is_negative_sensitive": False,
+        }
+    )
+    res = gate(b, review_of(gate(b), **{"PUB-001": "mark_manually_verified"}))
+    flagged = {(i.object_ref.type, i.field) for i in res.review_items if i.rule_id == "PUB-008"}
+    assert flagged == {("claim", "statement"), ("event", "title")} and res.status == "NEEDS_REVIEW"
+    assert "Isra" not in public_text(res.public_bundle)  # pending: neither copy is published
+    rewritten = '"your agent can search Twitter for free"'
+    texts = {
+        i.finding_id: (f"On Reddit: {rewritten}" if i.field == "title" else f"A Reddit post titled “{rewritten}”.")
+        for i in res.review_items
+        if i.rule_id == "PUB-008"
+    }
+    review = review_of(
+        res, **{"PUB-001": "mark_manually_verified"}, **{k: ("approve_public_text", v) for k, v in texts.items()}
+    )
+    ok = gate(b, review)
+    assert ok.status == "PASS" and "Isra" not in public_text(ok.public_bundle)
+    assert next(e for e in ok.public_bundle["events"] if e["id"] == eid)["title"] == f"On Reddit: {rewritten}"
