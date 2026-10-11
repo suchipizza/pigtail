@@ -36,12 +36,12 @@ const DEMO = {
     ["2023-12-01", 7700], ["2024-05-01", 8100], ["2024-07-08", 8200], ["2024-07-15", 10600],
     ["2024-08-01", 10900], ["2025-03-01", 11600], ["2025-09-30", 12400],
   ].map(([t, v]) => ({ t: t as string, v: v as number })),
-  // Each marker sits on top of its burst. Labels: right/left of the dot, above/below it (`phone`
+  // Each marker sits at the start of its burst (the post came first, the stars followed). Labels: right/left of the dot, above/below it (`phone`
   // overrides the placement on narrow screens, where labels show their title only).
   markers: [
-    { cls: "a", at: "2022-04-19", title: "Product Hunt launch", note: "+3.5K stars in a week", h: "right", v: "below" },
-    { cls: "b", at: "2023-04-27", title: "Reddit post", note: "+1.1K stars in a week", h: "right", v: "below" },
-    { cls: "c", at: "2024-07-15", title: "HN post", note: "+2.4K stars in a week", h: "left", v: "above", phone: "right-below" },
+    { cls: "a", at: "2022-04-12", title: "Product Hunt launch", note: "+3.5K stars in a week", h: "left", v: "above", phone: "right-above" },
+    { cls: "b", at: "2023-04-20", title: "Reddit post", note: "+1.1K stars in a week", h: "right", v: "below", phone: "left-above" },
+    { cls: "c", at: "2024-07-08", title: "HN post", note: "+2.4K stars in a week", h: "left", v: "above", phone: "right-below" },
   ] as const,
   years: [2022, 2023, 2024, 2025],
 };

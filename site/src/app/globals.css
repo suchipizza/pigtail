@@ -483,6 +483,8 @@ footer{border-top:1.5px solid var(--line);padding:30px 0 46px;color:var(--muted)
   .chart{height:300px}
   .chart-label small{display:none}
   .chart-label.m-right-below{left:calc(var(--fx) + 8px);right:auto;top:calc(var(--fy) + 14px);bottom:auto}
+  .chart-label.m-left-above{right:calc(100% - var(--fx) + 8px);left:auto;bottom:calc(100% - var(--fy) + 14px);top:auto}
+  .chart-label.m-right-above{left:calc(var(--fx) + 8px);right:auto;bottom:calc(100% - var(--fy) + 14px);top:auto}
 }
 
 /* Legal & privacy page */
