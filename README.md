@@ -36,14 +36,15 @@ the same time and links you to the evidence. If it cannot find a defensible expl
 > **No high-confidence public event found.**
 
 Every fact in the report can be checked. Click it to see the source, the date it covers, what kind
-of evidence it is and when Pigtail read it:
+of evidence it is and when Pigtail read it.
 
-<p align="center"><img src="docs/assets/evidence-drawer.png" alt="The evidence behind one claim in a Pigtail report" width="480"></p>
+**See finished reports without installing anything:**
 
-**See finished reports without installing anything:** [Hatchet](https://suchipizza.github.io/pigtail/examples/hatchet/),
-[PocketBase](https://suchipizza.github.io/pigtail/examples/pocketbase/),
-[Plausible](https://suchipizza.github.io/pigtail/examples/plausible/) and
-[more examples](#example-reports).
+- [Hatchet](https://suchipizza.github.io/pigtail/examples/hatchet/): open-source task queue, launched on Hacker News four times
+- [PocketBase](https://suchipizza.github.io/pigtail/examples/pocketbase/): one-developer backend that grew in bursts
+- [Plausible Analytics](https://suchipizza.github.io/pigtail/examples/plausible/): open-source analytics grown by blog posts that reached Hacker News
+- [Agent-Reach](https://suchipizza.github.io/pigtail/examples/agent-reach/): about 95,000 stars in under eight months, with the Reddit posts on its timeline
+- [More examples](#example-reports), including Tally and Superhuman
 
 ## See it in 20 seconds
 
